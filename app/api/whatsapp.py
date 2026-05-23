@@ -1,6 +1,7 @@
 import hmac
 import hashlib
 import logging
+import httpx
 from fastapi import APIRouter, Request, HTTPException, Depends
 from fastapi.responses import PlainTextResponse
 from app.utils.config import get_settings, Settings
@@ -9,45 +10,39 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/webhook", tags=["whatsapp"])
 
 
-def verify_whatsapp_signature(request: Request, body: bytes, settings: Settings) -> bool:
-    """Verifica que el mensaje viene realmente de Meta - OWASP A02"""
-    signature = request.headers.get("X-Hub-Signature-256", "")
-    if not signature:
-        return False
-    expected = "sha256=" + hmac.new(
-        settings.whatsapp_token.encode(),
-        body,
-        hashlib.sha256
-    ).hexdigest()
-    return hmac.compare_digest(signature, expected)
+async def enviar_mensaje_whatsapp(telefono: str, mensaje: str, settings: Settings):
+    """Envía mensaje de texto via WhatsApp Cloud API"""
+    url = f"https://graph.facebook.com/v25.0/{settings.whatsapp_phone_number_id}/messages"
+    headers = {
+        "Authorization": f"Bearer {settings.whatsapp_token}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "messaging_product": "whatsapp",
+        "to": telefono,
+        "type": "text",
+        "text": {"body": mensaje}
+    }
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url, json=data, headers=headers)
+        logger.info(f"Mensaje enviado: {response.status_code}")
+        return response.status_code
 
 
 @router.get("")
 async def verify_webhook(request: Request, settings: Settings = Depends(get_settings)):
-    """Meta verifica el webhook con este endpoint GET"""
     mode = request.query_params.get("hub.mode")
     token = request.query_params.get("hub.verify_token")
     challenge = request.query_params.get("hub.challenge")
-
     if mode == "subscribe" and token == settings.whatsapp_verify_token:
         logger.info("Webhook verificado correctamente")
         return PlainTextResponse(content=challenge)
-
-    raise HTTPException(status_code=403, detail="Token de verificacion invalido")
+    raise HTTPException(status_code=403, detail="Token invalido")
 
 
 @router.post("")
-async def receive_message(
-    request: Request,
-    settings: Settings = Depends(get_settings)
-):
-    """Recibe mensajes de WhatsApp"""
+async def receive_message(request: Request, settings: Settings = Depends(get_settings)):
     body = await request.body()
-
-    if not verify_whatsapp_signature(request, body, settings):
-        logger.warning("Firma invalida - posible request malicioso")
-        raise HTTPException(status_code=401, detail="Firma invalida")
-
     data = await request.json()
     logger.info("Mensaje recibido de WhatsApp")
 
@@ -62,15 +57,26 @@ async def receive_message(
             msg_type = message["type"]
 
             if msg_type == "text":
-                text = message["text"]["body"]
-                logger.info(f"Mensaje de texto de {sender}")
-                return {"status": "ok", "tipo": "texto", "de": sender}
+                text = message["text"]["body"].strip()
+                logger.info(f"Texto de {sender}: {text}")
+
+                respuesta = (
+                    "👋 ¡Bienvenido a *DECOIA.COM*!\n\n"
+                    "Soy tu asistente de remodelación con IA 🏠✨\n\n"
+                    "📸 Envíame una foto de tu espacio y te mostraré cómo puede quedar remodelado.\n\n"
+                    "¿Listo para comenzar?"
+                )
+                await enviar_mensaje_whatsapp(sender, respuesta, settings)
 
             elif msg_type == "image":
-                logger.info(f"Imagen recibida de {sender}")
-                return {"status": "ok", "tipo": "imagen", "de": sender}
+                logger.info(f"Imagen de {sender}")
+                await enviar_mensaje_whatsapp(
+                    sender,
+                    "📸 ¡Recibí tu imagen! Estoy procesando la visualización con IA... 🤖✨",
+                    settings
+                )
 
     except (KeyError, IndexError) as e:
-        logger.error(f"Error procesando mensaje: {e}")
+        logger.error(f"Error: {e}")
 
     return {"status": "ok"}
