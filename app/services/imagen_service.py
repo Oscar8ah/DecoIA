@@ -35,7 +35,7 @@ async def descargar_imagen_whatsapp(image_id: str, token: str) -> bytes:
 async def generar_imagen_remodelada(imagen_bytes: bytes, estilo: str = "moderno") -> str:
     """
     1. Usa GPT-4o Vision para describir el espacio
-    2. Usa DALL-E 3 para generar la version remodelada
+    2. Usa DALL-E 2 para generar la version remodelada
     """
     settings = get_settings()
     client = OpenAI(api_key=settings.openai_api_key)
@@ -62,46 +62,46 @@ async def generar_imagen_remodelada(imagen_bytes: bytes, estilo: str = "moderno"
                         {
                             "type": "text",
                             "text": (
-                                "Describe este espacio en detalle para un prompt de diseño de interiores: "
-                                "tipo de habitación, dimensiones aproximadas, distribución, "
-                                "elementos presentes, iluminación y materiales actuales. "
-                                "Responde solo con la descripción, sin comentarios adicionales."
+                                "Describe este espacio para diseño de interiores: "
+                                "tipo de habitacion, elementos presentes, "
+                                "iluminacion y materiales. "
+                                "Responde solo con la descripcion en ingles, "
+                                "maximo 100 palabras."
                             )
                         }
                     ]
                 }
             ],
-            max_tokens=300
+            max_tokens=150
         )
 
         descripcion = vision_response.choices[0].message.content
-        logger.info(f"Descripción del espacio: {descripcion[:100]}...")
+        logger.info(f"Descripcion del espacio: {descripcion[:100]}...")
 
     except Exception as e:
         logger.error(f"Error en GPT-4o Vision: {e}")
-        descripcion = "habitación residencial con paredes y piso"
+        descripcion = "residential room with walls and floor"
 
     prompt_dalle = (
-        f"Fotografía arquitectónica profesional de diseño de interiores estilo {estilo}. "
-        f"Espacio: {descripcion}. "
-        f"Aplicar: pisos nuevos de alta gama, paredes renovadas, iluminación moderna LED, "
-        f"acabados premium, muebles contemporáneos. "
-        f"Fotorrealista, luz natural cálida, calidad revista de arquitectura. "
-        f"Sin personas, vista frontal clara."
+        f"Professional interior design photo, {estilo} style. "
+        f"Space: {descripcion}. "
+        f"New premium flooring, renovated walls, modern LED lighting, "
+        f"premium finishes, contemporary furniture. "
+        f"Photorealistic, warm natural light, architecture magazine quality. "
+        f"No people, clear frontal view."
     )
 
     try:
         dalle_response = client.images.generate(
-            model="dall-e-3",
+            model="dall-e-2",
             prompt=prompt_dalle[:1000],
             size="1024x1024",
-            quality="standard",
             n=1
         )
         url_generada = dalle_response.data[0].url
-        logger.info("Imagen generada exitosamente con DALL-E 3")
+        logger.info("Imagen generada exitosamente con DALL-E 2")
         return url_generada
 
     except Exception as e:
-        logger.error(f"Error en DALL-E 3: {type(e).__name__} - {e}")
+        logger.error(f"Error en DALL-E 2: {type(e).__name__} - {e}")
         raise RuntimeError("Error al generar la visualizacion")
