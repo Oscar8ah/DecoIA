@@ -1,4 +1,5 @@
 import logging
+import base64
 import httpx
 from openai import OpenAI
 from app.utils.config import get_settings
@@ -7,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 async def descargar_imagen_whatsapp(image_id: str, token: str) -> bytes:
-    """Descarga imagen desde WhatsApp Cloud API - OWASP: validacion de origen"""
+    """Descarga imagen desde WhatsApp Cloud API"""
     if not image_id or not token:
         raise ValueError("image_id y token son requeridos")
 
@@ -33,8 +34,8 @@ async def descargar_imagen_whatsapp(image_id: str, token: str) -> bytes:
 
 async def generar_imagen_remodelada(imagen_bytes: bytes, estilo: str = "moderno") -> str:
     """
-    Genera visualizacion de remodelacion usando OpenAI
-    Retorna URL de imagen generada
+    1. Usa GPT-4o Vision para describir el espacio
+    2. Usa DALL-E 3 para generar la version remodelada
     """
     settings = get_settings()
     client = OpenAI(api_key=settings.openai_api_key)
@@ -43,25 +44,64 @@ async def generar_imagen_remodelada(imagen_bytes: bytes, estilo: str = "moderno"
     if estilo not in estilos_permitidos:
         estilo = "moderno"
 
-    prompt = f"""
-    Renderiza este espacio con un diseño de interiores {estilo} de alta calidad.
-    Mantén la misma perspectiva y estructura de la habitación.
-    Aplica pisos nuevos, paredes limpias, iluminación moderna y acabados premium.
-    Estilo fotorrealista, luz natural, calidad arquitectónica profesional.
-    """
+    imagen_base64 = base64.b64encode(imagen_bytes).decode("utf-8")
 
     try:
-        response = client.images.generate(
+        vision_response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{imagen_base64}"
+                            }
+                        },
+                        {
+                            "type": "text",
+                            "text": (
+                                "Describe este espacio en detalle para un prompt de diseño de interiores: "
+                                "tipo de habitación, dimensiones aproximadas, distribución, "
+                                "elementos presentes, iluminación y materiales actuales. "
+                                "Responde solo con la descripción, sin comentarios adicionales."
+                            )
+                        }
+                    ]
+                }
+            ],
+            max_tokens=300
+        )
+
+        descripcion = vision_response.choices[0].message.content
+        logger.info(f"Descripción del espacio: {descripcion[:100]}...")
+
+    except Exception as e:
+        logger.error(f"Error en GPT-4o Vision: {e}")
+        descripcion = "habitación residencial con paredes y piso"
+
+    prompt_dalle = (
+        f"Fotografía arquitectónica profesional de diseño de interiores estilo {estilo}. "
+        f"Espacio: {descripcion}. "
+        f"Aplicar: pisos nuevos de alta gama, paredes renovadas, iluminación moderna LED, "
+        f"acabados premium, muebles contemporáneos. "
+        f"Fotorrealista, luz natural cálida, calidad revista de arquitectura. "
+        f"Sin personas, vista frontal clara."
+    )
+
+    try:
+        dalle_response = client.images.generate(
             model="dall-e-3",
-            prompt=prompt.strip(),
+            prompt=prompt_dalle[:1000],
             size="1024x1024",
             quality="standard",
             n=1
         )
-        url_generada = response.data[0].url
-        logger.info("Imagen generada exitosamente con DALL-E")
+        url_generada = dalle_response.data[0].url
+        logger.info("Imagen generada exitosamente con DALL-E 3")
         return url_generada
 
     except Exception as e:
-        logger.error(f"Error generando imagen: {type(e).__name__}")
+        logger.error(f"Error en DALL-E 3: {type(e).__name__} - {e}")
         raise RuntimeError("Error al generar la visualizacion")
