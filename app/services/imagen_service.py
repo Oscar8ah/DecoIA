@@ -45,6 +45,7 @@ async def generar_imagen_remodelada(imagen_bytes: bytes, estilo: str = "moderno"
     }
 
     async with httpx.AsyncClient(timeout=60.0) as client:
+
         vision_payload = {
             "model": "gpt-4o",
             "messages": [
@@ -88,6 +89,7 @@ async def generar_imagen_remodelada(imagen_bytes: bytes, estilo: str = "moderno"
         )
 
         dalle_payload = {
+            "model": "dall-e-2",
             "prompt": prompt[:1000],
             "n": 1,
             "size": "512x512"
@@ -100,7 +102,7 @@ async def generar_imagen_remodelada(imagen_bytes: bytes, estilo: str = "moderno"
         )
 
         logger.info(f"DALL-E status: {dalle_response.status_code}")
-        logger.info(f"DALL-E response: {dalle_response.text[:200]}")
+        logger.info(f"DALL-E response: {dalle_response.text[:300]}")
 
         if dalle_response.status_code == 200:
             url_generada = dalle_response.json()["data"][0]["url"]
