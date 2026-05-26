@@ -79,24 +79,23 @@ async def describir_imagen_con_gpt(imagen_bytes: bytes, api_key: str) -> str:
 
 
 async def generar_imagen_stability(prompt: str, api_key: str) -> bytes:
-    """Genera imagen con Stability AI"""
+    """Genera imagen con Stability AI usando multipart/form-data"""
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Accept": "image/*"
-    }
-
-    data = {
-        "prompt": prompt,
-        "output_format": "jpeg",
-        "width": 1024,
-        "height": 1024,
     }
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.post(
             "https://api.stability.ai/v2beta/stable-image/generate/core",
             headers=headers,
-            data=data
+            files={"none": ("", "", "application/octet-stream")},
+            data={
+                "prompt": prompt,
+                "output_format": "jpeg",
+                "width": "1024",
+                "height": "1024",
+            }
         )
 
         logger.info(f"Stability AI status: {response.status_code}")
@@ -116,13 +115,14 @@ async def subir_imagen_a_imgbb(imagen_bytes: bytes) -> str:
         response = await client.post(
             "https://api.imgbb.com/1/upload",
             data={
-                "key": "0e3e4e4e4e4e4e4e4e4e4e4e4e4e4e4e",
+                "key": "138037e956b55e7617e86cae8337bfe9",
                 "image": imagen_base64
             }
         )
         if response.status_code == 200:
             return response.json()["data"]["url"]
         else:
+            logger.error(f"imgbb error: {response.text[:200]}")
             raise RuntimeError("Error subiendo imagen a imgbb")
 
 
@@ -131,7 +131,8 @@ async def generar_imagen_remodelada(imagen_bytes: bytes, estilo: str = "moderno"
     Pipeline completo:
     1. GPT-4o describe el espacio
     2. Stability AI genera la remodelacion
-    3. Retorna URL publica de la imagen
+    3. imgbb aloja la imagen
+    4. Retorna URL publica
     """
     settings = get_settings()
 
