@@ -9,6 +9,7 @@ class Settings(BaseSettings):
 
     openai_api_key: str
     stability_api_key: str
+    imgbb_api_key: str
 
     whatsapp_token: str
     whatsapp_phone_number_id: str

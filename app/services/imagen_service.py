@@ -52,15 +52,15 @@ async def describir_imagen_con_gpt(imagen_bytes: bytes, api_key: str) -> str:
                     {
                         "type": "text",
                         "text": (
-                            "Describe this interior space in english, max 60 words: "
-                            "room type, floor material, wall color, furniture, lighting. "
-                            "Focus on architectural details."
+                            "Describe this interior space in english, max 50 words: "
+                            "room type, floor material, wall color, furniture style, lighting. "
+                            "Be specific and concise."
                         )
                     }
                 ]
             }
         ],
-        "max_tokens": 100
+        "max_tokens": 80
     }
 
     async with httpx.AsyncClient(timeout=30.0) as client:
@@ -75,39 +75,43 @@ async def describir_imagen_con_gpt(imagen_bytes: bytes, api_key: str) -> str:
             return descripcion
         else:
             logger.error(f"Error GPT-4o: {response.status_code}")
-            return "modern residential room with concrete walls and tile floor"
+            return "residential room"
 
 
-async def generar_imagen_stability(prompt: str, api_key: str) -> bytes:
-    """Genera imagen con Stability AI usando multipart/form-data"""
+async def transformar_imagen_stability(imagen_bytes: bytes, prompt: str, api_key: str) -> bytes:
+    """
+    Usa Stability AI img2img para transformar la imagen original
+    manteniendo la estructura y cambiando materiales y acabados
+    """
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Accept": "image/*"
     }
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=90.0) as client:
         response = await client.post(
-            "https://api.stability.ai/v2beta/stable-image/generate/core",
+            "https://api.stability.ai/v2beta/stable-image/control/structure",
             headers=headers,
-            files={"none": ("", "", "application/octet-stream")},
+            files={
+                "image": ("room.jpg", imagen_bytes, "image/jpeg"),
+            },
             data={
                 "prompt": prompt,
+                "control_strength": "0.7",
                 "output_format": "jpeg",
-                "width": "1024",
-                "height": "1024",
             }
         )
 
-        logger.info(f"Stability AI status: {response.status_code}")
+        logger.info(f"Stability img2img status: {response.status_code}")
 
         if response.status_code == 200:
             return response.content
         else:
-            logger.error(f"Stability error: {response.text[:200]}")
+            logger.error(f"Stability error: {response.text[:300]}")
             raise RuntimeError(f"Stability AI error: {response.status_code}")
 
 
-async def subir_imagen_a_imgbb(imagen_bytes: bytes) -> str:
+async def subir_imagen_a_imgbb(imagen_bytes: bytes, imgbb_key: str) -> str:
     """Sube imagen a imgbb para obtener URL publica"""
     imagen_base64 = base64.b64encode(imagen_bytes).decode("utf-8")
 
@@ -115,7 +119,7 @@ async def subir_imagen_a_imgbb(imagen_bytes: bytes) -> str:
         response = await client.post(
             "https://api.imgbb.com/1/upload",
             data={
-                "key": "138037e956b55e7617e86cae8337bfe9",
+                "key": imgbb_key,
                 "image": imagen_base64
             }
         )
@@ -128,9 +132,9 @@ async def subir_imagen_a_imgbb(imagen_bytes: bytes) -> str:
 
 async def generar_imagen_remodelada(imagen_bytes: bytes, estilo: str = "moderno") -> str:
     """
-    Pipeline completo:
-    1. GPT-4o describe el espacio
-    2. Stability AI genera la remodelacion
+    Pipeline img2img:
+    1. GPT-4o describe el espacio original
+    2. Stability AI transforma la imagen manteniendo estructura
     3. imgbb aloja la imagen
     4. Retorna URL publica
     """
@@ -148,17 +152,21 @@ async def generar_imagen_remodelada(imagen_bytes: bytes, estilo: str = "moderno"
     descripcion = await describir_imagen_con_gpt(imagen_bytes, settings.openai_api_key)
 
     prompt = (
-        f"Professional interior design photograph, {estilo_en} style renovation. "
-        f"Original space: {descripcion}. "
-        f"Transform with: luxury hardwood flooring, freshly painted walls, "
-        f"recessed LED lighting, contemporary furniture, premium finishes. "
-        f"Photorealistic, 8K quality, architectural magazine style, "
-        f"warm natural light, no people."
+        f"Interior design renovation, {estilo_en} style. "
+        f"Same room structure and perspective. "
+        f"Replace flooring with luxury hardwood, "
+        f"repaint walls with modern colors, "
+        f"add recessed LED lighting, premium finishes. "
+        f"Keep exact same camera angle and room layout. "
+        f"Photorealistic, no people, 8K quality."
     )
 
-    logger.info(f"Prompt Stability: {prompt[:100]}")
+    logger.info(f"Transformando imagen con prompt: {prompt[:100]}")
 
-    imagen_generada = await generar_imagen_stability(prompt, settings.stability_api_key)
-    url_imagen = await subir_imagen_a_imgbb(imagen_generada)
+    imagen_transformada = await transformar_imagen_stability(
+        imagen_bytes, prompt, settings.stability_api_key
+    )
+
+    url_imagen = await subir_imagen_a_imgbb(imagen_transformada, settings.imgbb_api_key)
 
     return url_imagen
