@@ -44,45 +44,53 @@ async def subir_imagen_a_imgbb(imagen_bytes: bytes, imgbb_key: str) -> str:
         raise RuntimeError("Error subiendo a imgbb")
 
 
-def crear_mascara_piso_paredes(imagen_bytes: bytes) -> bytes:
-    """
-    Crea una máscara PNG con canal alpha:
-    - Transparente (alpha=0)  → zona EDITABLE (piso inferior + paredes laterales)
-    - Opaco (alpha=255)       → zona PROTEGIDA (centro donde están los muebles)
-    
-    Lógica simple pero efectiva:
-    - 35% inferior = piso       → editable
-    - 25% franjas laterales     → paredes → editable  
-    - Centro = muebles/camas    → protegido
-    """
-    img = Image.open(io.BytesIO(imagen_bytes)).convert("RGBA")
-    ancho, alto = img.size
-
-    # Resize a 1024x1024 que es lo que acepta gpt-image-1
-    img = img.resize((1024, 1024), Image.LANCZOS)
-    ancho, alto = 1024, 1024
-
-    # Máscara: empezamos todo OPACO (protegido)
-    mascara = Image.new("RGBA", (ancho, alto), (0, 0, 0, 255))
-    draw = ImageDraw.Draw(mascara)
-
-    # Zona PISO: 35% inferior → transparente (editable)
-    piso_y = int(alto * 0.65)
-    draw.rectangle([0, piso_y, ancho, alto], fill=(0, 0, 0, 0))
-
-    # Zona PARED IZQUIERDA: franja 20% izquierda (del 20% al 65% de altura)
-    draw.rectangle([0, int(alto * 0.20), int(ancho * 0.20), int(alto * 0.65)], fill=(0, 0, 0, 0))
-
-    # Zona PARED DERECHA: franja 20% derecha (del 20% al 65% de altura)
-    draw.rectangle([int(ancho * 0.80), int(alto * 0.20), ancho, int(alto * 0.65)], fill=(0, 0, 0, 0))
-
-    # Zona PARED FONDO: parte superior central (del 0% al 25% de altura)
-    draw.rectangle([int(ancho * 0.10), 0, int(ancho * 0.90), int(alto * 0.25)], fill=(0, 0, 0, 0))
-
-    # Guardar máscara como PNG con alpha
+def buffer_desde_mascara(mascara: Image.Image) -> bytes:
     buffer = io.BytesIO()
     mascara.save(buffer, format="PNG")
     return buffer.getvalue()
+
+
+def crear_mascara_piso_paredes(imagen_bytes: bytes) -> bytes:
+    """
+    Máscara PNG con canal alpha:
+    - Transparente (alpha=0)  → EDITABLE (piso + paredes sin decoración)
+    - Opaco (alpha=255)       → PROTEGIDO (muebles, cuadros, ventanas, objetos)
+
+    Zonas protegidas:
+    - Centro horizontal: muebles y objetos
+    - Franja superior completa: cuadros colgados en paredes
+    """
+    img = Image.open(io.BytesIO(imagen_bytes)).convert("RGBA")
+    img = img.resize((1024, 1024), Image.LANCZOS)
+    ancho, alto = 1024, 1024
+
+    # Empezamos todo OPACO (protegido)
+    mascara = Image.new("RGBA", (ancho, alto), (0, 0, 0, 255))
+    draw = ImageDraw.Draw(mascara)
+
+    # PISO: 38% inferior → editable
+    piso_y = int(alto * 0.62)
+    draw.rectangle([0, piso_y, ancho, alto], fill=(0, 0, 0, 0))
+
+    # PARED IZQUIERDA: franja lateral izquierda (entre cuadros y piso)
+    draw.rectangle(
+        [0, int(alto * 0.45), int(ancho * 0.18), int(alto * 0.62)],
+        fill=(0, 0, 0, 0)
+    )
+
+    # PARED DERECHA: franja lateral derecha (entre cuadros y piso)
+    draw.rectangle(
+        [int(ancho * 0.82), int(alto * 0.45), ancho, int(alto * 0.62)],
+        fill=(0, 0, 0, 0)
+    )
+
+    # PARED FONDO BAJA: zona debajo de cuadros, encima de muebles
+    draw.rectangle(
+        [int(ancho * 0.15), int(alto * 0.40), int(ancho * 0.85), int(alto * 0.55)],
+        fill=(0, 0, 0, 0)
+    )
+
+    return buffer_desde_mascara(mascara)
 
 
 def imagen_a_png_1024(imagen_bytes: bytes) -> bytes:
@@ -113,7 +121,8 @@ async def generar_imagen_remodelada(imagen_bytes: bytes, estilo: str = "moderno"
     prompt = (
         f"Interior design renovation: {estilo_en}. "
         f"Apply new flooring and wall paint ONLY in the transparent mask areas. "
-        f"Keep ALL furniture, windows, doors and objects exactly in their original positions. "
+        f"Keep ALL furniture, windows, doors, picture frames and objects exactly "
+        f"in their original positions. "
         f"Photorealistic lighting. Do not move or add any furniture."
     )
 

@@ -1,12 +1,15 @@
 import logging
 import httpx
-from fastapi import APIRouter, Request, HTTPException, Depends
+from fastapi import APIRouter, Request, HTTPException, Depends, BackgroundTasks
 from fastapi.responses import PlainTextResponse
 from app.utils.config import get_settings, Settings
 from app.services.imagen_service import descargar_imagen_whatsapp, generar_imagen_remodelada
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/webhook", tags=["whatsapp"])
+
+# Set para evitar procesar el mismo mensaje dos veces
+mensajes_procesados = set()
 
 
 async def enviar_mensaje_whatsapp(telefono: str, mensaje: str, settings: Settings):
@@ -27,7 +30,6 @@ async def enviar_mensaje_whatsapp(telefono: str, mensaje: str, settings: Setting
 
 
 async def enviar_imagen_whatsapp(telefono: str, url_imagen: str, caption: str, settings: Settings):
-    """Envía imagen generada por IA al usuario"""
     url = f"https://graph.facebook.com/v25.0/{settings.whatsapp_phone_number_id}/messages"
     headers = {
         "Authorization": f"Bearer {settings.whatsapp_token}",
@@ -47,6 +49,42 @@ async def enviar_imagen_whatsapp(telefono: str, url_imagen: str, caption: str, s
         logger.info(f"Imagen enviada: {response.status_code}")
 
 
+async def procesar_imagen_background(
+    sender: str,
+    image_id: str,
+    settings: Settings
+):
+    """Procesa la imagen en background para no bloquear el webhook"""
+    try:
+        await enviar_mensaje_whatsapp(
+            sender,
+            "📸 ¡Recibí tu foto! Estoy generando la visualización con IA... "
+            "Esto toma unos segundos ⏳🤖",
+            settings
+        )
+
+        imagen_bytes = await descargar_imagen_whatsapp(image_id, settings.whatsapp_token)
+        url_generada = await generar_imagen_remodelada(imagen_bytes, "moderno")
+
+        await enviar_imagen_whatsapp(
+            sender,
+            url_generada,
+            "✨ ¡Así podría quedar tu espacio remodelado! "
+            "Diseño moderno con acabados premium 🏠\n\n"
+            "¿Te gustaría ver otro estilo? Responde con:\n"
+            "• *clasico*\n• *minimalista*\n• *rustico*\n• *industrial*",
+            settings
+        )
+
+    except Exception as e:
+        logger.error(f"Error en background: {type(e).__name__} - {e}")
+        await enviar_mensaje_whatsapp(
+            sender,
+            "😅 Hubo un error procesando tu foto. Por favor intenta de nuevo.",
+            settings
+        )
+
+
 @router.get("")
 async def verify_webhook(request: Request, settings: Settings = Depends(get_settings)):
     mode = request.query_params.get("hub.mode")
@@ -59,7 +97,11 @@ async def verify_webhook(request: Request, settings: Settings = Depends(get_sett
 
 
 @router.post("")
-async def receive_message(request: Request, settings: Settings = Depends(get_settings)):
+async def receive_message(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    settings: Settings = Depends(get_settings)
+):
     data = await request.json()
     logger.info("Mensaje recibido de WhatsApp")
 
@@ -72,6 +114,18 @@ async def receive_message(request: Request, settings: Settings = Depends(get_set
             return {"status": "ok"}
 
         message = value["messages"][0]
+
+        # Evitar procesar el mismo mensaje dos veces
+        message_id = message.get("id", "")
+        if message_id in mensajes_procesados:
+            logger.info(f"Mensaje {message_id} ya procesado, ignorando reintento")
+            return {"status": "ok"}
+        mensajes_procesados.add(message_id)
+
+        # Limpiar set si crece mucho
+        if len(mensajes_procesados) > 1000:
+            mensajes_procesados.clear()
+
         sender = message["from"]
         msg_type = message["type"]
 
@@ -88,38 +142,19 @@ async def receive_message(request: Request, settings: Settings = Depends(get_set
             await enviar_mensaje_whatsapp(sender, respuesta, settings)
 
         elif msg_type == "image":
-            logger.info(f"Imagen recibida de {sender}")
-
-            await enviar_mensaje_whatsapp(
-                sender,
-                "📸 ¡Recibí tu foto! Estoy generando la visualización con IA... "
-                "Esto toma unos segundos ⏳🤖",
-                settings
-            )
-
             image_id = message["image"]["id"]
-            imagen_bytes = await descargar_imagen_whatsapp(
-                image_id, settings.whatsapp_token
-            )
+            logger.info(f"Imagen recibida de {sender}, agregando a background")
 
-            url_generada = await generar_imagen_remodelada(imagen_bytes, "moderno")
-
-            await enviar_imagen_whatsapp(
+            # Responde 200 inmediato a WhatsApp — evita reintentos
+            background_tasks.add_task(
+                procesar_imagen_background,
                 sender,
-                url_generada,
-                "✨ ¡Así podría quedar tu espacio remodelado! "
-                "Diseño moderno con acabados premium 🏠\n\n"
-                "¿Te gustaría ver otro estilo? Responde con:\n"
-                "• *clasico*\n• *minimalista*\n• *rustico*\n• *industrial*",
+                image_id,
                 settings
             )
 
     except Exception as e:
         logger.error(f"Error procesando mensaje: {type(e).__name__} - {e}")
-        await enviar_mensaje_whatsapp(
-            sender,
-            "😅 Hubo un error procesando tu solicitud. Por favor intenta de nuevo.",
-            settings
-        )
 
+    # Siempre retorna 200 inmediato
     return {"status": "ok"}
