@@ -1,6 +1,8 @@
 import logging
 import base64
 import httpx
+import io
+from PIL import Image, ImageDraw
 from app.utils.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -42,56 +44,93 @@ async def subir_imagen_a_imgbb(imagen_bytes: bytes, imgbb_key: str) -> str:
         raise RuntimeError("Error subiendo a imgbb")
 
 
+def crear_mascara_piso_paredes(imagen_bytes: bytes) -> bytes:
+    """
+    Crea una máscara PNG con canal alpha:
+    - Transparente (alpha=0)  → zona EDITABLE (piso inferior + paredes laterales)
+    - Opaco (alpha=255)       → zona PROTEGIDA (centro donde están los muebles)
+    
+    Lógica simple pero efectiva:
+    - 35% inferior = piso       → editable
+    - 25% franjas laterales     → paredes → editable  
+    - Centro = muebles/camas    → protegido
+    """
+    img = Image.open(io.BytesIO(imagen_bytes)).convert("RGBA")
+    ancho, alto = img.size
+
+    # Resize a 1024x1024 que es lo que acepta gpt-image-1
+    img = img.resize((1024, 1024), Image.LANCZOS)
+    ancho, alto = 1024, 1024
+
+    # Máscara: empezamos todo OPACO (protegido)
+    mascara = Image.new("RGBA", (ancho, alto), (0, 0, 0, 255))
+    draw = ImageDraw.Draw(mascara)
+
+    # Zona PISO: 35% inferior → transparente (editable)
+    piso_y = int(alto * 0.65)
+    draw.rectangle([0, piso_y, ancho, alto], fill=(0, 0, 0, 0))
+
+    # Zona PARED IZQUIERDA: franja 20% izquierda (del 20% al 65% de altura)
+    draw.rectangle([0, int(alto * 0.20), int(ancho * 0.20), int(alto * 0.65)], fill=(0, 0, 0, 0))
+
+    # Zona PARED DERECHA: franja 20% derecha (del 20% al 65% de altura)
+    draw.rectangle([int(ancho * 0.80), int(alto * 0.20), ancho, int(alto * 0.65)], fill=(0, 0, 0, 0))
+
+    # Zona PARED FONDO: parte superior central (del 0% al 25% de altura)
+    draw.rectangle([int(ancho * 0.10), 0, int(ancho * 0.90), int(alto * 0.25)], fill=(0, 0, 0, 0))
+
+    # Guardar máscara como PNG con alpha
+    buffer = io.BytesIO()
+    mascara.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def imagen_a_png_1024(imagen_bytes: bytes) -> bytes:
+    """Convierte imagen a PNG 1024x1024 que requiere gpt-image-1"""
+    img = Image.open(io.BytesIO(imagen_bytes)).convert("RGBA")
+    img = img.resize((1024, 1024), Image.LANCZOS)
+    buffer = io.BytesIO()
+    img.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
 async def generar_imagen_remodelada(imagen_bytes: bytes, estilo: str = "moderno") -> str:
     settings = get_settings()
 
     estilos_map = {
-        "moderno": "modern minimalist style",
-        "clasico": "classic elegant style",
-        "minimalista": "ultra minimalist style",
-        "rustico": "rustic warm style",
-        "industrial": "industrial loft style"
+        "moderno": "modern minimalist style with white walls and light oak hardwood floors",
+        "clasico": "classic elegant style with beige walls and dark walnut hardwood floors",
+        "minimalista": "ultra minimalist style with grey walls and light concrete floors",
+        "rustico": "rustic warm style with exposed brick walls and dark wood plank floors",
+        "industrial": "industrial loft style with grey concrete walls and polished cement floors"
     }
-    estilo_en = estilos_map.get(estilo, "modern minimalist style")
+    estilo_en = estilos_map.get(estilo, "modern minimalist style with white walls and light oak hardwood floors")
 
-    imagen_base64 = base64.b64encode(imagen_bytes).decode("utf-8")
+    # Preparar imagen y máscara
+    imagen_png = imagen_a_png_1024(imagen_bytes)
+    mascara_png = crear_mascara_piso_paredes(imagen_bytes)
 
-    headers = {
-        "Authorization": f"Bearer {settings.openai_api_key}",
-        "Content-Type": "application/json"
-    }
+    prompt = (
+        f"Interior design renovation: {estilo_en}. "
+        f"Apply new flooring and wall paint ONLY in the transparent mask areas. "
+        f"Keep ALL furniture, windows, doors and objects exactly in their original positions. "
+        f"Photorealistic lighting. Do not move or add any furniture."
+    )
 
-    payload = {
-        "model": "gpt-image-1",
-        "prompt": (
-            f"Interior design renovation in {estilo_en}. "
-            f"Keep EXACT same room, same perspective, same furniture position, same walls structure. "
-            f"ONLY change: floor to luxury hardwood, walls to fresh modern paint, "
-            f"add recessed LED lighting. Do NOT change room layout or add new furniture. "
-            f"Photorealistic result."
-        ),
-        "n": 1,
-        "size": "1024x1024",
-        "quality": "medium"
-    }
-
-    async with httpx.AsyncClient(timeout=90.0) as client:
+    async with httpx.AsyncClient(timeout=120.0) as client:
         response = await client.post(
             "https://api.openai.com/v1/images/edits",
             headers={"Authorization": f"Bearer {settings.openai_api_key}"},
             files={
-                "image": ("room.jpg", imagen_bytes, "image/jpeg"),
+                "image": ("room.png", imagen_png, "image/png"),
+                "mask":  ("mask.png",  mascara_png, "image/png"),
             },
             data={
                 "model": "gpt-image-1",
-                "prompt": (
-                    f"Interior design renovation {estilo_en}. "
-                    f"Keep EXACT same room structure, same perspective. "
-                    f"Only change floor to luxury hardwood, repaint walls, "
-                    f"add modern LED lighting. Photorealistic."
-                ),
+                "prompt": prompt,
                 "n": "1",
                 "size": "1024x1024",
+                "quality": "medium",
             }
         )
 
@@ -106,8 +145,7 @@ async def generar_imagen_remodelada(imagen_bytes: bytes, estilo: str = "moderno"
                 url = await subir_imagen_a_imgbb(imagen_bytes_result, settings.imgbb_api_key)
                 return url
             else:
-                url_directa = data["data"][0].get("url")
-                return url_directa
+                return data["data"][0].get("url")
         else:
             logger.error(f"Error gpt-image-1: {response.text[:500]}")
             raise RuntimeError(f"Error generando imagen: {response.status_code}")
