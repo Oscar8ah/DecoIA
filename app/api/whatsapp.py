@@ -4,12 +4,42 @@ from fastapi import APIRouter, Request, HTTPException, Depends, BackgroundTasks
 from fastapi.responses import PlainTextResponse
 from app.utils.config import get_settings, Settings
 from app.services.imagen_service import descargar_imagen_whatsapp, generar_imagen_remodelada
+from app.utils.supabase_client import get_supabase
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/webhook", tags=["whatsapp"])
 
-# Set para evitar procesar el mismo mensaje dos veces
-mensajes_procesados = set()
+# Set en memoria como cache rápido (secundario)
+mensajes_procesados_cache = set()
+
+
+async def mensaje_ya_procesado(message_id: str) -> bool:
+    """Verifica en Supabase si el mensaje ya fue procesado"""
+    # Primero chequea cache en memoria (más rápido)
+    if message_id in mensajes_procesados_cache:
+        return True
+    try:
+        supabase = get_supabase()
+        result = supabase.table("mensajes_procesados").select("id").eq("message_id", message_id).execute()
+        if result.data:
+            mensajes_procesados_cache.add(message_id)
+            return True
+        return False
+    except Exception as e:
+        logger.error(f"Error verificando mensaje en Supabase: {e}")
+        return False
+
+
+async def marcar_mensaje_procesado(message_id: str):
+    """Guarda el ID del mensaje en Supabase"""
+    mensajes_procesados_cache.add(message_id)
+    try:
+        supabase = get_supabase()
+        supabase.table("mensajes_procesados").insert({
+            "message_id": message_id
+        }).execute()
+    except Exception as e:
+        logger.error(f"Error guardando mensaje en Supabase: {e}")
 
 
 async def enviar_mensaje_whatsapp(telefono: str, mensaje: str, settings: Settings):
@@ -49,11 +79,7 @@ async def enviar_imagen_whatsapp(telefono: str, url_imagen: str, caption: str, s
         logger.info(f"Imagen enviada: {response.status_code}")
 
 
-async def procesar_imagen_background(
-    sender: str,
-    image_id: str,
-    settings: Settings
-):
+async def procesar_imagen_background(sender: str, image_id: str, settings: Settings):
     """Procesa la imagen en background para no bloquear el webhook"""
     try:
         await enviar_mensaje_whatsapp(
@@ -62,10 +88,8 @@ async def procesar_imagen_background(
             "Esto toma unos segundos ⏳🤖",
             settings
         )
-
         imagen_bytes = await descargar_imagen_whatsapp(image_id, settings.whatsapp_token)
         url_generada = await generar_imagen_remodelada(imagen_bytes, "moderno")
-
         await enviar_imagen_whatsapp(
             sender,
             url_generada,
@@ -75,7 +99,6 @@ async def procesar_imagen_background(
             "• *clasico*\n• *minimalista*\n• *rustico*\n• *industrial*",
             settings
         )
-
     except Exception as e:
         logger.error(f"Error en background: {type(e).__name__} - {e}")
         await enviar_mensaje_whatsapp(
@@ -114,17 +137,15 @@ async def receive_message(
             return {"status": "ok"}
 
         message = value["messages"][0]
-
-        # Evitar procesar el mismo mensaje dos veces
         message_id = message.get("id", "")
-        if message_id in mensajes_procesados:
+
+        # Verificar en Supabase si ya fue procesado
+        if await mensaje_ya_procesado(message_id):
             logger.info(f"Mensaje {message_id} ya procesado, ignorando reintento")
             return {"status": "ok"}
-        mensajes_procesados.add(message_id)
 
-        # Limpiar set si crece mucho
-        if len(mensajes_procesados) > 1000:
-            mensajes_procesados.clear()
+        # Marcar como procesado en Supabase
+        await marcar_mensaje_procesado(message_id)
 
         sender = message["from"]
         msg_type = message["type"]
@@ -144,8 +165,6 @@ async def receive_message(
         elif msg_type == "image":
             image_id = message["image"]["id"]
             logger.info(f"Imagen recibida de {sender}, agregando a background")
-
-            # Responde 200 inmediato a WhatsApp — evita reintentos
             background_tasks.add_task(
                 procesar_imagen_background,
                 sender,
@@ -156,5 +175,4 @@ async def receive_message(
     except Exception as e:
         logger.error(f"Error procesando mensaje: {type(e).__name__} - {e}")
 
-    # Siempre retorna 200 inmediato
     return {"status": "ok"}
