@@ -30,3 +30,4 @@ typing_extensions==4.15.0
 urllib3==2.7.0
 uvicorn==0.47.0
 Pillow>=10.0.0
+supabase==2.15.0
