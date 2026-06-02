@@ -14,7 +14,6 @@ mensajes_procesados_cache = set()
 
 
 def get_saludo() -> str:
-    """Retorna saludo según la hora del día"""
     hora = datetime.now().hour
     if 5 <= hora < 12:
         return "¡Buenos días"
@@ -126,11 +125,11 @@ async def enviar_menu_principal(telefono: str, settings: Settings):
     await enviar_botones_whatsapp(
         telefono,
         f"{saludo}! 👋 Bienvenido a *DECOIARTE.COM* 🏠✨\n\n"
-        f"Soy tu asistente de remodelación con Inteligencia Artificial.\n\n"
-        f"Hoy, ¿qué te gustaría hacer?",
+        f"Soy tu asistente de remodelación con IA.\n\n"
+        f"¿Qué te gustaría hacer hoy?",
         [
-            {"id": "btn_remodelar", "title": "🏠 Remodelar mi espacio"},
-            {"id": "btn_asesor", "title": "👨‍💼 Hablar con asesor"},
+            {"id": "btn_remodelar", "title": "🏠 Remodelar"},
+            {"id": "btn_asesor", "title": "👨‍💼 Asesor"},
         ],
         settings
     )
@@ -157,8 +156,8 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
             sender,
             "¿Qué deseas hacer ahora?",
             [
-                {"id": "btn_remodelar", "title": "🔄 Remodelar otro espacio"},
-                {"id": "btn_asesor", "title": "👨‍💼 Hablar con asesor"},
+                {"id": "btn_remodelar", "title": "🔄 Otro estilo"},
+                {"id": "btn_asesor", "title": "👨‍💼 Asesor"},
             ],
             settings
         )
