@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     whatsapp_token: str
     whatsapp_phone_number_id: str
     whatsapp_verify_token: str
+    whatsapp_asesor_number: str
 
     supabase_url: str
     supabase_anon_key: str

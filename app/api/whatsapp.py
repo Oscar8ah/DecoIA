@@ -9,13 +9,10 @@ from app.utils.supabase_client import get_supabase
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/webhook", tags=["whatsapp"])
 
-# Set en memoria como cache rápido (secundario)
 mensajes_procesados_cache = set()
 
 
 async def mensaje_ya_procesado(message_id: str) -> bool:
-    """Verifica en Supabase si el mensaje ya fue procesado"""
-    # Primero chequea cache en memoria (más rápido)
     if message_id in mensajes_procesados_cache:
         return True
     try:
@@ -31,7 +28,6 @@ async def mensaje_ya_procesado(message_id: str) -> bool:
 
 
 async def marcar_mensaje_procesado(message_id: str):
-    """Guarda el ID del mensaje en Supabase"""
     mensajes_procesados_cache.add(message_id)
     try:
         supabase = get_supabase()
@@ -79,8 +75,17 @@ async def enviar_imagen_whatsapp(telefono: str, url_imagen: str, caption: str, s
         logger.info(f"Imagen enviada: {response.status_code}")
 
 
+async def notificar_asesor(telefono_cliente: str, settings: Settings):
+    """Notifica al asesor que un cliente quiere ser atendido"""
+    mensaje = (
+        f"🔔 *Nuevo cliente solicita asesor*\n\n"
+        f"📱 Número: +{telefono_cliente}\n\n"
+        f"El cliente está esperando tu respuesta en WhatsApp."
+    )
+    await enviar_mensaje_whatsapp(settings.whatsapp_asesor_number, mensaje, settings)
+
+
 async def procesar_imagen_background(sender: str, image_id: str, settings: Settings):
-    """Procesa la imagen en background para no bloquear el webhook"""
     try:
         await enviar_mensaje_whatsapp(
             sender,
@@ -139,28 +144,79 @@ async def receive_message(
         message = value["messages"][0]
         message_id = message.get("id", "")
 
-        # Verificar en Supabase si ya fue procesado
         if await mensaje_ya_procesado(message_id):
             logger.info(f"Mensaje {message_id} ya procesado, ignorando reintento")
             return {"status": "ok"}
 
-        # Marcar como procesado en Supabase
         await marcar_mensaje_procesado(message_id)
 
         sender = message["from"]
         msg_type = message["type"]
 
         if msg_type == "text":
-            text = message["text"]["body"].strip()
+            text = message["text"]["body"].strip().lower()
             logger.info(f"Texto de {sender}: {text}")
-            respuesta = (
-                "👋 ¡Bienvenido a *DECOIA.COM*!\n\n"
-                "Soy tu asistente de remodelación con IA 🏠✨\n\n"
-                "📸 Envíame una *foto de tu espacio* y te mostraré "
-                "cómo puede quedar remodelado con pisos y acabados nuevos.\n\n"
-                "¿Listo para comenzar?"
-            )
-            await enviar_mensaje_whatsapp(sender, respuesta, settings)
+
+            # Menú de bienvenida
+            if any(saludo in text for saludo in ["hola", "buenas", "buenos", "hi", "hello", "inicio", "start", "menu", "menú"]):
+                await enviar_mensaje_whatsapp(
+                    sender,
+                    "👋 ¡Bienvenido a *DECOIARTE.COM*!\n\n"
+                    "Soy tu asistente de remodelación con IA 🏠✨\n\n"
+                    "¿Qué deseas hacer?\n\n"
+                    "1️⃣ *Remodelar mi espacio con IA*\n"
+                    "   Envía una foto y te muestro cómo quedaría\n\n"
+                    "2️⃣ *Hablar con un asesor*\n"
+                    "   Un experto te atenderá personalmente\n\n"
+                    "Responde con *1* o *2*",
+                    settings
+                )
+
+            # Opción 1 — Remodelar
+            elif text in ["1", "remodelar", "remodelacion", "remodelación"]:
+                await enviar_mensaje_whatsapp(
+                    sender,
+                    "🏠 ¡Perfecto! Estoy listo para transformar tu espacio.\n\n"
+                    "📸 *Envíame una foto* del espacio que deseas remodelar "
+                    "(sala, habitación, cocina, baño, etc.)\n\n"
+                    "La IA analizará tu espacio y te mostrará cómo podría quedar. ✨",
+                    settings
+                )
+
+            # Opción 2 — Asesor
+            elif text in ["2", "asesor", "ayuda", "hablar", "persona"]:
+                await enviar_mensaje_whatsapp(
+                    sender,
+                    "👨‍💼 ¡Perfecto! Un asesor experto se pondrá en contacto "
+                    "contigo muy pronto.\n\n"
+                    "⏰ Tiempo de respuesta: *menos de 24 horas*\n\n"
+                    "Mientras tanto puedes enviarnos fotos de tu espacio "
+                    "para que el asesor pueda preparar tu propuesta. 🏠",
+                    settings
+                )
+                # Notificar al asesor
+                background_tasks.add_task(notificar_asesor, sender, settings)
+
+            # Estilos de remodelación
+            elif text in ["clasico", "clásico", "minimalista", "rustico", "rústico", "industrial", "moderno"]:
+                await enviar_mensaje_whatsapp(
+                    sender,
+                    f"🎨 ¡Excelente elección! Procesando estilo *{text}*...\n\n"
+                    "📸 Envíame la foto de tu espacio y lo transformo con ese estilo. ✨",
+                    settings
+                )
+
+            # Cualquier otro texto
+            else:
+                await enviar_mensaje_whatsapp(
+                    sender,
+                    "👋 ¡Hola! Soy el asistente de *DECOIARTE.COM* 🏠\n\n"
+                    "¿Qué deseas hacer?\n\n"
+                    "1️⃣ *Remodelar mi espacio con IA*\n"
+                    "2️⃣ *Hablar con un asesor*\n\n"
+                    "Responde con *1* o *2*",
+                    settings
+                )
 
         elif msg_type == "image":
             image_id = message["image"]["id"]
