@@ -55,6 +55,41 @@ async def enviar_mensaje_whatsapp(telefono: str, mensaje: str, settings: Setting
         logger.info(f"Mensaje enviado: {response.status_code}")
 
 
+async def enviar_botones_whatsapp(telefono: str, mensaje: str, botones: list, settings: Settings):
+    """Envía mensaje con botones interactivos — máximo 3 botones"""
+    url = f"https://graph.facebook.com/v25.0/{settings.whatsapp_phone_number_id}/messages"
+    headers = {
+        "Authorization": f"Bearer {settings.whatsapp_token}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "messaging_product": "whatsapp",
+        "to": telefono,
+        "type": "interactive",
+        "interactive": {
+            "type": "button",
+            "body": {"text": mensaje},
+            "action": {
+                "buttons": [
+                    {
+                        "type": "reply",
+                        "reply": {
+                            "id": btn["id"],
+                            "title": btn["title"]
+                        }
+                    }
+                    for btn in botones
+                ]
+            }
+        }
+    }
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url, json=data, headers=headers)
+        logger.info(f"Botones enviados: {response.status_code}")
+        if response.status_code != 200:
+            logger.error(f"Error botones: {response.text}")
+
+
 async def enviar_imagen_whatsapp(telefono: str, url_imagen: str, caption: str, settings: Settings):
     url = f"https://graph.facebook.com/v25.0/{settings.whatsapp_phone_number_id}/messages"
     headers = {
@@ -75,21 +110,26 @@ async def enviar_imagen_whatsapp(telefono: str, url_imagen: str, caption: str, s
         logger.info(f"Imagen enviada: {response.status_code}")
 
 
-async def notificar_asesor(telefono_cliente: str, settings: Settings):
-    """Notifica al asesor que un cliente quiere ser atendido"""
-    mensaje = (
-        f"🔔 *Nuevo cliente solicita asesor*\n\n"
-        f"📱 Número: +{telefono_cliente}\n\n"
-        f"El cliente está esperando tu respuesta en WhatsApp."
+async def enviar_menu_principal(telefono: str, settings: Settings):
+    """Envía el menú principal con botones"""
+    await enviar_botones_whatsapp(
+        telefono,
+        "👋 ¡Bienvenido a *DECOIARTE.COM*! 🏠✨\n\n"
+        "Transforma tu espacio con Inteligencia Artificial.\n\n"
+        "¿Qué deseas hacer?",
+        [
+            {"id": "btn_remodelar", "title": "🏠 Remodelar espacio"},
+            {"id": "btn_asesor", "title": "👨‍💼 Hablar con asesor"},
+        ],
+        settings
     )
-    await enviar_mensaje_whatsapp(settings.whatsapp_asesor_number, mensaje, settings)
 
 
 async def procesar_imagen_background(sender: str, image_id: str, settings: Settings):
     try:
         await enviar_mensaje_whatsapp(
             sender,
-            "📸 ¡Recibí tu foto! Estoy generando la visualización con IA... "
+            "📸 ¡Recibí tu foto! Estoy generando la visualización con IA...\n"
             "Esto toma unos segundos ⏳🤖",
             settings
         )
@@ -98,10 +138,18 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
         await enviar_imagen_whatsapp(
             sender,
             url_generada,
-            "✨ ¡Así podría quedar tu espacio remodelado! "
-            "Diseño moderno con acabados premium 🏠\n\n"
-            "¿Te gustaría ver otro estilo? Responde con:\n"
-            "• *clasico*\n• *minimalista*\n• *rustico*\n• *industrial*",
+            "✨ ¡Así podría quedar tu espacio remodelado!\n"
+            "Diseño moderno con acabados premium 🏠",
+            settings
+        )
+        # Botones después de la imagen
+        await enviar_botones_whatsapp(
+            sender,
+            "¿Qué deseas hacer ahora?",
+            [
+                {"id": "btn_remodelar", "title": "🔄 Otro estilo"},
+                {"id": "btn_asesor", "title": "👨‍💼 Hablar con asesor"},
+            ],
             settings
         )
     except Exception as e:
@@ -111,6 +159,7 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
             "😅 Hubo un error procesando tu foto. Por favor intenta de nuevo.",
             settings
         )
+        await enviar_menu_principal(sender, settings)
 
 
 @router.get("")
@@ -153,70 +202,56 @@ async def receive_message(
         sender = message["from"]
         msg_type = message["type"]
 
-        if msg_type == "text":
+        # Manejo de botones interactivos
+        if msg_type == "interactive":
+            interactive = message["interactive"]
+            if interactive["type"] == "button_reply":
+                button_id = interactive["button_reply"]["id"]
+                logger.info(f"Botón presionado: {button_id} por {sender}")
+
+                if button_id == "btn_remodelar":
+                    await enviar_mensaje_whatsapp(
+                        sender,
+                        "🏠 ¡Perfecto! Estoy listo para transformar tu espacio.\n\n"
+                        "📸 *Envíame una foto* del espacio que deseas remodelar\n"
+                        "(sala, habitación, cocina, baño, etc.)\n\n"
+                        "La IA analizará tu espacio y te mostrará cómo podría quedar ✨",
+                        settings
+                    )
+
+                elif button_id == "btn_asesor":
+                    numero_asesor = settings.whatsapp_asesor_number
+                    await enviar_mensaje_whatsapp(
+                        sender,
+                        f"👨‍💼 ¡Con gusto! Nuestro asesor experto te atenderá personalmente.\n\n"
+                        f"📱 *Escríbele directamente aquí:*\n"
+                        f"https://wa.me/{numero_asesor}\n\n"
+                        f"⏰ Tiempo de respuesta: menos de 24 horas 🕐",
+                        settings
+                    )
+
+        elif msg_type == "text":
             text = message["text"]["body"].strip().lower()
             logger.info(f"Texto de {sender}: {text}")
 
-            # Menú de bienvenida
-            if any(saludo in text for saludo in ["hola", "buenas", "buenos", "hi", "hello", "inicio", "start", "menu", "menú"]):
-                await enviar_mensaje_whatsapp(
-                    sender,
-                    "👋 ¡Bienvenido a *DECOIARTE.COM*!\n\n"
-                    "Soy tu asistente de remodelación con IA 🏠✨\n\n"
-                    "¿Qué deseas hacer?\n\n"
-                    "1️⃣ *Remodelar mi espacio con IA*\n"
-                    "   Envía una foto y te muestro cómo quedaría\n\n"
-                    "2️⃣ *Hablar con un asesor*\n"
-                    "   Un experto te atenderá personalmente\n\n"
-                    "Responde con *1* o *2*",
-                    settings
-                )
-
-            # Opción 1 — Remodelar
-            elif text in ["1", "remodelar", "remodelacion", "remodelación"]:
-                await enviar_mensaje_whatsapp(
-                    sender,
-                    "🏠 ¡Perfecto! Estoy listo para transformar tu espacio.\n\n"
-                    "📸 *Envíame una foto* del espacio que deseas remodelar "
-                    "(sala, habitación, cocina, baño, etc.)\n\n"
-                    "La IA analizará tu espacio y te mostrará cómo podría quedar. ✨",
-                    settings
-                )
-
-            # Opción 2 — Asesor
-            elif text in ["2", "asesor", "ayuda", "hablar", "persona"]:
-                await enviar_mensaje_whatsapp(
-                    sender,
-                    "👨‍💼 ¡Perfecto! Un asesor experto se pondrá en contacto "
-                    "contigo muy pronto.\n\n"
-                    "⏰ Tiempo de respuesta: *menos de 24 horas*\n\n"
-                    "Mientras tanto puedes enviarnos fotos de tu espacio "
-                    "para que el asesor pueda preparar tu propuesta. 🏠",
-                    settings
-                )
-                # Notificar al asesor
-                background_tasks.add_task(notificar_asesor, sender, settings)
+            # Saludos — mostrar menú
+            if any(saludo in text for saludo in [
+                "hola", "buenas", "buenos", "hi", "hello",
+                "inicio", "start", "menu", "menú", "comenzar"
+            ]):
+                await enviar_menu_principal(sender, settings)
 
             # Estilos de remodelación
             elif text in ["clasico", "clásico", "minimalista", "rustico", "rústico", "industrial", "moderno"]:
                 await enviar_mensaje_whatsapp(
                     sender,
                     f"🎨 ¡Excelente elección! Procesando estilo *{text}*...\n\n"
-                    "📸 Envíame la foto de tu espacio y lo transformo con ese estilo. ✨",
+                    "📸 Envíame la foto de tu espacio y lo transformo. ✨",
                     settings
                 )
 
-            # Cualquier otro texto
             else:
-                await enviar_mensaje_whatsapp(
-                    sender,
-                    "👋 ¡Hola! Soy el asistente de *DECOIARTE.COM* 🏠\n\n"
-                    "¿Qué deseas hacer?\n\n"
-                    "1️⃣ *Remodelar mi espacio con IA*\n"
-                    "2️⃣ *Hablar con un asesor*\n\n"
-                    "Responde con *1* o *2*",
-                    settings
-                )
+                await enviar_menu_principal(sender, settings)
 
         elif msg_type == "image":
             image_id = message["image"]["id"]
