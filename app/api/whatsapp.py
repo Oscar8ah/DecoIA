@@ -5,12 +5,23 @@ from fastapi.responses import PlainTextResponse
 from app.utils.config import get_settings, Settings
 from app.services.imagen_service import descargar_imagen_whatsapp, generar_imagen_remodelada
 from app.utils.supabase_client import get_supabase
-from app.services.email_service import enviar_notificacion_asesor
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/webhook", tags=["whatsapp"])
 
 mensajes_procesados_cache = set()
+
+
+def get_saludo() -> str:
+    """Retorna saludo según la hora del día"""
+    hora = datetime.now().hour
+    if 5 <= hora < 12:
+        return "¡Buenos días"
+    elif 12 <= hora < 18:
+        return "¡Buenas tardes"
+    else:
+        return "¡Buenas noches"
 
 
 async def mensaje_ya_procesado(message_id: str) -> bool:
@@ -57,7 +68,6 @@ async def enviar_mensaje_whatsapp(telefono: str, mensaje: str, settings: Setting
 
 
 async def enviar_botones_whatsapp(telefono: str, mensaje: str, botones: list, settings: Settings):
-    """Envía mensaje con botones interactivos — máximo 3 botones"""
     url = f"https://graph.facebook.com/v25.0/{settings.whatsapp_phone_number_id}/messages"
     headers = {
         "Authorization": f"Bearer {settings.whatsapp_token}",
@@ -112,14 +122,14 @@ async def enviar_imagen_whatsapp(telefono: str, url_imagen: str, caption: str, s
 
 
 async def enviar_menu_principal(telefono: str, settings: Settings):
-    """Envía el menú principal con botones"""
+    saludo = get_saludo()
     await enviar_botones_whatsapp(
         telefono,
-        "👋 ¡Bienvenido a *DECOIARTE.COM*! 🏠✨\n\n"
-        "Transforma tu espacio con Inteligencia Artificial.\n\n"
-        "¿Qué deseas hacer?",
+        f"{saludo}! 👋 Bienvenido a *DECOIARTE.COM* 🏠✨\n\n"
+        f"Soy tu asistente de remodelación con Inteligencia Artificial.\n\n"
+        f"Hoy, ¿qué te gustaría hacer?",
         [
-            {"id": "btn_remodelar", "title": "🏠 Remodelar espacio"},
+            {"id": "btn_remodelar", "title": "🏠 Remodelar mi espacio"},
             {"id": "btn_asesor", "title": "👨‍💼 Hablar con asesor"},
         ],
         settings
@@ -143,12 +153,11 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
             "Diseño moderno con acabados premium 🏠",
             settings
         )
-        # Botones después de la imagen
         await enviar_botones_whatsapp(
             sender,
             "¿Qué deseas hacer ahora?",
             [
-                {"id": "btn_remodelar", "title": "🔄 Otro estilo"},
+                {"id": "btn_remodelar", "title": "🔄 Remodelar otro espacio"},
                 {"id": "btn_asesor", "title": "👨‍💼 Hablar con asesor"},
             ],
             settings
@@ -203,7 +212,6 @@ async def receive_message(
         sender = message["from"]
         msg_type = message["type"]
 
-        # Manejo de botones interactivos
         if msg_type == "interactive":
             interactive = message["interactive"]
             if interactive["type"] == "button_reply":
@@ -227,11 +235,11 @@ async def receive_message(
                         f"👨‍💼 ¡Con gusto! Nuestro asesor experto te atenderá personalmente.\n\n"
                         f"📱 *Escríbele directamente aquí:*\n"
                         f"https://wa.me/{numero_asesor}\n\n"
-                        f"⏰ Tiempo de respuesta: menos de 24 horas 🕐",
+                        f"⏰ Tiempo de respuesta: menos de 24 horas 🕐\n\n"
+                        f"_También puedes enviarnos fotos de tu espacio para "
+                        f"que el asesor prepare tu propuesta_ 🏠",
                         settings
                     )
-                    # Enviar email al asesor
-                    background_tasks.add_task(enviar_notificacion_asesor, sender)
 
         elif msg_type == "text":
             text = message["text"]["body"].strip().lower()
@@ -243,7 +251,8 @@ async def receive_message(
             ]):
                 await enviar_menu_principal(sender, settings)
 
-            elif text in ["clasico", "clásico", "minimalista", "rustico", "rústico", "industrial", "moderno"]:
+            elif text in ["clasico", "clásico", "minimalista", "rustico",
+                          "rústico", "industrial", "moderno"]:
                 await enviar_mensaje_whatsapp(
                     sender,
                     f"🎨 ¡Excelente elección! Procesando estilo *{text}*...\n\n"
