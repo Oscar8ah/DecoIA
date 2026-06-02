@@ -5,6 +5,7 @@ from fastapi.responses import PlainTextResponse
 from app.utils.config import get_settings, Settings
 from app.services.imagen_service import descargar_imagen_whatsapp, generar_imagen_remodelada
 from app.utils.supabase_client import get_supabase
+from app.services.email_service import enviar_notificacion_asesor
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/webhook", tags=["whatsapp"])
@@ -229,19 +230,19 @@ async def receive_message(
                         f"⏰ Tiempo de respuesta: menos de 24 horas 🕐",
                         settings
                     )
+                    # Enviar email al asesor
+                    background_tasks.add_task(enviar_notificacion_asesor, sender)
 
         elif msg_type == "text":
             text = message["text"]["body"].strip().lower()
             logger.info(f"Texto de {sender}: {text}")
 
-            # Saludos — mostrar menú
             if any(saludo in text for saludo in [
                 "hola", "buenas", "buenos", "hi", "hello",
                 "inicio", "start", "menu", "menú", "comenzar"
             ]):
                 await enviar_menu_principal(sender, settings)
 
-            # Estilos de remodelación
             elif text in ["clasico", "clásico", "minimalista", "rustico", "rústico", "industrial", "moderno"]:
                 await enviar_mensaje_whatsapp(
                     sender,
