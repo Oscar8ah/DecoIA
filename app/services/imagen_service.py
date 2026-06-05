@@ -55,16 +55,11 @@ def crear_mascara_piso_paredes(imagen_bytes: bytes) -> bytes:
     Máscara PNG con canal alpha:
     - Transparente (alpha=0)  → EDITABLE (piso + paredes sin decoración)
     - Opaco (alpha=255)       → PROTEGIDO (muebles, cuadros, ventanas, objetos)
-
-    Zonas protegidas:
-    - Centro horizontal: muebles y objetos
-    - Franja superior completa: cuadros colgados en paredes
     """
     img = Image.open(io.BytesIO(imagen_bytes)).convert("RGBA")
     img = img.resize((1024, 1024), Image.LANCZOS)
     ancho, alto = 1024, 1024
 
-    # Empezamos todo OPACO (protegido)
     mascara = Image.new("RGBA", (ancho, alto), (0, 0, 0, 255))
     draw = ImageDraw.Draw(mascara)
 
@@ -72,19 +67,19 @@ def crear_mascara_piso_paredes(imagen_bytes: bytes) -> bytes:
     piso_y = int(alto * 0.62)
     draw.rectangle([0, piso_y, ancho, alto], fill=(0, 0, 0, 0))
 
-    # PARED IZQUIERDA: franja lateral izquierda (entre cuadros y piso)
+    # PARED IZQUIERDA
     draw.rectangle(
         [0, int(alto * 0.45), int(ancho * 0.18), int(alto * 0.62)],
         fill=(0, 0, 0, 0)
     )
 
-    # PARED DERECHA: franja lateral derecha (entre cuadros y piso)
+    # PARED DERECHA
     draw.rectangle(
         [int(ancho * 0.82), int(alto * 0.45), ancho, int(alto * 0.62)],
         fill=(0, 0, 0, 0)
     )
 
-    # PARED FONDO BAJA: zona debajo de cuadros, encima de muebles
+    # PARED FONDO BAJA
     draw.rectangle(
         [int(ancho * 0.15), int(alto * 0.40), int(ancho * 0.85), int(alto * 0.55)],
         fill=(0, 0, 0, 0)
@@ -114,7 +109,6 @@ async def generar_imagen_remodelada(imagen_bytes: bytes, estilo: str = "moderno"
     }
     estilo_en = estilos_map.get(estilo, "modern minimalist style with white walls and light oak hardwood floors")
 
-    # Preparar imagen y máscara
     imagen_png = imagen_a_png_1024(imagen_bytes)
     mascara_png = crear_mascara_piso_paredes(imagen_bytes)
 
@@ -158,3 +152,63 @@ async def generar_imagen_remodelada(imagen_bytes: bytes, estilo: str = "moderno"
         else:
             logger.error(f"Error gpt-image-1: {response.text[:500]}")
             raise RuntimeError(f"Error generando imagen: {response.status_code}")
+
+
+async def generar_vista_isometrica(imagen_bytes: bytes, info_plano: dict) -> str:
+    """
+    Genera una vista 3D isométrica a partir de un plano 2D.
+    Usa gpt-image-1 para crear una visualización arquitectónica completa.
+    """
+    settings = get_settings()
+
+    tipo = info_plano.get("tipo_plano", "apartamento")
+    habitaciones = info_plano.get("habitaciones", "sala, habitación, baño, cocina")
+    area = info_plano.get("area_estimada", "60-70 metros cuadrados")
+    distribucion = info_plano.get("distribucion", "distribución estándar")
+
+    prompt = (
+        f"Create a professional 3D isometric architectural visualization of a {tipo}. "
+        f"Rooms: {habitaciones}. "
+        f"Estimated area: {area}. "
+        f"Layout: {distribucion}. "
+        f"Style: modern minimalist interior design. "
+        f"Include: light oak hardwood floors, white walls, modern furniture, "
+        f"recessed LED lighting, plants, decorative elements. "
+        f"View: isometric 45-degree angle showing the complete floor plan in 3D. "
+        f"Quality: photorealistic architectural render, professional visualization. "
+        f"Similar to a high-end real estate marketing render."
+    )
+
+    imagen_png = imagen_a_png_1024(imagen_bytes)
+
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        response = await client.post(
+            "https://api.openai.com/v1/images/edits",
+            headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+            files={
+                "image": ("plano.png", imagen_png, "image/png"),
+            },
+            data={
+                "model": "gpt-image-1",
+                "prompt": prompt,
+                "n": "1",
+                "size": "1024x1024",
+                "quality": "high",
+            }
+        )
+
+        logger.info(f"Vista isométrica status: {response.status_code}")
+        logger.info(f"Vista isométrica response: {response.text[:300]}")
+
+        if response.status_code == 200:
+            data = response.json()
+            imagen_b64 = data["data"][0].get("b64_json")
+            if imagen_b64:
+                imagen_bytes_result = base64.b64decode(imagen_b64)
+                url = await subir_imagen_a_imgbb(imagen_bytes_result, settings.imgbb_api_key)
+                return url
+            else:
+                return data["data"][0].get("url")
+        else:
+            logger.error(f"Error vista isométrica: {response.text[:500]}")
+            raise RuntimeError(f"Error generando vista isométrica: {response.status_code}")

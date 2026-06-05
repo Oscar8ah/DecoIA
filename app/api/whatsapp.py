@@ -3,7 +3,7 @@ import httpx
 from fastapi import APIRouter, Request, HTTPException, Depends, BackgroundTasks
 from fastapi.responses import PlainTextResponse
 from app.utils.config import get_settings, Settings
-from app.services.imagen_service import descargar_imagen_whatsapp, generar_imagen_remodelada
+from app.services.imagen_service import descargar_imagen_whatsapp, generar_imagen_remodelada, generar_vista_isometrica
 from app.services.openai_service import analizar_espacio_foto, analizar_plano
 from app.utils.supabase_client import get_supabase
 from datetime import datetime
@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/webhook", tags=["whatsapp"])
 
 mensajes_procesados_cache = set()
-# Guarda el estado de cada usuario
 estado_usuarios = {}
 
 
@@ -140,21 +139,19 @@ async def enviar_menu_principal(telefono: str, settings: Settings):
 
 
 async def procesar_imagen_background(sender: str, image_id: str, settings: Settings):
-    """Procesa foto de espacio — analiza con Vision y genera remodelación"""
+    """Procesa foto de espacio o plano según el modo del usuario"""
     try:
         imagen_bytes = await descargar_imagen_whatsapp(image_id, settings.whatsapp_token)
-
-        # Verificar si el usuario está en modo plano
         modo = estado_usuarios.get(sender, {}).get("modo", "remodelar")
 
         if modo == "plano":
-            # Analizar el plano
             await enviar_mensaje_whatsapp(
                 sender,
                 "📐 ¡Recibí tu plano! Analizando distribución con IA...\n"
                 "Esto toma unos segundos ⏳🤖",
                 settings
             )
+
             resultado = analizar_plano(imagen_bytes)
 
             if not resultado.get("es_plano", True):
@@ -185,7 +182,25 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
                 settings
             )
 
-            # Guardar estado — usuario tiene plano analizado
+            # Generar vista 3D isométrica automáticamente
+            await enviar_mensaje_whatsapp(
+                sender,
+                "🎨 Generando vista 3D de tu espacio...\n"
+                "Esto toma unos segundos ⏳✨",
+                settings
+            )
+
+            url_generada = await generar_vista_isometrica(imagen_bytes, resultado)
+
+            await enviar_imagen_whatsapp(
+                sender,
+                url_generada,
+                f"🏠 *Vista 3D isométrica de tu {tipo}* ✨\n\n"
+                f"📏 Área estimada: {area}\n"
+                f"🛋️ Con mobiliario y acabados modernos aplicados",
+                settings
+            )
+
             estado_usuarios[sender] = {
                 "modo": "plano_analizado",
                 "plano_info": resultado
@@ -193,9 +208,9 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
 
             await enviar_botones_whatsapp(
                 sender,
-                "¿Qué quieres hacer con tu plano?",
+                "¿Qué deseas hacer ahora?",
                 [
-                    {"id": "btn_remodelar", "title": "🏠 Ver remodelado"},
+                    {"id": "btn_remodelar", "title": "🔄 Otro estilo"},
                     {"id": "btn_asesor", "title": "👨‍💼 Asesor"},
                 ],
                 settings
@@ -210,7 +225,6 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
                 settings
             )
 
-            # Analizar espacio con Vision
             analisis = analizar_espacio_foto(imagen_bytes)
             tipo_espacio = analisis.get("tipo_espacio", "espacio")
             pregunta = analisis.get("pregunta", "¿Qué te gustaría cambiar?")
@@ -222,7 +236,6 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
                 settings
             )
 
-            # Generar remodelación
             url_generada = await generar_imagen_remodelada(imagen_bytes, "moderno")
 
             await enviar_imagen_whatsapp(
@@ -319,7 +332,8 @@ async def receive_message(
                         "• 📄 Foto del plano impreso\n"
                         "• ✏️ Foto de tu boceto dibujado\n"
                         "• 📱 Captura de pantalla del plano\n\n"
-                        "La IA detectará habitaciones, áreas y distribución 🏗️",
+                        "La IA detectará habitaciones, áreas y distribución\n"
+                        "y generará una *vista 3D* de tu espacio 🏗️✨",
                         settings
                     )
 
