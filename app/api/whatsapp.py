@@ -4,6 +4,7 @@ from fastapi import APIRouter, Request, HTTPException, Depends, BackgroundTasks
 from fastapi.responses import PlainTextResponse
 from app.utils.config import get_settings, Settings
 from app.services.imagen_service import descargar_imagen_whatsapp, generar_imagen_remodelada
+from app.services.openai_service import analizar_espacio_foto, analizar_plano
 from app.utils.supabase_client import get_supabase
 from datetime import datetime
 
@@ -11,6 +12,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/webhook", tags=["whatsapp"])
 
 mensajes_procesados_cache = set()
+# Guarda el estado de cada usuario
+estado_usuarios = {}
 
 
 def get_saludo() -> str:
@@ -129,6 +132,7 @@ async def enviar_menu_principal(telefono: str, settings: Settings):
         f"¿Qué te gustaría hacer hoy?",
         [
             {"id": "btn_remodelar", "title": "🏠 Remodelar"},
+            {"id": "btn_plano", "title": "📐 Mi plano"},
             {"id": "btn_asesor", "title": "👨‍💼 Asesor"},
         ],
         settings
@@ -136,36 +140,114 @@ async def enviar_menu_principal(telefono: str, settings: Settings):
 
 
 async def procesar_imagen_background(sender: str, image_id: str, settings: Settings):
+    """Procesa foto de espacio — analiza con Vision y genera remodelación"""
     try:
-        await enviar_mensaje_whatsapp(
-            sender,
-            "📸 ¡Recibí tu foto! Estoy generando la visualización con IA...\n"
-            "Esto toma unos segundos ⏳🤖",
-            settings
-        )
         imagen_bytes = await descargar_imagen_whatsapp(image_id, settings.whatsapp_token)
-        url_generada = await generar_imagen_remodelada(imagen_bytes, "moderno")
-        await enviar_imagen_whatsapp(
-            sender,
-            url_generada,
-            "✨ ¡Así podría quedar tu espacio remodelado!\n"
-            "Diseño moderno con acabados premium 🏠",
-            settings
-        )
-        await enviar_botones_whatsapp(
-            sender,
-            "¿Qué deseas hacer ahora?",
-            [
-                {"id": "btn_remodelar", "title": "🔄 Otro estilo"},
-                {"id": "btn_asesor", "title": "👨‍💼 Asesor"},
-            ],
-            settings
-        )
+
+        # Verificar si el usuario está en modo plano
+        modo = estado_usuarios.get(sender, {}).get("modo", "remodelar")
+
+        if modo == "plano":
+            # Analizar el plano
+            await enviar_mensaje_whatsapp(
+                sender,
+                "📐 ¡Recibí tu plano! Analizando distribución con IA...\n"
+                "Esto toma unos segundos ⏳🤖",
+                settings
+            )
+            resultado = analizar_plano(imagen_bytes)
+
+            if not resultado.get("es_plano", True):
+                await enviar_mensaje_whatsapp(
+                    sender,
+                    "🤔 La imagen que enviaste no parece un plano arquitectónico.\n\n"
+                    "Por favor envía:\n"
+                    "• Una foto del plano impreso 📄\n"
+                    "• Una foto de tu boceto dibujado ✏️\n"
+                    "• O una foto del espacio real 📸",
+                    settings
+                )
+                await enviar_menu_principal(sender, settings)
+                return
+
+            habitaciones = resultado.get("habitaciones", "")
+            area = resultado.get("area_estimada", "Por determinar")
+            pregunta = resultado.get("pregunta", "¿Qué espacio quieres visualizar primero?")
+            tipo = resultado.get("tipo_plano", "espacio")
+
+            await enviar_mensaje_whatsapp(
+                sender,
+                f"📐 *Plano analizado con IA* ✅\n\n"
+                f"🏠 *Tipo:* {tipo}\n"
+                f"📋 *Habitaciones detectadas:* {habitaciones}\n"
+                f"📏 *Área estimada:* {area}\n\n"
+                f"💡 {pregunta}",
+                settings
+            )
+
+            # Guardar estado — usuario tiene plano analizado
+            estado_usuarios[sender] = {
+                "modo": "plano_analizado",
+                "plano_info": resultado
+            }
+
+            await enviar_botones_whatsapp(
+                sender,
+                "¿Qué quieres hacer con tu plano?",
+                [
+                    {"id": "btn_remodelar", "title": "🏠 Ver remodelado"},
+                    {"id": "btn_asesor", "title": "👨‍💼 Asesor"},
+                ],
+                settings
+            )
+
+        else:
+            # Flujo normal — analizar foto y remodelar
+            await enviar_mensaje_whatsapp(
+                sender,
+                "📸 ¡Recibí tu foto! Analizando tu espacio con IA...\n"
+                "Esto toma unos segundos ⏳🤖",
+                settings
+            )
+
+            # Analizar espacio con Vision
+            analisis = analizar_espacio_foto(imagen_bytes)
+            tipo_espacio = analisis.get("tipo_espacio", "espacio")
+            pregunta = analisis.get("pregunta", "¿Qué te gustaría cambiar?")
+
+            await enviar_mensaje_whatsapp(
+                sender,
+                f"🔍 *Espacio detectado:* {tipo_espacio}\n\n"
+                f"💡 {pregunta}",
+                settings
+            )
+
+            # Generar remodelación
+            url_generada = await generar_imagen_remodelada(imagen_bytes, "moderno")
+
+            await enviar_imagen_whatsapp(
+                sender,
+                url_generada,
+                f"✨ ¡Así podría quedar tu {tipo_espacio} remodelado!\n"
+                "Diseño moderno con acabados premium 🏠",
+                settings
+            )
+
+            await enviar_botones_whatsapp(
+                sender,
+                "¿Qué deseas hacer ahora?",
+                [
+                    {"id": "btn_remodelar", "title": "🔄 Otro estilo"},
+                    {"id": "btn_asesor", "title": "👨‍💼 Asesor"},
+                ],
+                settings
+            )
+
     except Exception as e:
         logger.error(f"Error en background: {type(e).__name__} - {e}")
         await enviar_mensaje_whatsapp(
             sender,
-            "😅 Hubo un error procesando tu foto. Por favor intenta de nuevo.",
+            "😅 Hubo un error procesando tu imagen. Por favor intenta de nuevo.",
             settings
         )
         await enviar_menu_principal(sender, settings)
@@ -218,12 +300,26 @@ async def receive_message(
                 logger.info(f"Botón presionado: {button_id} por {sender}")
 
                 if button_id == "btn_remodelar":
+                    estado_usuarios[sender] = {"modo": "remodelar"}
                     await enviar_mensaje_whatsapp(
                         sender,
                         "🏠 ¡Perfecto! Estoy listo para transformar tu espacio.\n\n"
                         "📸 *Envíame una foto* del espacio que deseas remodelar\n"
                         "(sala, habitación, cocina, baño, etc.)\n\n"
                         "La IA analizará tu espacio y te mostrará cómo podría quedar ✨",
+                        settings
+                    )
+
+                elif button_id == "btn_plano":
+                    estado_usuarios[sender] = {"modo": "plano"}
+                    await enviar_mensaje_whatsapp(
+                        sender,
+                        "📐 ¡Perfecto! Voy a analizar tu plano con IA.\n\n"
+                        "Puedes enviarme:\n"
+                        "• 📄 Foto del plano impreso\n"
+                        "• ✏️ Foto de tu boceto dibujado\n"
+                        "• 📱 Captura de pantalla del plano\n\n"
+                        "La IA detectará habitaciones, áreas y distribución 🏗️",
                         settings
                     )
 
