@@ -157,26 +157,86 @@ async def generar_imagen_remodelada(imagen_bytes: bytes, estilo: str = "moderno"
 async def generar_vista_isometrica(imagen_bytes: bytes, info_plano: dict) -> str:
     """
     Genera una vista 3D isométrica a partir de un plano 2D.
-    Usa gpt-image-1 para crear una visualización arquitectónica completa.
+    Máxima fidelidad arquitectónica al plano original.
+    PRIORIDAD: Precisión geométrica > Estética visual.
     """
     settings = get_settings()
 
-    tipo = info_plano.get("tipo_plano", "apartamento")
-    habitaciones = info_plano.get("habitaciones", "sala, habitación, baño, cocina")
-    area = info_plano.get("area_estimada", "60-70 metros cuadrados")
-    distribucion = info_plano.get("distribucion", "distribución estándar")
+    # Extraer datos del análisis del plano
+    tipo         = info_plano.get("tipo_plano", "apartamento")
+    habitaciones = info_plano.get("habitaciones", "")
+    area         = info_plano.get("area_estimada", "por determinar")
+    distribucion = info_plano.get("distribucion", "")
+    num_banos    = info_plano.get("num_banos", "")
+    tiene_cocina = info_plano.get("tiene_cocina", True)
+    tiene_sala   = info_plano.get("tiene_sala", True)
+
+    # Construir descripción de validación para el prompt
+    validacion = (
+        f"FLOOR PLAN VALIDATION — match exactly:\n"
+        f"- Property type: {tipo}\n"
+        f"- Detected rooms: {habitaciones}\n"
+        f"- Detected bathrooms: {num_banos}\n"
+        f"- Kitchen detected: {'Yes' if tiene_cocina else 'No'}\n"
+        f"- Living room detected: {'Yes' if tiene_sala else 'No'}\n"
+        f"- Estimated area: {area}\n"
+        f"- Layout: {distribucion}\n"
+    )
 
     prompt = (
-        f"Create a professional 3D isometric architectural visualization of a {tipo}. "
-        f"Rooms: {habitaciones}. "
-        f"Estimated area: {area}. "
-        f"Layout: {distribucion}. "
-        f"Style: modern minimalist interior design. "
-        f"Include: light oak hardwood floors, white walls, modern furniture, "
-        f"recessed LED lighting, plants, decorative elements. "
-        f"View: isometric 45-degree angle showing the complete floor plan in 3D. "
-        f"Quality: photorealistic architectural render, professional visualization. "
-        f"Similar to a high-end real estate marketing render."
+        # ── IDENTIDAD DEL AGENTE ──────────────────────────────────────────────
+        "You are a specialized technical architect focused on converting 2D floor plans "
+        "into precise isometric 3D visualizations. "
+        "Architectural accuracy is your absolute priority.\n\n"
+
+        # ── OBJETIVO ─────────────────────────────────────────────────────────
+        "OBJECTIVE: Convert the attached 2D architectural floor plan into a technically "
+        "accurate isometric 3D view that faithfully preserves the original layout.\n\n"
+
+        # ── REGLA PRINCIPAL ──────────────────────────────────────────────────
+        "PRIMARY RULE: Geometric precision over aesthetics. "
+        "Reproduce EXACTLY what is shown in the floor plan. Do NOT invent, add, remove, "
+        "or relocate any architectural element.\n\n"
+
+        # ── DATOS DEL PLANO ──────────────────────────────────────────────────
+        f"{validacion}\n"
+
+        # ── INSTRUCCIONES OBLIGATORIAS ───────────────────────────────────────
+        "MANDATORY INSTRUCTIONS:\n"
+        "1. Analyze carefully: exterior walls, interior walls, rooms, bathrooms, "
+        "kitchen, living room, dining room, corridors, doors and windows.\n"
+        "2. Preserve EXACTLY: number of rooms, number of bathrooms, relative position "
+        "of each space, general shape of the property, internal layout, door positions, "
+        "window positions, and spatial relationships between areas.\n"
+        "3. STRICTLY PROHIBITED: adding rooms, removing rooms, moving walls, "
+        "changing proportions, reorganizing spaces, inventing architectural elements, "
+        "merging rooms, or creating alternative designs.\n"
+        "4. If ambiguity exists: maintain the original geometry. Do not assume "
+        "information that is not visible in the floor plan.\n"
+        "5. BEFORE generating the view, internally verify:\n"
+        "   - Room count matches the floor plan.\n"
+        "   - Bathroom count matches the floor plan.\n"
+        "   - Kitchen presence matches the floor plan.\n"
+        "   - Living room presence matches the floor plan.\n"
+        "   - If ANY discrepancy exists: correct before generating.\n\n"
+
+        # ── ESPECIFICACIONES DE SALIDA ────────────────────────────────────────
+        "OUTPUT SPECIFICATIONS:\n"
+        "- View angle: isometric 45-degree architectural view.\n"
+        "- Show: walls, doors, windows, and exact room distribution.\n"
+        "- Furniture: include ONLY if represented in the original floor plan.\n"
+        "- Style: clean technical architectural render, modern minimalist finish.\n"
+        "- Lighting: soft uniform architectural lighting, no dramatic shadows.\n"
+        "- Quality: professional architectural visualization.\n\n"
+
+        # ── NIVEL DE FIDELIDAD ────────────────────────────────────────────────
+        "REQUIRED FIDELITY LEVEL: 95% to 100%.\n"
+        "PRIORITY ORDER: Architectural fidelity > Visual aesthetics.\n\n"
+
+        # ── RESULTADO ESPERADO ────────────────────────────────────────────────
+        "EXPECTED RESULT: An isometric representation that is technically equivalent "
+        "to the original floor plan — a viewer should be able to identify the same "
+        "rooms, walls, doors and windows in both the 2D plan and the 3D isometric view."
     )
 
     imagen_png = imagen_a_png_1024(imagen_bytes)
