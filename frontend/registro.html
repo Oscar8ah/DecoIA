@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro — DecoIArte</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --morado: #7C3AED;
+            --azul: #3B82F6;
+            --degradado: linear-gradient(135deg, #3B82F6 0%, #7C3AED 100%);
+            --oscuro: #0F0F1A;
+            --oscuro2: #1A1A2E;
+            --texto: #F8FAFC;
+            --gris: #94A3B8;
+            --error: #EF4444;
+            --exito: #10B981;
+        }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: var(--oscuro);
+            color: var(--texto);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        nav {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            padding: 20px 60px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(15,15,26,0.95);
+            backdrop-filter: blur(10px);
+            z-index: 100;
+            border-bottom: 1px solid rgba(124,58,237,0.2);
+        }
+
+        .logo {
+            font-size: 26px;
+            font-weight: 800;
+            background: var(--degradado);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-decoration: none;
+        }
+
+        .nav-back {
+            color: var(--gris);
+            text-decoration: none;
+            font-size: 15px;
+            transition: color 0.3s;
+        }
+        .nav-back:hover { color: var(--texto); }
+
+        .bg-glow {
+            position: fixed;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(124,58,237,0.12) 0%, transparent 70%);
+            top: 20%;
+            left: 50%;
+            transform: translateX(-50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .registro-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 120px 20px 60px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .registro-box {
+            width: 100%;
+            max-width: 520px;
+        }
+
+        .registro-header {
+            text-align: center;
+            margin-bottom: 35px;
+        }
+
+        .registro-badge {
+            display: inline-block;
+            background: rgba(124,58,237,0.15);
+            border: 1px solid rgba(124,58,237,0.4);
+            padding: 7px 18px;
+            border-radius: 50px;
+            font-size: 13px;
+            color: #A78BFA;
+            margin-bottom: 20px;
+        }
+
+        .registro-header h1 {
+            font-size: 36px;
+            font-weight: 900;
+            margin-bottom: 10px;
+            line-height: 1.2;
+        }
+
+        .registro-header h1 span {
+            background: var(--degradado);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .registro-header p {
+            color: var(--gris);
+            font-size: 16px;
+            line-height: 1.6;
+        }
+
+        .form-card {
+            background: var(--oscuro2);
+            border: 1px solid rgba(124,58,237,0.25);
+            border-radius: 24px;
+            padding: 45px 40px;
+            box-shadow: 0 0 60px rgba(124,58,237,0.08);
+        }
+
+        /* PASO 1: SELECTOR DE PLAN */
+        .plan-selector label.label-titulo {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--gris);
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .planes-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+
+        .plan-option { position: relative; cursor: pointer; }
+
+        .plan-option input[type="radio"] {
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .plan-card {
+            background: var(--oscuro);
+            border: 2px solid rgba(124,58,237,0.2);
+            border-radius: 14px;
+            padding: 16px 14px;
+            transition: all 0.25s;
+            cursor: pointer;
+            display: block;
+        }
+
+        .plan-option input:checked + .plan-card {
+            border-color: var(--morado);
+            background: rgba(124,58,237,0.1);
+            box-shadow: 0 0 20px rgba(124,58,237,0.2);
+        }
+
+        .plan-card:hover { border-color: rgba(124,58,237,0.5); }
+
+        .plan-card-nombre {
+            font-size: 14px;
+            font-weight: 700;
+            background: var(--degradado);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 4px;
+        }
+
+        .plan-card-precio {
+            font-size: 17px;
+            font-weight: 800;
+            color: var(--texto);
+            margin-bottom: 2px;
+        }
+
+        .plan-card-fotos { font-size: 11px; color: var(--gris); }
+
+        .plan-popular-badge {
+            display: inline-block;
+            background: var(--degradado);
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 6px;
+        }
+
+        /* DIVIDER */
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .divider-line {
+            flex: 1;
+            height: 1px;
+            background: rgba(124,58,237,0.2);
+        }
+        .divider-text {
+            font-size: 13px;
+            color: var(--gris);
+            white-space: nowrap;
+        }
+
+        /* BOTÓN GOOGLE */
+        .btn-google {
+            width: 100%;
+            background: white;
+            color: #1F2937;
+            border: none;
+            padding: 16px;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.3s;
+            font-family: 'Segoe UI', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            margin-bottom: 16px;
+        }
+
+        .btn-google:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+        }
+
+        .btn-google svg {
+            width: 22px;
+            height: 22px;
+            flex-shrink: 0;
+        }
+
+        /* TEXTO SEGURIDAD */
+        .seguridad-text {
+            text-align: center;
+            font-size: 12px;
+            color: var(--gris);
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        .seguridad-text span {
+            color: #A78BFA;
+        }
+
+        /* ALERTA */
+        .alerta {
+            border-radius: 12px;
+            padding: 14px 18px;
+            font-size: 14px;
+            margin-bottom: 20px;
+            display: none;
+            line-height: 1.5;
+        }
+
+        .alerta.error {
+            background: rgba(239,68,68,0.1);
+            border: 1px solid rgba(239,68,68,0.4);
+            color: #FCA5A5;
+            display: block;
+        }
+
+        .alerta.exito {
+            background: rgba(16,185,129,0.1);
+            border: 1px solid rgba(16,185,129,0.4);
+            color: #6EE7B7;
+            display: block;
+        }
+
+        .alerta.info {
+            background: rgba(59,130,246,0.1);
+            border: 1px solid rgba(59,130,246,0.4);
+            color: #93C5FD;
+            display: block;
+        }
+
+        /* SPINNER */
+        .spinner {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(100,100,100,0.3);
+            border-top-color: #333;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* PANTALLA ÉXITO */
+        .exito-screen {
+            display: none;
+            text-align: center;
+            padding: 10px 0;
+        }
+
+        .exito-icon {
+            font-size: 70px;
+            margin-bottom: 20px;
+            animation: bounce 0.6s ease;
+        }
+
+        @keyframes bounce {
+            0% { transform: scale(0); }
+            60% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+
+        .exito-screen h2 {
+            font-size: 28px;
+            font-weight: 800;
+            margin-bottom: 12px;
+        }
+
+        .exito-screen h2 span {
+            background: var(--degradado);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .exito-screen p {
+            color: var(--gris);
+            font-size: 15px;
+            line-height: 1.6;
+            margin-bottom: 25px;
+        }
+
+        .exito-datos {
+            background: var(--oscuro);
+            border: 1px solid rgba(124,58,237,0.25);
+            border-radius: 14px;
+            padding: 20px;
+            margin-bottom: 25px;
+            text-align: left;
+        }
+
+        .exito-datos p {
+            font-size: 14px;
+            margin-bottom: 8px;
+            color: var(--gris);
+        }
+
+        .exito-datos strong { color: var(--texto); }
+
+        .btn-dashboard {
+            display: inline-block;
+            background: var(--degradado);
+            color: white;
+            padding: 16px 40px;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: 700;
+            text-decoration: none;
+            transition: opacity 0.3s, transform 0.2s;
+            box-shadow: 0 0 30px rgba(124,58,237,0.35);
+        }
+
+        .btn-dashboard:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+
+        /* PANTALLA CARGANDO (OAuth callback) */
+        .loading-screen {
+            display: none;
+            text-align: center;
+            padding: 30px 0;
+        }
+
+        .loading-spinner-grande {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(124,58,237,0.2);
+            border-top-color: var(--morado);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        .loading-screen p {
+            color: var(--gris);
+            font-size: 16px;
+        }
+
+        .login-link {
+            text-align: center;
+            margin-top: 24px;
+            color: var(--gris);
+            font-size: 14px;
+        }
+
+        .login-link a {
+            color: #A78BFA;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        @media (max-width: 600px) {
+            nav { padding: 15px 20px; }
+            .form-card { padding: 30px 20px; }
+            .registro-header h1 { font-size: 28px; }
+        }
+
+        @media (max-width: 400px) {
+            .planes-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="bg-glow"></div>
+
+<!-- NAVBAR -->
+<nav>
+    <a href="/" class="logo">DecoIArte</a>
+    <a href="/" class="nav-back">← Volver al inicio</a>
+</nav>
+
+<!-- CONTENIDO -->
+<div class="registro-container">
+    <div class="registro-box">
+
+        <!-- HEADER -->
+        <div class="registro-header">
+            <div class="registro-badge">🚀 Registro gratuito</div>
+            <h1>Crea tu cuenta<br><span>en segundos</span></h1>
+            <p>Sin tarjeta de crédito. Elige tu plan y entra con Google.</p>
+        </div>
+
+        <!-- CARD -->
+        <div class="form-card">
+
+            <!-- ALERTA -->
+            <div class="alerta" id="alerta"></div>
+
+            <!-- PANTALLA CARGANDO (después de OAuth) -->
+            <div class="loading-screen" id="loadingScreen">
+                <div class="loading-spinner-grande"></div>
+                <p>Completando tu registro...<br>Un momento por favor ✨</p>
+            </div>
+
+            <!-- FORMULARIO PRINCIPAL -->
+            <div id="formContenido">
+
+                <!-- SELECTOR DE PLAN -->
+                <label class="label-titulo" style="display:block; font-size:13px; font-weight:600; color:var(--gris); margin-bottom:12px; text-transform:uppercase; letter-spacing:0.05em;">
+                    1. Elige tu plan
+                </label>
+
+                <div class="planes-grid">
+                    <label class="plan-option">
+                        <input type="radio" name="plan" value="basico">
+                        <span class="plan-card">
+                            <div class="plan-card-nombre">Básico</div>
+                            <div class="plan-card-precio">$700K</div>
+                            <div class="plan-card-fotos">100 fotos/mes</div>
+                        </span>
+                    </label>
+
+                    <label class="plan-option">
+                        <input type="radio" name="plan" value="profesional" checked>
+                        <span class="plan-card">
+                            <div class="plan-popular-badge">⭐ Popular</div>
+                            <div class="plan-card-nombre">Profesional</div>
+                            <div class="plan-card-precio">$1.200K</div>
+                            <div class="plan-card-fotos">200 fotos/mes</div>
+                        </span>
+                    </label>
+
+                    <label class="plan-option">
+                        <input type="radio" name="plan" value="premium">
+                        <span class="plan-card">
+                            <div class="plan-card-nombre">Premium</div>
+                            <div class="plan-card-precio">$1.500K</div>
+                            <div class="plan-card-fotos">300 fotos/mes</div>
+                        </span>
+                    </label>
+
+                    <label class="plan-option">
+                        <input type="radio" name="plan" value="corporativo">
+                        <span class="plan-card">
+                            <div class="plan-card-nombre">Corporativo</div>
+                            <div class="plan-card-precio">$3.000K</div>
+                            <div class="plan-card-fotos">500 fotos/mes</div>
+                        </span>
+                    </label>
+                </div>
+
+                <!-- DIVIDER -->
+                <div class="divider">
+                    <div class="divider-line"></div>
+                    <span class="divider-text">2. Entra con tu cuenta</span>
+                    <div class="divider-line"></div>
+                </div>
+
+                <!-- BOTÓN GOOGLE -->
+                <button class="btn-google" onclick="loginConGoogle()" id="btnGoogle">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                    </svg>
+                    Continuar con Google
+                </button>
+
+                <!-- SEGURIDAD -->
+                <div class="seguridad-text">
+                    🔒 Tu cuenta de Google <span>nunca comparte tu contraseña</span> con DecoIArte.<br>
+                    Solo usamos tu nombre y correo para crear tu cuenta.
+                </div>
+
+            </div>
+
+            <!-- PANTALLA ÉXITO -->
+            <div class="exito-screen" id="exitoScreen">
+                <div class="exito-icon">🎉</div>
+                <h2>¡Bienvenido a<br><span>DecoIArte!</span></h2>
+                <p>Tu cuenta fue creada exitosamente.<br>En breve te contactamos para activar tu bot de WhatsApp.</p>
+                <div class="exito-datos" id="exitoDatos"></div>
+                <a href="/dashboard" class="btn-dashboard">Ir a mi Dashboard →</a>
+            </div>
+
+        </div>
+
+        <!-- LOGIN LINK -->
+        <div class="login-link" id="loginLink">
+            ¿Ya tienes cuenta? <a href="/login">Inicia sesión aquí</a>
+        </div>
+
+    </div>
+</div>
+
+<script>
+// ── SUPABASE CONFIG ────────────────────────────────────────────────────────
+const SUPABASE_URL      = 'https://cqwbsikyzdtegutyvgfo.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxd2JzaWt5emR0ZWd1dHl2Z2ZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NTk5MjUsImV4cCI6MjA5NDMzNTkyNX0.v9Qmp85POur1zZ3nHVYNRyhqHAi4VawafBsCiXF72Yo';
+
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ── GUARDAR PLAN SELECCIONADO EN sessionStorage ───────────────────────────
+// (porque Google OAuth hace redirect y perdemos el estado)
+function getPlanSeleccionado() {
+    return document.querySelector('input[name="plan"]:checked')?.value || 'profesional';
+}
+
+// ── LOGIN CON GOOGLE ──────────────────────────────────────────────────────
+async function loginConGoogle() {
+    const plan = getPlanSeleccionado();
+    sessionStorage.setItem('plan_seleccionado', plan);
+
+    const btn = document.getElementById('btnGoogle');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Conectando con Google...';
+
+    const { error } = await db.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+            redirectTo: window.location.origin + '/registro'
+        }
+    });
+
+    if (error) {
+        mostrarAlerta('❌ Error conectando con Google. Intenta de nuevo.', 'error');
+        btn.disabled = false;
+        btn.innerHTML = `
+            <svg viewBox="0 0 24 24" width="22" height="22">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+            Continuar con Google`;
+    }
+    // Si no hay error, Google hace el redirect automáticamente
+}
+
+// ── MANEJAR CALLBACK DE GOOGLE (cuando vuelve a /registro) ────────────────
+async function manejarCallback() {
+    const { data: { session }, error } = await db.auth.getSession();
+
+    if (error || !session) return; // No hay sesión activa, mostrar formulario normal
+
+    // Hay sesión → el usuario acaba de volver de Google
+    const user = session.user;
+    const plan = sessionStorage.getItem('plan_seleccionado') || 'profesional';
+
+    // Mostrar pantalla de carga
+    document.getElementById('formContenido').style.display = 'none';
+    document.getElementById('loadingScreen').style.display = 'block';
+
+    try {
+        // Verificar si ya existe la empresa para este usuario
+        const { data: empresaExistente } = await db
+            .from('empresas')
+            .select('id, nombre, plan_id')
+            .eq('email', user.email)
+            .single();
+
+        if (empresaExistente) {
+            // Ya existe → redirigir directo al dashboard
+            sessionStorage.removeItem('plan_seleccionado');
+            window.location.href = '/dashboard';
+            return;
+        }
+
+        // Obtener el plan de la BD
+        const { data: planData, error: planError } = await db
+            .from('planes')
+            .select('id, nombre, precio, fotos_incluidas')
+            .eq('nombre', plan)
+            .single();
+
+        if (planError || !planData) throw new Error('Plan no encontrado');
+
+        // Crear la empresa en Supabase
+        const nombreNegocio = user.user_metadata?.full_name || user.email.split('@')[0];
+
+        const { error: insertError } = await db
+            .from('empresas')
+            .insert({
+                nombre:            nombreNegocio,
+                email:             user.email,
+                plan_id:           planData.id,
+                fotos_disponibles: planData.fotos_incluidas,
+                fotos_usadas:      0,
+                estado:            'pendiente_pago',
+                pago_metodo:       'pendiente'
+            });
+
+        if (insertError) {
+            // Si ya existe (race condition), ir al dashboard
+            if (insertError.code === '23505') {
+                window.location.href = '/dashboard';
+                return;
+            }
+            throw insertError;
+        }
+
+        // ¡Éxito! Mostrar pantalla de bienvenida
+        sessionStorage.removeItem('plan_seleccionado');
+        document.getElementById('loadingScreen').style.display = 'none';
+        mostrarExito(nombreNegocio, user.email, plan, planData.fotos_incluidas);
+
+    } catch (err) {
+        console.error(err);
+        document.getElementById('loadingScreen').style.display = 'none';
+        document.getElementById('formContenido').style.display = 'block';
+        mostrarAlerta('❌ Error creando tu cuenta. Por favor intenta de nuevo.', 'error');
+    }
+}
+
+// ── PANTALLA DE ÉXITO ─────────────────────────────────────────────────────
+function mostrarExito(nombre, email, plan, fotos) {
+    document.getElementById('formContenido').style.display = 'none';
+    document.getElementById('loadingScreen').style.display = 'none';
+    document.getElementById('loginLink').style.display = 'none';
+    limpiarAlerta();
+
+    const planNombres = {
+        basico: 'Básico',
+        profesional: 'Profesional',
+        premium: 'Premium',
+        corporativo: 'Corporativo'
+    };
+
+    document.getElementById('exitoDatos').innerHTML = `
+        <p>👤 <strong>${nombre}</strong></p>
+        <p>📧 <strong>${email}</strong></p>
+        <p>📦 Plan: <strong>${planNombres[plan] || plan}</strong></p>
+        <p>📸 Fotos incluidas: <strong>${fotos} imágenes/mes</strong></p>
+        <p style="margin-top:12px; font-size:13px; color:#A78BFA;">
+            ✅ Te contactaremos pronto para activar tu bot de WhatsApp.
+        </p>
+    `;
+
+    document.getElementById('exitoScreen').style.display = 'block';
+}
+
+// ── ALERTAS ───────────────────────────────────────────────────────────────
+function mostrarAlerta(mensaje, tipo) {
+    const alerta = document.getElementById('alerta');
+    alerta.textContent = mensaje;
+    alerta.className = `alerta ${tipo}`;
+}
+
+function limpiarAlerta() {
+    const alerta = document.getElementById('alerta');
+    alerta.className = 'alerta';
+    alerta.textContent = '';
+}
+
+// ── INIT: verificar si venimos del callback de Google ────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+    // Supabase detecta automáticamente el token en la URL (#access_token=...)
+    manejarCallback();
+});
+</script>
+
+</body>
+</html>
