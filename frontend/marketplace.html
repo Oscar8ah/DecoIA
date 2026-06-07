@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Marketplace — DecoIArte</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --morado: #7C3AED;
+            --azul: #3B82F6;
+            --degradado: linear-gradient(135deg, #3B82F6 0%, #7C3AED 100%);
+            --oscuro: #0F0F1A;
+            --oscuro2: #1A1A2E;
+            --texto: #F8FAFC;
+            --gris: #94A3B8;
+            --verde: #10B981;
+        }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--oscuro); color: var(--texto); min-height: 100vh; }
+
+        /* NAV */
+        nav {
+            position: fixed; top: 0; width: 100%;
+            padding: 16px 60px;
+            display: flex; justify-content: space-between; align-items: center;
+            background: rgba(15,15,26,0.95); backdrop-filter: blur(10px);
+            z-index: 100; border-bottom: 1px solid rgba(124,58,237,0.2);
+        }
+        .logo { font-size: 24px; font-weight: 800; background: var(--degradado); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-decoration: none; }
+        .nav-links { display: flex; gap: 24px; align-items: center; }
+        .nav-links a { color: var(--gris); text-decoration: none; font-size: 14px; transition: color 0.3s; }
+        .nav-links a:hover { color: var(--texto); }
+        .btn-nav { background: var(--degradado); color: white !important; padding: 10px 22px; border-radius: 50px; font-weight: 600; }
+
+        /* HERO */
+        .hero-market {
+            padding: 120px 60px 60px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .hero-market::before {
+            content: '';
+            position: absolute;
+            width: 600px; height: 400px;
+            background: radial-gradient(circle, rgba(124,58,237,0.12) 0%, transparent 70%);
+            top: 50%; left: 50%; transform: translate(-50%,-50%);
+            pointer-events: none;
+        }
+        .hero-badge {
+            display: inline-block;
+            background: rgba(124,58,237,0.15); border: 1px solid rgba(124,58,237,0.4);
+            padding: 7px 18px; border-radius: 50px; font-size: 13px; color: #A78BFA; margin-bottom: 20px;
+        }
+        .hero-market h1 { font-size: clamp(32px,5vw,60px); font-weight: 900; margin-bottom: 16px; }
+        .hero-market h1 span { background: var(--degradado); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .hero-market p { color: var(--gris); font-size: 18px; max-width: 560px; margin: 0 auto 40px; line-height: 1.7; }
+
+        /* BUSCADOR */
+        .buscador-wrap { max-width: 600px; margin: 0 auto 60px; position: relative; }
+        .buscador-input {
+            width: 100%; padding: 18px 60px 18px 24px;
+            background: var(--oscuro2); border: 1px solid rgba(124,58,237,0.3);
+            border-radius: 50px; color: var(--texto); font-size: 16px;
+            font-family: 'Segoe UI', sans-serif; outline: none;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        .buscador-input:focus { border-color: var(--morado); box-shadow: 0 0 0 3px rgba(124,58,237,0.15); }
+        .buscador-input::placeholder { color: rgba(148,163,184,0.5); }
+        .buscador-icon { position: absolute; right: 20px; top: 50%; transform: translateY(-50%); font-size: 22px; }
+
+        /* CATEGORÍAS */
+        .categorias-wrap { padding: 0 60px 50px; max-width: 1200px; margin: 0 auto; }
+        .categorias-titulo { font-size: 13px; font-weight: 600; color: var(--gris); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 16px; }
+        .categorias-scroll { display: flex; gap: 12px; flex-wrap: wrap; }
+        .cat-btn {
+            padding: 10px 20px; border-radius: 50px;
+            background: var(--oscuro2); border: 1px solid rgba(124,58,237,0.2);
+            color: var(--gris); font-size: 14px; font-weight: 500;
+            cursor: pointer; transition: all 0.2s; white-space: nowrap;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        .cat-btn:hover { border-color: rgba(124,58,237,0.5); color: var(--texto); }
+        .cat-btn.active { background: rgba(124,58,237,0.15); border-color: var(--morado); color: var(--texto); }
+
+        /* CONTENIDO PRINCIPAL */
+        .market-content { padding: 0 60px 80px; max-width: 1200px; margin: 0 auto; }
+
+        /* VISTA TIENDAS */
+        .section-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 24px; flex-wrap: wrap; gap: 12px;
+        }
+        .section-header h2 { font-size: 22px; font-weight: 800; }
+        .vista-toggle { display: flex; gap: 8px; }
+        .vista-btn {
+            padding: 8px 16px; border-radius: 10px;
+            background: var(--oscuro2); border: 1px solid rgba(124,58,237,0.2);
+            color: var(--gris); font-size: 14px; cursor: pointer;
+            transition: all 0.2s; font-family: 'Segoe UI', sans-serif;
+        }
+        .vista-btn.active { background: rgba(124,58,237,0.15); border-color: var(--morado); color: var(--texto); }
+
+        /* GRID TIENDAS */
+        .tiendas-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; margin-bottom: 60px; }
+        .tienda-card {
+            background: var(--oscuro2); border: 1px solid rgba(124,58,237,0.15);
+            border-radius: 20px; overflow: hidden;
+            transition: transform 0.25s, border-color 0.25s, box-shadow 0.25s;
+            cursor: pointer;
+        }
+        .tienda-card:hover { transform: translateY(-5px); border-color: rgba(124,58,237,0.4); box-shadow: 0 10px 40px rgba(124,58,237,0.1); }
+        .tienda-banner {
+            height: 100px; background: var(--degradado);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 36px; position: relative;
+        }
+        .tienda-cat-badge {
+            position: absolute; bottom: 10px; right: 10px;
+            background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+            padding: 4px 12px; border-radius: 50px; font-size: 11px; color: white;
+        }
+        .tienda-body { padding: 20px; }
+        .tienda-nombre { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+        .tienda-desc { font-size: 13px; color: var(--gris); margin-bottom: 16px; line-height: 1.5; }
+        .tienda-meta { display: flex; justify-content: space-between; align-items: center; }
+        .tienda-ciudad { font-size: 12px; color: var(--gris); }
+        .btn-ver-tienda {
+            background: var(--degradado); color: white;
+            padding: 8px 18px; border-radius: 50px; font-size: 13px;
+            font-weight: 600; border: none; cursor: pointer;
+            transition: opacity 0.3s; font-family: 'Segoe UI', sans-serif;
+        }
+        .btn-ver-tienda:hover { opacity: 0.85; }
+
+        /* VISTA TIENDA INDIVIDUAL */
+        .tienda-vista { display: none; }
+        .tienda-vista.active { display: block; }
+
+        .tienda-header-grande {
+            background: var(--oscuro2); border: 1px solid rgba(124,58,237,0.2);
+            border-radius: 20px; overflow: hidden; margin-bottom: 32px;
+        }
+        .tienda-banner-grande {
+            height: 160px; background: var(--degradado);
+            display: flex; align-items: center; justify-content: center; font-size: 56px;
+        }
+        .tienda-info-grande { padding: 24px 28px; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; }
+        .tienda-nombre-grande { font-size: 28px; font-weight: 900; margin-bottom: 8px; }
+        .tienda-desc-grande { font-size: 15px; color: var(--gris); line-height: 1.6; max-width: 500px; }
+        .tienda-acciones { display: flex; gap: 12px; flex-wrap: wrap; }
+        .btn-contactar {
+            background: #25D366; color: white; padding: 12px 24px;
+            border-radius: 50px; font-size: 14px; font-weight: 700;
+            border: none; cursor: pointer; transition: opacity 0.3s;
+            display: flex; align-items: center; gap: 8px;
+            font-family: 'Segoe UI', sans-serif; text-decoration: none;
+        }
+        .btn-contactar:hover { opacity: 0.85; }
+        .btn-volver {
+            background: var(--oscuro2); color: var(--gris); padding: 12px 24px;
+            border-radius: 50px; font-size: 14px; font-weight: 600;
+            border: 1px solid rgba(124,58,237,0.2); cursor: pointer;
+            transition: all 0.2s; font-family: 'Segoe UI', sans-serif;
+        }
+        .btn-volver:hover { border-color: rgba(124,58,237,0.5); color: var(--texto); }
+
+        /* GRID PRODUCTOS */
+        .productos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px; }
+        .producto-card {
+            background: var(--oscuro2); border: 1px solid rgba(124,58,237,0.15);
+            border-radius: 16px; overflow: hidden;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+        .producto-card:hover { transform: translateY(-3px); border-color: rgba(124,58,237,0.4); }
+        .producto-img {
+            width: 100%; height: 180px; object-fit: cover;
+            background: var(--oscuro); display: flex; align-items: center;
+            justify-content: center; font-size: 40px; color: var(--gris);
+        }
+        .producto-img img { width: 100%; height: 100%; object-fit: cover; }
+        .producto-body { padding: 16px; }
+        .producto-cat { font-size: 11px; color: #A78BFA; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+        .producto-nombre { font-size: 15px; font-weight: 700; margin-bottom: 8px; line-height: 1.3; }
+        .producto-desc { font-size: 13px; color: var(--gris); margin-bottom: 12px; line-height: 1.5; }
+        .producto-precio-wrap { display: flex; align-items: baseline; gap: 8px; margin-bottom: 14px; }
+        .producto-precio { font-size: 20px; font-weight: 900; color: var(--texto); }
+        .producto-precio-antes { font-size: 13px; color: var(--gris); text-decoration: line-through; }
+        .producto-unidad { font-size: 12px; color: var(--gris); }
+        .producto-footer { display: flex; justify-content: space-between; align-items: center; }
+        .producto-stock { font-size: 12px; }
+        .stock-ok { color: var(--verde); }
+        .stock-no { color: #EF4444; }
+        .btn-comprar {
+            background: var(--degradado); color: white;
+            padding: 10px 18px; border-radius: 50px; font-size: 13px;
+            font-weight: 700; border: none; cursor: pointer;
+            transition: opacity 0.3s; font-family: 'Segoe UI', sans-serif;
+            text-decoration: none; display: inline-block;
+        }
+        .btn-comprar:hover { opacity: 0.85; }
+
+        /* EMPTY */
+        .empty-state { text-align: center; padding: 80px 20px; color: var(--gris); }
+        .empty-state .icon { font-size: 56px; margin-bottom: 20px; }
+        .empty-state h3 { font-size: 20px; font-weight: 700; margin-bottom: 10px; color: var(--texto); }
+        .empty-state p { font-size: 15px; line-height: 1.6; }
+
+        /* LOADING */
+        .loading-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px,1fr)); gap: 24px; }
+        .skeleton {
+            background: var(--oscuro2); border: 1px solid rgba(124,58,237,0.1);
+            border-radius: 20px; overflow: hidden; height: 280px;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+        /* FOOTER */
+        footer {
+            background: var(--oscuro2); padding: 40px 60px;
+            text-align: center; color: var(--gris);
+            border-top: 1px solid rgba(124,58,237,0.2); font-size: 14px;
+        }
+        footer span { background: var(--degradado); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 700; }
+
+        @media (max-width: 768px) {
+            nav { padding: 16px 20px; }
+            .nav-links { display: none; }
+            .hero-market { padding: 100px 20px 40px; }
+            .categorias-wrap { padding: 0 20px 40px; }
+            .market-content { padding: 0 20px 60px; }
+            .tiendas-grid { grid-template-columns: 1fr; }
+            .productos-grid { grid-template-columns: 1fr 1fr; }
+        }
+        @media (max-width: 480px) {
+            .productos-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+    <a href="/" class="logo">DecoIArte</a>
+    <div class="nav-links">
+        <a href="/">Inicio</a>
+        <a href="/marketplace">Marketplace</a>
+        <a href="/dashboard">Mi cuenta</a>
+        <a href="/registro" class="btn-nav">Registrar tienda</a>
+    </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero-market">
+    <div class="hero-badge">🛍️ Marketplace de remodelación</div>
+    <h1>Todo para tu<br><span>remodelación</span></h1>
+    <p>Encuentra pisos, enchapes, cocinas, baños, materiales y mucho más de los mejores negocios de Colombia.</p>
+    <div class="buscador-wrap">
+        <input type="text" class="buscador-input" id="buscador" placeholder="🔍 Buscar productos, tiendas, categorías..." oninput="buscar(this.value)">
+    </div>
+</section>
+
+<!-- CATEGORÍAS -->
+<div class="categorias-wrap">
+    <div class="categorias-titulo">Explorar por categoría</div>
+    <div class="categorias-scroll">
+        <button class="cat-btn active" onclick="filtrarCategoria('todas', this)">🏪 Todas</button>
+        <button class="cat-btn" onclick="filtrarCategoria('pisos', this)">🪵 Pisos</button>
+        <button class="cat-btn" onclick="filtrarCategoria('enchapes', this)">🧱 Enchapes</button>
+        <button class="cat-btn" onclick="filtrarCategoria('cocinas', this)">🍳 Cocinas</button>
+        <button class="cat-btn" onclick="filtrarCategoria('baños', this)">🚿 Baños</button>
+        <button class="cat-btn" onclick="filtrarCategoria('materiales', this)">🏗️ Materiales</button>
+        <button class="cat-btn" onclick="filtrarCategoria('electricos', this)">💡 Eléctricos</button>
+        <button class="cat-btn" onclick="filtrarCategoria('pintura', this)">🎨 Pintura</button>
+        <button class="cat-btn" onclick="filtrarCategoria('puertas', this)">🚪 Puertas</button>
+    </div>
+</div>
+
+<!-- CONTENIDO -->
+<div class="market-content">
+
+    <!-- VISTA LISTADO TIENDAS -->
+    <div id="vistaListado">
+        <div class="section-header">
+            <h2 id="tituloSeccion">🏪 Tiendas disponibles</h2>
+            <div style="font-size:14px;color:var(--gris)" id="contadorTiendas"></div>
+        </div>
+
+        <!-- SKELETONS CARGANDO -->
+        <div class="loading-cards" id="skeletons">
+            <div class="skeleton"></div>
+            <div class="skeleton"></div>
+            <div class="skeleton"></div>
+        </div>
+
+        <!-- GRID TIENDAS -->
+        <div class="tiendas-grid" id="tiendasGrid" style="display:none;"></div>
+    </div>
+
+    <!-- VISTA TIENDA INDIVIDUAL -->
+    <div id="vistaTienda" style="display:none;">
+        <div style="margin-bottom:20px;">
+            <button class="btn-volver" onclick="volverListado()">← Volver a tiendas</button>
+        </div>
+        <div class="tienda-header-grande" id="tiendaHeader"></div>
+        <div class="section-header">
+            <h2>Productos disponibles</h2>
+            <div style="font-size:14px;color:var(--gris)" id="contadorProductos"></div>
+        </div>
+        <div class="productos-grid" id="productosGrid"></div>
+    </div>
+
+</div>
+
+<!-- FOOTER -->
+<footer>
+    <p>© 2026 <span>DecoIArte</span> Marketplace 🏠✨ — Colombia</p>
+</footer>
+
+<script>
+const SUPABASE_URL      = 'https://cqwbsikyzdtegutyvgfo.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxd2JzaWt5emR0ZWd1dHl2Z2ZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NTk5MjUsImV4cCI6MjA5NDMzNTkyNX0.v9Qmp85POur1zZ3nHVYNRyhqHAi4VawafBsCiXF72Yo';
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const EMOJIS_CAT = {
+    pisos: '🪵', enchapes: '🧱', cocinas: '🍳', baños: '🚿',
+    materiales: '🏗️', electricos: '💡', pintura: '🎨', puertas: '🚪', general: '🏪'
+};
+
+let todasTiendas = [];
+let categoriaActual = 'todas';
+let busquedaActual  = '';
+
+// ── INIT ──────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+    await cargarTiendas();
+});
+
+async function cargarTiendas() {
+    const { data: tiendas } = await db
+        .from('tiendas')
+        .select('*')
+        .eq('activa', true)
+        .order('created_at', { ascending: false });
+
+    todasTiendas = tiendas || [];
+    document.getElementById('skeletons').style.display = 'none';
+    document.getElementById('tiendasGrid').style.display = 'grid';
+    renderTiendas(todasTiendas);
+}
+
+// ── RENDER TIENDAS ────────────────────────────────────────────────────────
+function renderTiendas(tiendas) {
+    const grid = document.getElementById('tiendasGrid');
+    const contador = document.getElementById('contadorTiendas');
+    contador.textContent = `${tiendas.length} tienda${tiendas.length !== 1 ? 's' : ''}`;
+
+    if (tiendas.length === 0) {
+        grid.innerHTML = `
+            <div class="empty-state" style="grid-column:1/-1">
+                <div class="icon">🏪</div>
+                <h3>Próximamente más tiendas</h3>
+                <p>Aún no hay tiendas en esta categoría.<br>¿Tienes un negocio? <a href="/registro" style="color:#A78BFA;">Regístralo gratis</a></p>
+            </div>`;
+        return;
+    }
+
+    grid.innerHTML = tiendas.map(t => {
+        const emoji = EMOJIS_CAT[t.categoria_principal] || '🏪';
+        return `
+            <div class="tienda-card" onclick="verTienda('${t.id}')">
+                <div class="tienda-banner" style="background: ${bannerColor(t.categoria_principal)}">
+                    <span style="font-size:48px">${emoji}</span>
+                    <span class="tienda-cat-badge">${t.categoria_principal || 'General'}</span>
+                </div>
+                <div class="tienda-body">
+                    <div class="tienda-nombre">${t.nombre}</div>
+                    <div class="tienda-desc">${t.descripcion || 'Tienda de materiales y acabados para remodelación.'}</div>
+                    <div class="tienda-meta">
+                        <span class="tienda-ciudad">📍 ${t.ciudad || 'Colombia'}</span>
+                        <button class="btn-ver-tienda">Ver tienda →</button>
+                    </div>
+                </div>
+            </div>`;
+    }).join('');
+}
+
+// ── VER TIENDA INDIVIDUAL ─────────────────────────────────────────────────
+async function verTienda(tiendaId) {
+    const tienda = todasTiendas.find(t => t.id === tiendaId);
+    if (!tienda) return;
+
+    // Ocultar listado, mostrar tienda
+    document.getElementById('vistaListado').style.display = 'none';
+    document.getElementById('vistaTienda').style.display  = 'block';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // Header tienda
+    const emoji = EMOJIS_CAT[tienda.categoria_principal] || '🏪';
+    const waLink = tienda.whatsapp_contacto
+        ? `https://wa.me/${tienda.whatsapp_contacto}?text=Hola,%20vi%20tu%20tienda%20en%20DecoIArte%20y%20me%20interesa%20un%20producto`
+        : '#';
+
+    document.getElementById('tiendaHeader').innerHTML = `
+        <div class="tienda-banner-grande" style="background:${bannerColor(tienda.categoria_principal)}">
+            <span>${emoji}</span>
+        </div>
+        <div class="tienda-info-grande">
+            <div>
+                <div class="tienda-nombre-grande">${tienda.nombre}</div>
+                <div class="tienda-desc-grande">${tienda.descripcion || 'Tienda de materiales y acabados para remodelación.'}</div>
+                <div style="margin-top:12px;font-size:13px;color:var(--gris)">📍 ${tienda.ciudad || 'Colombia'}</div>
+            </div>
+            <div class="tienda-acciones">
+                ${tienda.whatsapp_contacto
+                    ? `<a href="${waLink}" target="_blank" class="btn-contactar">💬 Contactar por WhatsApp</a>`
+                    : ''
+                }
+            </div>
+        </div>
+    `;
+
+    // Cargar productos
+    document.getElementById('productosGrid').innerHTML = `
+        <div class="empty-state" style="grid-column:1/-1">
+            <div class="icon" style="font-size:32px;margin-bottom:12px">⏳</div>
+            <p>Cargando productos...</p>
+        </div>`;
+
+    const { data: productos } = await db
+        .from('productos')
+        .select('*')
+        .eq('tienda_id', tiendaId)
+        .eq('activo', true)
+        .order('created_at', { ascending: false });
+
+    renderProductos(productos || [], tienda);
+}
+
+function renderProductos(productos, tienda) {
+    const grid     = document.getElementById('productosGrid');
+    const contador = document.getElementById('contadorProductos');
+    contador.textContent = `${productos.length} producto${productos.length !== 1 ? 's' : ''}`;
+
+    if (productos.length === 0) {
+        grid.innerHTML = `
+            <div class="empty-state" style="grid-column:1/-1">
+                <div class="icon">📦</div>
+                <h3>Próximamente</h3>
+                <p>Esta tienda aún no ha publicado productos.<br>Contáctalos directamente por WhatsApp.</p>
+            </div>`;
+        return;
+    }
+
+    const waBase = tienda.whatsapp_contacto
+        ? `https://wa.me/${tienda.whatsapp_contacto}?text=Hola,%20quiero%20comprar:`
+        : '#';
+
+    grid.innerHTML = productos.map(p => {
+        const precioFmt  = `$${Number(p.precio).toLocaleString('es-CO')}`;
+        const antesHtml  = p.precio_antes
+            ? `<span class="producto-precio-antes">$${Number(p.precio_antes).toLocaleString('es-CO')}</span>` : '';
+        const stockHtml  = p.stock > 0
+            ? `<span class="producto-stock stock-ok">✓ Disponible</span>`
+            : `<span class="producto-stock stock-no">✗ Agotado</span>`;
+        const imgHtml    = p.imagen_url
+            ? `<img src="${p.imagen_url}" alt="${p.nombre}" loading="lazy" onerror="this.parentElement.innerHTML='📦'">`
+            : '📦';
+        const waProducto = `${waBase} ${encodeURIComponent(p.nombre)}`;
+
+        return `
+            <div class="producto-card">
+                <div class="producto-img">${imgHtml}</div>
+                <div class="producto-body">
+                    <div class="producto-cat">${p.categoria || 'General'}</div>
+                    <div class="producto-nombre">${p.nombre}</div>
+                    <div class="producto-desc">${p.descripcion || ''}</div>
+                    <div class="producto-precio-wrap">
+                        <span class="producto-precio">${precioFmt}</span>
+                        ${antesHtml}
+                        <span class="producto-unidad">/${p.unidad || 'm²'}</span>
+                    </div>
+                    <div class="producto-footer">
+                        ${stockHtml}
+                        <a href="${waProducto}" target="_blank" class="btn-comprar">
+                            💬 Pedir
+                        </a>
+                    </div>
+                </div>
+            </div>`;
+    }).join('');
+}
+
+function volverListado() {
+    document.getElementById('vistaTienda').style.display  = 'none';
+    document.getElementById('vistaListado').style.display = 'block';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ── FILTROS ───────────────────────────────────────────────────────────────
+function filtrarCategoria(cat, btn) {
+    categoriaActual = cat;
+    document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    const titulo = document.getElementById('tituloSeccion');
+    titulo.textContent = cat === 'todas' ? '🏪 Tiendas disponibles' : `${EMOJIS_CAT[cat]||'🏪'} Tiendas de ${cat}`;
+
+    aplicarFiltros();
+}
+
+function buscar(query) {
+    busquedaActual = query.toLowerCase();
+    aplicarFiltros();
+}
+
+function aplicarFiltros() {
+    let filtradas = todasTiendas;
+
+    if (categoriaActual !== 'todas') {
+        filtradas = filtradas.filter(t => t.categoria_principal === categoriaActual);
+    }
+
+    if (busquedaActual) {
+        filtradas = filtradas.filter(t =>
+            t.nombre.toLowerCase().includes(busquedaActual) ||
+            (t.descripcion || '').toLowerCase().includes(busquedaActual) ||
+            (t.ciudad || '').toLowerCase().includes(busquedaActual)
+        );
+    }
+
+    renderTiendas(filtradas);
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────
+function bannerColor(cat) {
+    const colores = {
+        pisos:      'linear-gradient(135deg, #92400E, #D97706)',
+        enchapes:   'linear-gradient(135deg, #1E40AF, #3B82F6)',
+        cocinas:    'linear-gradient(135deg, #065F46, #10B981)',
+        baños:      'linear-gradient(135deg, #1E3A5F, #0EA5E9)',
+        materiales: 'linear-gradient(135deg, #374151, #6B7280)',
+        electricos: 'linear-gradient(135deg, #78350F, #F59E0B)',
+        pintura:    'linear-gradient(135deg, #5B21B6, #8B5CF6)',
+        puertas:    'linear-gradient(135deg, #7C2D12, #EA580C)',
+    };
+    return colores[cat] || 'linear-gradient(135deg, #3B82F6, #7C3AED)';
+}
+</script>
+</body>
+</html>
