@@ -19,31 +19,111 @@
         }
         body { font-family: 'Segoe UI', sans-serif; background: var(--oscuro); color: var(--texto); min-height: 100vh; }
 
-        /* NAV */
+        /* ── NAV PC ─────────────────────────────────────────────────────── */
         nav {
             position: fixed; top: 0; width: 100%;
             padding: 16px 60px;
             display: flex; justify-content: space-between; align-items: center;
             background: rgba(15,15,26,0.95); backdrop-filter: blur(10px);
-            z-index: 100; border-bottom: 1px solid rgba(124,58,237,0.2);
+            z-index: 200; border-bottom: 1px solid rgba(124,58,237,0.2);
         }
         .logo { font-size: 24px; font-weight: 800; background: var(--degradado); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-decoration: none; }
-        .nav-links { display: flex; gap: 24px; align-items: center; }
-        .nav-links a { color: var(--gris); text-decoration: none; font-size: 14px; transition: color 0.3s; }
-        .nav-links a:hover { color: var(--texto); }
+        .nav-links-pc { display: flex; gap: 24px; align-items: center; }
+        .nav-links-pc a { color: var(--gris); text-decoration: none; font-size: 14px; transition: color 0.3s; }
+        .nav-links-pc a:hover { color: var(--texto); }
         .btn-nav { background: var(--degradado); color: white !important; padding: 10px 22px; border-radius: 50px; font-weight: 600; }
 
-        /* HERO */
+        /* HAMBURGUESA — solo móvil */
+        .hamburger-btn {
+            display: none;
+            background: none; border: none;
+            cursor: pointer; padding: 8px;
+            flex-direction: column; gap: 5px;
+        }
+        .hamburger-btn span {
+            display: block; width: 24px; height: 2px;
+            background: var(--texto); border-radius: 2px;
+            transition: all 0.3s;
+        }
+
+        /* ── PANEL LATERAL MÓVIL ────────────────────────────────────────── */
+        .overlay-menu {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(2px);
+            z-index: 300;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .overlay-menu.open { opacity: 1; }
+
+        .panel-lateral {
+            position: fixed; top: 0; left: -300px;
+            width: 280px; height: 100vh;
+            background: var(--oscuro2);
+            border-right: 1px solid rgba(124,58,237,0.25);
+            z-index: 400;
+            transition: left 0.3s ease;
+            display: flex; flex-direction: column;
+            overflow-y: auto;
+        }
+        .panel-lateral.open { left: 0; }
+
+        .panel-header {
+            padding: 24px 20px 20px;
+            border-bottom: 1px solid rgba(124,58,237,0.15);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .panel-logo { font-size: 20px; font-weight: 800; background: var(--degradado); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .panel-close {
+            background: none; border: none; color: var(--gris);
+            font-size: 22px; cursor: pointer; transition: color 0.2s;
+            line-height: 1;
+        }
+        .panel-close:hover { color: var(--texto); }
+
+        .panel-seccion { padding: 20px 16px 8px; }
+        .panel-seccion-titulo {
+            font-size: 11px; font-weight: 700; color: var(--gris);
+            text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px;
+            padding-left: 8px;
+        }
+        .panel-item {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px 14px; border-radius: 12px;
+            color: var(--gris); text-decoration: none; font-size: 15px;
+            transition: all 0.2s; cursor: pointer;
+            border: none; background: none; width: 100%; text-align: left;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        .panel-item:hover, .panel-item.active { background: rgba(124,58,237,0.12); color: var(--texto); }
+        .panel-item .p-icon { font-size: 20px; width: 26px; text-align: center; }
+
+        .panel-divider { height: 1px; background: rgba(124,58,237,0.12); margin: 8px 16px; }
+
+        .panel-footer {
+            margin-top: auto; padding: 16px;
+            border-top: 1px solid rgba(124,58,237,0.15);
+        }
+        .btn-registrar-panel {
+            display: block; text-align: center;
+            background: var(--degradado); color: white;
+            padding: 14px; border-radius: 50px; font-size: 14px;
+            font-weight: 700; text-decoration: none;
+            transition: opacity 0.3s;
+        }
+        .btn-registrar-panel:hover { opacity: 0.85; }
+        .panel-copy { text-align: center; font-size: 12px; color: var(--gris); margin-top: 12px; }
+
+        /* ── HERO ───────────────────────────────────────────────────────── */
         .hero-market {
-            padding: 120px 60px 60px;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
+            padding: 120px 60px 50px;
+            text-align: center; position: relative; overflow: hidden;
         }
         .hero-market::before {
             content: '';
-            position: absolute;
-            width: 600px; height: 400px;
+            position: absolute; width: 600px; height: 400px;
             background: radial-gradient(circle, rgba(124,58,237,0.12) 0%, transparent 70%);
             top: 50%; left: 50%; transform: translate(-50%,-50%);
             pointer-events: none;
@@ -51,31 +131,38 @@
         .hero-badge {
             display: inline-block;
             background: rgba(124,58,237,0.15); border: 1px solid rgba(124,58,237,0.4);
-            padding: 7px 18px; border-radius: 50px; font-size: 13px; color: #A78BFA; margin-bottom: 20px;
+            padding: 7px 18px; border-radius: 50px; font-size: 13px;
+            color: #A78BFA; margin-bottom: 20px;
         }
-        .hero-market h1 { font-size: clamp(32px,5vw,60px); font-weight: 900; margin-bottom: 16px; }
+        .hero-market h1 { font-size: clamp(30px,5vw,58px); font-weight: 900; margin-bottom: 16px; }
         .hero-market h1 span { background: var(--degradado); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .hero-market p { color: var(--gris); font-size: 18px; max-width: 560px; margin: 0 auto 40px; line-height: 1.7; }
+        .hero-market p { color: var(--gris); font-size: 17px; max-width: 520px; margin: 0 auto 36px; line-height: 1.7; }
 
         /* BUSCADOR */
-        .buscador-wrap { max-width: 600px; margin: 0 auto 60px; position: relative; }
+        .buscador-wrap { max-width: 580px; margin: 0 auto 50px; position: relative; }
         .buscador-input {
-            width: 100%; padding: 18px 60px 18px 24px;
+            width: 100%; padding: 17px 56px 17px 24px;
             background: var(--oscuro2); border: 1px solid rgba(124,58,237,0.3);
-            border-radius: 50px; color: var(--texto); font-size: 16px;
+            border-radius: 50px; color: var(--texto); font-size: 15px;
             font-family: 'Segoe UI', sans-serif; outline: none;
             transition: border-color 0.3s, box-shadow 0.3s;
         }
         .buscador-input:focus { border-color: var(--morado); box-shadow: 0 0 0 3px rgba(124,58,237,0.15); }
         .buscador-input::placeholder { color: rgba(148,163,184,0.5); }
-        .buscador-icon { position: absolute; right: 20px; top: 50%; transform: translateY(-50%); font-size: 22px; }
+        .buscador-icon { position: absolute; right: 20px; top: 50%; transform: translateY(-50%); font-size: 20px; }
 
-        /* CATEGORÍAS */
-        .categorias-wrap { padding: 0 60px 50px; max-width: 1200px; margin: 0 auto; }
-        .categorias-titulo { font-size: 13px; font-weight: 600; color: var(--gris); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 16px; }
-        .categorias-scroll { display: flex; gap: 12px; flex-wrap: wrap; }
+        /* ── CATEGORÍAS PC (horizontal) ────────────────────────────────── */
+        .categorias-pc {
+            padding: 0 60px 44px;
+            max-width: 1200px; margin: 0 auto;
+        }
+        .categorias-titulo-pc {
+            font-size: 12px; font-weight: 600; color: var(--gris);
+            text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 14px;
+        }
+        .categorias-scroll-pc { display: flex; gap: 10px; flex-wrap: wrap; }
         .cat-btn {
-            padding: 10px 20px; border-radius: 50px;
+            padding: 9px 18px; border-radius: 50px;
             background: var(--oscuro2); border: 1px solid rgba(124,58,237,0.2);
             color: var(--gris); font-size: 14px; font-weight: 500;
             cursor: pointer; transition: all 0.2s; white-space: nowrap;
@@ -84,37 +171,27 @@
         .cat-btn:hover { border-color: rgba(124,58,237,0.5); color: var(--texto); }
         .cat-btn.active { background: rgba(124,58,237,0.15); border-color: var(--morado); color: var(--texto); }
 
-        /* CONTENIDO PRINCIPAL */
+        /* ── CONTENIDO ──────────────────────────────────────────────────── */
         .market-content { padding: 0 60px 80px; max-width: 1200px; margin: 0 auto; }
 
-        /* VISTA TIENDAS */
         .section-header {
             display: flex; justify-content: space-between; align-items: center;
             margin-bottom: 24px; flex-wrap: wrap; gap: 12px;
         }
         .section-header h2 { font-size: 22px; font-weight: 800; }
-        .vista-toggle { display: flex; gap: 8px; }
-        .vista-btn {
-            padding: 8px 16px; border-radius: 10px;
-            background: var(--oscuro2); border: 1px solid rgba(124,58,237,0.2);
-            color: var(--gris); font-size: 14px; cursor: pointer;
-            transition: all 0.2s; font-family: 'Segoe UI', sans-serif;
-        }
-        .vista-btn.active { background: rgba(124,58,237,0.15); border-color: var(--morado); color: var(--texto); }
 
         /* GRID TIENDAS */
-        .tiendas-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; margin-bottom: 60px; }
+        .tiendas-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px,1fr)); gap: 24px; margin-bottom: 60px; }
         .tienda-card {
             background: var(--oscuro2); border: 1px solid rgba(124,58,237,0.15);
             border-radius: 20px; overflow: hidden;
-            transition: transform 0.25s, border-color 0.25s, box-shadow 0.25s;
-            cursor: pointer;
+            transition: transform 0.25s, border-color 0.25s, box-shadow 0.25s; cursor: pointer;
         }
         .tienda-card:hover { transform: translateY(-5px); border-color: rgba(124,58,237,0.4); box-shadow: 0 10px 40px rgba(124,58,237,0.1); }
         .tienda-banner {
-            height: 100px; background: var(--degradado);
-            display: flex; align-items: center; justify-content: center;
-            font-size: 36px; position: relative;
+            height: 100px; display: flex;
+            align-items: center; justify-content: center;
+            font-size: 42px; position: relative;
         }
         .tienda-cat-badge {
             position: absolute; bottom: 10px; right: 10px;
@@ -129,142 +206,216 @@
         .btn-ver-tienda {
             background: var(--degradado); color: white;
             padding: 8px 18px; border-radius: 50px; font-size: 13px;
-            font-weight: 600; border: none; cursor: pointer;
-            transition: opacity 0.3s; font-family: 'Segoe UI', sans-serif;
+            font-weight: 600; border: none; cursor: pointer; transition: opacity 0.3s;
+            font-family: 'Segoe UI', sans-serif;
         }
         .btn-ver-tienda:hover { opacity: 0.85; }
 
         /* VISTA TIENDA INDIVIDUAL */
-        .tienda-vista { display: none; }
-        .tienda-vista.active { display: block; }
-
         .tienda-header-grande {
             background: var(--oscuro2); border: 1px solid rgba(124,58,237,0.2);
             border-radius: 20px; overflow: hidden; margin-bottom: 32px;
         }
         .tienda-banner-grande {
-            height: 160px; background: var(--degradado);
-            display: flex; align-items: center; justify-content: center; font-size: 56px;
+            height: 150px; display: flex;
+            align-items: center; justify-content: center; font-size: 52px;
         }
-        .tienda-info-grande { padding: 24px 28px; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; }
-        .tienda-nombre-grande { font-size: 28px; font-weight: 900; margin-bottom: 8px; }
-        .tienda-desc-grande { font-size: 15px; color: var(--gris); line-height: 1.6; max-width: 500px; }
-        .tienda-acciones { display: flex; gap: 12px; flex-wrap: wrap; }
+        .tienda-info-grande {
+            padding: 24px 28px;
+            display: flex; justify-content: space-between;
+            align-items: flex-start; flex-wrap: wrap; gap: 16px;
+        }
+        .tienda-nombre-grande { font-size: 26px; font-weight: 900; margin-bottom: 8px; }
+        .tienda-desc-grande { font-size: 14px; color: var(--gris); line-height: 1.6; max-width: 480px; }
         .btn-contactar {
-            background: #25D366; color: white; padding: 12px 24px;
+            background: #25D366; color: white; padding: 12px 22px;
             border-radius: 50px; font-size: 14px; font-weight: 700;
-            border: none; cursor: pointer; transition: opacity 0.3s;
-            display: flex; align-items: center; gap: 8px;
-            font-family: 'Segoe UI', sans-serif; text-decoration: none;
+            border: none; cursor: pointer; display: flex;
+            align-items: center; gap: 8px; text-decoration: none;
+            transition: opacity 0.3s; font-family: 'Segoe UI', sans-serif;
         }
         .btn-contactar:hover { opacity: 0.85; }
         .btn-volver {
-            background: var(--oscuro2); color: var(--gris); padding: 12px 24px;
+            background: var(--oscuro2); color: var(--gris); padding: 10px 22px;
             border-radius: 50px; font-size: 14px; font-weight: 600;
             border: 1px solid rgba(124,58,237,0.2); cursor: pointer;
-            transition: all 0.2s; font-family: 'Segoe UI', sans-serif;
+            transition: all 0.2s; font-family: 'Segoe UI', sans-serif; margin-bottom: 20px;
         }
         .btn-volver:hover { border-color: rgba(124,58,237,0.5); color: var(--texto); }
 
         /* GRID PRODUCTOS */
-        .productos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px; }
+        .productos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px,1fr)); gap: 20px; }
         .producto-card {
             background: var(--oscuro2); border: 1px solid rgba(124,58,237,0.15);
-            border-radius: 16px; overflow: hidden;
-            transition: transform 0.2s, border-color 0.2s;
+            border-radius: 16px; overflow: hidden; transition: transform 0.2s, border-color 0.2s;
         }
         .producto-card:hover { transform: translateY(-3px); border-color: rgba(124,58,237,0.4); }
         .producto-img {
-            width: 100%; height: 180px; object-fit: cover;
-            background: var(--oscuro); display: flex; align-items: center;
-            justify-content: center; font-size: 40px; color: var(--gris);
+            width: 100%; height: 170px;
+            background: var(--oscuro); display: flex;
+            align-items: center; justify-content: center; font-size: 38px; color: var(--gris);
         }
         .producto-img img { width: 100%; height: 100%; object-fit: cover; }
         .producto-body { padding: 16px; }
         .producto-cat { font-size: 11px; color: #A78BFA; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
-        .producto-nombre { font-size: 15px; font-weight: 700; margin-bottom: 8px; line-height: 1.3; }
-        .producto-desc { font-size: 13px; color: var(--gris); margin-bottom: 12px; line-height: 1.5; }
-        .producto-precio-wrap { display: flex; align-items: baseline; gap: 8px; margin-bottom: 14px; }
-        .producto-precio { font-size: 20px; font-weight: 900; color: var(--texto); }
+        .producto-nombre { font-size: 15px; font-weight: 700; margin-bottom: 6px; line-height: 1.3; }
+        .producto-desc { font-size: 12px; color: var(--gris); margin-bottom: 12px; line-height: 1.5; }
+        .producto-precio-wrap { display: flex; align-items: baseline; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+        .producto-precio { font-size: 20px; font-weight: 900; }
         .producto-precio-antes { font-size: 13px; color: var(--gris); text-decoration: line-through; }
         .producto-unidad { font-size: 12px; color: var(--gris); }
         .producto-footer { display: flex; justify-content: space-between; align-items: center; }
-        .producto-stock { font-size: 12px; }
-        .stock-ok { color: var(--verde); }
-        .stock-no { color: #EF4444; }
+        .stock-ok { font-size: 12px; color: var(--verde); }
+        .stock-no { font-size: 12px; color: #EF4444; }
         .btn-comprar {
             background: var(--degradado); color: white;
-            padding: 10px 18px; border-radius: 50px; font-size: 13px;
+            padding: 9px 16px; border-radius: 50px; font-size: 13px;
             font-weight: 700; border: none; cursor: pointer;
-            transition: opacity 0.3s; font-family: 'Segoe UI', sans-serif;
-            text-decoration: none; display: inline-block;
+            transition: opacity 0.3s; text-decoration: none;
+            display: inline-block; font-family: 'Segoe UI', sans-serif;
         }
         .btn-comprar:hover { opacity: 0.85; }
 
-        /* EMPTY */
-        .empty-state { text-align: center; padding: 80px 20px; color: var(--gris); }
-        .empty-state .icon { font-size: 56px; margin-bottom: 20px; }
+        /* EMPTY / SKELETON */
+        .empty-state { text-align: center; padding: 70px 20px; color: var(--gris); grid-column: 1/-1; }
+        .empty-state .icon { font-size: 52px; margin-bottom: 18px; }
         .empty-state h3 { font-size: 20px; font-weight: 700; margin-bottom: 10px; color: var(--texto); }
-        .empty-state p { font-size: 15px; line-height: 1.6; }
-
-        /* LOADING */
+        .empty-state p { font-size: 14px; line-height: 1.6; }
         .loading-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px,1fr)); gap: 24px; }
         .skeleton {
             background: var(--oscuro2); border: 1px solid rgba(124,58,237,0.1);
-            border-radius: 20px; overflow: hidden; height: 280px;
+            border-radius: 20px; height: 270px;
             animation: pulse 1.5s ease-in-out infinite;
         }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
         /* FOOTER */
         footer {
-            background: var(--oscuro2); padding: 40px 60px;
+            background: var(--oscuro2); padding: 36px 60px;
             text-align: center; color: var(--gris);
             border-top: 1px solid rgba(124,58,237,0.2); font-size: 14px;
         }
         footer span { background: var(--degradado); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 700; }
 
+        /* ── RESPONSIVE ─────────────────────────────────────────────────── */
         @media (max-width: 768px) {
-            nav { padding: 16px 20px; }
-            .nav-links { display: none; }
-            .hero-market { padding: 100px 20px 40px; }
-            .categorias-wrap { padding: 0 20px 40px; }
-            .market-content { padding: 0 20px 60px; }
-            .tiendas-grid { grid-template-columns: 1fr; }
-            .productos-grid { grid-template-columns: 1fr 1fr; }
+            nav { padding: 14px 20px; }
+            .nav-links-pc { display: none; }
+            .hamburger-btn { display: flex; }
+            .overlay-menu { display: block; pointer-events: none; }
+            .overlay-menu.open { pointer-events: all; }
+
+            .hero-market { padding: 90px 20px 36px; }
+            .hero-market p { font-size: 15px; }
+
+            .categorias-pc { display: none; }
+
+            .market-content { padding: 0 16px 60px; }
+            .tiendas-grid { grid-template-columns: 1fr; gap: 16px; }
+            .productos-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+
+            footer { padding: 30px 20px; }
         }
-        @media (max-width: 480px) {
+        @media (max-width: 420px) {
             .productos-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
 
+<!-- OVERLAY -->
+<div class="overlay-menu" id="overlayMenu" onclick="cerrarPanel()"></div>
+
+<!-- PANEL LATERAL MÓVIL -->
+<div class="panel-lateral" id="panelLateral">
+    <div class="panel-header">
+        <span class="panel-logo">DecoIArte</span>
+        <button class="panel-close" onclick="cerrarPanel()">✕</button>
+    </div>
+
+    <div class="panel-seccion">
+        <div class="panel-seccion-titulo">Plataforma</div>
+        <a href="/marketplace" class="panel-item active">
+            <span class="p-icon">🏪</span> Explorar Tiendas
+        </a>
+        <a href="/dashboard" class="panel-item">
+            <span class="p-icon">👤</span> Mi Cuenta
+        </a>
+        <a href="/" class="panel-item">
+            <span class="p-icon">🏠</span> Inicio
+        </a>
+    </div>
+
+    <div class="panel-divider"></div>
+
+    <div class="panel-seccion">
+        <div class="panel-seccion-titulo">Categorías</div>
+        <button class="panel-item active" onclick="filtrarCategoriaPanel('todas', this)">
+            <span class="p-icon">🏪</span> Todas
+        </button>
+        <button class="panel-item" onclick="filtrarCategoriaPanel('pisos', this)">
+            <span class="p-icon">🪵</span> Pisos
+        </button>
+        <button class="panel-item" onclick="filtrarCategoriaPanel('enchapes', this)">
+            <span class="p-icon">🧱</span> Enchapes
+        </button>
+        <button class="panel-item" onclick="filtrarCategoriaPanel('cocinas', this)">
+            <span class="p-icon">🍳</span> Cocinas
+        </button>
+        <button class="panel-item" onclick="filtrarCategoriaPanel('baños', this)">
+            <span class="p-icon">🚿</span> Baños
+        </button>
+        <button class="panel-item" onclick="filtrarCategoriaPanel('materiales', this)">
+            <span class="p-icon">🏗️</span> Materiales
+        </button>
+        <button class="panel-item" onclick="filtrarCategoriaPanel('electricos', this)">
+            <span class="p-icon">💡</span> Eléctricos
+        </button>
+        <button class="panel-item" onclick="filtrarCategoriaPanel('pintura', this)">
+            <span class="p-icon">🎨</span> Pintura
+        </button>
+        <button class="panel-item" onclick="filtrarCategoriaPanel('puertas', this)">
+            <span class="p-icon">🚪</span> Puertas
+        </button>
+    </div>
+
+    <div class="panel-footer">
+        <a href="/registro" class="btn-registrar-panel">🏪 Registrar mi tienda</a>
+        <div class="panel-copy">© 2026 DecoIArte v1.0</div>
+    </div>
+</div>
+
 <!-- NAV -->
 <nav>
     <a href="/" class="logo">DecoIArte</a>
-    <div class="nav-links">
+    <div class="nav-links-pc">
         <a href="/">Inicio</a>
         <a href="/marketplace">Marketplace</a>
         <a href="/dashboard">Mi cuenta</a>
         <a href="/registro" class="btn-nav">Registrar tienda</a>
     </div>
+    <button class="hamburger-btn" onclick="abrirPanel()" aria-label="Menú">
+        <span></span><span></span><span></span>
+    </button>
 </nav>
 
 <!-- HERO -->
 <section class="hero-market">
     <div class="hero-badge">🛍️ Marketplace de remodelación</div>
     <h1>Todo para tu<br><span>remodelación</span></h1>
-    <p>Encuentra pisos, enchapes, cocinas, baños, materiales y mucho más de los mejores negocios de Colombia.</p>
+    <p>Encuentra pisos, enchapes, cocinas, baños y materiales de los mejores negocios de Colombia.</p>
     <div class="buscador-wrap">
-        <input type="text" class="buscador-input" id="buscador" placeholder="🔍 Buscar productos, tiendas, categorías..." oninput="buscar(this.value)">
+        <input type="text" class="buscador-input" id="buscador"
+            placeholder="Buscar productos, tiendas, categorías..."
+            oninput="buscar(this.value)">
+        <span class="buscador-icon">🔍</span>
     </div>
 </section>
 
-<!-- CATEGORÍAS -->
-<div class="categorias-wrap">
-    <div class="categorias-titulo">Explorar por categoría</div>
-    <div class="categorias-scroll">
+<!-- CATEGORÍAS PC -->
+<div class="categorias-pc">
+    <div class="categorias-titulo-pc">Explorar por categoría</div>
+    <div class="categorias-scroll-pc">
         <button class="cat-btn active" onclick="filtrarCategoria('todas', this)">🏪 Todas</button>
         <button class="cat-btn" onclick="filtrarCategoria('pisos', this)">🪵 Pisos</button>
         <button class="cat-btn" onclick="filtrarCategoria('enchapes', this)">🧱 Enchapes</button>
@@ -280,29 +431,23 @@
 <!-- CONTENIDO -->
 <div class="market-content">
 
-    <!-- VISTA LISTADO TIENDAS -->
+    <!-- LISTADO TIENDAS -->
     <div id="vistaListado">
         <div class="section-header">
             <h2 id="tituloSeccion">🏪 Tiendas disponibles</h2>
             <div style="font-size:14px;color:var(--gris)" id="contadorTiendas"></div>
         </div>
-
-        <!-- SKELETONS CARGANDO -->
         <div class="loading-cards" id="skeletons">
             <div class="skeleton"></div>
             <div class="skeleton"></div>
             <div class="skeleton"></div>
         </div>
-
-        <!-- GRID TIENDAS -->
         <div class="tiendas-grid" id="tiendasGrid" style="display:none;"></div>
     </div>
 
-    <!-- VISTA TIENDA INDIVIDUAL -->
+    <!-- TIENDA INDIVIDUAL -->
     <div id="vistaTienda" style="display:none;">
-        <div style="margin-bottom:20px;">
-            <button class="btn-volver" onclick="volverListado()">← Volver a tiendas</button>
-        </div>
+        <button class="btn-volver" onclick="volverListado()">← Volver a tiendas</button>
         <div class="tienda-header-grande" id="tiendaHeader"></div>
         <div class="section-header">
             <h2>Productos disponibles</h2>
@@ -313,7 +458,6 @@
 
 </div>
 
-<!-- FOOTER -->
 <footer>
     <p>© 2026 <span>DecoIArte</span> Marketplace 🏠✨ — Colombia</p>
 </footer>
@@ -324,60 +468,70 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const EMOJIS_CAT = {
-    pisos: '🪵', enchapes: '🧱', cocinas: '🍳', baños: '🚿',
-    materiales: '🏗️', electricos: '💡', pintura: '🎨', puertas: '🚪', general: '🏪'
+const EMOJIS_CAT = { pisos:'🪵', enchapes:'🧱', cocinas:'🍳', baños:'🚿', materiales:'🏗️', electricos:'💡', pintura:'🎨', puertas:'🚪', general:'🏪' };
+const COLORES_CAT = {
+    pisos:'linear-gradient(135deg,#92400E,#D97706)', enchapes:'linear-gradient(135deg,#1E40AF,#3B82F6)',
+    cocinas:'linear-gradient(135deg,#065F46,#10B981)', baños:'linear-gradient(135deg,#1E3A5F,#0EA5E9)',
+    materiales:'linear-gradient(135deg,#374151,#6B7280)', electricos:'linear-gradient(135deg,#78350F,#F59E0B)',
+    pintura:'linear-gradient(135deg,#5B21B6,#8B5CF6)', puertas:'linear-gradient(135deg,#7C2D12,#EA580C)',
 };
 
-let todasTiendas = [];
+let todasTiendas    = [];
 let categoriaActual = 'todas';
 let busquedaActual  = '';
 
+// ── PANEL LATERAL ─────────────────────────────────────────────────────────
+function abrirPanel() {
+    document.getElementById('panelLateral').classList.add('open');
+    document.getElementById('overlayMenu').classList.add('open');
+    document.body.style.overflow = 'hidden';
+}
+function cerrarPanel() {
+    document.getElementById('panelLateral').classList.remove('open');
+    document.getElementById('overlayMenu').classList.remove('open');
+    document.body.style.overflow = '';
+}
+
 // ── INIT ──────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
-    await cargarTiendas();
-});
-
-async function cargarTiendas() {
     const { data: tiendas } = await db
-        .from('tiendas')
-        .select('*')
-        .eq('activa', true)
+        .from('tiendas').select('*').eq('activa', true)
         .order('created_at', { ascending: false });
 
     todasTiendas = tiendas || [];
-    document.getElementById('skeletons').style.display = 'none';
+    document.getElementById('skeletons').style.display   = 'none';
     document.getElementById('tiendasGrid').style.display = 'grid';
     renderTiendas(todasTiendas);
-}
+});
 
 // ── RENDER TIENDAS ────────────────────────────────────────────────────────
 function renderTiendas(tiendas) {
-    const grid = document.getElementById('tiendasGrid');
+    const grid    = document.getElementById('tiendasGrid');
     const contador = document.getElementById('contadorTiendas');
     contador.textContent = `${tiendas.length} tienda${tiendas.length !== 1 ? 's' : ''}`;
 
     if (tiendas.length === 0) {
         grid.innerHTML = `
-            <div class="empty-state" style="grid-column:1/-1">
+            <div class="empty-state">
                 <div class="icon">🏪</div>
                 <h3>Próximamente más tiendas</h3>
-                <p>Aún no hay tiendas en esta categoría.<br>¿Tienes un negocio? <a href="/registro" style="color:#A78BFA;">Regístralo gratis</a></p>
+                <p>¿Tienes un negocio? <a href="/registro" style="color:#A78BFA;">Regístralo gratis</a></p>
             </div>`;
         return;
     }
 
     grid.innerHTML = tiendas.map(t => {
         const emoji = EMOJIS_CAT[t.categoria_principal] || '🏪';
+        const color = COLORES_CAT[t.categoria_principal] || 'linear-gradient(135deg,#3B82F6,#7C3AED)';
         return `
             <div class="tienda-card" onclick="verTienda('${t.id}')">
-                <div class="tienda-banner" style="background: ${bannerColor(t.categoria_principal)}">
-                    <span style="font-size:48px">${emoji}</span>
+                <div class="tienda-banner" style="background:${color}">
+                    <span>${emoji}</span>
                     <span class="tienda-cat-badge">${t.categoria_principal || 'General'}</span>
                 </div>
                 <div class="tienda-body">
                     <div class="tienda-nombre">${t.nombre}</div>
-                    <div class="tienda-desc">${t.descripcion || 'Tienda de materiales y acabados para remodelación.'}</div>
+                    <div class="tienda-desc">${t.descripcion || 'Tienda de materiales para remodelación.'}</div>
                     <div class="tienda-meta">
                         <span class="tienda-ciudad">📍 ${t.ciudad || 'Colombia'}</span>
                         <button class="btn-ver-tienda">Ver tienda →</button>
@@ -387,53 +541,38 @@ function renderTiendas(tiendas) {
     }).join('');
 }
 
-// ── VER TIENDA INDIVIDUAL ─────────────────────────────────────────────────
+// ── VER TIENDA ────────────────────────────────────────────────────────────
 async function verTienda(tiendaId) {
     const tienda = todasTiendas.find(t => t.id === tiendaId);
     if (!tienda) return;
 
-    // Ocultar listado, mostrar tienda
     document.getElementById('vistaListado').style.display = 'none';
     document.getElementById('vistaTienda').style.display  = 'block';
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
-    // Header tienda
     const emoji = EMOJIS_CAT[tienda.categoria_principal] || '🏪';
+    const color = COLORES_CAT[tienda.categoria_principal] || 'linear-gradient(135deg,#3B82F6,#7C3AED)';
     const waLink = tienda.whatsapp_contacto
-        ? `https://wa.me/${tienda.whatsapp_contacto}?text=Hola,%20vi%20tu%20tienda%20en%20DecoIArte%20y%20me%20interesa%20un%20producto`
-        : '#';
+        ? `https://wa.me/${tienda.whatsapp_contacto}?text=Hola,%20vi%20tu%20tienda%20en%20DecoIArte` : '#';
 
     document.getElementById('tiendaHeader').innerHTML = `
-        <div class="tienda-banner-grande" style="background:${bannerColor(tienda.categoria_principal)}">
-            <span>${emoji}</span>
-        </div>
+        <div class="tienda-banner-grande" style="background:${color}"><span>${emoji}</span></div>
         <div class="tienda-info-grande">
             <div>
                 <div class="tienda-nombre-grande">${tienda.nombre}</div>
-                <div class="tienda-desc-grande">${tienda.descripcion || 'Tienda de materiales y acabados para remodelación.'}</div>
-                <div style="margin-top:12px;font-size:13px;color:var(--gris)">📍 ${tienda.ciudad || 'Colombia'}</div>
+                <div class="tienda-desc-grande">${tienda.descripcion || ''}</div>
+                <div style="margin-top:10px;font-size:13px;color:var(--gris)">📍 ${tienda.ciudad || 'Colombia'}</div>
             </div>
-            <div class="tienda-acciones">
-                ${tienda.whatsapp_contacto
-                    ? `<a href="${waLink}" target="_blank" class="btn-contactar">💬 Contactar por WhatsApp</a>`
-                    : ''
-                }
-            </div>
-        </div>
-    `;
-
-    // Cargar productos
-    document.getElementById('productosGrid').innerHTML = `
-        <div class="empty-state" style="grid-column:1/-1">
-            <div class="icon" style="font-size:32px;margin-bottom:12px">⏳</div>
-            <p>Cargando productos...</p>
+            ${tienda.whatsapp_contacto
+                ? `<a href="${waLink}" target="_blank" class="btn-contactar">💬 Contactar por WhatsApp</a>` : ''}
         </div>`;
 
+    document.getElementById('productosGrid').innerHTML = `
+        <div class="empty-state"><div class="icon" style="font-size:28px;margin-bottom:10px">⏳</div><p>Cargando productos...</p></div>`;
+
     const { data: productos } = await db
-        .from('productos')
-        .select('*')
-        .eq('tienda_id', tiendaId)
-        .eq('activo', true)
+        .from('productos').select('*')
+        .eq('tienda_id', tiendaId).eq('activo', true)
         .order('created_at', { ascending: false });
 
     renderProductos(productos || [], tienda);
@@ -446,51 +585,41 @@ function renderProductos(productos, tienda) {
 
     if (productos.length === 0) {
         grid.innerHTML = `
-            <div class="empty-state" style="grid-column:1/-1">
+            <div class="empty-state">
                 <div class="icon">📦</div>
                 <h3>Próximamente</h3>
-                <p>Esta tienda aún no ha publicado productos.<br>Contáctalos directamente por WhatsApp.</p>
+                <p>Esta tienda aún no ha publicado productos.</p>
             </div>`;
         return;
     }
 
     const waBase = tienda.whatsapp_contacto
-        ? `https://wa.me/${tienda.whatsapp_contacto}?text=Hola,%20quiero%20comprar:`
-        : '#';
+        ? `https://wa.me/${tienda.whatsapp_contacto}?text=Hola,%20quiero%20comprar:` : '#';
 
-    grid.innerHTML = productos.map(p => {
-        const precioFmt  = `$${Number(p.precio).toLocaleString('es-CO')}`;
-        const antesHtml  = p.precio_antes
-            ? `<span class="producto-precio-antes">$${Number(p.precio_antes).toLocaleString('es-CO')}</span>` : '';
-        const stockHtml  = p.stock > 0
-            ? `<span class="producto-stock stock-ok">✓ Disponible</span>`
-            : `<span class="producto-stock stock-no">✗ Agotado</span>`;
-        const imgHtml    = p.imagen_url
-            ? `<img src="${p.imagen_url}" alt="${p.nombre}" loading="lazy" onerror="this.parentElement.innerHTML='📦'">`
-            : '📦';
-        const waProducto = `${waBase} ${encodeURIComponent(p.nombre)}`;
-
-        return `
-            <div class="producto-card">
-                <div class="producto-img">${imgHtml}</div>
-                <div class="producto-body">
-                    <div class="producto-cat">${p.categoria || 'General'}</div>
-                    <div class="producto-nombre">${p.nombre}</div>
-                    <div class="producto-desc">${p.descripcion || ''}</div>
-                    <div class="producto-precio-wrap">
-                        <span class="producto-precio">${precioFmt}</span>
-                        ${antesHtml}
-                        <span class="producto-unidad">/${p.unidad || 'm²'}</span>
-                    </div>
-                    <div class="producto-footer">
-                        ${stockHtml}
-                        <a href="${waProducto}" target="_blank" class="btn-comprar">
-                            💬 Pedir
-                        </a>
-                    </div>
+    grid.innerHTML = productos.map(p => `
+        <div class="producto-card">
+            <div class="producto-img">
+                ${p.imagen_url
+                    ? `<img src="${p.imagen_url}" alt="${p.nombre}" loading="lazy" onerror="this.parentElement.innerHTML='📦'">`
+                    : '📦'}
+            </div>
+            <div class="producto-body">
+                <div class="producto-cat">${p.categoria || 'General'}</div>
+                <div class="producto-nombre">${p.nombre}</div>
+                <div class="producto-desc">${p.descripcion || ''}</div>
+                <div class="producto-precio-wrap">
+                    <span class="producto-precio">$${Number(p.precio).toLocaleString('es-CO')}</span>
+                    ${p.precio_antes ? `<span class="producto-precio-antes">$${Number(p.precio_antes).toLocaleString('es-CO')}</span>` : ''}
+                    <span class="producto-unidad">/${p.unidad || 'm²'}</span>
                 </div>
-            </div>`;
-    }).join('');
+                <div class="producto-footer">
+                    ${p.stock > 0
+                        ? `<span class="stock-ok">✓ Disponible</span>`
+                        : `<span class="stock-no">✗ Agotado</span>`}
+                    <a href="${waBase} ${encodeURIComponent(p.nombre)}" target="_blank" class="btn-comprar">💬 Pedir</a>
+                </div>
+            </div>
+        </div>`).join('');
 }
 
 function volverListado() {
@@ -504,11 +633,19 @@ function filtrarCategoria(cat, btn) {
     categoriaActual = cat;
     document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-
-    const titulo = document.getElementById('tituloSeccion');
-    titulo.textContent = cat === 'todas' ? '🏪 Tiendas disponibles' : `${EMOJIS_CAT[cat]||'🏪'} Tiendas de ${cat}`;
-
+    document.getElementById('tituloSeccion').textContent =
+        cat === 'todas' ? '🏪 Tiendas disponibles' : `${EMOJIS_CAT[cat]||'🏪'} Tiendas de ${cat}`;
     aplicarFiltros();
+}
+
+function filtrarCategoriaPanel(cat, btn) {
+    categoriaActual = cat;
+    document.querySelectorAll('.panel-item').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tituloSeccion').textContent =
+        cat === 'todas' ? '🏪 Tiendas disponibles' : `${EMOJIS_CAT[cat]||'🏪'} Tiendas de ${cat}`;
+    aplicarFiltros();
+    cerrarPanel();
 }
 
 function buscar(query) {
@@ -518,35 +655,17 @@ function buscar(query) {
 
 function aplicarFiltros() {
     let filtradas = todasTiendas;
-
     if (categoriaActual !== 'todas') {
         filtradas = filtradas.filter(t => t.categoria_principal === categoriaActual);
     }
-
     if (busquedaActual) {
         filtradas = filtradas.filter(t =>
             t.nombre.toLowerCase().includes(busquedaActual) ||
-            (t.descripcion || '').toLowerCase().includes(busquedaActual) ||
-            (t.ciudad || '').toLowerCase().includes(busquedaActual)
+            (t.descripcion||'').toLowerCase().includes(busquedaActual) ||
+            (t.ciudad||'').toLowerCase().includes(busquedaActual)
         );
     }
-
     renderTiendas(filtradas);
-}
-
-// ── HELPERS ───────────────────────────────────────────────────────────────
-function bannerColor(cat) {
-    const colores = {
-        pisos:      'linear-gradient(135deg, #92400E, #D97706)',
-        enchapes:   'linear-gradient(135deg, #1E40AF, #3B82F6)',
-        cocinas:    'linear-gradient(135deg, #065F46, #10B981)',
-        baños:      'linear-gradient(135deg, #1E3A5F, #0EA5E9)',
-        materiales: 'linear-gradient(135deg, #374151, #6B7280)',
-        electricos: 'linear-gradient(135deg, #78350F, #F59E0B)',
-        pintura:    'linear-gradient(135deg, #5B21B6, #8B5CF6)',
-        puertas:    'linear-gradient(135deg, #7C2D12, #EA580C)',
-    };
-    return colores[cat] || 'linear-gradient(135deg, #3B82F6, #7C3AED)';
 }
 </script>
 </body>
