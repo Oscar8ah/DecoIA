@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elige tu producto — DecoIArte</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --morado: #7C3AED; --azul: #3B82F6;
+            --degradado: linear-gradient(135deg, #3B82F6 0%, #7C3AED 100%);
+            --oscuro: #0F0F1A; --oscuro2: #1A1A2E;
+            --texto: #F8FAFC; --gris: #94A3B8; --verde: #10B981;
+        }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--oscuro); color: var(--texto); min-height: 100vh; }
+
+        /* HEADER */
+        .header {
+            padding: 20px 24px;
+            background: rgba(15,15,26,0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(124,58,237,0.2);
+            display: flex; align-items: center; gap: 14px;
+            position: sticky; top: 0; z-index: 50;
+        }
+        .tienda-logo {
+            width: 44px; height: 44px; border-radius: 10px;
+            background: var(--degradado);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px; flex-shrink: 0; overflow: hidden;
+        }
+        .tienda-logo img { width: 100%; height: 100%; object-fit: cover; }
+        .header-info { flex: 1; }
+        .header-nombre { font-size: 16px; font-weight: 700; }
+        .header-sub { font-size: 13px; color: var(--gris); }
+        .powered-by { font-size: 11px; color: var(--gris); text-align: right; }
+        .powered-by span { background: var(--degradado); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 700; }
+
+        /* HERO INSTRUCCION */
+        .instruccion {
+            padding: 24px;
+            background: rgba(124,58,237,0.06);
+            border-bottom: 1px solid rgba(124,58,237,0.15);
+            text-align: center;
+        }
+        .instruccion h2 { font-size: 20px; font-weight: 800; margin-bottom: 8px; }
+        .instruccion h2 span { background: var(--degradado); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .instruccion p { font-size: 14px; color: var(--gris); line-height: 1.6; }
+
+        /* CATEGORIAS SCROLL */
+        .cats-scroll {
+            display: flex; gap: 10px;
+            padding: 16px 24px;
+            overflow-x: auto;
+            border-bottom: 1px solid rgba(124,58,237,0.1);
+            scrollbar-width: none;
+        }
+        .cats-scroll::-webkit-scrollbar { display: none; }
+        .cat-pill {
+            padding: 8px 16px; border-radius: 50px;
+            background: var(--oscuro2); border: 1px solid rgba(124,58,237,0.2);
+            color: var(--gris); font-size: 13px; font-weight: 500;
+            cursor: pointer; white-space: nowrap; transition: all 0.2s;
+            font-family: 'Segoe UI', sans-serif; flex-shrink: 0;
+        }
+        .cat-pill:hover { border-color: rgba(124,58,237,0.5); color: var(--texto); }
+        .cat-pill.active { background: rgba(124,58,237,0.15); border-color: var(--morado); color: var(--texto); }
+
+        /* PRODUCTOS GRID */
+        .contenido { padding: 20px 16px 100px; }
+        .contador { font-size: 13px; color: var(--gris); margin-bottom: 16px; }
+        .productos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+        .producto-card {
+            background: var(--oscuro2); border: 2px solid rgba(124,58,237,0.15);
+            border-radius: 16px; overflow: hidden;
+            cursor: pointer; transition: all 0.2s; position: relative;
+        }
+        .producto-card:hover { border-color: rgba(124,58,237,0.5); transform: translateY(-2px); }
+        .producto-card.seleccionado { border-color: var(--morado); box-shadow: 0 0 20px rgba(124,58,237,0.3); }
+
+        .check-overlay {
+            position: absolute; top: 8px; right: 8px;
+            width: 28px; height: 28px; border-radius: 50%;
+            background: var(--morado); color: white;
+            display: none; align-items: center; justify-content: center;
+            font-size: 14px; font-weight: 700; z-index: 2;
+        }
+        .producto-card.seleccionado .check-overlay { display: flex; }
+
+        .producto-img {
+            width: 100%; height: 130px;
+            background: var(--oscuro); object-fit: cover;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 36px; color: var(--gris);
+        }
+        .producto-img img { width: 100%; height: 100%; object-fit: cover; }
+        .producto-info { padding: 12px; }
+        .producto-cat { font-size: 10px; color: #A78BFA; font-weight: 600; text-transform: uppercase; margin-bottom: 4px; }
+        .producto-nombre { font-size: 13px; font-weight: 700; margin-bottom: 4px; line-height: 1.3; }
+        .producto-precio { font-size: 14px; font-weight: 800; background: var(--degradado); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .producto-unidad { font-size: 11px; color: var(--gris); }
+
+        /* EMPTY */
+        .empty { text-align: center; padding: 60px 20px; color: var(--gris); }
+        .empty .icon { font-size: 48px; margin-bottom: 16px; }
+
+        /* LOADING */
+        .loading { text-align: center; padding: 60px 20px; }
+        .spinner { width: 40px; height: 40px; border: 3px solid rgba(124,58,237,0.2); border-top-color: var(--morado); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* FOOTER CONFIRMAR */
+        .footer-confirmar {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            padding: 16px 20px;
+            background: rgba(15,15,26,0.97);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(124,58,237,0.2);
+            z-index: 100;
+        }
+        .footer-seleccion {
+            display: flex; align-items: center; gap: 12px;
+            margin-bottom: 12px;
+            padding: 12px 16px;
+            background: rgba(124,58,237,0.1);
+            border: 1px solid rgba(124,58,237,0.3);
+            border-radius: 12px;
+        }
+        .footer-seleccion-img {
+            width: 40px; height: 40px; border-radius: 8px;
+            background: var(--oscuro2); object-fit: cover;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; flex-shrink: 0; overflow: hidden;
+        }
+        .footer-seleccion-img img { width: 100%; height: 100%; object-fit: cover; }
+        .footer-seleccion-info { flex: 1; }
+        .footer-seleccion-nombre { font-size: 13px; font-weight: 700; }
+        .footer-seleccion-precio { font-size: 12px; color: var(--gris); }
+        .btn-confirmar {
+            width: 100%; background: var(--degradado); color: white;
+            border: none; padding: 16px; border-radius: 50px;
+            font-size: 16px; font-weight: 700; cursor: pointer;
+            transition: opacity 0.3s, transform 0.2s;
+            font-family: 'Segoe UI', sans-serif;
+            box-shadow: 0 4px 20px rgba(124,58,237,0.4);
+        }
+        .btn-confirmar:hover { opacity: 0.9; transform: translateY(-1px); }
+        .btn-confirmar:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* PANTALLA ÉXITO */
+        .exito-screen {
+            display: none; position: fixed; inset: 0;
+            background: var(--oscuro);
+            align-items: center; justify-content: center;
+            flex-direction: column; gap: 20px; text-align: center;
+            padding: 40px; z-index: 200;
+        }
+        .exito-screen.show { display: flex; }
+        .exito-icon { font-size: 72px; animation: bounce 0.6s ease; }
+        @keyframes bounce { 0%{transform:scale(0)} 60%{transform:scale(1.2)} 100%{transform:scale(1)} }
+        .exito-screen h2 { font-size: 26px; font-weight: 900; }
+        .exito-screen h2 span { background: var(--degradado); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .exito-screen p { font-size: 16px; color: var(--gris); line-height: 1.7; max-width: 320px; }
+        .producto-elegido-card {
+            background: var(--oscuro2); border: 1px solid rgba(124,58,237,0.3);
+            border-radius: 16px; padding: 20px; display: flex; gap: 14px;
+            align-items: center; max-width: 340px; width: 100%;
+        }
+        .producto-elegido-img {
+            width: 60px; height: 60px; border-radius: 10px;
+            background: var(--oscuro); display: flex; align-items: center;
+            justify-content: center; font-size: 24px; overflow: hidden; flex-shrink: 0;
+        }
+        .producto-elegido-img img { width: 100%; height: 100%; object-fit: cover; }
+        .producto-elegido-nombre { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+        .producto-elegido-precio { font-size: 14px; color: var(--gris); }
+
+        /* TIENDA NO ENCONTRADA */
+        .not-found {
+            display: none; position: fixed; inset: 0;
+            background: var(--oscuro);
+            align-items: center; justify-content: center;
+            flex-direction: column; gap: 16px; text-align: center; padding: 40px;
+        }
+        .not-found.show { display: flex; }
+    </style>
+</head>
+<body>
+
+<!-- PANTALLA ÉXITO -->
+<div class="exito-screen" id="exitoScreen">
+    <div class="exito-icon">🎨</div>
+    <h2>¡Perfecto!<br><span>La IA ya trabaja</span></h2>
+    <p>Estamos aplicando el producto que elegiste a tu foto.<br>En unos segundos recibirás el resultado por WhatsApp. 🚀</p>
+    <div class="producto-elegido-card" id="productoElegidoCard"></div>
+    <p style="font-size:13px;color:var(--gris);margin-top:8px;">Ya puedes cerrar esta ventana.</p>
+</div>
+
+<!-- TIENDA NO ENCONTRADA -->
+<div class="not-found" id="notFound">
+    <div style="font-size:64px;">🏪</div>
+    <h2 style="font-size:24px;font-weight:800;">Tienda no encontrada</h2>
+    <p style="color:var(--gris);font-size:15px;">El link no es válido o la tienda no está disponible.</p>
+    <a href="/marketplace" style="color:#A78BFA;font-size:14px;">← Ver marketplace</a>
+</div>
+
+<!-- HEADER -->
+<div class="header" id="mainHeader" style="display:none;">
+    <div class="tienda-logo" id="tiendaLogo">🏪</div>
+    <div class="header-info">
+        <div class="header-nombre" id="tiendaNombreHeader">Cargando...</div>
+        <div class="header-sub">Elige el producto para remodelar</div>
+    </div>
+    <div class="powered-by">by <span>DecoIArte</span></div>
+</div>
+
+<!-- INSTRUCCIÓN -->
+<div class="instruccion" id="mainInstruccion" style="display:none;">
+    <h2>¿Qué quieres ver<br><span>aplicado en tu espacio?</span></h2>
+    <p>Toca el producto que prefieres y la IA lo aplicará a tu foto</p>
+</div>
+
+<!-- CATEGORÍAS -->
+<div class="cats-scroll" id="catsScroll" style="display:none;"></div>
+
+<!-- CONTENIDO -->
+<div class="contenido" id="mainContenido" style="display:none;">
+    <div class="loading" id="loadingState">
+        <div class="spinner"></div>
+        <p style="color:var(--gris);font-size:14px;">Cargando productos...</p>
+    </div>
+    <div id="productosContenido" style="display:none;">
+        <div class="contador" id="contador"></div>
+        <div class="productos-grid" id="productosGrid"></div>
+    </div>
+</div>
+
+<!-- FOOTER CONFIRMAR -->
+<div class="footer-confirmar" id="footerConfirmar" style="display:none;">
+    <div class="footer-seleccion" id="footerSeleccion" style="display:none;">
+        <div class="footer-seleccion-img" id="footerImg">📦</div>
+        <div class="footer-seleccion-info">
+            <div class="footer-seleccion-nombre" id="footerNombre">—</div>
+            <div class="footer-seleccion-precio" id="footerPrecio">—</div>
+        </div>
+    </div>
+    <button class="btn-confirmar" id="btnConfirmar" onclick="confirmarSeleccion()" disabled>
+        Selecciona un producto para continuar
+    </button>
+</div>
+
+<script>
+const SUPABASE_URL      = 'https://cqwbsikyzdtegutyvgfo.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxd2JzaWt5emR0ZWd1dHl2Z2ZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NTk5MjUsImV4cCI6MjA5NDMzNTkyNX0.v9Qmp85POur1zZ3nHVYNRyhqHAi4VawafBsCiXF72Yo';
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let todosProductos   = [];
+let productoSeleccionado = null;
+let tiendaData       = null;
+let sessionId        = null;
+let categoriaActual  = 'todas';
+
+// ── INIT ──────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+    // Obtener slug de la URL: /selector/pisos-demo?sid=xxxxx
+    const path    = window.location.pathname; // /selector/pisos-demo
+    const params  = new URLSearchParams(window.location.search);
+    sessionId     = params.get('sid'); // ID de sesión del cliente WhatsApp
+    const slug    = path.split('/').pop();
+
+    if (!slug) { mostrarNotFound(); return; }
+
+    // Cargar tienda por slug
+    const { data: tienda } = await db
+        .from('tiendas')
+        .select('*')
+        .eq('slug', slug)
+        .eq('activa', true)
+        .maybeSingle();
+
+    if (!tienda) { mostrarNotFound(); return; }
+    tiendaData = tienda;
+
+    // Cargar productos
+    const { data: productos } = await db
+        .from('productos')
+        .select('*')
+        .eq('tienda_id', tienda.id)
+        .eq('activo', true)
+        .order('categoria');
+
+    todosProductos = productos || [];
+
+    renderHeader(tienda);
+    renderCategorias(todosProductos);
+    renderProductos(todosProductos);
+
+    // Mostrar UI
+    document.getElementById('mainHeader').style.display      = 'flex';
+    document.getElementById('mainInstruccion').style.display = 'block';
+    document.getElementById('catsScroll').style.display      = 'flex';
+    document.getElementById('mainContenido').style.display   = 'block';
+    document.getElementById('footerConfirmar').style.display = 'block';
+    document.getElementById('loadingState').style.display    = 'none';
+    document.getElementById('productosContenido').style.display = 'block';
+});
+
+// ── RENDER HEADER ─────────────────────────────────────────────────────────
+function renderHeader(tienda) {
+    const logoEl = document.getElementById('tiendaLogo');
+    if (tienda.logo_url) {
+        logoEl.innerHTML = `<img src="${tienda.logo_url}" alt="${tienda.nombre}" onerror="this.parentElement.innerHTML='🏪'">`;
+    }
+    document.getElementById('tiendaNombreHeader').textContent = tienda.nombre;
+}
+
+// ── RENDER CATEGORÍAS ─────────────────────────────────────────────────────
+function renderCategorias(productos) {
+    const cats = ['todas', ...new Set(productos.map(p => p.categoria).filter(Boolean))];
+    const scroll = document.getElementById('catsScroll');
+    const EMOJIS = { pisos:'🪵', enchapes:'🧱', cocinas:'🍳', baños:'🚿', materiales:'🏗️', electricos:'💡', pintura:'🎨', puertas:'🚪' };
+
+    scroll.innerHTML = cats.map(cat => `
+        <button class="cat-pill ${cat === 'todas' ? 'active' : ''}"
+            onclick="filtrarCat('${cat}', this)">
+            ${cat === 'todas' ? '🏪 Todos' : `${EMOJIS[cat]||'📦'} ${cat.charAt(0).toUpperCase()+cat.slice(1)}`}
+        </button>`).join('');
+}
+
+// ── RENDER PRODUCTOS ──────────────────────────────────────────────────────
+function renderProductos(productos) {
+    const grid    = document.getElementById('productosGrid');
+    const contador = document.getElementById('contador');
+    contador.textContent = `${productos.length} producto${productos.length !== 1 ? 's' : ''} disponibles`;
+
+    if (productos.length === 0) {
+        grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="icon">📦</div><p>No hay productos en esta categoría</p></div>`;
+        return;
+    }
+
+    grid.innerHTML = productos.map(p => `
+        <div class="producto-card" id="card-${p.id}" onclick="seleccionarProducto('${p.id}')">
+            <div class="check-overlay">✓</div>
+            <div class="producto-img">
+                ${p.imagen_url
+                    ? `<img src="${p.imagen_url}" alt="${p.nombre}" loading="lazy" onerror="this.parentElement.innerHTML='📦'">`
+                    : '📦'}
+            </div>
+            <div class="producto-info">
+                <div class="producto-cat">${p.categoria || ''}</div>
+                <div class="producto-nombre">${p.nombre}</div>
+                <div class="producto-precio">$${Number(p.precio).toLocaleString('es-CO')}<span class="producto-unidad">/${p.unidad||'m²'}</span></div>
+            </div>
+        </div>`).join('');
+}
+
+// ── SELECCIONAR PRODUCTO ──────────────────────────────────────────────────
+function seleccionarProducto(prodId) {
+    // Deseleccionar anterior
+    if (productoSeleccionado) {
+        document.getElementById(`card-${productoSeleccionado.id}`)?.classList.remove('seleccionado');
+    }
+
+    // Seleccionar nuevo
+    productoSeleccionado = todosProductos.find(p => p.id === prodId);
+    document.getElementById(`card-${prodId}`)?.classList.add('seleccionado');
+
+    // Scroll al card seleccionado
+    document.getElementById(`card-${prodId}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    // Actualizar footer
+    const footerSeleccion = document.getElementById('footerSeleccion');
+    const footerImg       = document.getElementById('footerImg');
+    const footerNombre    = document.getElementById('footerNombre');
+    const footerPrecio    = document.getElementById('footerPrecio');
+    const btnConfirmar    = document.getElementById('btnConfirmar');
+
+    footerSeleccion.style.display = 'flex';
+    footerImg.innerHTML = productoSeleccionado.imagen_url
+        ? `<img src="${productoSeleccionado.imagen_url}" alt="${productoSeleccionado.nombre}" onerror="this.parentElement.innerHTML='📦'">`
+        : '📦';
+    footerNombre.textContent  = productoSeleccionado.nombre;
+    footerPrecio.textContent  = `$${Number(productoSeleccionado.precio).toLocaleString('es-CO')} / ${productoSeleccionado.unidad||'m²'}`;
+    btnConfirmar.disabled     = false;
+    btnConfirmar.textContent  = '🎨 Aplicar este producto →';
+}
+
+// ── CONFIRMAR SELECCIÓN ───────────────────────────────────────────────────
+async function confirmarSeleccion() {
+    if (!productoSeleccionado) return;
+
+    const btn = document.getElementById('btnConfirmar');
+    btn.disabled = true;
+    btn.innerHTML = '<span style="display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:8px;"></span>Procesando...';
+
+    try {
+        // Guardar la selección en Supabase para que el bot la lea
+        if (sessionId) {
+            await db.from('selecciones_producto').upsert({
+                session_id:   sessionId,
+                producto_id:  productoSeleccionado.id,
+                tienda_id:    tiendaData.id,
+                nombre:       productoSeleccionado.nombre,
+                imagen_url:   productoSeleccionado.imagen_url,
+                categoria:    productoSeleccionado.categoria,
+                created_at:   new Date().toISOString()
+            });
+        }
+
+        // Mostrar pantalla de éxito
+        const exitoCard = document.getElementById('productoElegidoCard');
+        exitoCard.innerHTML = `
+            <div class="producto-elegido-img">
+                ${productoSeleccionado.imagen_url
+                    ? `<img src="${productoSeleccionado.imagen_url}" alt="${productoSeleccionado.nombre}">`
+                    : '📦'}
+            </div>
+            <div>
+                <div class="producto-elegido-nombre">${productoSeleccionado.nombre}</div>
+                <div class="producto-elegido-precio">$${Number(productoSeleccionado.precio).toLocaleString('es-CO')} / ${productoSeleccionado.unidad||'m²'}</div>
+            </div>`;
+
+        document.getElementById('exitoScreen').classList.add('show');
+
+    } catch(err) {
+        console.error(err);
+        btn.disabled  = false;
+        btn.textContent = '🎨 Aplicar este producto →';
+    }
+}
+
+// ── FILTRAR CATEGORÍA ─────────────────────────────────────────────────────
+function filtrarCat(cat, btn) {
+    categoriaActual = cat;
+    document.querySelectorAll('.cat-pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    const filtrados = cat === 'todas'
+        ? todosProductos
+        : todosProductos.filter(p => p.categoria === cat);
+
+    renderProductos(filtrados);
+}
+
+function mostrarNotFound() {
+    document.getElementById('notFound').classList.add('show');
+}
+</script>
+</body>
+</html>
