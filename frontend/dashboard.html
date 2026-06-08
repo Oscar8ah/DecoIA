@@ -70,14 +70,14 @@
         .plan-precio-dash { font-size:15px; color:var(--gris); }
         .plan-features-dash { display:flex; flex-wrap:wrap; gap:10px; }
         .feature-tag { background:rgba(124,58,237,0.1); border:1px solid rgba(124,58,237,0.25); padding:6px 14px; border-radius:50px; font-size:12px; color:#A78BFA; }
-        .btn-upgrade { background:var(--degradado); color:white; border:none; padding:12px 24px; border-radius:50px; font-size:14px; font-weight:700; cursor:pointer; transition:opacity 0.3s; white-space:nowrap; }
+        .btn-upgrade { background:var(--degradado); color:white; border:none; padding:12px 24px; border-radius:50px; font-size:14px; font-weight:700; cursor:pointer; transition:opacity 0.3s; }
         .btn-upgrade:hover { opacity:0.85; }
 
         /* HISTORIAL */
         .section-title { font-size:18px; font-weight:700; margin-bottom:20px; }
         .historial-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:16px; }
-        .historial-card { background:var(--oscuro2); border:1px solid rgba(124,58,237,0.15); border-radius:14px; overflow:hidden; transition:transform 0.2s,border-color 0.2s; }
-        .historial-card:hover { transform:translateY(-3px); border-color:rgba(124,58,237,0.4); }
+        .historial-card { background:var(--oscuro2); border:1px solid rgba(124,58,237,0.15); border-radius:14px; overflow:hidden; transition:transform 0.2s; }
+        .historial-card:hover { transform:translateY(-3px); }
         .historial-img { width:100%; height:140px; background:var(--oscuro3); display:flex; align-items:center; justify-content:center; font-size:32px; color:var(--gris); }
         .historial-img img { width:100%; height:100%; object-fit:cover; }
         .historial-info { padding:12px; }
@@ -119,7 +119,10 @@
         .wa-form { background:var(--oscuro2); border:1px solid rgba(124,58,237,0.2); border-radius:18px; padding:28px; }
         .wa-form h3 { font-size:16px; font-weight:700; margin-bottom:24px; }
 
-        /* FORMULARIOS GENERALES */
+        /* FORMULARIOS */
+        .form-card { background:var(--oscuro2); border:1px solid rgba(124,58,237,0.2); border-radius:18px; padding:28px; margin-bottom:24px; }
+        .form-card h3 { font-size:16px; font-weight:700; margin-bottom:6px; }
+        .form-card p { font-size:13px; color:var(--gris); margin-bottom:24px; line-height:1.5; }
         .form-campo { margin-bottom:20px; }
         .form-campo label { display:block; font-size:13px; font-weight:600; color:var(--gris); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:8px; }
         .form-campo input, .form-campo select, .form-campo textarea {
@@ -134,6 +137,22 @@
         .form-campo .campo-hint { font-size:12px; color:var(--gris); margin-top:6px; line-height:1.5; }
         .form-campo input.tiene-valor { border-color:rgba(16,185,129,0.4); }
         .form-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+        .form-grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+
+        /* LOGO UPLOAD */
+        .logo-upload-area {
+            display:flex; align-items:center; gap:20px; margin-bottom:20px;
+            flex-wrap:wrap;
+        }
+        .logo-preview {
+            width:80px; height:80px; border-radius:16px;
+            background:var(--oscuro3); border:2px dashed rgba(124,58,237,0.3);
+            display:flex; align-items:center; justify-content:center;
+            font-size:32px; overflow:hidden; flex-shrink:0;
+        }
+        .logo-preview img { width:100%; height:100%; object-fit:cover; border-radius:14px; }
+        .logo-upload-info h4 { font-size:14px; font-weight:700; margin-bottom:6px; }
+        .logo-upload-info p { font-size:13px; color:var(--gris); line-height:1.5; }
 
         /* BOTONES */
         .btn-primario { background:var(--degradado); color:white; border:none; padding:14px 28px; border-radius:50px; font-size:15px; font-weight:700; cursor:pointer; transition:opacity 0.3s,transform 0.2s; font-family:'Segoe UI',sans-serif; }
@@ -152,11 +171,17 @@
         .alerta.error { background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.4); color:#FCA5A5; display:block; }
         .alerta.info { background:rgba(59,130,246,0.1); border:1px solid rgba(59,130,246,0.4); color:#93C5FD; display:block; }
 
+        /* VERIFICACION BADGE */
+        .verificacion-badge { display:inline-flex; align-items:center; gap:6px; padding:6px 16px; border-radius:50px; font-size:13px; font-weight:700; }
+        .verificacion-badge.pendiente { background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); color:#FCD34D; }
+        .verificacion-badge.verificada { background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.3); color:#6EE7B7; }
+        .verificacion-badge.rechazada { background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.3); color:#FCA5A5; }
+
         /* SPINNER */
         .spinner-btn { display:inline-block; width:16px; height:16px; border:2px solid rgba(255,255,255,0.3); border-top-color:white; border-radius:50%; animation:spin 0.7s linear infinite; vertical-align:middle; margin-right:8px; }
         @keyframes spin { to { transform:rotate(360deg); } }
 
-        /* ── MI TIENDA ──────────────────────────────────────────────────── */
+        /* TIENDA STATUS */
         .tienda-status-card { border-radius:16px; padding:20px 24px; display:flex; align-items:center; gap:16px; margin-bottom:28px; flex-wrap:wrap; }
         .tienda-status-card.activa { background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.3); }
         .tienda-status-card.inactiva { background:rgba(124,58,237,0.08); border:1px solid rgba(124,58,237,0.25); }
@@ -173,7 +198,7 @@
         .tab-content { display:none; }
         .tab-content.active { display:block; }
 
-        /* PRODUCTOS GRID DASHBOARD */
+        /* PRODUCTOS */
         .productos-dash-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:20px; margin-top:20px; }
         .producto-dash-card { background:var(--oscuro2); border:1px solid rgba(124,58,237,0.15); border-radius:16px; overflow:hidden; transition:transform 0.2s; }
         .producto-dash-card:hover { transform:translateY(-2px); }
@@ -189,26 +214,25 @@
 
         /* UPLOAD PDF */
         .upload-zone { border:2px dashed rgba(124,58,237,0.4); border-radius:16px; padding:40px 20px; text-align:center; cursor:pointer; transition:all 0.3s; background:rgba(124,58,237,0.03); }
-        .upload-zone:hover, .upload-zone.drag-over { border-color:var(--morado); background:rgba(124,58,237,0.08); }
+        .upload-zone:hover { border-color:var(--morado); background:rgba(124,58,237,0.08); }
         .upload-zone .upload-icon { font-size:48px; margin-bottom:16px; }
         .upload-zone h3 { font-size:18px; font-weight:700; margin-bottom:8px; }
         .upload-zone p { font-size:14px; color:var(--gris); line-height:1.6; }
         .upload-zone input[type="file"] { display:none; }
         .plan-requerido { background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); border-radius:12px; padding:16px 20px; margin-bottom:24px; font-size:14px; color:#FCD34D; }
 
-        /* PREVIEW PRODUCTOS IA */
-        .preview-productos { margin-top:24px; }
-        .preview-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px; }
-        .preview-header h3 { font-size:18px; font-weight:700; }
-        .preview-acciones { display:flex; gap:10px; }
+        /* PREVIEW IA */
         .preview-item { background:var(--oscuro2); border:1px solid rgba(124,58,237,0.2); border-radius:14px; padding:20px; margin-bottom:12px; display:flex; gap:16px; align-items:flex-start; transition:border-color 0.2s; }
         .preview-item.aceptado { border-color:rgba(16,185,129,0.4); background:rgba(16,185,129,0.04); }
-        .preview-item.rechazado { border-color:rgba(239,68,68,0.3); background:rgba(239,68,68,0.04); opacity:0.6; }
+        .preview-item.rechazado { border-color:rgba(239,68,68,0.3); opacity:0.6; }
         .preview-item-info { flex:1; }
         .preview-item-nombre { font-size:15px; font-weight:700; margin-bottom:4px; }
         .preview-item-precio { font-size:16px; font-weight:800; background:var(--degradado); -webkit-background-clip:text; -webkit-text-fill-color:transparent; margin-bottom:6px; }
         .preview-item-desc { font-size:13px; color:var(--gris); line-height:1.5; }
         .preview-item-acciones { display:flex; gap:8px; flex-direction:column; }
+        .preview-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px; }
+        .preview-header h3 { font-size:18px; font-weight:700; }
+        .preview-acciones { display:flex; gap:10px; }
 
         /* MODAL */
         .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); backdrop-filter:blur(4px); z-index:500; display:none; align-items:center; justify-content:center; padding:20px; }
@@ -231,7 +255,7 @@
             .main { margin-left:0; padding:80px 20px 40px; }
             .hamburger { display:block; }
             .stats-grid { grid-template-columns:1fr 1fr; }
-            .form-grid-2 { grid-template-columns:1fr; }
+            .form-grid-2, .form-grid-3 { grid-template-columns:1fr; }
         }
         @media (max-width:480px) {
             .stats-grid { grid-template-columns:1fr; }
@@ -249,26 +273,14 @@
 <!-- MODAL PRODUCTO -->
 <div class="modal-overlay" id="modalProducto">
     <div class="modal">
-        <button class="modal-close" onclick="cerrarModal()">✕</button>
+        <button class="modal-close" onclick="cerrarModal('modalProducto')">✕</button>
         <h2 id="modalProductoTitulo">➕ Agregar producto</h2>
         <div class="alerta" id="modalAlerta"></div>
-        <div class="form-campo">
-            <label>Nombre del producto *</label>
-            <input type="text" id="prodNombre" placeholder="Ej: Porcelanato Mármol Carrara 60x60">
-        </div>
-        <div class="form-campo">
-            <label>Descripción</label>
-            <textarea id="prodDesc" placeholder="Describe el producto, características, ventajas..."></textarea>
-        </div>
+        <div class="form-campo"><label>Nombre *</label><input type="text" id="prodNombre" placeholder="Ej: Porcelanato Mármol Carrara 60x60"></div>
+        <div class="form-campo"><label>Descripción</label><textarea id="prodDesc" placeholder="Características, ventajas..."></textarea></div>
         <div class="form-grid-2">
-            <div class="form-campo">
-                <label>Precio (COP) *</label>
-                <input type="number" id="prodPrecio" placeholder="85000">
-            </div>
-            <div class="form-campo">
-                <label>Precio antes (opcional)</label>
-                <input type="number" id="prodPrecioAntes" placeholder="120000">
-            </div>
+            <div class="form-campo"><label>Precio COP *</label><input type="number" id="prodPrecio" placeholder="85000"></div>
+            <div class="form-campo"><label>Precio anterior</label><input type="number" id="prodPrecioAntes" placeholder="120000"></div>
         </div>
         <div class="form-grid-2">
             <div class="form-campo">
@@ -293,23 +305,13 @@
                     <option value="kg">Kg</option>
                     <option value="litro">Litro</option>
                     <option value="caja">Caja</option>
-                    <option value="ml">Ml</option>
                 </select>
             </div>
         </div>
-        <div class="form-campo">
-            <label>Stock disponible</label>
-            <input type="number" id="prodStock" placeholder="100" value="0">
-        </div>
-        <div class="form-campo">
-            <label>URL de imagen (opcional)</label>
-            <input type="url" id="prodImagen" placeholder="https://...">
-            <div class="campo-hint">Sube la imagen a ImgBB.com y pega el link aquí</div>
-        </div>
+        <div class="form-campo"><label>Stock</label><input type="number" id="prodStock" placeholder="100" value="0"></div>
+        <div class="form-campo"><label>URL imagen</label><input type="url" id="prodImagen" placeholder="https://..."><div class="campo-hint">Sube la imagen a ImgBB.com y pega el link aquí</div></div>
         <input type="hidden" id="prodId">
-        <button class="btn-primario" style="width:100%;margin-top:8px;" onclick="guardarProducto()" id="btnGuardarProducto">
-            💾 Guardar producto
-        </button>
+        <button class="btn-primario" style="width:100%;margin-top:8px;" onclick="guardarProducto()" id="btnGuardarProducto">💾 Guardar producto</button>
     </div>
 </div>
 
@@ -318,34 +320,17 @@
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-logo">DecoIArte</div>
     <nav class="sidebar-nav">
-        <button class="nav-item active" onclick="mostrarPagina('inicio', this)">
-            <span class="icon">🏠</span> Inicio
-        </button>
-        <button class="nav-item" onclick="mostrarPagina('mitienda', this)">
-            <span class="icon">🏪</span> Mi Tienda
-            <span class="dot-amarillo" id="dotTienda"></span>
-        </button>
-        <button class="nav-item" onclick="mostrarPagina('whatsapp', this)">
-            <span class="icon">📱</span> WhatsApp
-            <span class="dot-amarillo" id="dotWa"></span>
-        </button>
-        <button class="nav-item" onclick="mostrarPagina('historial', this)">
-            <span class="icon">🖼️</span> Historial
-        </button>
-        <button class="nav-item" onclick="mostrarPagina('plan', this)">
-            <span class="icon">📦</span> Mi Plan
-        </button>
-        <button class="nav-item" onclick="mostrarPagina('perfil', this)">
-            <span class="icon">👤</span> Mi Perfil
-        </button>
+        <button class="nav-item active" onclick="mostrarPagina('inicio', this)"><span class="icon">🏠</span> Inicio</button>
+        <button class="nav-item" onclick="mostrarPagina('mitienda', this)"><span class="icon">🏪</span> Mi Tienda <span class="dot-amarillo" id="dotTienda"></span></button>
+        <button class="nav-item" onclick="mostrarPagina('whatsapp', this)"><span class="icon">📱</span> WhatsApp <span class="dot-amarillo" id="dotWa"></span></button>
+        <button class="nav-item" onclick="mostrarPagina('historial', this)"><span class="icon">🖼️</span> Historial</button>
+        <button class="nav-item" onclick="mostrarPagina('plan', this)"><span class="icon">📦</span> Mi Plan</button>
+        <button class="nav-item" onclick="mostrarPagina('perfil', this)"><span class="icon">👤</span> Mi Perfil</button>
     </nav>
     <div class="sidebar-bottom">
         <div class="user-info">
             <div class="user-avatar" id="sidebarAvatar">?</div>
-            <div>
-                <div class="user-name" id="sidebarNombre">Cargando...</div>
-                <div class="user-email" id="sidebarEmail"></div>
-            </div>
+            <div><div class="user-name" id="sidebarNombre">Cargando...</div><div class="user-email" id="sidebarEmail"></div></div>
         </div>
         <button class="btn-logout" onclick="cerrarSesion()">🚪 Cerrar sesión</button>
     </div>
@@ -355,10 +340,7 @@
 
     <!-- INICIO -->
     <div class="page active" id="pagina-inicio">
-        <div class="page-header">
-            <h1>¡Bienvenido! 👋</h1>
-            <p>Aquí tienes el resumen de tu cuenta DecoIArte</p>
-        </div>
+        <div class="page-header"><h1>¡Bienvenido! 👋</h1><p>Aquí tienes el resumen de tu cuenta DecoIArte</p></div>
         <div class="stats-grid">
             <div class="stat-card"><div class="stat-label">📸 Fotos usadas</div><div class="stat-valor" id="statUsadas">0</div><div class="stat-sub">este mes</div></div>
             <div class="stat-card"><div class="stat-label">✅ Fotos disponibles</div><div class="stat-valor" id="statDisponibles">0</div><div class="stat-sub">restantes</div></div>
@@ -366,55 +348,55 @@
             <div class="stat-card"><div class="stat-label">📦 Plan activo</div><div class="stat-valor" id="statPlan" style="font-size:22px;">—</div><div class="stat-sub" id="statPlanPrecio"></div></div>
         </div>
         <div class="progress-section">
-            <div class="progress-header">
-                <span class="progress-title">📊 Uso de fotos del mes</span>
-                <span class="progress-nums"><strong id="progUsadas">0</strong> de <strong id="progTotal">0</strong> fotos</span>
-            </div>
+            <div class="progress-header"><span class="progress-title">📊 Uso de fotos del mes</span><span class="progress-nums"><strong id="progUsadas">0</strong> de <strong id="progTotal">0</strong> fotos</span></div>
             <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressBar" style="width:0%"></div></div>
             <div class="progress-aviso" id="avisoFotos"></div>
         </div>
         <div class="section-title">🖼️ Últimas imágenes generadas</div>
-        <div class="historial-grid" id="ultimasImagenes">
-            <div class="historial-empty"><div class="empty-icon">🏠</div><p>Aún no hay imágenes generadas.</p></div>
-        </div>
+        <div class="historial-grid" id="ultimasImagenes"><div class="historial-empty"><div class="empty-icon">🏠</div><p>Aún no hay imágenes generadas.</p></div></div>
     </div>
 
     <!-- MI TIENDA -->
     <div class="page" id="pagina-mitienda">
-        <div class="page-header">
-            <h1>🏪 Mi Tienda</h1>
-            <p>Gestiona tu tienda en la marketplace de DecoIArte</p>
-        </div>
+        <div class="page-header"><h1>🏪 Mi Tienda</h1><p>Gestiona tu tienda en la marketplace de DecoIArte</p></div>
 
-        <!-- STATUS -->
         <div class="tienda-status-card inactiva" id="tiendaStatusCard">
             <div class="tienda-status-icon">🏪</div>
             <div class="tienda-status-info">
                 <div class="tienda-status-titulo">Tienda no creada</div>
-                <div class="tienda-status-sub">Crea tu tienda para aparecer en la marketplace y vender tus productos</div>
+                <div class="tienda-status-sub">Crea tu tienda para aparecer en la marketplace</div>
             </div>
         </div>
 
-        <!-- TABS -->
         <div class="tabs">
             <button class="tab-btn active" onclick="mostrarTab('tab-info', this)">📋 Info de la tienda</button>
+            <button class="tab-btn" onclick="mostrarTab('tab-legal', this)">📄 Documentos legales</button>
             <button class="tab-btn" onclick="mostrarTab('tab-productos', this)">📦 Mis productos</button>
-            <button class="tab-btn" onclick="mostrarTab('tab-importar', this)" id="btnTabImportar">🤖 Importar con IA</button>
+            <button class="tab-btn" onclick="mostrarTab('tab-importar', this)">🤖 Importar con IA</button>
         </div>
 
         <!-- TAB INFO -->
         <div class="tab-content active" id="tab-info">
-            <div style="background:var(--oscuro2);border:1px solid rgba(124,58,237,0.2);border-radius:18px;padding:28px;">
-                <h3 style="font-size:16px;font-weight:700;margin-bottom:24px;">Información de tu tienda</h3>
+            <div class="form-card">
+                <h3>Información pública de tu tienda</h3>
+                <p>Esta información será visible para todos los compradores en la marketplace.</p>
                 <div class="alerta" id="tiendaAlerta"></div>
+
+                <!-- LOGO -->
                 <div class="form-campo">
-                    <label>Nombre de la tienda *</label>
-                    <input type="text" id="tiendaNombre" placeholder="Ej: Pisos y Enchapes Rodríguez">
+                    <label>Logo de la tienda</label>
+                    <div class="logo-upload-area">
+                        <div class="logo-preview" id="logoPreview">🏪</div>
+                        <div class="logo-upload-info">
+                            <h4>Sube el logo de tu negocio</h4>
+                            <p>Sube la imagen a <a href="https://imgbb.com" target="_blank" style="color:#A78BFA;">ImgBB.com</a> gratis y pega el link abajo.</p>
+                            <input type="url" id="tiendaLogoUrl" placeholder="https://i.ibb.co/tu-logo.png" style="margin-top:10px;border-radius:10px;padding:10px 14px;font-size:13px;" oninput="previsualizarLogo(this.value)">
+                        </div>
+                    </div>
                 </div>
-                <div class="form-campo">
-                    <label>Descripción</label>
-                    <textarea id="tiendaDesc" placeholder="Describe tu negocio, qué vendes, experiencia, ubicación..."></textarea>
-                </div>
+
+                <div class="form-campo"><label>Nombre de la tienda *</label><input type="text" id="tiendaNombre" placeholder="Ej: Pisos y Enchapes Rodríguez"></div>
+                <div class="form-campo"><label>Descripción</label><textarea id="tiendaDesc" placeholder="Describe tu negocio, qué vendes, años de experiencia..."></textarea></div>
                 <div class="form-grid-2">
                     <div class="form-campo">
                         <label>Categoría principal *</label>
@@ -430,77 +412,87 @@
                             <option value="puertas">🚪 Puertas</option>
                         </select>
                     </div>
-                    <div class="form-campo">
-                        <label>Ciudad</label>
-                        <input type="text" id="tiendaCiudad" placeholder="Ej: Bucaramanga">
+                    <div class="form-campo"><label>Ciudad</label><input type="text" id="tiendaCiudad" placeholder="Ej: Bucaramanga"></div>
+                </div>
+                <div class="form-campo"><label>WhatsApp de contacto</label><input type="text" id="tiendaWa" placeholder="573001234567"><div class="campo-hint">Los clientes te escribirán directamente por este número</div></div>
+                <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+                    <button class="btn-primario" onclick="guardarTienda()" id="btnGuardarTienda">💾 Guardar tienda</button>
+                    <a href="/marketplace" target="_blank" id="btnVerTienda" style="display:none;color:#A78BFA;font-size:14px;text-decoration:none;">🔗 Ver en marketplace →</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB LEGAL -->
+        <div class="tab-content" id="tab-legal">
+            <div class="form-card">
+                <h3>📄 Documentos e información legal</h3>
+                <p>Esta información es <strong style="color:var(--texto)">privada y confidencial</strong> — solo el equipo de DecoIArte la puede ver. Es necesaria para verificar tu tienda y otorgarte el badge de tienda verificada ✅</p>
+
+                <div class="alerta" id="legalAlerta"></div>
+
+                <!-- ESTADO VERIFICACION -->
+                <div style="margin-bottom:24px;padding:16px 20px;background:var(--oscuro);border:1px solid rgba(124,58,237,0.2);border-radius:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+                    <div>
+                        <div style="font-size:13px;color:var(--gris);margin-bottom:4px;">Estado de verificación</div>
+                        <div id="estadoVerificacionBadge"></div>
                     </div>
+                    <div style="font-size:13px;color:var(--gris)" id="motivoRechazoTexto"></div>
                 </div>
-                <div class="form-campo">
-                    <label>WhatsApp de contacto</label>
-                    <input type="text" id="tiendaWa" placeholder="573001234567 (con código de país)">
-                    <div class="campo-hint">Los clientes te contactarán por este número al hacer pedidos</div>
+
+                <div class="form-grid-2">
+                    <div class="form-campo"><label>Nombre del representante legal *</label><input type="text" id="legalNombreRep" placeholder="Nombre completo"></div>
+                    <div class="form-campo"><label>Cédula o NIT *</label><input type="text" id="legalCedulaNit" placeholder="Ej: 900.123.456-7"></div>
                 </div>
-                <button class="btn-primario" onclick="guardarTienda()" id="btnGuardarTienda">
-                    💾 Guardar tienda
-                </button>
-                <a href="/marketplace" target="_blank" id="btnVerTienda"
-                   style="display:none;margin-left:12px;color:#A78BFA;font-size:14px;text-decoration:none;">
-                    🔗 Ver en marketplace →
-                </a>
+                <div class="form-grid-2">
+                    <div class="form-campo"><label>Correo de notificaciones legales</label><input type="email" id="legalCorreo" placeholder="legal@minegocio.com"></div>
+                    <div class="form-campo"><label>Teléfono fijo del negocio</label><input type="text" id="legalTelefono" placeholder="Ej: 6011234567"></div>
+                </div>
+                <div class="form-campo"><label>Dirección completa de correspondencia</label><textarea id="legalDireccion" placeholder="Calle, número, barrio, ciudad, departamento..." style="min-height:70px;"></textarea></div>
+
+                <div style="background:rgba(124,58,237,0.06);border:1px solid rgba(124,58,237,0.2);border-radius:14px;padding:20px;margin-bottom:24px;">
+                    <div style="font-size:14px;font-weight:700;margin-bottom:16px;">📎 Links de documentos</div>
+                    <p style="font-size:13px;color:var(--gris);margin-bottom:16px;line-height:1.6;">
+                        Sube tus documentos a <a href="https://drive.google.com" target="_blank" style="color:#A78BFA;">Google Drive</a> o <a href="https://imgbb.com" target="_blank" style="color:#A78BFA;">ImgBB</a> y pega los links aquí. Asegúrate que los archivos sean accesibles con el link.
+                    </p>
+                    <div class="form-campo"><label>RUT (obligatorio)</label><input type="url" id="legalUrlRut" placeholder="https://drive.google.com/..."><div class="campo-hint">Registro Único Tributario — expedido por la DIAN</div></div>
+                    <div class="form-campo" style="margin-bottom:0;"><label>Cámara de comercio (si aplica)</label><input type="url" id="legalUrlCamara" placeholder="https://drive.google.com/..."><div class="campo-hint">Para personas jurídicas — no mayor a 90 días</div></div>
+                </div>
+
+                <button class="btn-primario" onclick="guardarLegal()" id="btnGuardarLegal">💾 Guardar información legal</button>
             </div>
         </div>
 
         <!-- TAB PRODUCTOS -->
         <div class="tab-content" id="tab-productos">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
-                <div>
-                    <div style="font-size:18px;font-weight:700;">Mis productos</div>
-                    <div style="font-size:14px;color:var(--gris)" id="contadorProductosDash"></div>
-                </div>
+                <div><div style="font-size:18px;font-weight:700;">Mis productos</div><div style="font-size:14px;color:var(--gris)" id="contadorProductosDash"></div></div>
                 <button class="btn-primario" onclick="abrirModalProducto()">➕ Agregar producto</button>
             </div>
-            <div id="tiendaSinCrear" style="display:none;text-align:center;padding:60px 20px;color:var(--gris);">
-                <div style="font-size:48px;margin-bottom:16px;">🏪</div>
-                <p>Primero crea tu tienda en la pestaña "Info de la tienda"</p>
-            </div>
+            <div id="tiendaSinCrear" style="display:none;text-align:center;padding:60px 20px;color:var(--gris);"><div style="font-size:48px;margin-bottom:16px;">🏪</div><p>Primero crea tu tienda en la pestaña "Info de la tienda"</p></div>
             <div class="productos-dash-grid" id="productosDashGrid"></div>
         </div>
 
-        <!-- TAB IMPORTAR CON IA -->
+        <!-- TAB IMPORTAR -->
         <div class="tab-content" id="tab-importar">
             <div id="importarBloqueado" style="display:none;">
-                <div class="plan-requerido">
-                    ⚠️ Esta función está disponible desde el plan <strong>Profesional</strong>.
-                    <a href="/#planes" style="color:#FCD34D;margin-left:8px;">Ver planes →</a>
-                </div>
+                <div class="plan-requerido">⚠️ Esta función está disponible desde el plan <strong>Profesional</strong>. <a href="/#planes" style="color:#FCD34D;margin-left:8px;">Ver planes →</a></div>
             </div>
             <div id="importarDisponible">
-                <div style="background:var(--oscuro2);border:1px solid rgba(124,58,237,0.2);border-radius:18px;padding:28px;margin-bottom:24px;">
-                    <h3 style="font-size:16px;font-weight:700;margin-bottom:8px;">🤖 Importar productos con IA</h3>
-                    <p style="font-size:14px;color:var(--gris);line-height:1.6;">
-                        Sube tu catálogo en PDF o Excel y la IA extraerá automáticamente los nombres, precios y descripciones de cada producto.
-                        Luego puedes revisar, aceptar o rechazar cada uno antes de publicarlos.
-                    </p>
+                <div class="form-card">
+                    <h3>🤖 Importar productos con IA</h3>
+                    <p>Sube tu catálogo en PDF, Excel o CSV. La IA extraerá automáticamente nombres, precios y descripciones. Luego revisas y publicas solo los que quieras.</p>
                 </div>
-
                 <div class="alerta" id="importarAlerta"></div>
-
-                <label class="upload-zone" for="inputArchivo" id="uploadZone">
+                <label class="upload-zone" for="inputArchivo">
                     <div class="upload-icon">📄</div>
                     <h3>Arrastra tu archivo aquí</h3>
-                    <p>Soporta PDF, Excel (.xlsx) y CSV<br>Máximo 10MB por archivo</p>
+                    <p>PDF, Excel (.xlsx) o CSV · Máximo 10MB</p>
                     <input type="file" id="inputArchivo" accept=".pdf,.xlsx,.csv,.xls" onchange="procesarArchivo(this)">
-                    <div style="margin-top:16px;">
-                        <span style="background:var(--degradado);color:white;padding:10px 24px;border-radius:50px;font-size:14px;font-weight:700;">
-                            Seleccionar archivo
-                        </span>
-                    </div>
+                    <div style="margin-top:16px;"><span style="background:var(--degradado);color:white;padding:10px 24px;border-radius:50px;font-size:14px;font-weight:700;">Seleccionar archivo</span></div>
                 </label>
-
-                <!-- PREVIEW IA -->
-                <div class="preview-productos" id="previewProductos" style="display:none;">
+                <div id="previewProductos" style="display:none;margin-top:24px;">
                     <div class="preview-header">
-                        <h3 id="previewTitulo">Productos detectados por IA</h3>
+                        <h3 id="previewTitulo">Productos detectados</h3>
                         <div class="preview-acciones">
                             <button class="btn-exito" onclick="aceptarTodos()">✅ Aceptar todos</button>
                             <button class="btn-peligro" onclick="rechazarTodos()">❌ Rechazar todos</button>
@@ -508,9 +500,7 @@
                     </div>
                     <div id="previewLista"></div>
                     <div style="margin-top:20px;display:flex;gap:12px;flex-wrap:wrap;">
-                        <button class="btn-primario" onclick="publicarAceptados()" id="btnPublicar">
-                            🚀 Publicar productos aceptados
-                        </button>
+                        <button class="btn-primario" onclick="publicarAceptados()" id="btnPublicar">🚀 Publicar aceptados</button>
                         <button class="btn-secundario" onclick="cancelarImportacion()">Cancelar</button>
                     </div>
                 </div>
@@ -520,39 +510,33 @@
 
     <!-- WHATSAPP -->
     <div class="page" id="pagina-whatsapp">
-        <div class="page-header">
-            <h1>📱 Conectar WhatsApp</h1>
-            <p>Conecta tu número de WhatsApp Business para activar el bot con IA</p>
-        </div>
+        <div class="page-header"><h1>📱 Conectar WhatsApp</h1><p>Conecta tu número de WhatsApp Business para activar el bot con IA</p></div>
         <div class="wa-status-card pendiente" id="waStatusCard">
             <div class="wa-status-icon">⚠️</div>
-            <div class="wa-status-info">
-                <div class="wa-status-titulo">WhatsApp no conectado</div>
-                <div class="wa-status-sub">Completa el formulario para activar tu bot de remodelación con IA</div>
-            </div>
+            <div class="wa-status-info"><div class="wa-status-titulo">WhatsApp no conectado</div><div class="wa-status-sub">Completa el formulario para activar tu bot</div></div>
             <span class="wa-status-badge amarillo">● Sin conectar</span>
         </div>
         <div class="wa-pasos">
             <h3>📋 ¿Cómo obtener tus tokens de WhatsApp?</h3>
-            <div class="paso"><div class="paso-num">1</div><div class="paso-info"><h4>Crea tu cuenta en Meta for Developers</h4><p>Ve a <a href="https://developers.facebook.com" target="_blank">developers.facebook.com</a> e inicia sesión con tu cuenta de Facebook del negocio.</p></div></div>
-            <div class="paso"><div class="paso-num">2</div><div class="paso-info"><h4>Crea una aplicación de tipo "Business"</h4><p>En el panel de Meta, ve a <strong>Mis apps → Crear app → Business</strong>. Dale el nombre de tu negocio.</p></div></div>
-            <div class="paso"><div class="paso-num">3</div><div class="paso-info"><h4>Agrega WhatsApp a tu app</h4><p>Dentro de tu app, busca <strong>WhatsApp → Configuración</strong>. Ahí encontrarás tu <code>Phone Number ID</code> y podrás generar el <code>Token de acceso</code>.</p></div></div>
-            <div class="paso"><div class="paso-num">4</div><div class="paso-info"><h4>Crea tu Verify Token</h4><p>El <code>Verify Token</code> lo inventas tú, por ejemplo: <code>decoiarte_tunegocio_2026</code></p></div></div>
-            <div class="paso"><div class="paso-num">5</div><div class="paso-info"><h4>Pega los datos abajo y guarda</h4><p>Te contactaremos en menos de 24 horas para completar la configuración. 🚀</p></div></div>
+            <div class="paso"><div class="paso-num">1</div><div class="paso-info"><h4>Crea tu cuenta en Meta for Developers</h4><p>Ve a <a href="https://developers.facebook.com" target="_blank">developers.facebook.com</a></p></div></div>
+            <div class="paso"><div class="paso-num">2</div><div class="paso-info"><h4>Crea una app tipo "Business"</h4><p>Mis apps → Crear app → Business</p></div></div>
+            <div class="paso"><div class="paso-num">3</div><div class="paso-info"><h4>Agrega WhatsApp a tu app</h4><p>WhatsApp → Configuración → <code>Phone Number ID</code> y <code>Token de acceso</code></p></div></div>
+            <div class="paso"><div class="paso-num">4</div><div class="paso-info"><h4>Crea tu Verify Token</h4><p>Inventa un texto seguro: <code>decoiarte_tunegocio_2026</code></p></div></div>
+            <div class="paso"><div class="paso-num">5</div><div class="paso-info"><h4>Pega los datos abajo y guarda</h4><p>Te contactamos en menos de 24 horas 🚀</p></div></div>
         </div>
         <div class="wa-form">
-            <h3>🔑 Ingresa tus credenciales de WhatsApp Business</h3>
+            <h3>🔑 Credenciales WhatsApp Business</h3>
             <div class="alerta" id="waAlerta"></div>
-            <div class="form-campo"><label>Phone Number ID</label><input type="text" id="waPhoneId" placeholder="Ej: 123456789012345" oninput="checkCampo(this)"><div class="campo-hint">Meta for Developers → WhatsApp → Configuración → Phone Number ID</div></div>
+            <div class="form-campo"><label>Phone Number ID</label><input type="text" id="waPhoneId" placeholder="123456789012345" oninput="checkCampo(this)"></div>
             <div class="form-campo"><label>Token de acceso permanente</label><input type="password" id="waToken" placeholder="EAAxxxxxxxxxxxxxxxx..." oninput="checkCampo(this)"></div>
-            <div class="form-campo"><label>Verify Token (lo inventas tú)</label><input type="text" id="waVerifyToken" placeholder="Ej: decoiarte_minegocio_2026" oninput="checkCampo(this)"></div>
+            <div class="form-campo"><label>Verify Token</label><input type="text" id="waVerifyToken" placeholder="decoiarte_minegocio_2026" oninput="checkCampo(this)"></div>
             <button class="btn-primario" style="width:100%" id="btnGuardarWa" onclick="guardarTokensWa()">💾 Guardar y activar mi bot</button>
         </div>
     </div>
 
     <!-- HISTORIAL -->
     <div class="page" id="pagina-historial">
-        <div class="page-header"><h1>🖼️ Historial de imágenes</h1><p>Todas las imágenes generadas por tus clientes</p></div>
+        <div class="page-header"><h1>🖼️ Historial</h1><p>Imágenes generadas por tus clientes</p></div>
         <div class="historial-grid" id="historialCompleto"><div class="historial-empty"><div class="empty-icon">🏠</div><p>Aún no hay imágenes generadas.</p></div></div>
     </div>
 
@@ -570,8 +554,8 @@
             <div class="progress-bar-bg"><div class="progress-bar-fill" id="planProgressBar" style="width:0%"></div></div>
         </div>
         <div style="background:var(--oscuro2);border:1px solid rgba(124,58,237,0.2);border-radius:18px;padding:24px;">
-            <div class="stat-label" style="margin-bottom:8px;">💰 Recargas disponibles</div>
-            <p style="color:var(--gris);font-size:14px;line-height:1.6;">Agrega <strong style="color:var(--texto);">50 fotos</strong> por <strong style="color:var(--texto);">$100.000 COP</strong></p>
+            <div class="stat-label" style="margin-bottom:8px;">💰 Recargas</div>
+            <p style="color:var(--gris);font-size:14px;line-height:1.6;">50 fotos adicionales por <strong style="color:var(--texto);">$100.000 COP</strong></p>
             <a href="https://wa.me/573159423174?text=Hola,%20quiero%20recargar%20fotos" target="_blank" style="display:inline-block;margin-top:16px;background:var(--degradado);color:white;padding:12px 24px;border-radius:50px;font-size:14px;font-weight:700;text-decoration:none;">💬 Solicitar recarga</a>
         </div>
     </div>
@@ -607,9 +591,9 @@ const FEATURES_PLAN = {
 };
 const PLANES_CON_IA = ['profesional','premium','corporativo'];
 
-let empresaId   = null;
-let tiendaId    = null;
-let planActual  = 'basico';
+let empresaId  = null;
+let tiendaId   = null;
+let planActual = 'basico';
 let productosIA = [];
 
 // ── INIT ──────────────────────────────────────────────────────────────────
@@ -621,8 +605,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function cargarDatos(user) {
-    const { data: empresa } = await db
-        .from('empresas').select('*, planes(*)').eq('email', user.email).maybeSingle();
+    const { data: empresa } = await db.from('empresas').select('*, planes(*)').eq('email', user.email).maybeSingle();
     if (!empresa) { window.location.href = '/registro'; return; }
 
     empresaId  = empresa.id;
@@ -642,7 +625,6 @@ async function cargarDatos(user) {
         await cargarProductosTienda();
     }
 
-    // Importar IA — mostrar si tiene plan
     if (!PLANES_CON_IA.includes(planActual)) {
         document.getElementById('importarBloqueado').style.display  = 'block';
         document.getElementById('importarDisponible').style.display = 'none';
@@ -679,7 +661,7 @@ function renderDashboard(empresa, plan, imagenes) {
     if (pct >= 90) {
         document.getElementById('progressBar').classList.add('warning');
         const aviso = document.getElementById('avisoFotos');
-        aviso.textContent = '⚠️ ¡Casi sin fotos! Recarga tu cuenta para seguir generando imágenes.';
+        aviso.textContent = '⚠️ ¡Casi sin fotos! Recarga tu cuenta.';
         aviso.className   = 'progress-aviso rojo';
     } else if (pct >= 70) {
         const aviso = document.getElementById('avisoFotos');
@@ -709,85 +691,139 @@ function renderMiTienda(tienda) {
     const dotTienda  = document.getElementById('dotTienda');
 
     if (tienda) {
-        // Tienda existe — actualizar status
         statusCard.className = 'tienda-status-card activa';
         statusCard.innerHTML = `
-            <div class="tienda-status-icon">✅</div>
+            <div class="tienda-status-icon">${tienda.logo_url ? `<img src="${tienda.logo_url}" style="width:48px;height:48px;border-radius:10px;object-fit:cover;">` : '✅'}</div>
             <div class="tienda-status-info">
                 <div class="tienda-status-titulo">${tienda.nombre}</div>
-                <div class="tienda-status-sub">Tu tienda está activa en la marketplace 🎉</div>
+                <div class="tienda-status-sub">Activa en la marketplace · ${verificacionTexto(tienda.estado_verificacion)}</div>
             </div>
-            <a href="/marketplace" target="_blank" style="background:var(--degradado);color:white;padding:10px 20px;border-radius:50px;font-size:13px;font-weight:700;text-decoration:none;">Ver tienda →</a>
-        `;
+            <a href="/marketplace" target="_blank" style="background:var(--degradado);color:white;padding:10px 20px;border-radius:50px;font-size:13px;font-weight:700;text-decoration:none;">Ver tienda →</a>`;
         dotTienda.className = 'dot-verde';
 
-        // Pre-rellenar formulario
-        document.getElementById('tiendaNombre').value    = tienda.nombre || '';
-        document.getElementById('tiendaDesc').value      = tienda.descripcion || '';
-        document.getElementById('tiendaCategoria').value = tienda.categoria_principal || '';
-        document.getElementById('tiendaCiudad').value    = tienda.ciudad || '';
-        document.getElementById('tiendaWa').value        = tienda.whatsapp_contacto || '';
+        // Pre-rellenar info
+        document.getElementById('tiendaLogoUrl').value    = tienda.logo_url || '';
+        document.getElementById('tiendaNombre').value     = tienda.nombre || '';
+        document.getElementById('tiendaDesc').value       = tienda.descripcion || '';
+        document.getElementById('tiendaCategoria').value  = tienda.categoria_principal || '';
+        document.getElementById('tiendaCiudad').value     = tienda.ciudad || '';
+        document.getElementById('tiendaWa').value         = tienda.whatsapp_contacto || '';
         document.getElementById('btnVerTienda').style.display = 'inline';
         document.getElementById('btnGuardarTienda').textContent = '💾 Actualizar tienda';
+
+        if (tienda.logo_url) previsualizarLogo(tienda.logo_url);
+
+        // Pre-rellenar legal
+        document.getElementById('legalNombreRep').value = tienda.nombre_representante || '';
+        document.getElementById('legalCedulaNit').value = tienda.cedula_nit || '';
+        document.getElementById('legalCorreo').value    = tienda.correo_legal || '';
+        document.getElementById('legalTelefono').value  = tienda.telefono_negocio || '';
+        document.getElementById('legalDireccion').value = tienda.direccion_correspondencia || '';
+        document.getElementById('legalUrlRut').value    = tienda.url_rut || '';
+        document.getElementById('legalUrlCamara').value = tienda.url_camara_comercio || '';
+
+        // Badge verificación
+        renderVerificacionBadge(tienda.estado_verificacion, tienda.motivo_rechazo);
+    }
+}
+
+function verificacionTexto(estado) {
+    if (estado === 'verificada') return '✅ Verificada';
+    if (estado === 'rechazada')  return '❌ Rechazada';
+    return '⏳ Pendiente de verificación';
+}
+
+function renderVerificacionBadge(estado, motivo) {
+    const el = document.getElementById('estadoVerificacionBadge');
+    const motivoEl = document.getElementById('motivoRechazoTexto');
+    if (!el) return;
+
+    if (estado === 'verificada') {
+        el.innerHTML = '<span class="verificacion-badge verificada">✅ Tienda verificada</span>';
+    } else if (estado === 'rechazada') {
+        el.innerHTML = '<span class="verificacion-badge rechazada">❌ Verificación rechazada</span>';
+        if (motivo && motivoEl) motivoEl.textContent = `Motivo: ${motivo}`;
+    } else {
+        el.innerHTML = '<span class="verificacion-badge pendiente">⏳ Pendiente de revisión</span>';
+        if (motivoEl) motivoEl.textContent = 'Completa los documentos y el equipo de DecoIArte revisará tu tienda.';
+    }
+}
+
+function previsualizarLogo(url) {
+    const preview = document.getElementById('logoPreview');
+    if (!preview) return;
+    if (url && url.startsWith('http')) {
+        preview.innerHTML = `<img src="${url}" alt="Logo" onerror="this.parentElement.innerHTML='🏪'">`;
+    } else {
+        preview.innerHTML = '🏪';
     }
 }
 
 async function guardarTienda() {
     const nombre    = document.getElementById('tiendaNombre').value.trim();
-    const desc      = document.getElementById('tiendaDesc').value.trim();
     const categoria = document.getElementById('tiendaCategoria').value;
-    const ciudad    = document.getElementById('tiendaCiudad').value.trim();
-    const wa        = document.getElementById('tiendaWa').value.trim();
-
-    if (!nombre || !categoria) {
-        mostrarAlerta('tiendaAlerta', '⚠️ El nombre y la categoría son obligatorios.', 'error');
-        return;
-    }
+    if (!nombre || !categoria) { mostrarAlerta('tiendaAlerta','⚠️ Nombre y categoría son obligatorios.','error'); return; }
 
     const btn = document.getElementById('btnGuardarTienda');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-btn"></span>Guardando...';
+    btn.disabled = true; btn.innerHTML = '<span class="spinner-btn"></span>Guardando...';
 
-    const slug = nombre.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'') + '-' + Date.now();
+    const datos = {
+        nombre,
+        descripcion:       document.getElementById('tiendaDesc').value.trim(),
+        categoria_principal: categoria,
+        ciudad:            document.getElementById('tiendaCiudad').value.trim(),
+        whatsapp_contacto: document.getElementById('tiendaWa').value.trim(),
+        logo_url:          document.getElementById('tiendaLogoUrl').value.trim() || null,
+        activa:            true
+    };
 
     let error;
     if (tiendaId) {
-        ({ error } = await db.from('tiendas').update({ nombre, descripcion:desc, categoria_principal:categoria, ciudad, whatsapp_contacto:wa }).eq('id', tiendaId));
+        ({ error } = await db.from('tiendas').update(datos).eq('id', tiendaId));
     } else {
-        const { data, error: err } = await db.from('tiendas').insert({ empresa_id:empresaId, nombre, descripcion:desc, categoria_principal:categoria, ciudad, whatsapp_contacto:wa, slug, activa:true }).select().single();
+        const slug = nombre.toLowerCase().replace(/[^a-z0-9]+/g,'-') + '-' + Date.now();
+        const { data, error: err } = await db.from('tiendas').insert({ ...datos, empresa_id:empresaId, slug }).select().single();
         error = err;
         if (data) { tiendaId = data.id; }
     }
 
-    if (error) {
-        mostrarAlerta('tiendaAlerta', '❌ Error guardando. Intenta de nuevo.', 'error');
-    } else {
-        mostrarAlerta('tiendaAlerta', '✅ ¡Tienda guardada! Ya aparece en la marketplace.', 'exito');
+    if (error) { mostrarAlerta('tiendaAlerta','❌ Error guardando. Intenta de nuevo.','error'); }
+    else {
+        mostrarAlerta('tiendaAlerta','✅ ¡Tienda guardada! Ya aparece en la marketplace.','exito');
         document.getElementById('dotTienda').className = 'dot-verde';
-        document.getElementById('tiendaStatusCard').className = 'tienda-status-card activa';
-        document.getElementById('tiendaStatusCard').innerHTML = `
-            <div class="tienda-status-icon">✅</div>
-            <div class="tienda-status-info">
-                <div class="tienda-status-titulo">${nombre}</div>
-                <div class="tienda-status-sub">Tu tienda está activa en la marketplace 🎉</div>
-            </div>
-            <a href="/marketplace" target="_blank" style="background:var(--degradado);color:white;padding:10px 20px;border-radius:50px;font-size:13px;font-weight:700;text-decoration:none;">Ver tienda →</a>
-        `;
         document.getElementById('btnVerTienda').style.display = 'inline';
+        document.getElementById('btnGuardarTienda').textContent = '💾 Actualizar tienda';
+        if (datos.logo_url) previsualizarLogo(datos.logo_url);
     }
+    btn.disabled = false; btn.innerHTML = '💾 Actualizar tienda';
+}
 
-    btn.disabled = false;
-    btn.innerHTML = '💾 Actualizar tienda';
+async function guardarLegal() {
+    if (!tiendaId) { mostrarAlerta('legalAlerta','⚠️ Primero crea tu tienda en la pestaña "Info de la tienda".','error'); return; }
+
+    const btn = document.getElementById('btnGuardarLegal');
+    btn.disabled = true; btn.innerHTML = '<span class="spinner-btn"></span>Guardando...';
+
+    const { error } = await db.from('tiendas').update({
+        nombre_representante:      document.getElementById('legalNombreRep').value.trim(),
+        cedula_nit:                document.getElementById('legalCedulaNit').value.trim(),
+        correo_legal:              document.getElementById('legalCorreo').value.trim(),
+        telefono_negocio:          document.getElementById('legalTelefono').value.trim(),
+        direccion_correspondencia: document.getElementById('legalDireccion').value.trim(),
+        url_rut:                   document.getElementById('legalUrlRut').value.trim() || null,
+        url_camara_comercio:       document.getElementById('legalUrlCamara').value.trim() || null,
+    }).eq('id', tiendaId);
+
+    if (error) { mostrarAlerta('legalAlerta','❌ Error guardando. Intenta de nuevo.','error'); }
+    else { mostrarAlerta('legalAlerta','✅ Documentos guardados. El equipo de DecoIArte revisará tu solicitud de verificación.','exito'); }
+
+    btn.disabled = false; btn.innerHTML = '💾 Guardar información legal';
 }
 
 // ── PRODUCTOS ─────────────────────────────────────────────────────────────
 async function cargarProductosTienda() {
-    if (!tiendaId) {
-        document.getElementById('tiendaSinCrear').style.display = 'block';
-        return;
-    }
-    const { data: productos } = await db
-        .from('productos').select('*').eq('tienda_id', tiendaId).order('created_at',{ascending:false});
+    if (!tiendaId) { document.getElementById('tiendaSinCrear').style.display = 'block'; return; }
+    const { data: productos } = await db.from('productos').select('*').eq('tienda_id', tiendaId).order('created_at',{ascending:false});
     renderProductosDash(productos || []);
 }
 
@@ -797,10 +833,7 @@ function renderProductosDash(productos) {
     contador.textContent = `${productos.length} producto${productos.length !== 1 ? 's' : ''}`;
 
     if (productos.length === 0) {
-        grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--gris);">
-            <div style="font-size:48px;margin-bottom:16px;">📦</div>
-            <p>Aún no tienes productos.<br>¡Agrega el primero!</p>
-        </div>`;
+        grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--gris);"><div style="font-size:48px;margin-bottom:16px;">📦</div><p>Aún no tienes productos. ¡Agrega el primero!</p></div>`;
         return;
     }
 
@@ -814,7 +847,7 @@ function renderProductosDash(productos) {
                 <div class="producto-dash-nombre">${p.nombre}</div>
                 <div class="producto-dash-precio">$${Number(p.precio).toLocaleString('es-CO')}/${p.unidad||'m²'}</div>
                 <div class="producto-dash-acciones">
-                    <button class="btn-secundario" style="padding:7px 14px;font-size:12px;" onclick="editarProducto(${JSON.stringify(p).replace(/"/g,'&quot;')})">✏️ Editar</button>
+                    <button class="btn-secundario" style="padding:7px 14px;font-size:12px;" onclick='editarProducto(${JSON.stringify(p)})'>✏️ Editar</button>
                     <button class="btn-peligro" onclick="toggleProducto('${p.id}', ${p.activo})">${p.activo ? '⏸ Pausar' : '▶ Activar'}</button>
                 </div>
             </div>
@@ -822,20 +855,13 @@ function renderProductosDash(productos) {
 }
 
 function abrirModalProducto() {
-    if (!tiendaId) {
-        alert('Primero crea tu tienda en la pestaña "Info de la tienda"');
-        return;
-    }
+    if (!tiendaId) { alert('Primero crea tu tienda en "Info de la tienda"'); return; }
     document.getElementById('modalProductoTitulo').textContent = '➕ Agregar producto';
-    document.getElementById('prodNombre').value      = '';
-    document.getElementById('prodDesc').value        = '';
-    document.getElementById('prodPrecio').value      = '';
-    document.getElementById('prodPrecioAntes').value = '';
-    document.getElementById('prodCategoria').value   = '';
-    document.getElementById('prodUnidad').value      = 'm2';
-    document.getElementById('prodStock').value       = '0';
-    document.getElementById('prodImagen').value      = '';
-    document.getElementById('prodId').value          = '';
+    ['prodNombre','prodDesc','prodPrecio','prodPrecioAntes','prodImagen'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('prodCategoria').value = '';
+    document.getElementById('prodUnidad').value    = 'm2';
+    document.getElementById('prodStock').value     = '0';
+    document.getElementById('prodId').value        = '';
     document.getElementById('modalAlerta').className = 'alerta';
     document.getElementById('modalProducto').classList.add('open');
 }
@@ -859,15 +885,10 @@ async function guardarProducto() {
     const nombre    = document.getElementById('prodNombre').value.trim();
     const precio    = parseInt(document.getElementById('prodPrecio').value);
     const categoria = document.getElementById('prodCategoria').value;
-
-    if (!nombre || !precio || !categoria) {
-        mostrarAlerta('modalAlerta', '⚠️ Nombre, precio y categoría son obligatorios.', 'error');
-        return;
-    }
+    if (!nombre || !precio || !categoria) { mostrarAlerta('modalAlerta','⚠️ Nombre, precio y categoría son obligatorios.','error'); return; }
 
     const btn = document.getElementById('btnGuardarProducto');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-btn"></span>Guardando...';
+    btn.disabled = true; btn.innerHTML = '<span class="spinner-btn"></span>Guardando...';
 
     const datos = {
         tienda_id:    tiendaId,
@@ -883,23 +904,14 @@ async function guardarProducto() {
     };
 
     const prodId = document.getElementById('prodId').value;
-    let error;
+    const { error } = prodId
+        ? await db.from('productos').update(datos).eq('id', prodId)
+        : await db.from('productos').insert(datos);
 
-    if (prodId) {
-        ({ error } = await db.from('productos').update(datos).eq('id', prodId));
-    } else {
-        ({ error } = await db.from('productos').insert(datos));
-    }
+    if (error) { mostrarAlerta('modalAlerta','❌ Error guardando.','error'); }
+    else { cerrarModal('modalProducto'); await cargarProductosTienda(); }
 
-    if (error) {
-        mostrarAlerta('modalAlerta', '❌ Error guardando. Intenta de nuevo.', 'error');
-    } else {
-        cerrarModal();
-        await cargarProductosTienda();
-    }
-
-    btn.disabled = false;
-    btn.innerHTML = '💾 Guardar producto';
+    btn.disabled = false; btn.innerHTML = '💾 Guardar producto';
 }
 
 async function toggleProducto(prodId, activo) {
@@ -907,205 +919,138 @@ async function toggleProducto(prodId, activo) {
     await cargarProductosTienda();
 }
 
-// ── IMPORTAR CON IA ───────────────────────────────────────────────────────
+// ── IMPORTAR IA ───────────────────────────────────────────────────────────
 async function procesarArchivo(input) {
     const file = input.files[0];
     if (!file) return;
+    if (!tiendaId) { mostrarAlerta('importarAlerta','⚠️ Primero crea tu tienda.','error'); return; }
 
-    if (!tiendaId) {
-        mostrarAlerta('importarAlerta', '⚠️ Primero crea tu tienda antes de importar productos.', 'error');
-        return;
-    }
-
-    mostrarAlerta('importarAlerta', '🤖 La IA está analizando tu archivo... Esto toma unos segundos.', 'info');
+    mostrarAlerta('importarAlerta','🤖 La IA está analizando tu archivo...','info');
     document.getElementById('previewProductos').style.display = 'none';
 
     try {
-        // Leer el archivo como texto
         const texto = await leerArchivo(file);
-
-        // Llamar a Claude API para extraer productos
         const response = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 model: 'claude-sonnet-4-20250514',
                 max_tokens: 2000,
-                messages: [{
-                    role: 'user',
-                    content: `Eres un asistente que extrae productos de catálogos de materiales de construcción y remodelación.
-Analiza este texto y extrae TODOS los productos que encuentres.
-Responde ÚNICAMENTE con un JSON válido, sin texto adicional, sin backticks.
-Formato exacto:
-{"productos":[{"nombre":"nombre del producto","precio":85000,"descripcion":"descripción breve","categoria":"pisos|enchapes|cocinas|baños|materiales|electricos|pintura|puertas","unidad":"m2|unidad|kg|litro|caja"}]}
-
-Texto del archivo:
-${texto.substring(0, 3000)}`
+                messages: [{ role:'user', content:
+                    `Extrae productos de este catálogo de materiales de construcción. Responde SOLO con JSON válido sin texto adicional:\n{"productos":[{"nombre":"","precio":0,"descripcion":"","categoria":"pisos|enchapes|cocinas|baños|materiales|electricos|pintura|puertas","unidad":"m2|unidad|kg|litro|caja"}]}\n\nTexto:\n${texto.substring(0,3000)}`
                 }]
             })
         });
-
         const data = await response.json();
-        const textoRespuesta = data.content?.[0]?.text || '{}';
-
+        const textoResp = data.content?.[0]?.text || '{}';
         let parsed;
-        try {
-            parsed = JSON.parse(textoRespuesta);
-        } catch {
-            const match = textoRespuesta.match(/\{[\s\S]*\}/);
-            parsed = match ? JSON.parse(match[0]) : { productos: [] };
-        }
+        try { parsed = JSON.parse(textoResp); }
+        catch { const m = textoResp.match(/\{[\s\S]*\}/); parsed = m ? JSON.parse(m[0]) : { productos:[] }; }
 
-        productosIA = (parsed.productos || []).map((p, i) => ({ ...p, _id: i, _aceptado: true }));
+        productosIA = (parsed.productos || []).map((p,i) => ({ ...p, _id:i, _aceptado:true }));
+        if (productosIA.length === 0) { mostrarAlerta('importarAlerta','⚠️ No se encontraron productos.','error'); return; }
 
-        if (productosIA.length === 0) {
-            mostrarAlerta('importarAlerta', '⚠️ No se encontraron productos en el archivo. Verifica el formato.', 'error');
-            return;
-        }
-
-        mostrarAlerta('importarAlerta', `✅ ¡La IA detectó ${productosIA.length} productos! Revisa y acepta los que quieres publicar.`, 'exito');
+        mostrarAlerta('importarAlerta',`✅ ¡La IA detectó ${productosIA.length} productos! Revisa y acepta los que quieres publicar.`,'exito');
         renderPreviewIA();
-
-    } catch (err) {
+    } catch(err) {
         console.error(err);
-        mostrarAlerta('importarAlerta', '❌ Error procesando el archivo. Intenta de nuevo.', 'error');
+        mostrarAlerta('importarAlerta','❌ Error procesando el archivo.','error');
     }
-
     input.value = '';
 }
 
 function leerArchivo(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = e => resolve(e.target.result);
-        reader.onerror = reject;
-        reader.readAsText(file, 'UTF-8');
-    });
+    return new Promise((res,rej) => { const r = new FileReader(); r.onload = e => res(e.target.result); r.onerror = rej; r.readAsText(file,'UTF-8'); });
 }
 
 function renderPreviewIA() {
     const lista = document.getElementById('previewLista');
-    document.getElementById('previewTitulo').textContent = `🤖 ${productosIA.length} productos detectados por IA`;
+    document.getElementById('previewTitulo').textContent = `🤖 ${productosIA.length} productos detectados`;
     document.getElementById('previewProductos').style.display = 'block';
-
     lista.innerHTML = productosIA.map(p => `
-        <div class="preview-item ${p._aceptado ? 'aceptado' : 'rechazado'}" id="preview-${p._id}">
+        <div class="preview-item ${p._aceptado?'aceptado':'rechazado'}" id="preview-${p._id}">
             <div class="preview-item-info">
                 <div class="preview-item-nombre">${p.nombre}</div>
                 <div class="preview-item-precio">$${Number(p.precio||0).toLocaleString('es-CO')} / ${p.unidad||'m²'}</div>
-                <div class="preview-item-desc">${p.descripcion || ''}</div>
-                <div style="margin-top:6px;font-size:12px;color:#A78BFA;">📂 ${p.categoria || 'Sin categoría'}</div>
+                <div class="preview-item-desc">${p.descripcion||''}</div>
+                <div style="margin-top:6px;font-size:12px;color:#A78BFA;">📂 ${p.categoria||'Sin categoría'}</div>
             </div>
             <div class="preview-item-acciones">
-                <button class="btn-exito" onclick="togglePreviewItem(${p._id}, true)">✅ Aceptar</button>
-                <button class="btn-peligro" onclick="togglePreviewItem(${p._id}, false)">❌ Rechazar</button>
+                <button class="btn-exito" onclick="togglePreviewItem(${p._id},true)">✅</button>
+                <button class="btn-peligro" onclick="togglePreviewItem(${p._id},false)">❌</button>
             </div>
         </div>`).join('');
 }
 
 function togglePreviewItem(id, aceptar) {
     const p = productosIA.find(x => x._id === id);
-    if (p) {
-        p._aceptado = aceptar;
-        const el = document.getElementById(`preview-${id}`);
-        el.className = `preview-item ${aceptar ? 'aceptado' : 'rechazado'}`;
-    }
+    if (p) { p._aceptado = aceptar; document.getElementById(`preview-${id}`).className = `preview-item ${aceptar?'aceptado':'rechazado'}`; }
 }
-
 function aceptarTodos()  { productosIA.forEach(p => { p._aceptado = true;  document.getElementById(`preview-${p._id}`).className = 'preview-item aceptado'; }); }
 function rechazarTodos() { productosIA.forEach(p => { p._aceptado = false; document.getElementById(`preview-${p._id}`).className = 'preview-item rechazado'; }); }
 
 async function publicarAceptados() {
     const aceptados = productosIA.filter(p => p._aceptado);
-    if (aceptados.length === 0) {
-        mostrarAlerta('importarAlerta', '⚠️ No hay productos aceptados para publicar.', 'error');
-        return;
-    }
+    if (aceptados.length === 0) { mostrarAlerta('importarAlerta','⚠️ No hay productos aceptados.','error'); return; }
 
     const btn = document.getElementById('btnPublicar');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-btn"></span>Publicando...';
+    btn.disabled = true; btn.innerHTML = '<span class="spinner-btn"></span>Publicando...';
 
-    const insertar = aceptados.map(p => ({
-        tienda_id:   tiendaId,
-        nombre:      p.nombre,
-        descripcion: p.descripcion || '',
-        precio:      p.precio || 0,
-        categoria:   p.categoria || 'materiales',
-        unidad:      p.unidad || 'm2',
-        stock:       0,
-        activo:      true
-    }));
+    const { error } = await db.from('productos').insert(aceptados.map(p => ({ tienda_id:tiendaId, nombre:p.nombre, descripcion:p.descripcion||'', precio:p.precio||0, categoria:p.categoria||'materiales', unidad:p.unidad||'m2', stock:0, activo:true })));
 
-    const { error } = await db.from('productos').insert(insertar);
-
-    if (error) {
-        mostrarAlerta('importarAlerta', '❌ Error publicando productos. Intenta de nuevo.', 'error');
-    } else {
-        mostrarAlerta('importarAlerta', `🎉 ¡${aceptados.length} productos publicados en tu tienda!`, 'exito');
+    if (error) { mostrarAlerta('importarAlerta','❌ Error publicando.','error'); }
+    else {
+        mostrarAlerta('importarAlerta',`🎉 ¡${aceptados.length} productos publicados!`,'exito');
         document.getElementById('previewProductos').style.display = 'none';
         productosIA = [];
         await cargarProductosTienda();
-        mostrarTab('tab-productos', document.querySelectorAll('.tab-btn')[1]);
+        mostrarTab('tab-productos', document.querySelectorAll('.tab-btn')[2]);
     }
-
-    btn.disabled = false;
-    btn.innerHTML = '🚀 Publicar productos aceptados';
+    btn.disabled = false; btn.innerHTML = '🚀 Publicar aceptados';
 }
 
 function cancelarImportacion() {
     productosIA = [];
     document.getElementById('previewProductos').style.display = 'none';
-    mostrarAlerta('importarAlerta', '', '');
+    mostrarAlerta('importarAlerta','','');
 }
 
 // ── WHATSAPP ──────────────────────────────────────────────────────────────
 function renderWhatsApp(empresa) {
-    const conectado = !!(empresa.whatsapp_phone_number_id && empresa.whatsapp_token);
-    if (conectado) {
+    if (empresa.whatsapp_phone_number_id && empresa.whatsapp_token) {
         document.getElementById('dotWa').className = 'dot-verde';
         document.getElementById('waStatusCard').className = 'wa-status-card conectado';
         document.getElementById('waStatusCard').innerHTML = `
             <div class="wa-status-icon">✅</div>
-            <div class="wa-status-info">
-                <div class="wa-status-titulo">WhatsApp conectado</div>
-                <div class="wa-status-sub">Phone ID: <strong>${empresa.whatsapp_phone_number_id}</strong></div>
-            </div>
+            <div class="wa-status-info"><div class="wa-status-titulo">WhatsApp conectado</div><div class="wa-status-sub">Phone ID: <strong>${empresa.whatsapp_phone_number_id}</strong></div></div>
             <span class="wa-status-badge verde">● Conectado</span>`;
         document.getElementById('waPhoneId').value     = empresa.whatsapp_phone_number_id || '';
-        document.getElementById('waToken').value       = empresa.whatsapp_token ? '••••••••••••••••' : '';
+        document.getElementById('waToken').value       = '••••••••••••••••';
         document.getElementById('waVerifyToken').value = empresa.whatsapp_verify_token || '';
     }
 }
 
 async function guardarTokensWa() {
-    const phoneId     = document.getElementById('waPhoneId').value.trim();
-    const token       = document.getElementById('waToken').value.trim();
-    const verifyToken = document.getElementById('waVerifyToken').value.trim();
-
-    if (!phoneId || !token || !verifyToken) { mostrarAlerta('waAlerta','⚠️ Completa los 3 campos.','error'); return; }
+    const phoneId = document.getElementById('waPhoneId').value.trim();
+    const token   = document.getElementById('waToken').value.trim();
+    const verify  = document.getElementById('waVerifyToken').value.trim();
+    if (!phoneId || !token || !verify) { mostrarAlerta('waAlerta','⚠️ Completa los 3 campos.','error'); return; }
     if (token === '••••••••••••••••') { mostrarAlerta('waAlerta','⚠️ Escribe el nuevo token completo.','error'); return; }
 
     const btn = document.getElementById('btnGuardarWa');
     btn.disabled = true; btn.innerHTML = '<span class="spinner-btn"></span>Guardando...';
 
-    const { error } = await db.from('empresas').update({ whatsapp_phone_number_id:phoneId, whatsapp_token:token, whatsapp_verify_token:verifyToken }).eq('id', empresaId);
+    const { error } = await db.from('empresas').update({ whatsapp_phone_number_id:phoneId, whatsapp_token:token, whatsapp_verify_token:verify }).eq('id', empresaId);
 
     if (error) { mostrarAlerta('waAlerta','❌ Error guardando.','error'); }
-    else {
-        mostrarAlerta('waAlerta','✅ ¡Datos guardados! Te contactamos en menos de 24h. 🚀','exito');
-        document.getElementById('dotWa').className = 'dot-verde';
-    }
+    else { mostrarAlerta('waAlerta','✅ ¡Datos guardados! Te contactamos en menos de 24h 🚀','exito'); document.getElementById('dotWa').className = 'dot-verde'; }
     btn.disabled = false; btn.innerHTML = '💾 Guardar y activar mi bot';
 }
 
 // ── HELPERS ───────────────────────────────────────────────────────────────
 function renderImagenes(imagenes, contenedorId, limite) {
     const contenedor = document.getElementById(contenedorId);
-    if (!imagenes || imagenes.length === 0) {
-        contenedor.innerHTML = `<div class="historial-empty"><div class="empty-icon">🏠</div><p>Aún no hay imágenes generadas.</p></div>`;
-        return;
-    }
+    if (!imagenes || imagenes.length === 0) { contenedor.innerHTML = `<div class="historial-empty"><div class="empty-icon">🏠</div><p>Aún no hay imágenes generadas.</p></div>`; return; }
     contenedor.innerHTML = imagenes.slice(0,limite).map(img => {
         const fecha  = new Date(img.created_at).toLocaleDateString('es-CO',{day:'numeric',month:'short',year:'numeric'});
         const urlImg = img.url_generada || img.url_original;
@@ -1120,17 +1065,13 @@ function mostrarAlerta(id, msg, tipo) {
     el.className   = tipo ? `alerta ${tipo}` : 'alerta';
 }
 
-function checkCampo(input) {
-    input.classList.toggle('tiene-valor', !!input.value.trim());
-}
-
+function checkCampo(input) { input.classList.toggle('tiene-valor', !!input.value.trim()); }
 function mostrarTab(tabId, btn) {
     document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.getElementById(tabId).classList.add('active');
     if (btn) btn.classList.add('active');
 }
-
 function mostrarPagina(nombre, btn) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -1138,11 +1079,9 @@ function mostrarPagina(nombre, btn) {
     if (btn) btn.classList.add('active');
     document.getElementById('sidebar').classList.remove('open');
 }
-
 function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
-function cerrarModal()    { document.getElementById('modalProducto').classList.remove('open'); }
-document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarModal(); });
-
+function cerrarModal(id) { document.getElementById(id).classList.remove('open'); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open')); } });
 async function cerrarSesion() { await db.auth.signOut(); window.location.href = '/'; }
 </script>
 </body>
