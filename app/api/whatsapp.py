@@ -4,7 +4,7 @@ from fastapi import APIRouter, Request, HTTPException, Depends, BackgroundTasks
 from fastapi.responses import PlainTextResponse
 from app.utils.config import get_settings, Settings
 from app.services.imagen_service import descargar_imagen_whatsapp, generar_imagen_remodelada, generar_vista_isometrica
-from app.services.openai_service import analizar_espacio_foto, analizar_plano
+from app.services.openai_service import analizar_espacio_foto, analizar_plano, analizar_mensaje_texto
 from app.utils.supabase_client import get_supabase
 from datetime import datetime
 
@@ -131,8 +131,8 @@ async def enviar_menu_principal(telefono: str, settings: Settings):
         f"¿Qué te gustaría hacer hoy?",
         [
             {"id": "btn_remodelar", "title": "🏠 Remodelar"},
-            {"id": "btn_plano", "title": "📐 Mi plano"},
-            {"id": "btn_asesor", "title": "👨‍💼 Asesor"},
+            {"id": "btn_plano",    "title": "📐 Mi plano"},
+            {"id": "btn_asesor",   "title": "👨‍💼 Asesor"},
         ],
         settings
     )
@@ -144,10 +144,11 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
         imagen_bytes = await descargar_imagen_whatsapp(image_id, settings.whatsapp_token)
         modo = estado_usuarios.get(sender, {}).get("modo", "remodelar")
 
+        # ── MODO PLANO ─────────────────────────────────────────────────────
         if modo == "plano":
             await enviar_mensaje_whatsapp(
                 sender,
-                "📐 ¡Recibí tu plano! Analizando distribución con IA...\n"
+                "📐 ¡Recibí tu plano! Analizando distribución con IA y normas NTC colombianas...\n"
                 "Esto toma unos segundos ⏳🤖",
                 settings
             )
@@ -167,22 +168,24 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
                 await enviar_menu_principal(sender, settings)
                 return
 
-            habitaciones = resultado.get("habitaciones", "")
-            area = resultado.get("area_estimada", "Por determinar")
-            pregunta = resultado.get("pregunta", "¿Qué espacio quieres visualizar primero?")
-            tipo = resultado.get("tipo_plano", "espacio")
+            habitaciones  = resultado.get("habitaciones", "")
+            area          = resultado.get("area_estimada", "Por determinar")
+            pregunta      = resultado.get("pregunta", "¿Qué espacio quieres visualizar primero?")
+            tipo          = resultado.get("tipo_plano", "espacio")
+            distribucion  = resultado.get("distribucion", "")
 
             await enviar_mensaje_whatsapp(
                 sender,
                 f"📐 *Plano analizado con IA* ✅\n\n"
                 f"🏠 *Tipo:* {tipo}\n"
                 f"📋 *Habitaciones detectadas:* {habitaciones}\n"
-                f"📏 *Área estimada:* {area}\n\n"
+                f"📏 *Área estimada:* {area}\n"
+                f"🗺️ *Distribución:* {distribucion}\n\n"
                 f"💡 {pregunta}",
                 settings
             )
 
-            # Generar vista 3D isométrica automáticamente
+            # Generar vista 3D isométrica
             await enviar_mensaje_whatsapp(
                 sender,
                 "🎨 Generando vista 3D de tu espacio...\n"
@@ -211,13 +214,13 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
                 "¿Qué deseas hacer ahora?",
                 [
                     {"id": "btn_remodelar", "title": "🔄 Otro estilo"},
-                    {"id": "btn_asesor", "title": "👨‍💼 Asesor"},
+                    {"id": "btn_asesor",    "title": "👨‍💼 Asesor"},
                 ],
                 settings
             )
 
+        # ── MODO REMODELAR ─────────────────────────────────────────────────
         else:
-            # Flujo normal — analizar foto y remodelar
             await enviar_mensaje_whatsapp(
                 sender,
                 "📸 ¡Recibí tu foto! Analizando tu espacio con IA...\n"
@@ -225,9 +228,9 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
                 settings
             )
 
-            analisis = analizar_espacio_foto(imagen_bytes)
+            analisis    = analizar_espacio_foto(imagen_bytes)
             tipo_espacio = analisis.get("tipo_espacio", "espacio")
-            pregunta = analisis.get("pregunta", "¿Qué te gustaría cambiar?")
+            pregunta    = analisis.get("pregunta", "¿Qué te gustaría cambiar?")
 
             await enviar_mensaje_whatsapp(
                 sender,
@@ -251,7 +254,7 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
                 "¿Qué deseas hacer ahora?",
                 [
                     {"id": "btn_remodelar", "title": "🔄 Otro estilo"},
-                    {"id": "btn_asesor", "title": "👨‍💼 Asesor"},
+                    {"id": "btn_asesor",    "title": "👨‍💼 Asesor"},
                 ],
                 settings
             )
@@ -268,8 +271,8 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
 
 @router.get("")
 async def verify_webhook(request: Request, settings: Settings = Depends(get_settings)):
-    mode = request.query_params.get("hub.mode")
-    token = request.query_params.get("hub.verify_token")
+    mode      = request.query_params.get("hub.mode")
+    token     = request.query_params.get("hub.verify_token")
     challenge = request.query_params.get("hub.challenge")
     if mode == "subscribe" and token == settings.whatsapp_verify_token:
         logger.info("Webhook verificado correctamente")
@@ -287,25 +290,26 @@ async def receive_message(
     logger.info("Mensaje recibido de WhatsApp")
 
     try:
-        entry = data["entry"][0]
+        entry   = data["entry"][0]
         changes = entry["changes"][0]
-        value = changes["value"]
+        value   = changes["value"]
 
         if "messages" not in value:
             return {"status": "ok"}
 
-        message = value["messages"][0]
+        message    = value["messages"][0]
         message_id = message.get("id", "")
 
         if await mensaje_ya_procesado(message_id):
-            logger.info(f"Mensaje {message_id} ya procesado, ignorando reintento")
+            logger.info(f"Mensaje {message_id} ya procesado, ignorando")
             return {"status": "ok"}
 
         await marcar_mensaje_procesado(message_id)
 
-        sender = message["from"]
+        sender   = message["from"]
         msg_type = message["type"]
 
+        # ── BOTONES INTERACTIVOS ───────────────────────────────────────────
         if msg_type == "interactive":
             interactive = message["interactive"]
             if interactive["type"] == "button_reply":
@@ -333,6 +337,7 @@ async def receive_message(
                         "• ✏️ Foto de tu boceto dibujado\n"
                         "• 📱 Captura de pantalla del plano\n\n"
                         "La IA detectará habitaciones, áreas y distribución\n"
+                        "usando normas NTC colombianas 🇨🇴\n"
                         "y generará una *vista 3D* de tu espacio 🏗️✨",
                         settings
                     )
@@ -350,21 +355,43 @@ async def receive_message(
                         settings
                     )
 
+        # ── MENSAJES DE TEXTO ──────────────────────────────────────────────
         elif msg_type == "text":
-            text = message["text"]["body"].strip().lower()
-            logger.info(f"Texto de {sender}: {text}")
+            text = message["text"]["body"].strip()
+            logger.info(f"Texto de {sender}: {text[:50]}")
 
-            if any(saludo in text for saludo in [
+            # ── SEGURIDAD: Prompt Injection Prevention ─────────────────────
+            # OWASP LLM01 — detectar intentos de manipular la IA
+            analisis_seguridad = analizar_mensaje_texto(text)
+
+            if analisis_seguridad.get("es_injection"):
+                logger.warning(f"Prompt injection bloqueado de {sender}")
+                await enviar_mensaje_whatsapp(
+                    sender,
+                    analisis_seguridad.get(
+                        "respuesta_segura",
+                        "Por favor envíame una foto de tu espacio 🏠 o selecciona una opción del menú."
+                    ),
+                    settings
+                )
+                return {"status": "ok"}
+
+            # Texto limpio y validado
+            text_lower = analisis_seguridad.get("mensaje_limpio", text).lower()
+
+            if any(saludo in text_lower for saludo in [
                 "hola", "buenas", "buenos", "hi", "hello",
                 "inicio", "start", "menu", "menú", "comenzar"
             ]):
                 await enviar_menu_principal(sender, settings)
 
-            elif text in ["clasico", "clásico", "minimalista", "rustico",
-                          "rústico", "industrial", "moderno"]:
+            elif text_lower in [
+                "clasico", "clásico", "minimalista",
+                "rustico", "rústico", "industrial", "moderno"
+            ]:
                 await enviar_mensaje_whatsapp(
                     sender,
-                    f"🎨 ¡Excelente elección! Procesando estilo *{text}*...\n\n"
+                    f"🎨 ¡Excelente elección! Procesando estilo *{text_lower}*...\n\n"
                     "📸 Envíame la foto de tu espacio y lo transformo. ✨",
                     settings
                 )
@@ -372,9 +399,10 @@ async def receive_message(
             else:
                 await enviar_menu_principal(sender, settings)
 
+        # ── IMÁGENES ───────────────────────────────────────────────────────
         elif msg_type == "image":
             image_id = message["image"]["id"]
-            logger.info(f"Imagen recibida de {sender}, agregando a background")
+            logger.info(f"Imagen recibida de {sender}")
             background_tasks.add_task(
                 procesar_imagen_background,
                 sender,
