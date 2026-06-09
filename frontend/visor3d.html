@@ -216,7 +216,18 @@
         </div>
     </div>
     <div class="cp-hint">🖱️ Arrastra para rotar · Scroll para zoom</div>
-    <button class="btn-cp" onclick="capturarDesdeInterior()">📸 Capturar desde aquí</button>
+    <!-- Prompt IA -->
+    <div style="margin-top:8px;">
+        <div style="font-size:10px;color:var(--gris);margin-bottom:4px;">✨ Prompt para IA (opcional)</div>
+        <textarea id="promptIA" placeholder="Ej: piso mármol blanco, luz cálida de tarde, estilo moderno..." 
+            style="width:100%;background:var(--oscuro);border:1px solid rgba(124,58,237,0.25);border-radius:8px;padding:8px;color:var(--texto);font-size:11px;font-family:'Segoe UI',sans-serif;outline:none;resize:none;height:56px;line-height:1.4;"></textarea>
+    </div>
+    <button class="btn-cp" onclick="capturarYGenerarIA()" id="btnCapturarIA">
+        🤖 Capturar + IA hiperrealista
+    </button>
+    <button class="btn-cp" onclick="capturarDesdeInterior()" style="background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;margin-top:4px;">
+        📸 Solo capturar
+    </button>
     <button class="btn-cp btn-cp-salir" onclick="salirCamaraPivote()">✕ Salir</button>
 </div>
 
@@ -643,8 +654,18 @@ function construirHabitacion() {
     ].forEach(z => { const zoc = new THREE.Mesh(z.geo,zocaloMat); zoc.position.set(...z.pos); scene.add(zoc); });
 
     // GRID
-    const grid = new THREE.GridHelper(Math.max(ancho,largo)*1.5,Math.max(ancho,largo)*2,0x333355,0x222244);
-    grid.position.y = 0.01; scene.add(grid);
+    // Grilla integrada AL piso — no flotante
+    // Usamos líneas sobre el piso misma superficie
+    const gridHelper = new THREE.GridHelper(
+        Math.max(ancho, largo), 
+        Math.max(ancho, largo) * 2,
+        0x8899BB, 0x6677AA
+    );
+    gridHelper.position.set(0, 0.001, 0); // pegada al piso, no flotante
+    gridHelper.material.opacity    = 0.25;
+    gridHelper.material.transparent = true;
+    scene.add(gridHelper);
+    meshes.gridHelper = gridHelper;
 
     // Si hay producto del portafolio activo → reaplicarlo
     if (productoActivo) {
@@ -737,7 +758,7 @@ function cambiarDimension(dim,val) {
     const key = dim==='ancho'?'ancho':dim==='largo'?'largo':'alto';
     estado[key] = parseFloat(val);
     document.getElementById(`val${dim.charAt(0).toUpperCase()+dim.slice(1)}`).textContent = parseFloat(val).toFixed(1)+'m';
-    construirHabitacion(); configurarLuces();
+    construirHabitacion(); configurarLuces(); centrarCamara();
 }
 
 function cambiarMaterialPiso(tipo,btn) {
@@ -789,7 +810,7 @@ function cargarHabitacion(tipo,btn) {
     document.getElementById('valAncho').textContent = c.ancho.toFixed(1)+'m';
     document.getElementById('valLargo').textContent = c.largo.toFixed(1)+'m';
     document.getElementById('valAlto').textContent  = c.alto.toFixed(1)+'m';
-    construirHabitacion(); configurarLuces();
+    construirHabitacion(); configurarLuces(); centrarCamara(); centrarCamara();
     mostrarToast(`${tipo.charAt(0).toUpperCase()+tipo.slice(1)} cargada ✅`);
 }
 
@@ -835,13 +856,20 @@ function mostrarToast(msg) {
 }
 
 function onResize() {
-    const w = canvas.offsetWidth  || (window.innerWidth  - 300);
-    const h = canvas.offsetHeight || (window.innerHeight - 56);
+    // Forzar lectura del tamaño real del canvas desde el DOM
+    const rect = canvas.getBoundingClientRect();
+    const w    = rect.width  > 10 ? rect.width  : window.innerWidth  - 300;
+    const h    = rect.height > 10 ? rect.height : window.innerHeight - 96;
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
-    // Recentrar target
-    controls.target.set(0, estado.alto * 0.5, 0);
+}
+
+function centrarCamara() {
+    const { ancho, largo, alto } = estado;
+    const dist = Math.max(ancho, largo) * 1.4;
+    camera.position.set(0, dist * 0.8, dist);
+    controls.target.set(0, alto * 0.4, 0);
     controls.update();
 }
 
@@ -856,8 +884,12 @@ function animate() {
 // ── INICIO ────────────────────────────────────────────────────────────────
 construirHabitacion();
 configurarLuces();
-onResize();
-animate();
+// Esperar al siguiente frame para que el CSS haya pintado el canvas
+requestAnimationFrame(() => {
+    onResize();
+    centrarCamara();
+    animate();
+});
 cargarPortafolio();
 mostrarToast('🏗️ Visor 3D listo — arrastra para rotar');
 
@@ -879,6 +911,73 @@ function cambiarVista(vista) {
             </div>`;
         document.getElementById('btnEnviarCliente').style.display = 'flex';
     }
+}
+
+// ── CAPTURAR + IA HIPERREALISTA ──────────────────────────────────────────
+async function capturarYGenerarIA() {
+    const btn    = document.getElementById('btnCapturarIA');
+    const prompt = document.getElementById('promptIA').value.trim();
+
+    btn.disabled = true;
+    btn.innerHTML = '<span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:6px;"></span>Generando...';
+
+    mostrarToast('🤖 IA procesando tu render...');
+
+    try {
+        // 1. Capturar el canvas como base64
+        renderer.render(scene, camera);
+        const base64Canvas = canvas.toDataURL('image/png', 1.0).split(',')[1];
+
+        // 2. Construir prompt enriquecido
+        const { ancho, largo, alto } = estado;
+        const promptFinal = `Render fotorrealista de interior arquitectónico colombiano. 
+Espacio de ${ancho}m x ${largo}m x ${alto}m de altura.
+Materiales aplicados: ${estado.materialPiso}, paredes color ${estado.colorPared}.
+${prompt ? 'Detalles adicionales: ' + prompt : 'Estilo moderno contemporáneo, iluminación natural cálida.'}
+Alta resolución, fotografía arquitectónica profesional, sin texto ni marcas de agua.`;
+
+        // 3. Llamar a gpt-image-1 (OpenAI) via backend Render
+        const response = await fetch('https://decoia.onrender.com/generar-render-3d', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                imagen_base64: base64Canvas,
+                prompt: promptFinal,
+                empresa_id: await obtenerEmpresaId()
+            })
+        });
+
+        if (!response.ok) throw new Error('Error del servidor: ' + response.status);
+
+        const data = await response.json();
+        const urlGenerada = data.url_imagen;
+
+        if (!urlGenerada) throw new Error('No se recibió URL de imagen');
+
+        // 4. Guardar en Supabase y mostrar en pestaña
+        fotoIaUrl = urlGenerada;
+        document.getElementById('tabFoto').textContent = '📸 Render IA ✅';
+        mostrarToast('✅ ¡Render generado! Abre la pestaña "Render IA"');
+
+        // 5. Cambiar a pestaña de foto automáticamente
+        setTimeout(() => cambiarVista('foto'), 1500);
+
+    } catch(e) {
+        console.error(e);
+        mostrarToast('❌ Error generando render. Intenta de nuevo.');
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = '🤖 Capturar + IA hiperrealista';
+}
+
+async function obtenerEmpresaId() {
+    try {
+        const { data:{ session } } = await db.auth.getSession();
+        if (!session) return null;
+        const { data:empresa } = await db.from('empresas').select('id').eq('email', session.user.email).maybeSingle();
+        return empresa?.id || null;
+    } catch(e) { return null; }
 }
 
 // Cargar foto IA desde URL param o Supabase
