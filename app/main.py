@@ -4,6 +4,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from dotenv import load_dotenv
 from app.api.whatsapp import router as whatsapp_router
+from app.api.notificaciones import router as notificaciones_router
+app.include_router(notificaciones_router)
 
 load_dotenv()
 
