@@ -6,6 +6,7 @@
     <title>Visor 3D — DecoIArte</title>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
         :root {
@@ -28,122 +29,110 @@
         .header-logo { font-size:18px; font-weight:800; background:var(--degradado); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
         .header-titulo { font-size:14px; color:var(--gris); }
         .header-right { display:flex; align-items:center; gap:10px; }
-        .btn-header {
-            padding:8px 16px; border-radius:8px; font-size:13px; font-weight:600;
-            cursor:pointer; border:none; font-family:'Segoe UI',sans-serif;
-            transition:all 0.2s;
-        }
+        .btn-header { padding:8px 16px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; border:none; font-family:'Segoe UI',sans-serif; transition:all 0.2s; }
         .btn-render { background:var(--degradado); color:white; }
         .btn-render:hover { opacity:0.85; }
         .btn-volver { background:var(--oscuro2); color:var(--gris); border:1px solid rgba(124,58,237,0.2); }
         .btn-volver:hover { color:var(--texto); border-color:rgba(124,58,237,0.5); }
+        .plan-badge { display:inline-flex; align-items:center; gap:6px; background:rgba(124,58,237,0.15); border:1px solid rgba(124,58,237,0.3); padding:4px 12px; border-radius:50px; font-size:11px; color:#A78BFA; font-weight:700; }
 
         /* CANVAS */
-        #canvas3d {
-            position:fixed; top:56px; left:0; right:300px; bottom:0;
-            cursor:grab;
-        }
+        #canvas3d { position:fixed; top:56px; left:0; right:300px; bottom:0; cursor:grab; }
         #canvas3d:active { cursor:grabbing; }
 
-        /* PANEL DERECHO */
-        .panel {
-            position:fixed; top:56px; right:0; width:300px; bottom:0;
-            background:var(--oscuro2); border-left:1px solid rgba(124,58,237,0.2);
-            overflow-y:auto; display:flex; flex-direction:column;
-        }
-
-        .panel-section { padding:20px; border-bottom:1px solid rgba(124,58,237,0.1); }
+        /* PANEL */
+        .panel { position:fixed; top:56px; right:0; width:300px; bottom:0; background:var(--oscuro2); border-left:1px solid rgba(124,58,237,0.2); overflow-y:auto; display:flex; flex-direction:column; }
+        .panel-section { padding:16px 20px; border-bottom:1px solid rgba(124,58,237,0.1); }
         .panel-section:last-child { border-bottom:none; }
-        .panel-titulo {
-            font-size:12px; font-weight:700; color:#A78BFA;
-            text-transform:uppercase; letter-spacing:0.06em; margin-bottom:16px;
-            display:flex; align-items:center; gap:8px;
+        .panel-titulo { font-size:12px; font-weight:700; color:#A78BFA; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+
+        /* TABS PORTAFOLIO */
+        .tabs-portafolio { display:flex; gap:6px; margin-bottom:14px; }
+        .tab-port { padding:6px 12px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; border:1px solid rgba(124,58,237,0.2); background:var(--oscuro3); color:var(--gris); transition:all 0.2s; font-family:'Segoe UI',sans-serif; }
+        .tab-port.active { background:rgba(124,58,237,0.15); border-color:var(--morado); color:var(--texto); }
+
+        /* PRODUCTOS PORTAFOLIO */
+        .productos-portafolio { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+        .prod-port-card {
+            border-radius:10px; overflow:hidden; cursor:pointer;
+            border:2px solid rgba(124,58,237,0.15); transition:all 0.2s;
+            background:var(--oscuro3); position:relative;
         }
+        .prod-port-card:hover { border-color:rgba(124,58,237,0.5); transform:translateY(-1px); }
+        .prod-port-card.activo { border-color:var(--morado); box-shadow:0 0 12px rgba(124,58,237,0.3); }
+        .prod-port-card.cliente { border-color:var(--verde); }
+        .prod-port-img { width:100%; height:70px; object-fit:cover; background:var(--oscuro); display:flex; align-items:center; justify-content:center; font-size:24px; }
+        .prod-port-img img { width:100%; height:100%; object-fit:cover; }
+        .prod-port-info { padding:6px 8px; }
+        .prod-port-nombre { font-size:11px; font-weight:700; color:var(--texto); margin-bottom:2px; line-height:1.2; }
+        .prod-port-precio { font-size:10px; color:var(--gris); }
+        .prod-port-badge { position:absolute; top:5px; right:5px; background:var(--verde); color:white; font-size:9px; font-weight:700; padding:2px 6px; border-radius:50px; }
+        .prod-port-badge.sugerido { background:var(--morado); }
+
+        /* CLIENTE SELECCION */
+        .cliente-seleccion {
+            background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.3);
+            border-radius:12px; padding:12px; margin-bottom:14px;
+            display:flex; gap:10px; align-items:center;
+        }
+        .cliente-sel-img { width:48px; height:48px; border-radius:8px; object-fit:cover; background:var(--oscuro3); display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; overflow:hidden; }
+        .cliente-sel-img img { width:100%; height:100%; object-fit:cover; }
+        .cliente-sel-info { flex:1; }
+        .cliente-sel-label { font-size:10px; color:var(--verde); font-weight:700; margin-bottom:3px; }
+        .cliente-sel-nombre { font-size:12px; font-weight:700; color:var(--texto); }
+        .cliente-sel-precio { font-size:11px; color:var(--gris); }
 
         /* CONTROLES */
-        .control-grupo { margin-bottom:16px; }
-        .control-label {
-            font-size:12px; color:var(--gris); margin-bottom:8px;
-            display:flex; justify-content:space-between; align-items:center;
-        }
+        .control-grupo { margin-bottom:14px; }
+        .control-label { font-size:12px; color:var(--gris); margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; }
         .control-valor { color:var(--texto); font-weight:600; font-size:12px; }
-        input[type="range"] {
-            width:100%; accent-color:var(--morado); height:4px;
-            background:rgba(124,58,237,0.2); border-radius:50px; cursor:pointer;
-        }
-        input[type="color"] {
-            width:100%; height:36px; border:1px solid rgba(124,58,237,0.25);
-            border-radius:10px; cursor:pointer; background:none; padding:2px;
-        }
+        input[type="range"] { width:100%; accent-color:var(--morado); height:4px; background:rgba(124,58,237,0.2); border-radius:50px; cursor:pointer; }
+        input[type="color"] { width:100%; height:34px; border:1px solid rgba(124,58,237,0.25); border-radius:10px; cursor:pointer; background:none; padding:2px; }
 
         /* MATERIALES */
         .materiales-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-        .material-btn {
-            padding:10px 8px; border-radius:10px; font-size:12px; font-weight:600;
-            cursor:pointer; border:2px solid rgba(124,58,237,0.2);
-            background:var(--oscuro3); color:var(--gris); text-align:center;
-            transition:all 0.2s; font-family:'Segoe UI',sans-serif;
-        }
+        .material-btn { padding:9px 6px; border-radius:10px; font-size:11px; font-weight:600; cursor:pointer; border:2px solid rgba(124,58,237,0.2); background:var(--oscuro3); color:var(--gris); text-align:center; transition:all 0.2s; font-family:'Segoe UI',sans-serif; }
         .material-btn:hover { border-color:rgba(124,58,237,0.5); color:var(--texto); }
         .material-btn.activo { border-color:var(--morado); background:rgba(124,58,237,0.15); color:var(--texto); }
-        .material-btn .mat-icon { font-size:20px; display:block; margin-bottom:4px; }
+        .material-btn .mat-icon { font-size:18px; display:block; margin-bottom:3px; }
 
-        /* HABITACIONES */
-        .hab-btn {
-            width:100%; padding:10px 14px; border-radius:10px; font-size:13px;
-            font-weight:600; cursor:pointer; border:1px solid rgba(124,58,237,0.2);
-            background:var(--oscuro3); color:var(--gris); text-align:left;
-            transition:all 0.2s; font-family:'Segoe UI',sans-serif; margin-bottom:8px;
-            display:flex; align-items:center; gap:10px;
-        }
+        /* HAB BTNS */
+        .hab-btn { width:100%; padding:9px 14px; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; border:1px solid rgba(124,58,237,0.2); background:var(--oscuro3); color:var(--gris); text-align:left; transition:all 0.2s; font-family:'Segoe UI',sans-serif; margin-bottom:6px; display:flex; align-items:center; gap:10px; }
         .hab-btn:hover { border-color:rgba(124,58,237,0.4); color:var(--texto); }
         .hab-btn.activo { border-color:var(--morado); background:rgba(124,58,237,0.1); color:var(--texto); }
 
         /* STATS */
-        .stats-row { display:flex; justify-content:space-between; margin-bottom:10px; }
+        .stats-row { display:flex; justify-content:space-between; }
         .stat-item { text-align:center; flex:1; }
-        .stat-num { font-size:20px; font-weight:900; background:var(--degradado); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
-        .stat-lbl { font-size:11px; color:var(--gris); margin-top:2px; }
+        .stat-num { font-size:18px; font-weight:900; background:var(--degradado); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+        .stat-lbl { font-size:10px; color:var(--gris); margin-top:2px; }
 
-        /* CAMARA VIEWS */
-        .cam-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
-        .cam-btn {
-            padding:8px 4px; border-radius:8px; font-size:11px; font-weight:600;
-            cursor:pointer; border:1px solid rgba(124,58,237,0.2);
-            background:var(--oscuro3); color:var(--gris); text-align:center;
-            transition:all 0.2s; font-family:'Segoe UI',sans-serif;
-        }
+        /* CAMARA */
+        .cam-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+        .cam-btn { padding:8px 4px; border-radius:8px; font-size:11px; font-weight:600; cursor:pointer; border:1px solid rgba(124,58,237,0.2); background:var(--oscuro3); color:var(--gris); text-align:center; transition:all 0.2s; font-family:'Segoe UI',sans-serif; }
         .cam-btn:hover { border-color:rgba(124,58,237,0.4); color:var(--texto); background:rgba(124,58,237,0.08); }
 
+        /* LOADING PORTAFOLIO */
+        .loading-port { text-align:center; padding:20px; color:var(--gris); font-size:13px; }
+        .spinner-small { width:24px; height:24px; border:2px solid rgba(124,58,237,0.2); border-top-color:var(--morado); border-radius:50%; animation:spin 0.7s linear infinite; margin:0 auto 8px; }
+        @keyframes spin { to { transform:rotate(360deg); } }
+
+        /* EMPTY PORT */
+        .empty-port { text-align:center; padding:20px; color:var(--gris); font-size:12px; line-height:1.6; }
+
         /* TOAST */
-        .toast {
-            position:fixed; bottom:30px; left:50%; transform:translateX(-50%);
-            background:var(--oscuro2); border:1px solid rgba(124,58,237,0.4);
-            color:var(--texto); padding:12px 24px; border-radius:50px;
-            font-size:14px; font-weight:600; z-index:999;
-            opacity:0; transition:opacity 0.3s; pointer-events:none;
-            box-shadow:0 8px 30px rgba(124,58,237,0.3);
-        }
+        .toast { position:fixed; bottom:30px; left:50%; transform:translateX(-50%); background:var(--oscuro2); border:1px solid rgba(124,58,237,0.4); color:var(--texto); padding:12px 24px; border-radius:50px; font-size:14px; font-weight:600; z-index:999; opacity:0; transition:opacity 0.3s; pointer-events:none; box-shadow:0 8px 30px rgba(124,58,237,0.3); white-space:nowrap; }
         .toast.show { opacity:1; }
 
-        /* PLAN BADGE */
-        .plan-badge {
-            display:inline-flex; align-items:center; gap:6px;
-            background:rgba(124,58,237,0.15); border:1px solid rgba(124,58,237,0.3);
-            padding:4px 12px; border-radius:50px; font-size:11px; color:#A78BFA; font-weight:700;
-        }
-
-        /* MOBILE */
         @media (max-width:768px) {
-            #canvas3d { right:0; bottom:240px; }
-            .panel { top:auto; right:0; left:0; width:100%; height:240px; flex-direction:row; overflow-x:auto; overflow-y:hidden; }
-            .panel-section { min-width:200px; border-bottom:none; border-right:1px solid rgba(124,58,237,0.1); }
+            #canvas3d { right:0; bottom:220px; }
+            .panel { top:auto; right:0; left:0; width:100%; height:220px; flex-direction:row; overflow-x:auto; overflow-y:hidden; }
+            .panel-section { min-width:180px; border-bottom:none; border-right:1px solid rgba(124,58,237,0.1); }
         }
     </style>
 </head>
 <body>
 
-<!-- HEADER -->
 <div class="header">
     <div class="header-left">
         <span class="header-logo">DecoIArte</span>
@@ -157,11 +146,42 @@
     </div>
 </div>
 
-<!-- CANVAS 3D -->
 <canvas id="canvas3d"></canvas>
 
-<!-- PANEL DERECHO -->
 <div class="panel">
+
+    <!-- PORTAFOLIO DE LA TIENDA -->
+    <div class="panel-section">
+        <div class="panel-titulo">🏪 Portafolio de tu tienda</div>
+
+        <!-- Producto elegido por el cliente -->
+        <div id="clienteSeleccion" style="display:none;">
+            <div class="cliente-seleccion" id="clienteSelCard">
+                <div class="cliente-sel-img" id="clienteSelImg">📦</div>
+                <div class="cliente-sel-info">
+                    <div class="cliente-sel-label">✅ Elegido por el cliente</div>
+                    <div class="cliente-sel-nombre" id="clienteSelNombre">—</div>
+                    <div class="cliente-sel-precio" id="clienteSelPrecio">—</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs-portafolio">
+            <button class="tab-port active" onclick="filtrarPortafolio('todos', this)">Todos</button>
+            <button class="tab-port" onclick="filtrarPortafolio('pisos', this)">Pisos</button>
+            <button class="tab-port" onclick="filtrarPortafolio('enchapes', this)">Enchapes</button>
+            <button class="tab-port" onclick="filtrarPortafolio('pintura', this)">Pintura</button>
+        </div>
+
+        <!-- Productos -->
+        <div id="portafolioContenido">
+            <div class="loading-port">
+                <div class="spinner-small"></div>
+                Cargando portafolio...
+            </div>
+        </div>
+    </div>
 
     <!-- HABITACIÓN -->
     <div class="panel-section">
@@ -178,21 +198,21 @@
         <div class="panel-titulo">📐 Dimensiones</div>
         <div class="control-grupo">
             <div class="control-label">Ancho <span class="control-valor" id="valAncho">5.0m</span></div>
-            <input type="range" min="3" max="12" value="5" step="0.5" oninput="cambiarDimension('ancho', this.value)">
+            <input type="range" min="3" max="12" value="5" step="0.5" oninput="cambiarDimension('ancho',this.value)">
         </div>
         <div class="control-grupo">
             <div class="control-label">Largo <span class="control-valor" id="valLargo">6.0m</span></div>
-            <input type="range" min="3" max="15" value="6" step="0.5" oninput="cambiarDimension('largo', this.value)">
+            <input type="range" min="3" max="15" value="6" step="0.5" oninput="cambiarDimension('largo',this.value)">
         </div>
         <div class="control-grupo">
             <div class="control-label">Alto <span class="control-valor" id="valAlto">2.8m</span></div>
-            <input type="range" min="2.2" max="4.5" value="2.8" step="0.1" oninput="cambiarDimension('alto', this.value)">
+            <input type="range" min="2.2" max="4.5" value="2.8" step="0.1" oninput="cambiarDimension('alto',this.value)">
         </div>
     </div>
 
     <!-- STATS -->
     <div class="panel-section">
-        <div class="panel-titulo">📊 Cálculos automáticos</div>
+        <div class="panel-titulo">📊 Cálculos</div>
         <div class="stats-row">
             <div class="stat-item"><div class="stat-num" id="statArea">30</div><div class="stat-lbl">m² piso</div></div>
             <div class="stat-item"><div class="stat-num" id="statParedes">78</div><div class="stat-lbl">m² paredes</div></div>
@@ -200,31 +220,30 @@
         </div>
     </div>
 
-    <!-- MATERIALES PISO -->
+    <!-- MATERIALES GENÉRICOS -->
     <div class="panel-section">
-        <div class="panel-titulo">🪵 Material del piso</div>
+        <div class="panel-titulo">🎨 Material genérico piso</div>
         <div class="materiales-grid">
-            <button class="material-btn activo" onclick="cambiarMaterialPiso('madera', this)"><span class="mat-icon">🪵</span>Madera</button>
-            <button class="material-btn" onclick="cambiarMaterialPiso('ceramica', this)"><span class="mat-icon">🧱</span>Cerámica</button>
-            <button class="material-btn" onclick="cambiarMaterialPiso('concreto', this)"><span class="mat-icon">⬛</span>Concreto</button>
-            <button class="material-btn" onclick="cambiarMaterialPiso('marmol', this)"><span class="mat-icon">⬜</span>Mármol</button>
-            <button class="material-btn" onclick="cambiarMaterialPiso('vinilo', this)"><span class="mat-icon">🟫</span>Vinilo</button>
-            <button class="material-btn" onclick="cambiarMaterialPiso('porcelanato', this)"><span class="mat-icon">🔲</span>Porcelanato</button>
+            <button class="material-btn activo" onclick="cambiarMaterialPiso('madera',this)"><span class="mat-icon">🪵</span>Madera</button>
+            <button class="material-btn" onclick="cambiarMaterialPiso('ceramica',this)"><span class="mat-icon">🧱</span>Cerámica</button>
+            <button class="material-btn" onclick="cambiarMaterialPiso('concreto',this)"><span class="mat-icon">⬛</span>Concreto</button>
+            <button class="material-btn" onclick="cambiarMaterialPiso('marmol',this)"><span class="mat-icon">⬜</span>Mármol</button>
+            <button class="material-btn" onclick="cambiarMaterialPiso('vinilo',this)"><span class="mat-icon">🟫</span>Vinilo</button>
+            <button class="material-btn" onclick="cambiarMaterialPiso('porcelanato',this)"><span class="mat-icon">🔲</span>Porcelanato</button>
         </div>
     </div>
 
     <!-- COLOR PAREDES -->
     <div class="panel-section">
-        <div class="panel-titulo">🎨 Color de paredes</div>
-        <div class="materiales-grid" style="margin-bottom:12px;">
-            <button class="material-btn activo" onclick="cambiarColorPared('#F8F8F8', this)"><span class="mat-icon">⬜</span>Blanco</button>
-            <button class="material-btn" onclick="cambiarColorPared('#E8DCC8', this)"><span class="mat-icon">🟨</span>Beige</button>
-            <button class="material-btn" onclick="cambiarColorPared('#C8D8E8', this)"><span class="mat-icon">🟦</span>Celeste</button>
-            <button class="material-btn" onclick="cambiarColorPared('#D8E8D8', this)"><span class="mat-icon">🟩</span>Verde</button>
-            <button class="material-btn" onclick="cambiarColorPared('#E8C8D8', this)"><span class="mat-icon">🟥</span>Rosa</button>
-            <button class="material-btn" onclick="cambiarColorPared('#2C2C2C', this)"><span class="mat-icon">⬛</span>Gris oscuro</button>
+        <div class="panel-titulo">🎨 Color paredes</div>
+        <div class="materiales-grid" style="margin-bottom:10px;">
+            <button class="material-btn activo" onclick="cambiarColorPared('#F8F8F8',this)"><span class="mat-icon">⬜</span>Blanco</button>
+            <button class="material-btn" onclick="cambiarColorPared('#E8DCC8',this)"><span class="mat-icon">🟨</span>Beige</button>
+            <button class="material-btn" onclick="cambiarColorPared('#C8D8E8',this)"><span class="mat-icon">🟦</span>Celeste</button>
+            <button class="material-btn" onclick="cambiarColorPared('#D8E8D8',this)"><span class="mat-icon">🟩</span>Verde</button>
+            <button class="material-btn" onclick="cambiarColorPared('#E8C8D8',this)"><span class="mat-icon">🟥</span>Rosa</button>
+            <button class="material-btn" onclick="cambiarColorPared('#2C2C2C',this)"><span class="mat-icon">⬛</span>Gris</button>
         </div>
-        <div class="control-label" style="margin-bottom:8px;">Color personalizado</div>
         <input type="color" value="#F8F8F8" oninput="cambiarColorParedCustom(this.value)">
     </div>
 
@@ -236,16 +255,16 @@
             <input type="range" min="10" max="100" value="70" oninput="cambiarLuz(this.value)">
         </div>
         <div class="materiales-grid">
-            <button class="material-btn activo" onclick="cambiarTipoLuz('dia', this)"><span class="mat-icon">☀️</span>Día</button>
-            <button class="material-btn" onclick="cambiarTipoLuz('noche', this)"><span class="mat-icon">🌙</span>Noche</button>
-            <button class="material-btn" onclick="cambiarTipoLuz('calida', this)"><span class="mat-icon">🕯️</span>Cálida</button>
-            <button class="material-btn" onclick="cambiarTipoLuz('fria', this)"><span class="mat-icon">❄️</span>Fría</button>
+            <button class="material-btn activo" onclick="cambiarTipoLuz('dia',this)"><span class="mat-icon">☀️</span>Día</button>
+            <button class="material-btn" onclick="cambiarTipoLuz('noche',this)"><span class="mat-icon">🌙</span>Noche</button>
+            <button class="material-btn" onclick="cambiarTipoLuz('calida',this)"><span class="mat-icon">🕯️</span>Cálida</button>
+            <button class="material-btn" onclick="cambiarTipoLuz('fria',this)"><span class="mat-icon">❄️</span>Fría</button>
         </div>
     </div>
 
     <!-- CÁMARA -->
     <div class="panel-section">
-        <div class="panel-titulo">📷 Vista de cámara</div>
+        <div class="panel-titulo">📷 Vista cámara</div>
         <div class="cam-grid">
             <button class="cam-btn" onclick="setCamara('frontal')">⬜ Frontal</button>
             <button class="cam-btn" onclick="setCamara('lateral')">◻️ Lateral</button>
@@ -269,10 +288,15 @@
 
 </div>
 
-<!-- TOAST -->
 <div class="toast" id="toast"></div>
 
 <script>
+// ── SUPABASE ──────────────────────────────────────────────────────────────
+const SUPABASE_URL      = 'https://cqwbsikyzdtegutyvgfo.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxd2JzaWt5emR0ZWd1dHl2Z2ZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NTk5MjUsImV4cCI6MjA5NDMzNTkyNX0.v9Qmp85POur1zZ3nHVYNRyhqHAi4VawafBsCiXF72Yo';
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 // ── THREE.JS SETUP ────────────────────────────────────────────────────────
 const canvas   = document.getElementById('canvas3d');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, preserveDrawingBuffer:true });
@@ -289,28 +313,174 @@ camera.position.set(8, 6, 8);
 camera.lookAt(0, 0, 0);
 
 const controls = new THREE.OrbitControls(camera, canvas);
-controls.enableDamping   = true;
-controls.dampingFactor   = 0.08;
-controls.minDistance     = 2;
-controls.maxDistance     = 25;
-controls.maxPolarAngle   = Math.PI / 1.8;
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance   = 2;
+controls.maxDistance   = 25;
+controls.maxPolarAngle = Math.PI / 1.8;
 controls.target.set(0, 1, 0);
 
 // ── ESTADO ────────────────────────────────────────────────────────────────
 let estado = {
-    ancho: 5, largo: 6, alto: 2.8,
-    colorPared: '#F8F8F8',
-    materialPiso: 'madera',
-    intensidadLuz: 0.7,
-    tipoLuz: 'dia',
-    mobiliario: {}
+    ancho:1, largo:6, alto:2.8,
+    colorPared:'#F8F8F8',
+    materialPiso:'madera',
+    intensidadLuz:0.7,
+    tipoLuz:'dia',
+    mobiliario:{}
 };
+estado.ancho = 5;
 
-// ── OBJETOS DE LA ESCENA ──────────────────────────────────────────────────
-let meshes = {};
-let luces  = {};
+let meshes         = {};
+let luces          = {};
+let mobiliarioMeshes = {};
+let todosProductos = [];
+let productoActivo = null;
 
-// ── MATERIALES ────────────────────────────────────────────────────────────
+// ── CARGAR PORTAFOLIO ─────────────────────────────────────────────────────
+async function cargarPortafolio() {
+    try {
+        const { data: { session } } = await db.auth.getSession();
+        if (!session) { mostrarEmptyPort('Inicia sesión para ver tu portafolio'); return; }
+
+        // Obtener empresa del asesor
+        const { data: empresa } = await db
+            .from('empresas').select('id').eq('email', session.user.email).maybeSingle();
+        if (!empresa) { mostrarEmptyPort('No se encontró tu empresa'); return; }
+
+        // Obtener tienda
+        const { data: tienda } = await db
+            .from('tiendas').select('id,nombre').eq('empresa_id', empresa.id).maybeSingle();
+        if (!tienda) { mostrarEmptyPort('Crea tu tienda en el dashboard para ver el portafolio aquí'); return; }
+
+        // Obtener productos
+        const { data: productos } = await db
+            .from('productos').select('*').eq('tienda_id', tienda.id).eq('activo', true).order('categoria');
+
+        todosProductos = productos || [];
+
+        if (todosProductos.length === 0) {
+            mostrarEmptyPort('Agrega productos en tu tienda para verlos aquí');
+            return;
+        }
+
+        renderPortafolio(todosProductos);
+
+        // Verificar si hay un producto seleccionado por cliente (via URL param)
+        const params  = new URLSearchParams(window.location.search);
+        const prodId  = params.get('producto');
+        if (prodId) {
+            const prod = todosProductos.find(p => p.id === prodId);
+            if (prod) mostrarProductoCliente(prod);
+        }
+
+    } catch(e) {
+        console.error(e);
+        mostrarEmptyPort('Error cargando portafolio');
+    }
+}
+
+function mostrarEmptyPort(msg) {
+    document.getElementById('portafolioContenido').innerHTML = `
+        <div class="empty-port">
+            <div style="font-size:32px;margin-bottom:8px;">🏪</div>
+            <p>${msg}</p>
+        </div>`;
+}
+
+function renderPortafolio(productos) {
+    const contenedor = document.getElementById('portafolioContenido');
+    if (productos.length === 0) {
+        contenedor.innerHTML = `<div class="empty-port"><p>No hay productos en esta categoría</p></div>`;
+        return;
+    }
+
+    contenedor.innerHTML = `<div class="productos-portafolio">${
+        productos.map(p => {
+            const imgUrl = p.imagen_url
+                ? `<img src="${p.imagen_url}" alt="${p.nombre}" onerror="this.parentElement.innerHTML='📦'">`
+                : '📦';
+            return `
+                <div class="prod-port-card" id="prodcard-${p.id}" onclick="aplicarProductoPortafolio('${p.id}')">
+                    <div class="prod-port-img">${imgUrl}</div>
+                    <div class="prod-port-info">
+                        <div class="prod-port-nombre">${p.nombre}</div>
+                        <div class="prod-port-precio">$${Number(p.precio).toLocaleString('es-CO')}/${p.unidad||'m²'}</div>
+                    </div>
+                </div>`;
+        }).join('')
+    }</div>`;
+}
+
+function filtrarPortafolio(cat, btn) {
+    document.querySelectorAll('.tab-port').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const filtrados = cat === 'todos' ? todosProductos : todosProductos.filter(p => p.categoria === cat);
+    renderPortafolio(filtrados);
+}
+
+function mostrarProductoCliente(prod) {
+    document.getElementById('clienteSeleccion').style.display = 'block';
+    const imgEl = document.getElementById('clienteSelImg');
+    imgEl.innerHTML = prod.imagen_url
+        ? `<img src="${prod.imagen_url}" alt="${prod.nombre}" style="width:100%;height:100%;object-fit:cover;">`
+        : '📦';
+    document.getElementById('clienteSelNombre').textContent = prod.nombre;
+    document.getElementById('clienteSelPrecio').textContent = `$${Number(prod.precio).toLocaleString('es-CO')}/${prod.unidad||'m²'}`;
+    aplicarProductoPortafolio(prod.id);
+}
+
+function aplicarProductoPortafolio(prodId) {
+    const prod = todosProductos.find(p => p.id === prodId);
+    if (!prod) return;
+
+    // Deseleccionar anterior
+    document.querySelectorAll('.prod-port-card').forEach(c => c.classList.remove('activo'));
+    const card = document.getElementById(`prodcard-${prodId}`);
+    if (card) card.classList.add('activo');
+
+    productoActivo = prod;
+
+    // Aplicar color según categoría del producto al modelo 3D
+    const coloresPorCategoria = {
+        pisos:      0xC4913A,
+        enchapes:   0xE8E0D0,
+        materiales: 0x888888,
+        pintura:    0xF5F5F5,
+        cocinas:    0xD4C5A9,
+        baños:      0xE0EEF4,
+        puertas:    0x8B6914,
+        electricos: 0xF5F0E0,
+    };
+
+    const color = coloresPorCategoria[prod.categoria] || 0xC4913A;
+
+    // Si es piso o enchape → aplicar al piso
+    if (['pisos','enchapes','materiales'].includes(prod.categoria)) {
+        if (meshes.piso) {
+            meshes.piso.material = new THREE.MeshStandardMaterial({
+                color, roughness:0.5, metalness:0.05
+            });
+        }
+        mostrarToast(`🪵 "${prod.nombre}" aplicado al piso`);
+    }
+    // Si es pintura → aplicar a paredes
+    else if (prod.categoria === 'pintura') {
+        ['paredTrasera','paredFrontal','paredIzq','paredDer'].forEach(k => {
+            if (meshes[k]) meshes[k].material.color.setHex(color);
+        });
+        mostrarToast(`🎨 "${prod.nombre}" aplicado a paredes`);
+    }
+    // Otros → aplicar al piso también
+    else {
+        if (meshes.piso) {
+            meshes.piso.material = new THREE.MeshStandardMaterial({ color, roughness:0.5 });
+        }
+        mostrarToast(`✅ "${prod.nombre}" aplicado al espacio`);
+    }
+}
+
+// ── MATERIALES THREE.JS ───────────────────────────────────────────────────
 function crearMaterialPiso(tipo) {
     const configs = {
         madera:      { color:0xC4913A, roughness:0.6, metalness:0.0 },
@@ -318,412 +488,286 @@ function crearMaterialPiso(tipo) {
         concreto:    { color:0x888888, roughness:0.9, metalness:0.0 },
         marmol:      { color:0xF5F0E8, roughness:0.1, metalness:0.2 },
         vinilo:      { color:0x8B6914, roughness:0.5, metalness:0.0 },
-        porcelanato: { color:0xF0EDE8, roughness:0.15, metalness:0.15 },
+        porcelanato: { color:0xF0EDE8, roughness:0.15,metalness:0.15 },
     };
     const c = configs[tipo] || configs.madera;
     return new THREE.MeshStandardMaterial({ color:c.color, roughness:c.roughness, metalness:c.metalness });
 }
 
 function crearMaterialPared(color) {
-    return new THREE.MeshStandardMaterial({
-        color: new THREE.Color(color),
-        roughness: 0.85, metalness: 0.0, side: THREE.FrontSide
-    });
+    return new THREE.MeshStandardMaterial({ color:new THREE.Color(color), roughness:0.85, metalness:0.0, side:THREE.FrontSide });
 }
 
 // ── CONSTRUIR HABITACIÓN ──────────────────────────────────────────────────
 function construirHabitacion() {
-    // Limpiar escena (excepto luces)
     const aEliminar = [];
-    scene.traverse(obj => { if (obj.isMesh || (obj.isGroup && obj.userData.tipo)) aEliminar.push(obj); });
+    scene.traverse(obj => { if (obj.isMesh || obj.isGroup) aEliminar.push(obj); });
     aEliminar.forEach(obj => scene.remove(obj));
     meshes = {};
 
     const { ancho, largo, alto } = estado;
-    const hw = ancho / 2, hl = largo / 2;
-
+    const hw = ancho/2, hl = largo/2;
     const matPared = crearMaterialPared(estado.colorPared);
     const matPiso  = crearMaterialPiso(estado.materialPiso);
     const matTecho = new THREE.MeshStandardMaterial({ color:0xF5F5F5, roughness:0.9 });
 
     // PISO
-    const piso = new THREE.Mesh(new THREE.BoxGeometry(ancho, 0.1, largo), matPiso);
-    piso.position.set(0, -0.05, 0);
-    piso.receiveShadow = true;
-    piso.userData = { tipo:'piso' };
-    scene.add(piso);
-    meshes.piso = piso;
+    const piso = new THREE.Mesh(new THREE.BoxGeometry(ancho,0.1,largo), matPiso);
+    piso.position.set(0,-0.05,0); piso.receiveShadow = true;
+    scene.add(piso); meshes.piso = piso;
 
     // TECHO
-    const techo = new THREE.Mesh(new THREE.BoxGeometry(ancho, 0.08, largo), matTecho);
-    techo.position.set(0, alto, 0);
-    techo.receiveShadow = true;
-    scene.add(techo);
-    meshes.techo = techo;
+    const techo = new THREE.Mesh(new THREE.BoxGeometry(ancho,0.08,largo), matTecho);
+    techo.position.set(0,alto,0); scene.add(techo); meshes.techo = techo;
 
-    // PAREDES — con huecos para puertas y ventanas
-    // Pared trasera
-    const paredTrasera = new THREE.Mesh(new THREE.BoxGeometry(ancho, alto, 0.1), matPared.clone());
-    paredTrasera.position.set(0, alto/2, -hl);
-    paredTrasera.receiveShadow = true; paredTrasera.castShadow = true;
+    // PAREDES
+    const paredTrasera = new THREE.Mesh(new THREE.BoxGeometry(ancho,alto,0.1), matPared.clone());
+    paredTrasera.position.set(0,alto/2,-hl); paredTrasera.castShadow = true; paredTrasera.receiveShadow = true;
     scene.add(paredTrasera); meshes.paredTrasera = paredTrasera;
 
-    // Pared frontal (con hueco de puerta)
-    const paredFrontal = new THREE.Mesh(new THREE.BoxGeometry(ancho, alto, 0.1), matPared.clone());
-    paredFrontal.position.set(0, alto/2, hl);
-    paredFrontal.receiveShadow = true; paredFrontal.castShadow = true;
+    const paredFrontal = new THREE.Mesh(new THREE.BoxGeometry(ancho,alto,0.1), matPared.clone());
+    paredFrontal.position.set(0,alto/2,hl); paredFrontal.castShadow = true;
     scene.add(paredFrontal); meshes.paredFrontal = paredFrontal;
 
-    // Pared izquierda
-    const paredIzq = new THREE.Mesh(new THREE.BoxGeometry(0.1, alto, largo), matPared.clone());
-    paredIzq.position.set(-hw, alto/2, 0);
-    paredIzq.receiveShadow = true; paredIzq.castShadow = true;
+    const paredIzq = new THREE.Mesh(new THREE.BoxGeometry(0.1,alto,largo), matPared.clone());
+    paredIzq.position.set(-hw,alto/2,0); paredIzq.castShadow = true;
     scene.add(paredIzq); meshes.paredIzq = paredIzq;
 
-    // Pared derecha
-    const paredDer = new THREE.Mesh(new THREE.BoxGeometry(0.1, alto, largo), matPared.clone());
-    paredDer.position.set(hw, alto/2, 0);
-    paredDer.receiveShadow = true; paredDer.castShadow = true;
+    const paredDer = new THREE.Mesh(new THREE.BoxGeometry(0.1,alto,largo), matPared.clone());
+    paredDer.position.set(hw,alto/2,0); paredDer.castShadow = true;
     scene.add(paredDer); meshes.paredDer = paredDer;
 
-    // PUERTA (en pared frontal)
-    const puertaGeo  = new THREE.BoxGeometry(0.9, 2.1, 0.15);
-    const puertaMat  = new THREE.MeshStandardMaterial({ color:0x8B6914, roughness:0.5 });
-    const puerta     = new THREE.Mesh(puertaGeo, puertaMat);
-    puerta.position.set(-hw + 1.2, 1.05, hl);
-    puerta.castShadow = true;
+    // PUERTA
+    const puerta = new THREE.Mesh(new THREE.BoxGeometry(0.9,2.1,0.15), new THREE.MeshStandardMaterial({color:0x8B6914,roughness:0.5}));
+    puerta.position.set(-hw+1.2,1.05,hl); puerta.castShadow = true;
     scene.add(puerta); meshes.puerta = puerta;
 
-    // Marco de puerta
-    const marcoMat = new THREE.MeshStandardMaterial({ color:0xD4A96A, roughness:0.4 });
+    const marcoMat = new THREE.MeshStandardMaterial({color:0xD4A96A,roughness:0.4});
     [
-        { geo: new THREE.BoxGeometry(0.08, 2.2, 0.12), pos: [-hw+0.76, 1.1, hl] },
-        { geo: new THREE.BoxGeometry(0.08, 2.2, 0.12), pos: [-hw+1.64, 1.1, hl] },
-        { geo: new THREE.BoxGeometry(1.0, 0.08, 0.12),  pos: [-hw+1.2, 2.2, hl] },
-    ].forEach(m => {
-        const marco = new THREE.Mesh(m.geo, marcoMat);
-        marco.position.set(...m.pos);
-        scene.add(marco);
-    });
+        {geo:new THREE.BoxGeometry(0.08,2.2,0.12),pos:[-hw+0.76,1.1,hl]},
+        {geo:new THREE.BoxGeometry(0.08,2.2,0.12),pos:[-hw+1.64,1.1,hl]},
+        {geo:new THREE.BoxGeometry(1.0,0.08,0.12), pos:[-hw+1.2,2.2,hl]},
+    ].forEach(m => { const marco = new THREE.Mesh(m.geo,marcoMat); marco.position.set(...m.pos); scene.add(marco); });
 
-    // VENTANAS (en pared trasera)
-    const ventanaMat = new THREE.MeshStandardMaterial({ color:0xADD8E6, transparent:true, opacity:0.35, metalness:0.1 });
-    const marcoVMat  = new THREE.MeshStandardMaterial({ color:0xF0F0F0, roughness:0.3 });
-    [-hw+1.5, hw-1.5].forEach(x => {
-        const ventana = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.1, 0.05), ventanaMat);
-        ventana.position.set(x, 1.5, -hl);
-        scene.add(ventana);
-        const marcoV = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.2, 0.08), marcoVMat);
-        marcoV.position.set(x, 1.5, -hl);
-        scene.add(marcoV);
-        // Cruz de ventana
-        [
-            { geo: new THREE.BoxGeometry(1.2, 0.04, 0.06), pos: [x, 1.5, -hl] },
-            { geo: new THREE.BoxGeometry(0.04, 1.1, 0.06), pos: [x, 1.5, -hl] },
-        ].forEach(c => {
-            const cruz = new THREE.Mesh(c.geo, marcoVMat);
-            cruz.position.set(...c.pos);
-            scene.add(cruz);
+    // VENTANAS
+    const ventanaMat = new THREE.MeshStandardMaterial({color:0xADD8E6,transparent:true,opacity:0.35,metalness:0.1});
+    const marcoVMat  = new THREE.MeshStandardMaterial({color:0xF0F0F0,roughness:0.3});
+    [-hw+1.5,hw-1.5].forEach(x => {
+        const v = new THREE.Mesh(new THREE.BoxGeometry(1.2,1.1,0.05),ventanaMat);
+        v.position.set(x,1.5,-hl); scene.add(v);
+        const mv = new THREE.Mesh(new THREE.BoxGeometry(1.3,1.2,0.08),marcoVMat);
+        mv.position.set(x,1.5,-hl); scene.add(mv);
+        [{geo:new THREE.BoxGeometry(1.2,0.04,0.06),pos:[x,1.5,-hl]},{geo:new THREE.BoxGeometry(0.04,1.1,0.06),pos:[x,1.5,-hl]}].forEach(c=>{
+            const cruz = new THREE.Mesh(c.geo,marcoVMat); cruz.position.set(...c.pos); scene.add(cruz);
         });
     });
 
     // ZÓCALO
-    const zocaloMat = new THREE.MeshStandardMaterial({ color:0xE8E8E8, roughness:0.4 });
-    const zocaloH   = 0.12;
-    [
-        { geo: new THREE.BoxGeometry(ancho, zocaloH, 0.03), pos: [0, zocaloH/2, -hl+0.02] },
-        { geo: new THREE.BoxGeometry(ancho, zocaloH, 0.03), pos: [0, zocaloH/2,  hl-0.02] },
-        { geo: new THREE.BoxGeometry(0.03, zocaloH, largo), pos: [-hw+0.02, zocaloH/2, 0] },
-        { geo: new THREE.BoxGeometry(0.03, zocaloH, largo), pos: [ hw-0.02, zocaloH/2, 0] },
-    ].forEach(z => {
-        const zocalo = new THREE.Mesh(z.geo, zocaloMat);
-        zocalo.position.set(...z.pos);
-        scene.add(zocalo);
-    });
+    const zocaloMat = new THREE.MeshStandardMaterial({color:0xE8E8E8,roughness:0.4});
+    const zh = 0.12;
+    [{geo:new THREE.BoxGeometry(ancho,zh,0.03),pos:[0,zh/2,-hl+0.02]},{geo:new THREE.BoxGeometry(ancho,zh,0.03),pos:[0,zh/2,hl-0.02]},
+     {geo:new THREE.BoxGeometry(0.03,zh,largo),pos:[-hw+0.02,zh/2,0]},{geo:new THREE.BoxGeometry(0.03,zh,largo),pos:[hw-0.02,zh/2,0]}
+    ].forEach(z => { const zoc = new THREE.Mesh(z.geo,zocaloMat); zoc.position.set(...z.pos); scene.add(zoc); });
 
-    // CUADRICULA EN PISO
-    const grid = new THREE.GridHelper(Math.max(ancho,largo)*1.5, Math.max(ancho,largo)*2, 0x333355, 0x222244);
-    grid.position.y = 0.01;
-    scene.add(grid);
+    // GRID
+    const grid = new THREE.GridHelper(Math.max(ancho,largo)*1.5,Math.max(ancho,largo)*2,0x333355,0x222244);
+    grid.position.y = 0.01; scene.add(grid);
+
+    // Si hay un producto activo, reaplicarlo
+    if (productoActivo) aplicarProductoPortafolio(productoActivo.id);
 
     actualizarStats();
     reconstruirMobiliario();
 }
 
 // ── MOBILIARIO ────────────────────────────────────────────────────────────
-let mobiliarioMeshes = {};
-
 function toggleMobiliario(tipo) {
     estado.mobiliario[tipo] = !estado.mobiliario[tipo];
-    const btn = document.querySelector(`[onclick="toggleMobiliario('${tipo}')"]`);
-    if (btn) btn.classList.toggle('activo', estado.mobiliario[tipo]);
+    document.querySelector(`[onclick="toggleMobiliario('${tipo}')"]`)?.classList.toggle('activo', estado.mobiliario[tipo]);
     reconstruirMobiliario();
 }
 
 function reconstruirMobiliario() {
     Object.values(mobiliarioMeshes).forEach(m => scene.remove(m));
     mobiliarioMeshes = {};
+    const mat = (color) => new THREE.MeshStandardMaterial({color,roughness:0.7});
 
     if (estado.mobiliario.sofa) {
         const g = new THREE.Group();
-        const base = new THREE.Mesh(new THREE.BoxGeometry(2.2,0.5,0.9), new THREE.MeshStandardMaterial({color:0x6B7280,roughness:0.8}));
-        base.position.set(0, 0.25, -estado.largo/2+1.2);
-        const respaldar = new THREE.Mesh(new THREE.BoxGeometry(2.2,0.7,0.2), new THREE.MeshStandardMaterial({color:0x6B7280,roughness:0.8}));
-        respaldar.position.set(0, 0.7, -estado.largo/2+0.8);
-        g.add(base); g.add(respaldar);
-        g.userData = { tipo:'mobiliario' };
-        scene.add(g); mobiliarioMeshes.sofa = g;
+        const base = new THREE.Mesh(new THREE.BoxGeometry(2.2,0.5,0.9),mat(0x6B7280));
+        base.position.set(0,0.25,-estado.largo/2+1.2);
+        const resp = new THREE.Mesh(new THREE.BoxGeometry(2.2,0.7,0.2),mat(0x6B7280));
+        resp.position.set(0,0.7,-estado.largo/2+0.8);
+        g.add(base); g.add(resp); scene.add(g); mobiliarioMeshes.sofa = g;
     }
-
     if (estado.mobiliario.mesa) {
         const g = new THREE.Group();
-        const tablero = new THREE.Mesh(new THREE.BoxGeometry(1.4,0.06,0.8), new THREE.MeshStandardMaterial({color:0xC4913A,roughness:0.5}));
-        tablero.position.set(0, 0.76, 0);
-        [[0.6,0,-0.3],[−0.6,0,-0.3],[0.6,0,0.3],[-0.6,0,0.3]].forEach(([x,y,z]) => {
-            const pata = new THREE.Mesh(new THREE.BoxGeometry(0.06,0.76,0.06), new THREE.MeshStandardMaterial({color:0x8B6914}));
-            pata.position.set(x, 0.38, z);
-            g.add(pata);
+        const tablero = new THREE.Mesh(new THREE.BoxGeometry(1.4,0.06,0.8),mat(0xC4913A));
+        tablero.position.set(0,0.76,0);
+        [[0.6,0,-0.3],[-0.6,0,-0.3],[0.6,0,0.3],[-0.6,0,0.3]].forEach(([x,y,z])=>{
+            const pata = new THREE.Mesh(new THREE.BoxGeometry(0.06,0.76,0.06),mat(0x8B6914));
+            pata.position.set(x,0.38,z); g.add(pata);
         });
-        g.add(tablero);
-        g.userData = { tipo:'mobiliario' };
-        scene.add(g); mobiliarioMeshes.mesa = g;
+        g.add(tablero); scene.add(g); mobiliarioMeshes.mesa = g;
     }
-
     if (estado.mobiliario.cama) {
         const g = new THREE.Group();
-        const base = new THREE.Mesh(new THREE.BoxGeometry(1.6,0.4,2.0), new THREE.MeshStandardMaterial({color:0x8B7355,roughness:0.7}));
-        base.position.set(estado.ancho/2-1.2, 0.2, 0);
-        const cabecero = new THREE.Mesh(new THREE.BoxGeometry(1.6,0.8,0.1), new THREE.MeshStandardMaterial({color:0x6B5335,roughness:0.6}));
-        cabecero.position.set(estado.ancho/2-1.2, 0.6, -0.95);
-        const almohada = new THREE.Mesh(new THREE.BoxGeometry(1.2,0.15,0.4), new THREE.MeshStandardMaterial({color:0xF5F5F5,roughness:0.9}));
-        almohada.position.set(estado.ancho/2-1.2, 0.48, -0.6);
-        g.add(base); g.add(cabecero); g.add(almohada);
-        g.userData = { tipo:'mobiliario' };
-        scene.add(g); mobiliarioMeshes.cama = g;
+        const base = new THREE.Mesh(new THREE.BoxGeometry(1.6,0.4,2.0),mat(0x8B7355));
+        base.position.set(estado.ancho/2-1.2,0.2,0);
+        const cab = new THREE.Mesh(new THREE.BoxGeometry(1.6,0.8,0.1),mat(0x6B5335));
+        cab.position.set(estado.ancho/2-1.2,0.6,-0.95);
+        g.add(base); g.add(cab); scene.add(g); mobiliarioMeshes.cama = g;
     }
-
     if (estado.mobiliario.planta) {
         const g = new THREE.Group();
-        const maceta = new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.15,0.35,8), new THREE.MeshStandardMaterial({color:0xC17F3A,roughness:0.8}));
-        maceta.position.set(-estado.ancho/2+0.5, 0.175, -estado.largo/2+0.5);
-        const tronco = new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.05,0.6,8), new THREE.MeshStandardMaterial({color:0x8B6914}));
-        tronco.position.set(-estado.ancho/2+0.5, 0.65, -estado.largo/2+0.5);
-        const follaje = new THREE.Mesh(new THREE.SphereGeometry(0.35,8,8), new THREE.MeshStandardMaterial({color:0x228B22,roughness:0.9}));
-        follaje.position.set(-estado.ancho/2+0.5, 1.1, -estado.largo/2+0.5);
-        g.add(maceta); g.add(tronco); g.add(follaje);
-        g.userData = { tipo:'mobiliario' };
-        scene.add(g); mobiliarioMeshes.planta = g;
+        const mac = new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.15,0.35,8),mat(0xC17F3A));
+        mac.position.set(-estado.ancho/2+0.5,0.175,-estado.largo/2+0.5);
+        const fol = new THREE.Mesh(new THREE.SphereGeometry(0.35,8,8),mat(0x228B22));
+        fol.position.set(-estado.ancho/2+0.5,1.1,-estado.largo/2+0.5);
+        g.add(mac); g.add(fol); scene.add(g); mobiliarioMeshes.planta = g;
     }
 }
 
 // ── LUCES ─────────────────────────────────────────────────────────────────
 function configurarLuces() {
-    // Limpiar luces anteriores
     Object.values(luces).forEach(l => scene.remove(l));
     luces = {};
+    const i = estado.intensidadLuz;
 
-    const ambient = new THREE.AmbientLight(0xffffff, 0.4 * estado.intensidadLuz);
-    scene.add(ambient); luces.ambient = ambient;
+    const amb = new THREE.AmbientLight(0xffffff,0.4*i);
+    scene.add(amb); luces.ambient = amb;
 
-    const directional = new THREE.DirectionalLight(0xffffff, 0.8 * estado.intensidadLuz);
-    directional.position.set(5, 8, 5);
-    directional.castShadow = true;
-    directional.shadow.mapSize.width  = 2048;
-    directional.shadow.mapSize.height = 2048;
-    directional.shadow.camera.near = 0.5;
-    directional.shadow.camera.far  = 50;
-    directional.shadow.camera.left   = -15;
-    directional.shadow.camera.right  = 15;
-    directional.shadow.camera.top    = 15;
-    directional.shadow.camera.bottom = -15;
-    scene.add(directional); luces.directional = directional;
+    const dir = new THREE.DirectionalLight(0xffffff,0.8*i);
+    dir.position.set(5,8,5); dir.castShadow = true;
+    dir.shadow.mapSize.width = dir.shadow.mapSize.height = 2048;
+    dir.shadow.camera.left = dir.shadow.camera.bottom = -15;
+    dir.shadow.camera.right = dir.shadow.camera.top = 15;
+    scene.add(dir); luces.directional = dir;
 
-    // Luz de techo (punto de luz centrado)
-    const pointLight = new THREE.PointLight(0xFFFAE6, 0.6 * estado.intensidadLuz, 15);
-    pointLight.position.set(0, estado.alto - 0.3, 0);
-    pointLight.castShadow = true;
-    scene.add(pointLight); luces.point = pointLight;
+    const pt = new THREE.PointLight(0xFFFAE6,0.6*i,15);
+    pt.position.set(0,estado.alto-0.3,0); pt.castShadow = true;
+    scene.add(pt); luces.point = pt;
 
-    // Representación física de la lámpara
-    const lamparaMat = new THREE.MeshStandardMaterial({ color:0xFFFFCC, emissive:0xFFEE88, emissiveIntensity:0.8 });
-    const lampara    = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), lamparaMat);
-    lampara.position.set(0, estado.alto - 0.2, 0);
+    const lampara = new THREE.Mesh(new THREE.SphereGeometry(0.12,8,8),
+        new THREE.MeshStandardMaterial({color:0xFFFFCC,emissive:0xFFEE88,emissiveIntensity:0.8}));
+    lampara.position.set(0,estado.alto-0.2,0);
     scene.add(lampara); luces.lampara = lampara;
 }
 
-function cambiarTipoLuz(tipo, btn) {
-    document.querySelectorAll('.panel-section').forEach(s => {
-        s.querySelectorAll('.material-btn').forEach(b => {
-            if (b.getAttribute('onclick')?.includes('cambiarTipoLuz')) b.classList.remove('activo');
-        });
-    });
-    btn.classList.add('activo');
-
-    const configs = {
-        dia:   { ambient:0xffffff, directional:0xffffff, point:0xFFFAE6 },
-        noche: { ambient:0x1a1a3a, directional:0x4444ff, point:0xFFAA44 },
-        calida:{ ambient:0xFFE4C4, directional:0xFFB347, point:0xFF8C00 },
-        fria:  { ambient:0xE0F0FF, directional:0xADD8E6, point:0xE0F0FF },
-    };
-    const c = configs[tipo] || configs.dia;
-    if (luces.ambient)     luces.ambient.color.setStyle(c.ambient);
-    if (luces.directional) luces.directional.color.setStyle(c.directional);
-    if (luces.point)       luces.point.color.setStyle(c.point);
-    estado.tipoLuz = tipo;
+// ── CAMBIOS ───────────────────────────────────────────────────────────────
+function cambiarDimension(dim,val) {
+    const key = dim==='ancho'?'ancho':dim==='largo'?'largo':'alto';
+    estado[key] = parseFloat(val);
+    document.getElementById(`val${dim.charAt(0).toUpperCase()+dim.slice(1)}`).textContent = parseFloat(val).toFixed(1)+'m';
+    construirHabitacion(); configurarLuces();
 }
 
-// ── CAMBIOS DE ESTADO ─────────────────────────────────────────────────────
-function cambiarDimension(dim, val) {
-    estado[dim === 'ancho' ? 'ancho' : dim === 'largo' ? 'largo' : 'alto'] = parseFloat(val);
-    document.getElementById(`val${dim.charAt(0).toUpperCase()+dim.slice(1)}`).textContent = parseFloat(val).toFixed(1) + 'm';
-    construirHabitacion();
-    configurarLuces();
-}
-
-function cambiarMaterialPiso(tipo, btn) {
-    document.querySelectorAll('.panel-section').forEach(s => {
-        s.querySelectorAll('.material-btn').forEach(b => {
-            if (b.getAttribute('onclick')?.includes('cambiarMaterialPiso')) b.classList.remove('activo');
-        });
-    });
+function cambiarMaterialPiso(tipo,btn) {
+    document.querySelectorAll('[onclick*="cambiarMaterialPiso"]').forEach(b=>b.classList.remove('activo'));
     btn.classList.add('activo');
     estado.materialPiso = tipo;
     if (meshes.piso) meshes.piso.material = crearMaterialPiso(tipo);
-    mostrarToast(`Piso cambiado a ${tipo} ✅`);
+    mostrarToast(`Piso: ${tipo} ✅`);
 }
 
-function cambiarColorPared(color, btn) {
-    document.querySelectorAll('.panel-section').forEach(s => {
-        s.querySelectorAll('.material-btn').forEach(b => {
-            if (b.getAttribute('onclick')?.includes('cambiarColorPared(\'#')) b.classList.remove('activo');
-        });
-    });
-    if (btn) btn.classList.add('activo');
+function cambiarColorPared(color,btn) {
+    document.querySelectorAll('[onclick*="cambiarColorPared(\'#"]').forEach(b=>b.classList.remove('activo'));
+    if(btn) btn.classList.add('activo');
     estado.colorPared = color;
-    ['paredTrasera','paredFrontal','paredIzq','paredDer'].forEach(k => {
-        if (meshes[k]) meshes[k].material.color.setStyle(color);
+    ['paredTrasera','paredFrontal','paredIzq','paredDer'].forEach(k=>{
+        if(meshes[k]) meshes[k].material.color.setStyle(color);
     });
-    mostrarToast(`Color de pared actualizado ✅`);
 }
 
-function cambiarColorParedCustom(color) {
-    cambiarColorPared(color, null);
-}
+function cambiarColorParedCustom(color) { cambiarColorPared(color,null); }
 
 function cambiarLuz(val) {
-    estado.intensidadLuz = val / 100;
-    document.getElementById('valLuz').textContent = val + '%';
-    if (luces.ambient)     luces.ambient.intensity     = 0.4 * estado.intensidadLuz;
-    if (luces.directional) luces.directional.intensity = 0.8 * estado.intensidadLuz;
-    if (luces.point)       luces.point.intensity       = 0.6 * estado.intensidadLuz;
+    estado.intensidadLuz = val/100;
+    document.getElementById('valLuz').textContent = val+'%';
+    if(luces.ambient)     luces.ambient.intensity     = 0.4*estado.intensidadLuz;
+    if(luces.directional) luces.directional.intensity = 0.8*estado.intensidadLuz;
+    if(luces.point)       luces.point.intensity       = 0.6*estado.intensidadLuz;
 }
 
-function cargarHabitacion(tipo, btn) {
-    document.querySelectorAll('.hab-btn').forEach(b => b.classList.remove('activo'));
+function cambiarTipoLuz(tipo,btn) {
+    document.querySelectorAll('[onclick*="cambiarTipoLuz"]').forEach(b=>b.classList.remove('activo'));
     btn.classList.add('activo');
+    const cols = {dia:{a:'#ffffff',d:'#ffffff',p:'#FFFaE6'},noche:{a:'#1a1a3a',d:'#4444ff',p:'#FFAA44'},calida:{a:'#FFE4C4',d:'#FFB347',p:'#FF8C00'},fria:{a:'#E0F0FF',d:'#ADD8E6',p:'#E0F0FF'}};
+    const c = cols[tipo]||cols.dia;
+    if(luces.ambient)     luces.ambient.color.setStyle(c.a);
+    if(luces.directional) luces.directional.color.setStyle(c.d);
+    if(luces.point)       luces.point.color.setStyle(c.p);
+}
 
-    const configs = {
-        sala:       { ancho:5.5, largo:6.0, alto:2.8 },
-        cocina:     { ancho:3.5, largo:4.0, alto:2.6 },
-        habitacion: { ancho:4.0, largo:5.0, alto:2.8 },
-        bano:       { ancho:2.5, largo:3.0, alto:2.6 },
-        oficina:    { ancho:4.0, largo:5.0, alto:2.8 },
-    };
-    const c = configs[tipo] || configs.sala;
-    estado.ancho = c.ancho; estado.largo = c.largo; estado.alto = c.alto;
-
+function cargarHabitacion(tipo,btn) {
+    document.querySelectorAll('.hab-btn').forEach(b=>b.classList.remove('activo'));
+    btn.classList.add('activo');
+    const configs = {sala:{ancho:5.5,largo:6.0,alto:2.8},cocina:{ancho:3.5,largo:4.0,alto:2.6},habitacion:{ancho:4.0,largo:5.0,alto:2.8},bano:{ancho:2.5,largo:3.0,alto:2.6},oficina:{ancho:4.0,largo:5.0,alto:2.8}};
+    const c = configs[tipo]||configs.sala;
+    estado.ancho=c.ancho; estado.largo=c.largo; estado.alto=c.alto;
     document.querySelector('input[oninput*="ancho"]').value = c.ancho;
     document.querySelector('input[oninput*="largo"]').value = c.largo;
     document.querySelector('input[oninput*="alto"]').value  = c.alto;
-    document.getElementById('valAncho').textContent = c.ancho.toFixed(1) + 'm';
-    document.getElementById('valLargo').textContent = c.largo.toFixed(1) + 'm';
-    document.getElementById('valAlto').textContent  = c.alto.toFixed(1) + 'm';
-
-    construirHabitacion();
-    configurarLuces();
+    document.getElementById('valAncho').textContent = c.ancho.toFixed(1)+'m';
+    document.getElementById('valLargo').textContent = c.largo.toFixed(1)+'m';
+    document.getElementById('valAlto').textContent  = c.alto.toFixed(1)+'m';
+    construirHabitacion(); configurarLuces();
     mostrarToast(`${tipo.charAt(0).toUpperCase()+tipo.slice(1)} cargada ✅`);
 }
 
 function setCamara(vista) {
-    const { ancho, largo, alto } = estado;
-    const posiciones = {
-        frontal:    { pos:[0, alto/2, largo*1.8],    target:[0, alto/2, 0] },
-        lateral:    { pos:[ancho*1.8, alto/2, 0],    target:[0, alto/2, 0] },
-        superior:   { pos:[0, alto*4, 0],             target:[0, 0, 0] },
-        isometrica: { pos:[ancho, alto*1.5, largo],   target:[0, alto/3, 0] },
-        interior:   { pos:[0, alto*0.55, 0],          target:[0, alto*0.55, -largo/2] },
-        libre:      { pos:[ancho*1.2, alto*1.2, largo*1.2], target:[0, alto/3, 0] },
-    };
-    const v = posiciones[vista] || posiciones.libre;
-    animarCamara(v.pos, v.target);
+    const {ancho,largo,alto} = estado;
+    const pos = {frontal:[0,alto/2,largo*1.8],lateral:[ancho*1.8,alto/2,0],superior:[0,alto*4,0],isometrica:[ancho,alto*1.5,largo],interior:[0,alto*0.55,0],libre:[ancho*1.2,alto*1.2,largo*1.2]};
+    const tgt = {frontal:[0,alto/2,0],lateral:[0,alto/2,0],superior:[0,0,0],isometrica:[0,alto/3,0],interior:[0,alto*0.55,-largo/2],libre:[0,alto/3,0]};
+    animarCamara(pos[vista]||pos.libre, tgt[vista]||tgt.libre);
 }
 
-function animarCamara(posDestino, targetDestino) {
-    const posInicio    = camera.position.clone();
-    const targetInicio = controls.target.clone();
-    const posD         = new THREE.Vector3(...posDestino);
-    const targetD      = new THREE.Vector3(...targetDestino);
-    let t = 0;
-    const dur = 60;
-    function step() {
-        t++;
-        const p = t / dur;
-        const ease = p < 0.5 ? 2*p*p : -1+(4-2*p)*p;
-        camera.position.lerpVectors(posInicio, posD, ease);
-        controls.target.lerpVectors(targetInicio, targetD, ease);
-        controls.update();
-        if (t < dur) requestAnimationFrame(step);
-    }
+function animarCamara(posD,tgtD) {
+    const pi=camera.position.clone(), ti=controls.target.clone();
+    const pd=new THREE.Vector3(...posD), td=new THREE.Vector3(...tgtD);
+    let t=0; const dur=60;
+    function step(){t++; const p=t/dur,e=p<0.5?2*p*p:-1+(4-2*p)*p;
+        camera.position.lerpVectors(pi,pd,e); controls.target.lerpVectors(ti,td,e);
+        controls.update(); if(t<dur) requestAnimationFrame(step);}
     step();
 }
 
-// ── ESTADÍSTICAS ──────────────────────────────────────────────────────────
 function actualizarStats() {
-    const { ancho, largo, alto } = estado;
-    const area      = (ancho * largo).toFixed(1);
-    const paredes   = (2*(ancho+largo)*alto).toFixed(1);
-    const perimetro = (2*(ancho+largo)).toFixed(1);
-    document.getElementById('statArea').textContent      = area;
-    document.getElementById('statParedes').textContent   = paredes;
-    document.getElementById('statPerimetro').textContent = perimetro;
+    const {ancho,largo,alto} = estado;
+    document.getElementById('statArea').textContent      = (ancho*largo).toFixed(1);
+    document.getElementById('statParedes').textContent   = (2*(ancho+largo)*alto).toFixed(1);
+    document.getElementById('statPerimetro').textContent = (2*(ancho+largo)).toFixed(1);
 }
 
-// ── RENDER / CAPTURA ──────────────────────────────────────────────────────
 function capturarRender() {
-    renderer.render(scene, camera);
+    renderer.render(scene,camera);
     const link = document.createElement('a');
     link.download = `render_decoiarte_${Date.now()}.png`;
-    link.href     = canvas.toDataURL('image/png', 1.0);
+    link.href = canvas.toDataURL('image/png',1.0);
     link.click();
-    mostrarToast('📸 Render guardado exitosamente!');
+    mostrarToast('📸 ¡Render guardado!');
 }
 
-// ── TOAST ─────────────────────────────────────────────────────────────────
 let toastTimer;
 function mostrarToast(msg) {
-    const t = document.getElementById('toast');
-    t.textContent = msg;
-    t.classList.add('show');
+    const t=document.getElementById('toast');
+    t.textContent=msg; t.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+    toastTimer=setTimeout(()=>t.classList.remove('show'),2500);
 }
 
-// ── RESIZE ────────────────────────────────────────────────────────────────
 function onResize() {
-    const w = canvas.clientWidth;
-    const h = canvas.clientHeight;
-    renderer.setSize(w, h, false);
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
+    const w=canvas.clientWidth, h=canvas.clientHeight;
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h; camera.updateProjectionMatrix();
 }
 
-window.addEventListener('resize', onResize);
+window.addEventListener('resize',onResize);
 
-// ── LOOP DE ANIMACIÓN ─────────────────────────────────────────────────────
 function animate() {
     requestAnimationFrame(animate);
     controls.update();
-    renderer.render(scene, camera);
+    renderer.render(scene,camera);
 }
 
 // ── INICIO ────────────────────────────────────────────────────────────────
@@ -731,8 +775,8 @@ construirHabitacion();
 configurarLuces();
 onResize();
 animate();
-
-mostrarToast('🏗️ Visor 3D listo — arrastra para rotar, scroll para zoom');
+cargarPortafolio();
+mostrarToast('🏗️ Visor 3D listo — arrastra para rotar');
 </script>
 </body>
 </html>
