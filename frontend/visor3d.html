@@ -309,8 +309,8 @@ const scene  = new THREE.Scene();
 scene.fog    = new THREE.Fog(0x0F0F1A, 20, 60);
 
 const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
-camera.position.set(8, 6, 8);
-camera.lookAt(0, 0, 0);
+camera.position.set(0, 9, 10);
+camera.lookAt(0, 1, 0);
 
 const controls = new THREE.OrbitControls(camera, canvas);
 controls.enableDamping = true;
@@ -318,7 +318,7 @@ controls.dampingFactor = 0.08;
 controls.minDistance   = 2;
 controls.maxDistance   = 25;
 controls.maxPolarAngle = Math.PI / 1.8;
-controls.target.set(0, 1, 0);
+controls.target.set(0, 1.4, 0);
 
 // ── ESTADO ────────────────────────────────────────────────────────────────
 let estado = {
@@ -516,9 +516,7 @@ function construirHabitacion() {
     piso.position.set(0,-0.05,0); piso.receiveShadow = true;
     scene.add(piso); meshes.piso = piso;
 
-    // TECHO
-    const techo = new THREE.Mesh(new THREE.BoxGeometry(ancho,0.08,largo), matTecho);
-    techo.position.set(0,alto,0); scene.add(techo); meshes.techo = techo;
+    // TECHO — eliminado para ver el interior desde arriba
 
     // PAREDES
     const paredTrasera = new THREE.Mesh(new THREE.BoxGeometry(ancho,alto,0.1), matPared.clone());
@@ -717,8 +715,8 @@ function cargarHabitacion(tipo,btn) {
 
 function setCamara(vista) {
     const {ancho,largo,alto} = estado;
-    const pos = {frontal:[0,alto/2,largo*1.8],lateral:[ancho*1.8,alto/2,0],superior:[0,alto*4,0],isometrica:[ancho,alto*1.5,largo],interior:[0,alto*0.55,0],libre:[ancho*1.2,alto*1.2,largo*1.2]};
-    const tgt = {frontal:[0,alto/2,0],lateral:[0,alto/2,0],superior:[0,0,0],isometrica:[0,alto/3,0],interior:[0,alto*0.55,-largo/2],libre:[0,alto/3,0]};
+    const pos = {frontal:[0,alto*0.6,largo*1.8],lateral:[ancho*1.8,alto*0.6,0],superior:[0,alto*3.5,0.01],isometrica:[ancho*1.2,alto*2,largo*1.2],interior:[0,alto*0.5,0],libre:[0,alto*2,largo*1.4]};
+    const tgt = {frontal:[0,alto*0.5,0],lateral:[0,alto*0.5,0],superior:[0,0,0],isometrica:[0,alto*0.4,0],interior:[0,alto*0.5,-largo/2],libre:[0,alto*0.4,0]};
     animarCamara(pos[vista]||pos.libre, tgt[vista]||tgt.libre);
 }
 
