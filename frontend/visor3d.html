@@ -17,7 +17,6 @@
         }
         body { font-family:'Segoe UI',sans-serif; background:var(--oscuro); color:var(--texto); height:100vh; overflow:hidden; }
 
-        /* HEADER */
         .header {
             position:fixed; top:0; left:0; right:0; height:56px;
             background:rgba(15,15,26,0.95); backdrop-filter:blur(10px);
@@ -36,17 +35,22 @@
         .btn-volver:hover { color:var(--texto); border-color:rgba(124,58,237,0.5); }
         .plan-badge { display:inline-flex; align-items:center; gap:6px; background:rgba(124,58,237,0.15); border:1px solid rgba(124,58,237,0.3); padding:4px 12px; border-radius:50px; font-size:11px; color:#A78BFA; font-weight:700; }
 
-        /* PESTAÑAS PRINCIPALES */
         .tabs-principales { position:fixed; top:56px; left:0; right:300px; height:40px; background:rgba(15,15,26,0.97); border-bottom:1px solid rgba(124,58,237,0.2); display:flex; align-items:center; gap:4px; padding:0 16px; z-index:90; }
         .tab-vista { padding:6px 16px; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; border:1px solid transparent; font-family:'Segoe UI',sans-serif; transition:all 0.2s; color:var(--gris); background:none; }
         .tab-vista:hover { color:var(--texto); }
         .tab-vista.active { background:rgba(124,58,237,0.15); color:var(--texto); border-color:rgba(124,58,237,0.3); }
 
-        /* CANVAS */
-        #canvas3d { position:fixed; top:96px; left:0; right:300px; bottom:0; cursor:grab; display:block; }
+        /* ── FIX CENTRADO: canvas ocupa exactamente el área disponible ── */
+        #canvas3d {
+            position:fixed;
+            top:96px; left:0; right:300px; bottom:0;
+            width:calc(100vw - 300px);
+            height:calc(100vh - 96px);
+            cursor:grab;
+            display:block;
+        }
         #canvas3d:active { cursor:grabbing; }
 
-        /* FOTO IA */
         #vistaFoto { position:fixed; top:96px; left:0; right:300px; bottom:0; background:var(--oscuro); display:none; align-items:center; justify-content:center; flex-direction:column; gap:20px; padding:20px; }
         .foto-ia-container { max-width:90%; max-height:75vh; border-radius:16px; overflow:hidden; border:2px solid rgba(124,58,237,0.3); box-shadow:0 0 40px rgba(124,58,237,0.2); }
         .foto-ia-container img { width:100%; height:100%; object-fit:contain; display:block; }
@@ -55,7 +59,6 @@
         .btn-enviar-cliente { background:linear-gradient(135deg,#25D366,#128C7E); color:white; border:none; padding:14px 28px; border-radius:50px; font-size:15px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:10px; font-family:'Segoe UI',sans-serif; transition:opacity 0.3s; }
         .btn-enviar-cliente:hover { opacity:0.85; }
 
-        /* CÁMARA PIVOTE */
         .camara-pivote-overlay { position:fixed; bottom:20px; left:16px; background:rgba(15,15,26,0.92); backdrop-filter:blur(8px); border:1px solid rgba(124,58,237,0.3); border-radius:14px; padding:14px; z-index:150; display:none; min-width:200px; }
         .camara-pivote-overlay.activa { display:block; }
         .cp-titulo { font-size:11px; font-weight:700; color:#A78BFA; margin-bottom:10px; text-transform:uppercase; letter-spacing:0.05em; }
@@ -66,24 +69,17 @@
         .btn-cp { width:100%; background:var(--degradado); color:white; border:none; padding:7px; border-radius:7px; font-size:11px; font-weight:600; cursor:pointer; font-family:'Segoe UI',sans-serif; margin-top:6px; }
         .btn-cp-salir { background:rgba(239,68,68,0.15); color:#FCA5A5; border:1px solid rgba(239,68,68,0.3); margin-top:4px; }
 
-        /* PANEL */
         .panel { position:fixed; top:56px; right:0; width:300px; bottom:0; background:var(--oscuro2); border-left:1px solid rgba(124,58,237,0.2); overflow-y:auto; display:flex; flex-direction:column; }
         .panel-section { padding:16px 20px; border-bottom:1px solid rgba(124,58,237,0.1); }
         .panel-section:last-child { border-bottom:none; }
         .panel-titulo { font-size:12px; font-weight:700; color:#A78BFA; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
 
-        /* TABS PORTAFOLIO */
         .tabs-portafolio { display:flex; gap:6px; margin-bottom:14px; }
         .tab-port { padding:6px 12px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; border:1px solid rgba(124,58,237,0.2); background:var(--oscuro3); color:var(--gris); transition:all 0.2s; font-family:'Segoe UI',sans-serif; }
         .tab-port.active { background:rgba(124,58,237,0.15); border-color:var(--morado); color:var(--texto); }
 
-        /* PRODUCTOS PORTAFOLIO */
         .productos-portafolio { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-        .prod-port-card {
-            border-radius:10px; overflow:hidden; cursor:pointer;
-            border:2px solid rgba(124,58,237,0.15); transition:all 0.2s;
-            background:var(--oscuro3); position:relative;
-        }
+        .prod-port-card { border-radius:10px; overflow:hidden; cursor:pointer; border:2px solid rgba(124,58,237,0.15); transition:all 0.2s; background:var(--oscuro3); position:relative; }
         .prod-port-card:hover { border-color:rgba(124,58,237,0.5); transform:translateY(-1px); }
         .prod-port-card.activo { border-color:var(--morado); box-shadow:0 0 12px rgba(124,58,237,0.3); }
         .prod-port-card.cliente { border-color:var(--verde); }
@@ -95,12 +91,7 @@
         .prod-port-badge { position:absolute; top:5px; right:5px; background:var(--verde); color:white; font-size:9px; font-weight:700; padding:2px 6px; border-radius:50px; }
         .prod-port-badge.sugerido { background:var(--morado); }
 
-        /* CLIENTE SELECCION */
-        .cliente-seleccion {
-            background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.3);
-            border-radius:12px; padding:12px; margin-bottom:14px;
-            display:flex; gap:10px; align-items:center;
-        }
+        .cliente-seleccion { background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.3); border-radius:12px; padding:12px; margin-bottom:14px; display:flex; gap:10px; align-items:center; }
         .cliente-sel-img { width:48px; height:48px; border-radius:8px; object-fit:cover; background:var(--oscuro3); display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; overflow:hidden; }
         .cliente-sel-img img { width:100%; height:100%; object-fit:cover; }
         .cliente-sel-info { flex:1; }
@@ -108,50 +99,42 @@
         .cliente-sel-nombre { font-size:12px; font-weight:700; color:var(--texto); }
         .cliente-sel-precio { font-size:11px; color:var(--gris); }
 
-        /* CONTROLES */
         .control-grupo { margin-bottom:14px; }
         .control-label { font-size:12px; color:var(--gris); margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; }
         .control-valor { color:var(--texto); font-weight:600; font-size:12px; }
         input[type="range"] { width:100%; accent-color:var(--morado); height:4px; background:rgba(124,58,237,0.2); border-radius:50px; cursor:pointer; }
         input[type="color"] { width:100%; height:34px; border:1px solid rgba(124,58,237,0.25); border-radius:10px; cursor:pointer; background:none; padding:2px; }
 
-        /* MATERIALES */
         .materiales-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
         .material-btn { padding:9px 6px; border-radius:10px; font-size:11px; font-weight:600; cursor:pointer; border:2px solid rgba(124,58,237,0.2); background:var(--oscuro3); color:var(--gris); text-align:center; transition:all 0.2s; font-family:'Segoe UI',sans-serif; }
         .material-btn:hover { border-color:rgba(124,58,237,0.5); color:var(--texto); }
         .material-btn.activo { border-color:var(--morado); background:rgba(124,58,237,0.15); color:var(--texto); }
         .material-btn .mat-icon { font-size:18px; display:block; margin-bottom:3px; }
 
-        /* HAB BTNS */
         .hab-btn { width:100%; padding:9px 14px; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; border:1px solid rgba(124,58,237,0.2); background:var(--oscuro3); color:var(--gris); text-align:left; transition:all 0.2s; font-family:'Segoe UI',sans-serif; margin-bottom:6px; display:flex; align-items:center; gap:10px; }
         .hab-btn:hover { border-color:rgba(124,58,237,0.4); color:var(--texto); }
         .hab-btn.activo { border-color:var(--morado); background:rgba(124,58,237,0.1); color:var(--texto); }
 
-        /* STATS */
         .stats-row { display:flex; justify-content:space-between; }
         .stat-item { text-align:center; flex:1; }
         .stat-num { font-size:18px; font-weight:900; background:var(--degradado); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
         .stat-lbl { font-size:10px; color:var(--gris); margin-top:2px; }
 
-        /* CAMARA */
         .cam-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
         .cam-btn { padding:8px 4px; border-radius:8px; font-size:11px; font-weight:600; cursor:pointer; border:1px solid rgba(124,58,237,0.2); background:var(--oscuro3); color:var(--gris); text-align:center; transition:all 0.2s; font-family:'Segoe UI',sans-serif; }
         .cam-btn:hover { border-color:rgba(124,58,237,0.4); color:var(--texto); background:rgba(124,58,237,0.08); }
 
-        /* LOADING PORTAFOLIO */
         .loading-port { text-align:center; padding:20px; color:var(--gris); font-size:13px; }
         .spinner-small { width:24px; height:24px; border:2px solid rgba(124,58,237,0.2); border-top-color:var(--morado); border-radius:50%; animation:spin 0.7s linear infinite; margin:0 auto 8px; }
         @keyframes spin { to { transform:rotate(360deg); } }
 
-        /* EMPTY PORT */
         .empty-port { text-align:center; padding:20px; color:var(--gris); font-size:12px; line-height:1.6; }
 
-        /* TOAST */
         .toast { position:fixed; bottom:30px; left:50%; transform:translateX(-50%); background:var(--oscuro2); border:1px solid rgba(124,58,237,0.4); color:var(--texto); padding:12px 24px; border-radius:50px; font-size:14px; font-weight:600; z-index:999; opacity:0; transition:opacity 0.3s; pointer-events:none; box-shadow:0 8px 30px rgba(124,58,237,0.3); white-space:nowrap; }
         .toast.show { opacity:1; }
 
         @media (max-width:768px) {
-            #canvas3d { right:0; bottom:220px; }
+            #canvas3d { right:0; bottom:220px; width:100vw; height:calc(100vh - 96px - 220px); }
             .panel { top:auto; right:0; left:0; width:100%; height:220px; flex-direction:row; overflow-x:auto; overflow-y:hidden; }
             .panel-section { min-width:180px; border-bottom:none; border-right:1px solid rgba(124,58,237,0.1); }
         }
@@ -172,7 +155,6 @@
     </div>
 </div>
 
-<!-- PESTAÑAS -->
 <div class="tabs-principales">
     <button class="tab-vista active" id="tab3d" onclick="cambiarVista('3d')">🏗️ Entorno 3D</button>
     <button class="tab-vista" id="tabFoto" onclick="cambiarVista('foto')">📸 Foto IA</button>
@@ -180,7 +162,6 @@
 
 <canvas id="canvas3d"></canvas>
 
-<!-- VISTA FOTO IA -->
 <div id="vistaFoto">
     <div id="fotoIaContenido">
         <div class="foto-empty">
@@ -194,7 +175,6 @@
     </button>
 </div>
 
-<!-- CÁMARA PIVOTE -->
 <div class="camara-pivote-overlay" id="camaraPivote">
     <div class="cp-titulo">📷 Cámara interior</div>
     <div class="cp-grid">
@@ -216,10 +196,9 @@
         </div>
     </div>
     <div class="cp-hint">🖱️ Arrastra para rotar · Scroll para zoom</div>
-    <!-- Prompt IA -->
     <div style="margin-top:8px;">
         <div style="font-size:10px;color:var(--gris);margin-bottom:4px;">✨ Prompt para IA (opcional)</div>
-        <textarea id="promptIA" placeholder="Ej: piso mármol blanco, luz cálida de tarde, estilo moderno..." 
+        <textarea id="promptIA" placeholder="Ej: piso mármol blanco, luz cálida de tarde, estilo moderno..."
             style="width:100%;background:var(--oscuro);border:1px solid rgba(124,58,237,0.25);border-radius:8px;padding:8px;color:var(--texto);font-size:11px;font-family:'Segoe UI',sans-serif;outline:none;resize:none;height:56px;line-height:1.4;"></textarea>
     </div>
     <button class="btn-cp" onclick="capturarYGenerarIA()" id="btnCapturarIA">
@@ -233,11 +212,8 @@
 
 <div class="panel">
 
-    <!-- PORTAFOLIO DE LA TIENDA -->
     <div class="panel-section">
         <div class="panel-titulo">🏪 Portafolio de tu tienda</div>
-
-        <!-- Producto elegido por el cliente -->
         <div id="clienteSeleccion" style="display:none;">
             <div class="cliente-seleccion" id="clienteSelCard">
                 <div class="cliente-sel-img" id="clienteSelImg">📦</div>
@@ -248,16 +224,12 @@
                 </div>
             </div>
         </div>
-
-        <!-- Tabs -->
         <div class="tabs-portafolio">
             <button class="tab-port active" onclick="filtrarPortafolio('todos', this)">Todos</button>
             <button class="tab-port" onclick="filtrarPortafolio('pisos', this)">Pisos</button>
             <button class="tab-port" onclick="filtrarPortafolio('enchapes', this)">Enchapes</button>
             <button class="tab-port" onclick="filtrarPortafolio('pintura', this)">Pintura</button>
         </div>
-
-        <!-- Productos -->
         <div id="portafolioContenido">
             <div class="loading-port">
                 <div class="spinner-small"></div>
@@ -266,7 +238,6 @@
         </div>
     </div>
 
-    <!-- HABITACIÓN -->
     <div class="panel-section">
         <div class="panel-titulo">🏠 Habitación</div>
         <div class="hab-btn activo" onclick="cargarHabitacion('sala', this)"><span>🛋️</span> Sala</div>
@@ -276,7 +247,6 @@
         <div class="hab-btn" onclick="cargarHabitacion('oficina', this)"><span>💼</span> Oficina</div>
     </div>
 
-    <!-- DIMENSIONES -->
     <div class="panel-section">
         <div class="panel-titulo">📐 Dimensiones</div>
         <div class="control-grupo">
@@ -293,7 +263,6 @@
         </div>
     </div>
 
-    <!-- STATS -->
     <div class="panel-section">
         <div class="panel-titulo">📊 Cálculos</div>
         <div class="stats-row">
@@ -303,7 +272,6 @@
         </div>
     </div>
 
-    <!-- MATERIALES GENÉRICOS -->
     <div class="panel-section">
         <div class="panel-titulo">🎨 Material genérico piso</div>
         <div class="materiales-grid">
@@ -316,7 +284,6 @@
         </div>
     </div>
 
-    <!-- COLOR PAREDES -->
     <div class="panel-section">
         <div class="panel-titulo">🎨 Color paredes</div>
         <div class="materiales-grid" style="margin-bottom:10px;">
@@ -330,7 +297,6 @@
         <input type="color" value="#F8F8F8" oninput="cambiarColorParedCustom(this.value)">
     </div>
 
-    <!-- ILUMINACIÓN -->
     <div class="panel-section">
         <div class="panel-titulo">💡 Iluminación</div>
         <div class="control-grupo">
@@ -345,7 +311,6 @@
         </div>
     </div>
 
-    <!-- CÁMARA -->
     <div class="panel-section">
         <div class="panel-titulo">📷 Vista cámara</div>
         <div class="cam-grid">
@@ -361,7 +326,6 @@
         </button>
     </div>
 
-    <!-- MOBILIARIO -->
     <div class="panel-section">
         <div class="panel-titulo">🛋️ Mobiliario</div>
         <div class="materiales-grid">
@@ -383,18 +347,32 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// ── FIX CENTRADO: calcular tamaño real sin depender de getBoundingClientRect ──
+const PANEL_W  = 300;
+const HEADER_H = 96; // 56px header + 40px pestañas
+
+function getCanvasSize() {
+    const w = window.innerWidth  - PANEL_W;
+    const h = window.innerHeight - HEADER_H;
+    return { w: Math.max(w, 100), h: Math.max(h, 100) };
+}
+
 // ── THREE.JS SETUP ────────────────────────────────────────────────────────
 const canvas   = document.getElementById('canvas3d');
+const { w: initW, h: initH } = getCanvasSize();
+
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, preserveDrawingBuffer:true });
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
 renderer.setClearColor(0x0F0F1A);
+// ── FIX: setSize con dimensiones calculadas explícitamente, NO del DOM ──
+renderer.setSize(initW, initH, false);
 
 const scene  = new THREE.Scene();
 scene.fog    = new THREE.Fog(0x0F0F1A, 20, 60);
 
-const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
+const camera = new THREE.PerspectiveCamera(60, initW / initH, 0.1, 100);
 camera.position.set(0, 7, 10);
 camera.lookAt(0, 1.4, 0);
 
@@ -408,20 +386,19 @@ controls.target.set(0, 1.4, 0);
 
 // ── ESTADO ────────────────────────────────────────────────────────────────
 let estado = {
-    ancho:1, largo:6, alto:2.8,
+    ancho:5, largo:6, alto:2.8,
     colorPared:'#F8F8F8',
     materialPiso:'madera',
     intensidadLuz:0.7,
     tipoLuz:'dia',
     mobiliario:{}
 };
-estado.ancho = 5;
 
-let meshes         = {};
-let luces          = {};
-let mobiliarioMeshes = {};
-let todosProductos = [];
-let productoActivo = null;
+let meshes            = {};
+let luces             = {};
+let mobiliarioMeshes  = {};
+let todosProductos    = [];
+let productoActivo    = null;
 
 // ── CARGAR PORTAFOLIO ─────────────────────────────────────────────────────
 async function cargarPortafolio() {
@@ -429,37 +406,30 @@ async function cargarPortafolio() {
         const { data: { session } } = await db.auth.getSession();
         if (!session) { mostrarEmptyPort('Inicia sesión para ver tu portafolio'); return; }
 
-        // Obtener empresa del asesor
         const { data: empresa } = await db
             .from('empresas').select('id').eq('email', session.user.email).maybeSingle();
         if (!empresa) { mostrarEmptyPort('No se encontró tu empresa'); return; }
 
-        // Obtener tienda
         const { data: tienda } = await db
             .from('tiendas').select('id,nombre').eq('empresa_id', empresa.id).maybeSingle();
         if (!tienda) { mostrarEmptyPort('Crea tu tienda en el dashboard para ver el portafolio aquí'); return; }
 
-        // Obtener productos
         const { data: productos } = await db
             .from('productos').select('*').eq('tienda_id', tienda.id).eq('activo', true).order('categoria');
 
         todosProductos = productos || [];
-
         if (todosProductos.length === 0) {
             mostrarEmptyPort('Agrega productos en tu tienda para verlos aquí');
             return;
         }
-
         renderPortafolio(todosProductos);
 
-        // Verificar si hay un producto seleccionado por cliente (via URL param)
-        const params  = new URLSearchParams(window.location.search);
-        const prodId  = params.get('producto');
+        const params = new URLSearchParams(window.location.search);
+        const prodId = params.get('producto');
         if (prodId) {
             const prod = todosProductos.find(p => p.id === prodId);
             if (prod) mostrarProductoCliente(prod);
         }
-
     } catch(e) {
         console.error(e);
         mostrarEmptyPort('Error cargando portafolio');
@@ -480,7 +450,6 @@ function renderPortafolio(productos) {
         contenedor.innerHTML = `<div class="empty-port"><p>No hay productos en esta categoría</p></div>`;
         return;
     }
-
     contenedor.innerHTML = `<div class="productos-portafolio">${
         productos.map(p => {
             const imgUrl = p.imagen_url
@@ -520,45 +489,29 @@ function aplicarProductoPortafolio(prodId) {
     const prod = todosProductos.find(p => p.id === prodId);
     if (!prod) return;
 
-    // Deseleccionar anterior
     document.querySelectorAll('.prod-port-card').forEach(c => c.classList.remove('activo'));
     const card = document.getElementById(`prodcard-${prodId}`);
     if (card) card.classList.add('activo');
-
     productoActivo = prod;
 
-    // Aplicar color según categoría del producto al modelo 3D
     const coloresPorCategoria = {
-        pisos:      0xC4913A,
-        enchapes:   0xE8E0D0,
-        materiales: 0x888888,
-        pintura:    0xF5F5F5,
-        cocinas:    0xD4C5A9,
-        baños:      0xE0EEF4,
-        puertas:    0x8B6914,
-        electricos: 0xF5F0E0,
+        pisos:      0xC4913A, enchapes:   0xE8E0D0, materiales: 0x888888,
+        pintura:    0xF5F5F5, cocinas:    0xD4C5A9, baños:      0xE0EEF4,
+        puertas:    0x8B6914, electricos: 0xF5F0E0,
     };
-
     const color = coloresPorCategoria[prod.categoria] || 0xC4913A;
 
-    // Si es piso o enchape → aplicar al piso
     if (['pisos','enchapes','materiales'].includes(prod.categoria)) {
         if (meshes.piso) {
-            meshes.piso.material = new THREE.MeshStandardMaterial({
-                color, roughness:0.5, metalness:0.05
-            });
+            meshes.piso.material = new THREE.MeshStandardMaterial({ color, roughness:0.5, metalness:0.05 });
         }
         mostrarToast(`🪵 "${prod.nombre}" aplicado al piso`);
-    }
-    // Si es pintura → aplicar a paredes
-    else if (prod.categoria === 'pintura') {
+    } else if (prod.categoria === 'pintura') {
         ['paredTrasera','paredFrontal','paredIzq','paredDer'].forEach(k => {
             if (meshes[k]) meshes[k].material.color.setHex(color);
         });
         mostrarToast(`🎨 "${prod.nombre}" aplicado a paredes`);
-    }
-    // Otros → aplicar al piso también
-    else {
+    } else {
         if (meshes.piso) {
             meshes.piso.material = new THREE.MeshStandardMaterial({ color, roughness:0.5 });
         }
@@ -569,12 +522,12 @@ function aplicarProductoPortafolio(prodId) {
 // ── MATERIALES THREE.JS ───────────────────────────────────────────────────
 function crearMaterialPiso(tipo) {
     const configs = {
-        madera:      { color:0xC4913A, roughness:0.6, metalness:0.0 },
-        ceramica:    { color:0xE8E0D0, roughness:0.3, metalness:0.1 },
-        concreto:    { color:0x888888, roughness:0.9, metalness:0.0 },
-        marmol:      { color:0xF5F0E8, roughness:0.1, metalness:0.2 },
-        vinilo:      { color:0x8B6914, roughness:0.5, metalness:0.0 },
-        porcelanato: { color:0xF0EDE8, roughness:0.15,metalness:0.15 },
+        madera:      { color:0xC4913A, roughness:0.6,  metalness:0.0  },
+        ceramica:    { color:0xE8E0D0, roughness:0.3,  metalness:0.1  },
+        concreto:    { color:0x888888, roughness:0.9,  metalness:0.0  },
+        marmol:      { color:0xF5F0E8, roughness:0.1,  metalness:0.2  },
+        vinilo:      { color:0x8B6914, roughness:0.5,  metalness:0.0  },
+        porcelanato: { color:0xF0EDE8, roughness:0.15, metalness:0.15 },
     };
     const c = configs[tipo] || configs.madera;
     return new THREE.MeshStandardMaterial({ color:c.color, roughness:c.roughness, metalness:c.metalness });
@@ -586,6 +539,7 @@ function crearMaterialPared(color) {
 
 // ── CONSTRUIR HABITACIÓN ──────────────────────────────────────────────────
 function construirHabitacion() {
+    // Limpiar escena (excepto luces)
     const aEliminar = [];
     scene.traverse(obj => { if (obj.isMesh || obj.isGroup) aEliminar.push(obj); });
     aEliminar.forEach(obj => scene.remove(obj));
@@ -595,83 +549,91 @@ function construirHabitacion() {
     const hw = ancho/2, hl = largo/2;
     const matPared = crearMaterialPared(estado.colorPared);
     const matPiso  = crearMaterialPiso(estado.materialPiso);
-    const matTecho = new THREE.MeshStandardMaterial({ color:0xF5F5F5, roughness:0.9 });
 
-    // PISO
-    const piso = new THREE.Mesh(new THREE.BoxGeometry(ancho,0.1,largo), matPiso);
-    piso.position.set(0,-0.05,0); piso.receiveShadow = true;
-    scene.add(piso); meshes.piso = piso;
+    // ── PISO (sin GridHelper — grilla eliminada completamente) ──
+    const piso = new THREE.Mesh(new THREE.BoxGeometry(ancho, 0.1, largo), matPiso);
+    piso.position.set(0, -0.05, 0);
+    piso.receiveShadow = true;
+    scene.add(piso);
+    meshes.piso = piso;
 
-    // TECHO — eliminado para ver el interior desde arriba
-
-    // PAREDES
-    const paredTrasera = new THREE.Mesh(new THREE.BoxGeometry(ancho,alto,0.1), matPared.clone());
-    paredTrasera.position.set(0,alto/2,-hl); paredTrasera.castShadow = true; paredTrasera.receiveShadow = true;
+    // ── PAREDES ──
+    const paredTrasera = new THREE.Mesh(new THREE.BoxGeometry(ancho, alto, 0.1), matPared.clone());
+    paredTrasera.position.set(0, alto/2, -hl);
+    paredTrasera.castShadow = true; paredTrasera.receiveShadow = true;
     scene.add(paredTrasera); meshes.paredTrasera = paredTrasera;
 
-    const paredFrontal = new THREE.Mesh(new THREE.BoxGeometry(ancho,alto,0.1), matPared.clone());
-    paredFrontal.position.set(0,alto/2,hl); paredFrontal.castShadow = true;
+    const paredFrontal = new THREE.Mesh(new THREE.BoxGeometry(ancho, alto, 0.1), matPared.clone());
+    paredFrontal.position.set(0, alto/2, hl);
+    paredFrontal.castShadow = true;
     scene.add(paredFrontal); meshes.paredFrontal = paredFrontal;
 
-    const paredIzq = new THREE.Mesh(new THREE.BoxGeometry(0.1,alto,largo), matPared.clone());
-    paredIzq.position.set(-hw,alto/2,0); paredIzq.castShadow = true;
+    const paredIzq = new THREE.Mesh(new THREE.BoxGeometry(0.1, alto, largo), matPared.clone());
+    paredIzq.position.set(-hw, alto/2, 0);
+    paredIzq.castShadow = true;
     scene.add(paredIzq); meshes.paredIzq = paredIzq;
 
-    const paredDer = new THREE.Mesh(new THREE.BoxGeometry(0.1,alto,largo), matPared.clone());
-    paredDer.position.set(hw,alto/2,0); paredDer.castShadow = true;
+    const paredDer = new THREE.Mesh(new THREE.BoxGeometry(0.1, alto, largo), matPared.clone());
+    paredDer.position.set(hw, alto/2, 0);
+    paredDer.castShadow = true;
     scene.add(paredDer); meshes.paredDer = paredDer;
 
-    // PUERTA
-    const puerta = new THREE.Mesh(new THREE.BoxGeometry(0.9,2.1,0.15), new THREE.MeshStandardMaterial({color:0x8B6914,roughness:0.5}));
-    puerta.position.set(-hw+1.2,1.05,hl); puerta.castShadow = true;
+    // ── PUERTA ──
+    const puerta = new THREE.Mesh(
+        new THREE.BoxGeometry(0.9, 2.1, 0.15),
+        new THREE.MeshStandardMaterial({ color:0x8B6914, roughness:0.5 })
+    );
+    puerta.position.set(-hw+1.2, 1.05, hl);
+    puerta.castShadow = true;
     scene.add(puerta); meshes.puerta = puerta;
 
-    const marcoMat = new THREE.MeshStandardMaterial({color:0xD4A96A,roughness:0.4});
+    const marcoMat = new THREE.MeshStandardMaterial({ color:0xD4A96A, roughness:0.4 });
     [
-        {geo:new THREE.BoxGeometry(0.08,2.2,0.12),pos:[-hw+0.76,1.1,hl]},
-        {geo:new THREE.BoxGeometry(0.08,2.2,0.12),pos:[-hw+1.64,1.1,hl]},
-        {geo:new THREE.BoxGeometry(1.0,0.08,0.12), pos:[-hw+1.2,2.2,hl]},
-    ].forEach(m => { const marco = new THREE.Mesh(m.geo,marcoMat); marco.position.set(...m.pos); scene.add(marco); });
+        { geo: new THREE.BoxGeometry(0.08,2.2,0.12), pos:[-hw+0.76,1.1,hl] },
+        { geo: new THREE.BoxGeometry(0.08,2.2,0.12), pos:[-hw+1.64,1.1,hl] },
+        { geo: new THREE.BoxGeometry(1.0,0.08,0.12), pos:[-hw+1.2,2.2,hl]  },
+    ].forEach(m => {
+        const marco = new THREE.Mesh(m.geo, marcoMat);
+        marco.position.set(...m.pos);
+        scene.add(marco);
+    });
 
-    // VENTANAS
-    const ventanaMat = new THREE.MeshStandardMaterial({color:0xADD8E6,transparent:true,opacity:0.35,metalness:0.1});
-    const marcoVMat  = new THREE.MeshStandardMaterial({color:0xF0F0F0,roughness:0.3});
-    [-hw+1.5,hw-1.5].forEach(x => {
-        const v = new THREE.Mesh(new THREE.BoxGeometry(1.2,1.1,0.05),ventanaMat);
-        v.position.set(x,1.5,-hl); scene.add(v);
-        const mv = new THREE.Mesh(new THREE.BoxGeometry(1.3,1.2,0.08),marcoVMat);
-        mv.position.set(x,1.5,-hl); scene.add(mv);
-        [{geo:new THREE.BoxGeometry(1.2,0.04,0.06),pos:[x,1.5,-hl]},{geo:new THREE.BoxGeometry(0.04,1.1,0.06),pos:[x,1.5,-hl]}].forEach(c=>{
-            const cruz = new THREE.Mesh(c.geo,marcoVMat); cruz.position.set(...c.pos); scene.add(cruz);
+    // ── VENTANAS ──
+    const ventanaMat = new THREE.MeshStandardMaterial({ color:0xADD8E6, transparent:true, opacity:0.35, metalness:0.1 });
+    const marcoVMat  = new THREE.MeshStandardMaterial({ color:0xF0F0F0, roughness:0.3 });
+    [-hw+1.5, hw-1.5].forEach(x => {
+        const v = new THREE.Mesh(new THREE.BoxGeometry(1.2,1.1,0.05), ventanaMat);
+        v.position.set(x, 1.5, -hl); scene.add(v);
+        const mv = new THREE.Mesh(new THREE.BoxGeometry(1.3,1.2,0.08), marcoVMat);
+        mv.position.set(x, 1.5, -hl); scene.add(mv);
+        [
+            { geo: new THREE.BoxGeometry(1.2,0.04,0.06), pos:[x,1.5,-hl] },
+            { geo: new THREE.BoxGeometry(0.04,1.1,0.06), pos:[x,1.5,-hl] }
+        ].forEach(c => {
+            const cruz = new THREE.Mesh(c.geo, marcoVMat);
+            cruz.position.set(...c.pos); scene.add(cruz);
         });
     });
 
-    // ZÓCALO
-    const zocaloMat = new THREE.MeshStandardMaterial({color:0xE8E8E8,roughness:0.4});
+    // ── ZÓCALO ──
+    const zocaloMat = new THREE.MeshStandardMaterial({ color:0xE8E8E8, roughness:0.4 });
     const zh = 0.12;
-    [{geo:new THREE.BoxGeometry(ancho,zh,0.03),pos:[0,zh/2,-hl+0.02]},{geo:new THREE.BoxGeometry(ancho,zh,0.03),pos:[0,zh/2,hl-0.02]},
-     {geo:new THREE.BoxGeometry(0.03,zh,largo),pos:[-hw+0.02,zh/2,0]},{geo:new THREE.BoxGeometry(0.03,zh,largo),pos:[hw-0.02,zh/2,0]}
-    ].forEach(z => { const zoc = new THREE.Mesh(z.geo,zocaloMat); zoc.position.set(...z.pos); scene.add(zoc); });
+    [
+        { geo: new THREE.BoxGeometry(ancho, zh, 0.03), pos:[0,zh/2,-hl+0.02] },
+        { geo: new THREE.BoxGeometry(ancho, zh, 0.03), pos:[0,zh/2, hl-0.02] },
+        { geo: new THREE.BoxGeometry(0.03,  zh, largo), pos:[-hw+0.02,zh/2,0] },
+        { geo: new THREE.BoxGeometry(0.03,  zh, largo), pos:[ hw-0.02,zh/2,0] },
+    ].forEach(z => {
+        const zoc = new THREE.Mesh(z.geo, zocaloMat);
+        zoc.position.set(...z.pos); scene.add(zoc);
+    });
 
-    // GRID
-    // Grilla integrada AL piso — no flotante
-    // Usamos líneas sobre el piso misma superficie
-    const gridHelper = new THREE.GridHelper(
-        Math.max(ancho, largo), 
-        Math.max(ancho, largo) * 2,
-        0x8899BB, 0x6677AA
-    );
-    gridHelper.position.set(0, 0.001, 0); // pegada al piso, no flotante
-    gridHelper.material.opacity    = 0.25;
-    gridHelper.material.transparent = true;
-    scene.add(gridHelper);
-    meshes.gridHelper = gridHelper;
+    // ── Sin GridHelper — eliminado para evitar bugs de grilla y z-fighting ──
 
-    // Si hay producto del portafolio activo → reaplicarlo
+    // Reaplicar producto activo o material genérico
     if (productoActivo) {
         aplicarProductoPortafolio(productoActivo.id);
     } else {
-        // Reaplicar material genérico guardado en estado
         if (meshes.piso) meshes.piso.material = crearMaterialPiso(estado.materialPiso);
     }
 
@@ -689,40 +651,40 @@ function toggleMobiliario(tipo) {
 function reconstruirMobiliario() {
     Object.values(mobiliarioMeshes).forEach(m => scene.remove(m));
     mobiliarioMeshes = {};
-    const mat = (color) => new THREE.MeshStandardMaterial({color,roughness:0.7});
+    const mat = (color) => new THREE.MeshStandardMaterial({ color, roughness:0.7 });
 
     if (estado.mobiliario.sofa) {
         const g = new THREE.Group();
-        const base = new THREE.Mesh(new THREE.BoxGeometry(2.2,0.5,0.9),mat(0x6B7280));
-        base.position.set(0,0.25,-estado.largo/2+1.2);
-        const resp = new THREE.Mesh(new THREE.BoxGeometry(2.2,0.7,0.2),mat(0x6B7280));
-        resp.position.set(0,0.7,-estado.largo/2+0.8);
+        const base = new THREE.Mesh(new THREE.BoxGeometry(2.2,0.5,0.9), mat(0x6B7280));
+        base.position.set(0, 0.25, -estado.largo/2+1.2);
+        const resp = new THREE.Mesh(new THREE.BoxGeometry(2.2,0.7,0.2), mat(0x6B7280));
+        resp.position.set(0, 0.7, -estado.largo/2+0.8);
         g.add(base); g.add(resp); scene.add(g); mobiliarioMeshes.sofa = g;
     }
     if (estado.mobiliario.mesa) {
         const g = new THREE.Group();
-        const tablero = new THREE.Mesh(new THREE.BoxGeometry(1.4,0.06,0.8),mat(0xC4913A));
-        tablero.position.set(0,0.76,0);
-        [[0.6,0,-0.3],[-0.6,0,-0.3],[0.6,0,0.3],[-0.6,0,0.3]].forEach(([x,y,z])=>{
-            const pata = new THREE.Mesh(new THREE.BoxGeometry(0.06,0.76,0.06),mat(0x8B6914));
-            pata.position.set(x,0.38,z); g.add(pata);
+        const tablero = new THREE.Mesh(new THREE.BoxGeometry(1.4,0.06,0.8), mat(0xC4913A));
+        tablero.position.set(0, 0.76, 0);
+        [[0.6,0,-0.3],[-0.6,0,-0.3],[0.6,0,0.3],[-0.6,0,0.3]].forEach(([x,y,z]) => {
+            const pata = new THREE.Mesh(new THREE.BoxGeometry(0.06,0.76,0.06), mat(0x8B6914));
+            pata.position.set(x, 0.38, z); g.add(pata);
         });
         g.add(tablero); scene.add(g); mobiliarioMeshes.mesa = g;
     }
     if (estado.mobiliario.cama) {
         const g = new THREE.Group();
-        const base = new THREE.Mesh(new THREE.BoxGeometry(1.6,0.4,2.0),mat(0x8B7355));
-        base.position.set(estado.ancho/2-1.2,0.2,0);
-        const cab = new THREE.Mesh(new THREE.BoxGeometry(1.6,0.8,0.1),mat(0x6B5335));
-        cab.position.set(estado.ancho/2-1.2,0.6,-0.95);
+        const base = new THREE.Mesh(new THREE.BoxGeometry(1.6,0.4,2.0), mat(0x8B7355));
+        base.position.set(estado.ancho/2-1.2, 0.2, 0);
+        const cab = new THREE.Mesh(new THREE.BoxGeometry(1.6,0.8,0.1), mat(0x6B5335));
+        cab.position.set(estado.ancho/2-1.2, 0.6, -0.95);
         g.add(base); g.add(cab); scene.add(g); mobiliarioMeshes.cama = g;
     }
     if (estado.mobiliario.planta) {
         const g = new THREE.Group();
-        const mac = new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.15,0.35,8),mat(0xC17F3A));
-        mac.position.set(-estado.ancho/2+0.5,0.175,-estado.largo/2+0.5);
-        const fol = new THREE.Mesh(new THREE.SphereGeometry(0.35,8,8),mat(0x228B22));
-        fol.position.set(-estado.ancho/2+0.5,1.1,-estado.largo/2+0.5);
+        const mac = new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.15,0.35,8), mat(0xC17F3A));
+        mac.position.set(-estado.ancho/2+0.5, 0.175, -estado.largo/2+0.5);
+        const fol = new THREE.Mesh(new THREE.SphereGeometry(0.35,8,8), mat(0x228B22));
+        fol.position.set(-estado.ancho/2+0.5, 1.1, -estado.largo/2+0.5);
         g.add(mac); g.add(fol); scene.add(g); mobiliarioMeshes.planta = g;
     }
 }
@@ -733,133 +695,167 @@ function configurarLuces() {
     luces = {};
     const i = estado.intensidadLuz;
 
-    const amb = new THREE.AmbientLight(0xffffff,0.4*i);
+    const amb = new THREE.AmbientLight(0xffffff, 0.4*i);
     scene.add(amb); luces.ambient = amb;
 
-    const dir = new THREE.DirectionalLight(0xffffff,0.8*i);
-    dir.position.set(5,8,5); dir.castShadow = true;
+    const dir = new THREE.DirectionalLight(0xffffff, 0.8*i);
+    dir.position.set(5, 8, 5); dir.castShadow = true;
     dir.shadow.mapSize.width = dir.shadow.mapSize.height = 2048;
     dir.shadow.camera.left = dir.shadow.camera.bottom = -15;
     dir.shadow.camera.right = dir.shadow.camera.top = 15;
     scene.add(dir); luces.directional = dir;
 
-    const pt = new THREE.PointLight(0xFFFAE6,0.6*i,15);
-    pt.position.set(0,estado.alto-0.3,0); pt.castShadow = true;
+    const pt = new THREE.PointLight(0xFFFAE6, 0.6*i, 15);
+    pt.position.set(0, estado.alto-0.3, 0); pt.castShadow = true;
     scene.add(pt); luces.point = pt;
 
-    const lampara = new THREE.Mesh(new THREE.SphereGeometry(0.12,8,8),
-        new THREE.MeshStandardMaterial({color:0xFFFFCC,emissive:0xFFEE88,emissiveIntensity:0.8}));
-    lampara.position.set(0,estado.alto-0.2,0);
+    const lampara = new THREE.Mesh(
+        new THREE.SphereGeometry(0.12, 8, 8),
+        new THREE.MeshStandardMaterial({ color:0xFFFFCC, emissive:0xFFEE88, emissiveIntensity:0.8 })
+    );
+    lampara.position.set(0, estado.alto-0.2, 0);
     scene.add(lampara); luces.lampara = lampara;
 }
 
 // ── CAMBIOS ───────────────────────────────────────────────────────────────
-function cambiarDimension(dim,val) {
-    const key = dim==='ancho'?'ancho':dim==='largo'?'largo':'alto';
+function cambiarDimension(dim, val) {
+    const key = dim==='ancho' ? 'ancho' : dim==='largo' ? 'largo' : 'alto';
     estado[key] = parseFloat(val);
     document.getElementById(`val${dim.charAt(0).toUpperCase()+dim.slice(1)}`).textContent = parseFloat(val).toFixed(1)+'m';
-    construirHabitacion(); configurarLuces(); centrarCamara();
+    construirHabitacion();
+    configurarLuces();
+    centrarCamara();
 }
 
-function cambiarMaterialPiso(tipo,btn) {
-    document.querySelectorAll('[onclick*="cambiarMaterialPiso"]').forEach(b=>b.classList.remove('activo'));
+function cambiarMaterialPiso(tipo, btn) {
+    document.querySelectorAll('[onclick*="cambiarMaterialPiso"]').forEach(b => b.classList.remove('activo'));
     btn.classList.add('activo');
     estado.materialPiso = tipo;
     if (meshes.piso) meshes.piso.material = crearMaterialPiso(tipo);
     mostrarToast(`Piso: ${tipo} ✅`);
 }
 
-function cambiarColorPared(color,btn) {
-    document.querySelectorAll('[onclick*="cambiarColorPared(\'#"]').forEach(b=>b.classList.remove('activo'));
-    if(btn) btn.classList.add('activo');
+function cambiarColorPared(color, btn) {
+    document.querySelectorAll('[onclick*="cambiarColorPared(\'#"]').forEach(b => b.classList.remove('activo'));
+    if (btn) btn.classList.add('activo');
     estado.colorPared = color;
-    ['paredTrasera','paredFrontal','paredIzq','paredDer'].forEach(k=>{
-        if(meshes[k]) meshes[k].material.color.setStyle(color);
+    ['paredTrasera','paredFrontal','paredIzq','paredDer'].forEach(k => {
+        if (meshes[k]) meshes[k].material.color.setStyle(color);
     });
 }
 
-function cambiarColorParedCustom(color) { cambiarColorPared(color,null); }
+function cambiarColorParedCustom(color) { cambiarColorPared(color, null); }
 
 function cambiarLuz(val) {
     estado.intensidadLuz = val/100;
     document.getElementById('valLuz').textContent = val+'%';
-    if(luces.ambient)     luces.ambient.intensity     = 0.4*estado.intensidadLuz;
-    if(luces.directional) luces.directional.intensity = 0.8*estado.intensidadLuz;
-    if(luces.point)       luces.point.intensity       = 0.6*estado.intensidadLuz;
+    if (luces.ambient)     luces.ambient.intensity     = 0.4 * estado.intensidadLuz;
+    if (luces.directional) luces.directional.intensity = 0.8 * estado.intensidadLuz;
+    if (luces.point)       luces.point.intensity       = 0.6 * estado.intensidadLuz;
 }
 
-function cambiarTipoLuz(tipo,btn) {
-    document.querySelectorAll('[onclick*="cambiarTipoLuz"]').forEach(b=>b.classList.remove('activo'));
+function cambiarTipoLuz(tipo, btn) {
+    document.querySelectorAll('[onclick*="cambiarTipoLuz"]').forEach(b => b.classList.remove('activo'));
     btn.classList.add('activo');
-    const cols = {dia:{a:'#ffffff',d:'#ffffff',p:'#FFFaE6'},noche:{a:'#1a1a3a',d:'#4444ff',p:'#FFAA44'},calida:{a:'#FFE4C4',d:'#FFB347',p:'#FF8C00'},fria:{a:'#E0F0FF',d:'#ADD8E6',p:'#E0F0FF'}};
-    const c = cols[tipo]||cols.dia;
-    if(luces.ambient)     luces.ambient.color.setStyle(c.a);
-    if(luces.directional) luces.directional.color.setStyle(c.d);
-    if(luces.point)       luces.point.color.setStyle(c.p);
+    const cols = {
+        dia:   { a:'#ffffff', d:'#ffffff', p:'#FFFaE6' },
+        noche: { a:'#1a1a3a', d:'#4444ff', p:'#FFAA44' },
+        calida:{ a:'#FFE4C4', d:'#FFB347', p:'#FF8C00' },
+        fria:  { a:'#E0F0FF', d:'#ADD8E6', p:'#E0F0FF' },
+    };
+    const c = cols[tipo] || cols.dia;
+    if (luces.ambient)     luces.ambient.color.setStyle(c.a);
+    if (luces.directional) luces.directional.color.setStyle(c.d);
+    if (luces.point)       luces.point.color.setStyle(c.p);
 }
 
-function cargarHabitacion(tipo,btn) {
-    document.querySelectorAll('.hab-btn').forEach(b=>b.classList.remove('activo'));
+function cargarHabitacion(tipo, btn) {
+    document.querySelectorAll('.hab-btn').forEach(b => b.classList.remove('activo'));
     btn.classList.add('activo');
-    const configs = {sala:{ancho:5.5,largo:6.0,alto:2.8},cocina:{ancho:3.5,largo:4.0,alto:2.6},habitacion:{ancho:4.0,largo:5.0,alto:2.8},bano:{ancho:2.5,largo:3.0,alto:2.6},oficina:{ancho:4.0,largo:5.0,alto:2.8}};
-    const c = configs[tipo]||configs.sala;
-    estado.ancho=c.ancho; estado.largo=c.largo; estado.alto=c.alto;
+    const configs = {
+        sala:       { ancho:5.5, largo:6.0, alto:2.8 },
+        cocina:     { ancho:3.5, largo:4.0, alto:2.6 },
+        habitacion: { ancho:4.0, largo:5.0, alto:2.8 },
+        bano:       { ancho:2.5, largo:3.0, alto:2.6 },
+        oficina:    { ancho:4.0, largo:5.0, alto:2.8 },
+    };
+    const c = configs[tipo] || configs.sala;
+    estado.ancho = c.ancho; estado.largo = c.largo; estado.alto = c.alto;
     document.querySelector('input[oninput*="ancho"]').value = c.ancho;
     document.querySelector('input[oninput*="largo"]').value = c.largo;
     document.querySelector('input[oninput*="alto"]').value  = c.alto;
     document.getElementById('valAncho').textContent = c.ancho.toFixed(1)+'m';
     document.getElementById('valLargo').textContent = c.largo.toFixed(1)+'m';
     document.getElementById('valAlto').textContent  = c.alto.toFixed(1)+'m';
-    construirHabitacion(); configurarLuces(); centrarCamara(); centrarCamara();
+    construirHabitacion();
+    configurarLuces();
+    centrarCamara();
     mostrarToast(`${tipo.charAt(0).toUpperCase()+tipo.slice(1)} cargada ✅`);
 }
 
 function setCamara(vista) {
-    const {ancho,largo,alto} = estado;
-    const pos = {frontal:[0,alto*0.6,largo*1.8],lateral:[ancho*1.8,alto*0.6,0],superior:[0,alto*3.5,0.01],isometrica:[ancho*1.2,alto*2,largo*1.2],interior:[0,alto*0.5,0],libre:[0,alto*2,largo*1.4]};
-    const tgt = {frontal:[0,alto*0.5,0],lateral:[0,alto*0.5,0],superior:[0,0,0],isometrica:[0,alto*0.4,0],interior:[0,alto*0.5,-largo/2],libre:[0,alto*0.4,0]};
-    animarCamara(pos[vista]||pos.libre, tgt[vista]||tgt.libre);
+    const { ancho, largo, alto } = estado;
+    const pos = {
+        frontal:    [0, alto*0.6, largo*1.8],
+        lateral:    [ancho*1.8, alto*0.6, 0],
+        superior:   [0, alto*3.5, 0.01],
+        isometrica: [ancho*1.2, alto*2, largo*1.2],
+        interior:   [0, alto*0.5, 0],
+        libre:      [0, alto*2, largo*1.4],
+    };
+    const tgt = {
+        frontal:    [0, alto*0.5, 0],
+        lateral:    [0, alto*0.5, 0],
+        superior:   [0, 0, 0],
+        isometrica: [0, alto*0.4, 0],
+        interior:   [0, alto*0.5, -largo/2],
+        libre:      [0, alto*0.4, 0],
+    };
+    animarCamara(pos[vista] || pos.libre, tgt[vista] || tgt.libre);
 }
 
-function animarCamara(posD,tgtD) {
-    const pi=camera.position.clone(), ti=controls.target.clone();
-    const pd=new THREE.Vector3(...posD), td=new THREE.Vector3(...tgtD);
-    let t=0; const dur=60;
-    function step(){t++; const p=t/dur,e=p<0.5?2*p*p:-1+(4-2*p)*p;
-        camera.position.lerpVectors(pi,pd,e); controls.target.lerpVectors(ti,td,e);
-        controls.update(); if(t<dur) requestAnimationFrame(step);}
+function animarCamara(posD, tgtD) {
+    const pi = camera.position.clone(), ti = controls.target.clone();
+    const pd = new THREE.Vector3(...posD), td = new THREE.Vector3(...tgtD);
+    let t = 0; const dur = 60;
+    function step() {
+        t++;
+        const p = t/dur, e = p<0.5 ? 2*p*p : -1+(4-2*p)*p;
+        camera.position.lerpVectors(pi, pd, e);
+        controls.target.lerpVectors(ti, td, e);
+        controls.update();
+        if (t < dur) requestAnimationFrame(step);
+    }
     step();
 }
 
 function actualizarStats() {
-    const {ancho,largo,alto} = estado;
+    const { ancho, largo, alto } = estado;
     document.getElementById('statArea').textContent      = (ancho*largo).toFixed(1);
     document.getElementById('statParedes').textContent   = (2*(ancho+largo)*alto).toFixed(1);
     document.getElementById('statPerimetro').textContent = (2*(ancho+largo)).toFixed(1);
 }
 
 function capturarRender() {
-    renderer.render(scene,camera);
-    const link = document.createElement('a');
+    renderer.render(scene, camera);
+    const link    = document.createElement('a');
     link.download = `render_decoiarte_${Date.now()}.png`;
-    link.href = canvas.toDataURL('image/png',1.0);
+    link.href     = canvas.toDataURL('image/png', 1.0);
     link.click();
     mostrarToast('📸 ¡Render guardado!');
 }
 
 let toastTimer;
 function mostrarToast(msg) {
-    const t=document.getElementById('toast');
-    t.textContent=msg; t.classList.add('show');
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer=setTimeout(()=>t.classList.remove('show'),2500);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
 }
 
+// ── FIX CENTRADO: usar dimensiones calculadas, no getBoundingClientRect ──
 function onResize() {
-    // Forzar lectura del tamaño real del canvas desde el DOM
-    const rect = canvas.getBoundingClientRect();
-    const w    = rect.width  > 10 ? rect.width  : window.innerWidth  - 300;
-    const h    = rect.height > 10 ? rect.height : window.innerHeight - 96;
+    const { w, h } = getCanvasSize();
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
@@ -873,20 +869,20 @@ function centrarCamara() {
     controls.update();
 }
 
-window.addEventListener('resize',onResize);
+window.addEventListener('resize', onResize);
 
 function animate() {
     requestAnimationFrame(animate);
     controls.update();
-    renderer.render(scene,camera);
+    renderer.render(scene, camera);
 }
 
 // ── INICIO ────────────────────────────────────────────────────────────────
 construirHabitacion();
 configurarLuces();
-// Esperar al siguiente frame para que el CSS haya pintado el canvas
+// El renderer ya tiene las dimensiones correctas desde el init
+// Solo centrar cámara en el siguiente frame
 requestAnimationFrame(() => {
-    onResize();
     centrarCamara();
     animate();
 });
@@ -899,10 +895,10 @@ let fotoIaUrl   = null;
 
 function cambiarVista(vista) {
     vistaActual = vista;
-    document.getElementById('tab3d').classList.toggle('active',   vista === '3d');
-    document.getElementById('tabFoto').classList.toggle('active',  vista === 'foto');
-    canvas.style.display               = vista === '3d'   ? 'block' : 'none';
-    document.getElementById('vistaFoto').style.display = vista === 'foto' ? 'flex'  : 'none';
+    document.getElementById('tab3d').classList.toggle('active',  vista === '3d');
+    document.getElementById('tabFoto').classList.toggle('active', vista === 'foto');
+    canvas.style.display = vista === '3d' ? 'block' : 'none';
+    document.getElementById('vistaFoto').style.display = vista === 'foto' ? 'flex' : 'none';
 
     if (vista === 'foto' && fotoIaUrl) {
         document.getElementById('fotoIaContenido').innerHTML = `
@@ -920,15 +916,12 @@ async function capturarYGenerarIA() {
 
     btn.disabled = true;
     btn.innerHTML = '<span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:6px;"></span>Generando...';
-
     mostrarToast('🤖 IA procesando tu render...');
 
     try {
-        // 1. Capturar el canvas como base64
         renderer.render(scene, camera);
         const base64Canvas = canvas.toDataURL('image/png', 1.0).split(',')[1];
 
-        // 2. Construir prompt enriquecido
         const { ancho, largo, alto } = estado;
         const promptFinal = `Render fotorrealista de interior arquitectónico colombiano. 
 Espacio de ${ancho}m x ${largo}m x ${alto}m de altura.
@@ -936,35 +929,31 @@ Materiales aplicados: ${estado.materialPiso}, paredes color ${estado.colorPared}
 ${prompt ? 'Detalles adicionales: ' + prompt : 'Estilo moderno contemporáneo, iluminación natural cálida.'}
 Alta resolución, fotografía arquitectónica profesional, sin texto ni marcas de agua.`;
 
-        // 3. Llamar a gpt-image-1 (OpenAI) via backend Render
         const response = await fetch('https://decoia.onrender.com/generar-render-3d', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 imagen_base64: base64Canvas,
-                prompt: promptFinal,
-                empresa_id: await obtenerEmpresaId()
+                prompt:        promptFinal,
+                empresa_id:    await obtenerEmpresaId()
             })
         });
 
         if (!response.ok) throw new Error('Error del servidor: ' + response.status);
 
         const data = await response.json();
+        if (data.status === 'error') throw new Error(data.error || 'Error desconocido del servidor');
         const urlGenerada = data.url_imagen;
-
         if (!urlGenerada) throw new Error('No se recibió URL de imagen');
 
-        // 4. Guardar en Supabase y mostrar en pestaña
         fotoIaUrl = urlGenerada;
         document.getElementById('tabFoto').textContent = '📸 Render IA ✅';
-        mostrarToast('✅ ¡Render generado! Abre la pestaña "Render IA"');
-
-        // 5. Cambiar a pestaña de foto automáticamente
+        mostrarToast('✅ ¡Render generado! Abriendo pestaña...');
         setTimeout(() => cambiarVista('foto'), 1500);
 
     } catch(e) {
         console.error(e);
-        mostrarToast('❌ Error generando render. Intenta de nuevo.');
+        mostrarToast('❌ ' + (e.message || 'Error generando render'));
     }
 
     btn.disabled = false;
@@ -980,16 +969,14 @@ async function obtenerEmpresaId() {
     } catch(e) { return null; }
 }
 
-// Cargar foto IA desde URL param o Supabase
 async function cargarFotoIA() {
-    const params = new URLSearchParams(window.location.search);
+    const params   = new URLSearchParams(window.location.search);
     const urlParam = params.get('foto');
     if (urlParam) {
         fotoIaUrl = decodeURIComponent(urlParam);
         document.getElementById('tabFoto').textContent = '📸 Foto IA ✅';
         return;
     }
-    // Buscar última imagen generada de la empresa
     try {
         const { data:{ session } } = await db.auth.getSession();
         if (!session) return;
@@ -1010,14 +997,12 @@ function enviarAlCliente() {
 }
 
 // ── CÁMARA PIVOTE INTERIOR ────────────────────────────────────────────────
-let modoPivote   = false;
-let camaraPivotePos = { x:0, y:1.6, z:0 };
+let modoPivote = false;
 
 function activarCamaraPivote() {
     modoPivote = true;
     document.getElementById('camaraPivote').classList.add('activa');
 
-    // Posicionar en el centro de la habitación
     const { ancho, largo, alto } = estado;
     document.getElementById('cpX').min   = -(ancho/2 - 0.5);
     document.getElementById('cpX').max   =  (ancho/2 - 0.5);
@@ -1028,7 +1013,6 @@ function activarCamaraPivote() {
     document.getElementById('cpZ').value = 0;
     document.getElementById('cpY').value = 1.6;
 
-    // Cambiar controles a modo FPS
     controls.enabled = false;
     moverCamaraPivote();
     mostrarToast('📷 Modo cámara interior — arrastra para mirar');
@@ -1044,14 +1028,11 @@ function moverCamaraPivote() {
     camera.fov = fov;
     camera.updateProjectionMatrix();
 
-    // Habilitar rotación libre desde este punto
     controls.enabled = true;
     controls.target.set(x, y, z - 2);
     controls.minDistance = 0.1;
     controls.maxDistance = 0.5;
     controls.update();
-
-    camaraPivotePos = { x, y, z };
 }
 
 function capturarDesdeInterior() {
@@ -1066,19 +1047,14 @@ function capturarDesdeInterior() {
 function salirCamaraPivote() {
     modoPivote = false;
     document.getElementById('camaraPivote').classList.remove('activa');
-    controls.minDistance = 2;
-    controls.maxDistance = 25;
+    controls.minDistance   = 2;
+    controls.maxDistance   = 25;
     controls.maxPolarAngle = Math.PI / 1.8;
     setCamara('libre');
     mostrarToast('🔄 Vista libre restaurada');
 }
 
-// Agregar botón de cámara pivote al panel de vistas
-document.addEventListener('DOMContentLoaded', () => {
-    cargarFotoIA();
-});
-
-// También llamar cargarFotoIA directamente (ya que DOMContentLoaded ya pasó)
+document.addEventListener('DOMContentLoaded', () => { cargarFotoIA(); });
 cargarFotoIA();
 </script>
 </body>
