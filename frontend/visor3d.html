@@ -36,9 +36,35 @@
         .btn-volver:hover { color:var(--texto); border-color:rgba(124,58,237,0.5); }
         .plan-badge { display:inline-flex; align-items:center; gap:6px; background:rgba(124,58,237,0.15); border:1px solid rgba(124,58,237,0.3); padding:4px 12px; border-radius:50px; font-size:11px; color:#A78BFA; font-weight:700; }
 
+        /* PESTAÑAS PRINCIPALES */
+        .tabs-principales { position:fixed; top:56px; left:0; right:300px; height:40px; background:rgba(15,15,26,0.97); border-bottom:1px solid rgba(124,58,237,0.2); display:flex; align-items:center; gap:4px; padding:0 16px; z-index:90; }
+        .tab-vista { padding:6px 16px; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; border:1px solid transparent; font-family:'Segoe UI',sans-serif; transition:all 0.2s; color:var(--gris); background:none; }
+        .tab-vista:hover { color:var(--texto); }
+        .tab-vista.active { background:rgba(124,58,237,0.15); color:var(--texto); border-color:rgba(124,58,237,0.3); }
+
         /* CANVAS */
-        #canvas3d { position:fixed; top:56px; left:0; right:300px; bottom:0; cursor:grab; }
+        #canvas3d { position:fixed; top:96px; left:0; right:300px; bottom:0; cursor:grab; display:block; }
         #canvas3d:active { cursor:grabbing; }
+
+        /* FOTO IA */
+        #vistaFoto { position:fixed; top:96px; left:0; right:300px; bottom:0; background:var(--oscuro); display:none; align-items:center; justify-content:center; flex-direction:column; gap:20px; padding:20px; }
+        .foto-ia-container { max-width:90%; max-height:75vh; border-radius:16px; overflow:hidden; border:2px solid rgba(124,58,237,0.3); box-shadow:0 0 40px rgba(124,58,237,0.2); }
+        .foto-ia-container img { width:100%; height:100%; object-fit:contain; display:block; }
+        .foto-empty { text-align:center; color:var(--gris); }
+        .foto-empty .icon { font-size:56px; margin-bottom:16px; }
+        .btn-enviar-cliente { background:linear-gradient(135deg,#25D366,#128C7E); color:white; border:none; padding:14px 28px; border-radius:50px; font-size:15px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:10px; font-family:'Segoe UI',sans-serif; transition:opacity 0.3s; }
+        .btn-enviar-cliente:hover { opacity:0.85; }
+
+        /* CÁMARA PIVOTE */
+        .camara-pivote-overlay { position:fixed; bottom:20px; left:16px; background:rgba(15,15,26,0.92); backdrop-filter:blur(8px); border:1px solid rgba(124,58,237,0.3); border-radius:14px; padding:14px; z-index:150; display:none; min-width:200px; }
+        .camara-pivote-overlay.activa { display:block; }
+        .cp-titulo { font-size:11px; font-weight:700; color:#A78BFA; margin-bottom:10px; text-transform:uppercase; letter-spacing:0.05em; }
+        .cp-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; }
+        .cp-campo label { font-size:10px; color:var(--gris); display:block; margin-bottom:3px; }
+        .cp-campo input[type=range] { width:100%; accent-color:var(--morado); height:3px; }
+        .cp-hint { font-size:10px; color:var(--gris); text-align:center; margin-top:4px; line-height:1.4; }
+        .btn-cp { width:100%; background:var(--degradado); color:white; border:none; padding:7px; border-radius:7px; font-size:11px; font-weight:600; cursor:pointer; font-family:'Segoe UI',sans-serif; margin-top:6px; }
+        .btn-cp-salir { background:rgba(239,68,68,0.15); color:#FCA5A5; border:1px solid rgba(239,68,68,0.3); margin-top:4px; }
 
         /* PANEL */
         .panel { position:fixed; top:56px; right:0; width:300px; bottom:0; background:var(--oscuro2); border-left:1px solid rgba(124,58,237,0.2); overflow-y:auto; display:flex; flex-direction:column; }
@@ -146,7 +172,53 @@
     </div>
 </div>
 
+<!-- PESTAÑAS -->
+<div class="tabs-principales">
+    <button class="tab-vista active" id="tab3d" onclick="cambiarVista('3d')">🏗️ Entorno 3D</button>
+    <button class="tab-vista" id="tabFoto" onclick="cambiarVista('foto')">📸 Foto IA</button>
+</div>
+
 <canvas id="canvas3d"></canvas>
+
+<!-- VISTA FOTO IA -->
+<div id="vistaFoto">
+    <div id="fotoIaContenido">
+        <div class="foto-empty">
+            <div class="icon">📸</div>
+            <p style="font-size:15px;margin-bottom:8px;">No hay foto cargada aún</p>
+            <p style="font-size:13px;color:var(--gris);">La foto generada por IA aparecerá aquí cuando se envíe desde WhatsApp.</p>
+        </div>
+    </div>
+    <button class="btn-enviar-cliente" id="btnEnviarCliente" style="display:none;" onclick="enviarAlCliente()">
+        💬 Enviar al cliente por WhatsApp
+    </button>
+</div>
+
+<!-- CÁMARA PIVOTE -->
+<div class="camara-pivote-overlay" id="camaraPivote">
+    <div class="cp-titulo">📷 Cámara interior</div>
+    <div class="cp-grid">
+        <div class="cp-campo">
+            <label>Posición X</label>
+            <input type="range" id="cpX" min="-4" max="4" value="0" step="0.1" oninput="moverCamaraPivote()">
+        </div>
+        <div class="cp-campo">
+            <label>Posición Z</label>
+            <input type="range" id="cpZ" min="-4" max="4" value="0" step="0.1" oninput="moverCamaraPivote()">
+        </div>
+        <div class="cp-campo">
+            <label>Altura Y</label>
+            <input type="range" id="cpY" min="0.5" max="2.5" value="1.6" step="0.1" oninput="moverCamaraPivote()">
+        </div>
+        <div class="cp-campo">
+            <label>Campo visual</label>
+            <input type="range" id="cpFov" min="30" max="100" value="60" step="1" oninput="moverCamaraPivote()">
+        </div>
+    </div>
+    <div class="cp-hint">🖱️ Arrastra para rotar · Scroll para zoom</div>
+    <button class="btn-cp" onclick="capturarDesdeInterior()">📸 Capturar desde aquí</button>
+    <button class="btn-cp btn-cp-salir" onclick="salirCamaraPivote()">✕ Salir</button>
+</div>
 
 <div class="panel">
 
@@ -273,6 +345,9 @@
             <button class="cam-btn" onclick="setCamara('interior')">👁️ Interior</button>
             <button class="cam-btn" onclick="setCamara('libre')">🔄 Libre</button>
         </div>
+        <button onclick="activarCamaraPivote()" style="width:100%;margin-top:10px;padding:9px;border-radius:8px;background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;font-size:12px;font-weight:700;cursor:pointer;font-family:'Segoe UI',sans-serif;">
+            📷 Entrar con cámara interior
+        </button>
     </div>
 
     <!-- MOBILIARIO -->
@@ -309,8 +384,8 @@ const scene  = new THREE.Scene();
 scene.fog    = new THREE.Fog(0x0F0F1A, 20, 60);
 
 const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
-camera.position.set(0, 9, 10);
-camera.lookAt(0, 1, 0);
+camera.position.set(0, 7, 10);
+camera.lookAt(0, 1.4, 0);
 
 const controls = new THREE.OrbitControls(camera, canvas);
 controls.enableDamping = true;
@@ -571,8 +646,13 @@ function construirHabitacion() {
     const grid = new THREE.GridHelper(Math.max(ancho,largo)*1.5,Math.max(ancho,largo)*2,0x333355,0x222244);
     grid.position.y = 0.01; scene.add(grid);
 
-    // Si hay un producto activo, reaplicarlo
-    if (productoActivo) aplicarProductoPortafolio(productoActivo.id);
+    // Si hay producto del portafolio activo → reaplicarlo
+    if (productoActivo) {
+        aplicarProductoPortafolio(productoActivo.id);
+    } else {
+        // Reaplicar material genérico guardado en estado
+        if (meshes.piso) meshes.piso.material = crearMaterialPiso(estado.materialPiso);
+    }
 
     actualizarStats();
     reconstruirMobiliario();
@@ -755,9 +835,14 @@ function mostrarToast(msg) {
 }
 
 function onResize() {
-    const w=canvas.clientWidth, h=canvas.clientHeight;
-    renderer.setSize(w,h,false);
-    camera.aspect=w/h; camera.updateProjectionMatrix();
+    const w = canvas.offsetWidth  || (window.innerWidth  - 300);
+    const h = canvas.offsetHeight || (window.innerHeight - 56);
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    // Recentrar target
+    controls.target.set(0, estado.alto * 0.5, 0);
+    controls.update();
 }
 
 window.addEventListener('resize',onResize);
@@ -775,6 +860,127 @@ onResize();
 animate();
 cargarPortafolio();
 mostrarToast('🏗️ Visor 3D listo — arrastra para rotar');
+
+// ── PESTAÑAS ──────────────────────────────────────────────────────────────
+let vistaActual = '3d';
+let fotoIaUrl   = null;
+
+function cambiarVista(vista) {
+    vistaActual = vista;
+    document.getElementById('tab3d').classList.toggle('active',   vista === '3d');
+    document.getElementById('tabFoto').classList.toggle('active',  vista === 'foto');
+    canvas.style.display               = vista === '3d'   ? 'block' : 'none';
+    document.getElementById('vistaFoto').style.display = vista === 'foto' ? 'flex'  : 'none';
+
+    if (vista === 'foto' && fotoIaUrl) {
+        document.getElementById('fotoIaContenido').innerHTML = `
+            <div class="foto-ia-container">
+                <img src="${fotoIaUrl}" alt="Foto generada por IA">
+            </div>`;
+        document.getElementById('btnEnviarCliente').style.display = 'flex';
+    }
+}
+
+// Cargar foto IA desde URL param o Supabase
+async function cargarFotoIA() {
+    const params = new URLSearchParams(window.location.search);
+    const urlParam = params.get('foto');
+    if (urlParam) {
+        fotoIaUrl = decodeURIComponent(urlParam);
+        document.getElementById('tabFoto').textContent = '📸 Foto IA ✅';
+        return;
+    }
+    // Buscar última imagen generada de la empresa
+    try {
+        const { data:{ session } } = await db.auth.getSession();
+        if (!session) return;
+        const { data:empresa } = await db.from('empresas').select('id').eq('email', session.user.email).maybeSingle();
+        if (!empresa) return;
+        const { data:img } = await db.from('imagenes').select('url_generada').eq('empresa_id', empresa.id).order('created_at',{ascending:false}).limit(1).maybeSingle();
+        if (img?.url_generada) {
+            fotoIaUrl = img.url_generada;
+            document.getElementById('tabFoto').textContent = '📸 Foto IA ✅';
+        }
+    } catch(e) { console.log('No foto IA:', e); }
+}
+
+function enviarAlCliente() {
+    if (!fotoIaUrl) return;
+    const msg = encodeURIComponent(`Hola! Te comparto el render de tu espacio remodelado con DecoIArte 🏠✨\n\nVer imagen: ${fotoIaUrl}`);
+    window.open(`https://wa.me/?text=${msg}`, '_blank');
+}
+
+// ── CÁMARA PIVOTE INTERIOR ────────────────────────────────────────────────
+let modoPivote   = false;
+let camaraPivotePos = { x:0, y:1.6, z:0 };
+
+function activarCamaraPivote() {
+    modoPivote = true;
+    document.getElementById('camaraPivote').classList.add('activa');
+
+    // Posicionar en el centro de la habitación
+    const { ancho, largo, alto } = estado;
+    document.getElementById('cpX').min   = -(ancho/2 - 0.5);
+    document.getElementById('cpX').max   =  (ancho/2 - 0.5);
+    document.getElementById('cpZ').min   = -(largo/2 - 0.5);
+    document.getElementById('cpZ').max   =  (largo/2 - 0.5);
+    document.getElementById('cpY').max   = alto - 0.3;
+    document.getElementById('cpX').value = 0;
+    document.getElementById('cpZ').value = 0;
+    document.getElementById('cpY').value = 1.6;
+
+    // Cambiar controles a modo FPS
+    controls.enabled = false;
+    moverCamaraPivote();
+    mostrarToast('📷 Modo cámara interior — arrastra para mirar');
+}
+
+function moverCamaraPivote() {
+    const x   = parseFloat(document.getElementById('cpX').value);
+    const y   = parseFloat(document.getElementById('cpY').value);
+    const z   = parseFloat(document.getElementById('cpZ').value);
+    const fov = parseFloat(document.getElementById('cpFov').value);
+
+    camera.position.set(x, y, z);
+    camera.fov = fov;
+    camera.updateProjectionMatrix();
+
+    // Habilitar rotación libre desde este punto
+    controls.enabled = true;
+    controls.target.set(x, y, z - 2);
+    controls.minDistance = 0.1;
+    controls.maxDistance = 0.5;
+    controls.update();
+
+    camaraPivotePos = { x, y, z };
+}
+
+function capturarDesdeInterior() {
+    renderer.render(scene, camera);
+    const link    = document.createElement('a');
+    link.download = `render_interior_decoiarte_${Date.now()}.png`;
+    link.href     = canvas.toDataURL('image/png', 1.0);
+    link.click();
+    mostrarToast('📸 ¡Render interior guardado!');
+}
+
+function salirCamaraPivote() {
+    modoPivote = false;
+    document.getElementById('camaraPivote').classList.remove('activa');
+    controls.minDistance = 2;
+    controls.maxDistance = 25;
+    controls.maxPolarAngle = Math.PI / 1.8;
+    setCamara('libre');
+    mostrarToast('🔄 Vista libre restaurada');
+}
+
+// Agregar botón de cámara pivote al panel de vistas
+document.addEventListener('DOMContentLoaded', () => {
+    cargarFotoIA();
+});
+
+// También llamar cargarFotoIA directamente (ya que DOMContentLoaded ya pasó)
+cargarFotoIA();
 </script>
 </body>
 </html>
