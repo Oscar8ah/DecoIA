@@ -57,14 +57,25 @@
         .btn-enviar-cliente { background:linear-gradient(135deg,#25D366,#128C7E); color:white; border:none; padding:14px 28px; border-radius:50px; font-size:15px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:10px; font-family:'Segoe UI',sans-serif; transition:opacity 0.3s; }
         .btn-enviar-cliente:hover { opacity:0.85; }
 
-        .camara-pivote-overlay { position:fixed; bottom:20px; left:16px; background:rgba(15,15,26,0.92); backdrop-filter:blur(8px); border:1px solid rgba(124,58,237,0.3); border-radius:14px; padding:14px; z-index:150; display:none; min-width:200px; }
+        .camara-pivote-overlay { position:fixed; bottom:20px; left:16px; background:rgba(15,15,26,0.92); backdrop-filter:blur(8px); border:1px solid rgba(124,58,237,0.3); border-radius:14px; z-index:150; display:none; min-width:220px; max-width:240px; overflow:hidden; transition:all 0.25s ease; }
         .camara-pivote-overlay.activa { display:block; }
-        .cp-titulo { font-size:11px; font-weight:700; color:#A78BFA; margin-bottom:10px; text-transform:uppercase; letter-spacing:0.05em; }
+        /* Header del panel siempre visible */
+        .cp-header { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; cursor:pointer; user-select:none; }
+        .cp-header:hover { background:rgba(124,58,237,0.08); }
+        .cp-titulo { font-size:11px; font-weight:700; color:#A78BFA; text-transform:uppercase; letter-spacing:0.05em; margin:0; }
+        .cp-toggle { width:22px; height:22px; border-radius:6px; background:rgba(124,58,237,0.15); border:1px solid rgba(124,58,237,0.3); color:#A78BFA; font-size:14px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s; line-height:1; font-family:monospace; }
+        .cp-toggle:hover { background:rgba(124,58,237,0.3); }
+        /* Cuerpo colapsable */
+        .cp-body { padding:0 14px 14px; transition:all 0.25s ease; }
+        .cp-body.colapsado { display:none; }
         .cp-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; }
         .cp-campo label { font-size:10px; color:var(--gris); display:block; margin-bottom:3px; }
         .cp-campo input[type=range] { width:100%; accent-color:var(--morado); height:3px; }
-        .cp-hint { font-size:10px; color:var(--gris); text-align:center; margin-top:4px; line-height:1.4; }
-        .btn-cp { width:100%; background:var(--degradado); color:white; border:none; padding:7px; border-radius:7px; font-size:11px; font-weight:600; cursor:pointer; font-family:'Segoe UI',sans-serif; margin-top:6px; }
+        .cp-hint { font-size:10px; color:var(--gris); text-align:center; margin-top:4px; line-height:1.4; background:rgba(124,58,237,0.08); border-radius:8px; padding:6px; }
+        .cp-wasd { display:grid; grid-template-columns:repeat(3,1fr); gap:3px; margin:8px 0 4px; }
+        .cp-key { padding:5px 0; border-radius:5px; font-size:11px; font-weight:700; text-align:center; background:rgba(124,58,237,0.12); border:1px solid rgba(124,58,237,0.25); color:#A78BFA; font-family:monospace; }
+        .cp-key.center { background:rgba(124,58,237,0.2); }
+        .btn-cp { width:100%; background:var(--degradado); color:white; border:none; padding:7px; border-radius:7px; font-size:11px; font-weight:600; cursor:pointer; font-family:'Segui UI',sans-serif; margin-top:6px; }
         .btn-cp-salir { background:rgba(239,68,68,0.15); color:#FCA5A5; border:1px solid rgba(239,68,68,0.3); margin-top:4px; }
 
         .panel { position:fixed; top:56px; right:0; width:300px; bottom:0; background:var(--oscuro2); border-left:1px solid rgba(124,58,237,0.2); overflow-y:auto; display:flex; flex-direction:column; }
@@ -196,22 +207,43 @@
 </div>
 
 <div class="camara-pivote-overlay" id="camaraPivote">
-    <div class="cp-titulo">📷 Cámara interior</div>
-    <div class="cp-grid">
-        <div class="cp-campo"><label>Posición X</label><input type="range" id="cpX" min="-4" max="4" value="0" step="0.1" oninput="moverCamaraPivote()"></div>
-        <div class="cp-campo"><label>Posición Z</label><input type="range" id="cpZ" min="-4" max="4" value="0" step="0.1" oninput="moverCamaraPivote()"></div>
-        <div class="cp-campo"><label>Altura Y</label><input type="range" id="cpY" min="0.5" max="2.5" value="1.6" step="0.1" oninput="moverCamaraPivote()"></div>
-        <div class="cp-campo"><label>Campo visual</label><input type="range" id="cpFov" min="30" max="100" value="60" step="1" oninput="moverCamaraPivote()"></div>
+    <!-- Header siempre visible con botón minimizar -->
+    <div class="cp-header" onclick="toggleMinimizarPanel()">
+        <span class="cp-titulo">📷 Cámara interior</span>
+        <span class="cp-toggle" id="cpToggleBtn">—</span>
     </div>
-    <div class="cp-hint">🖱️ Arrastra para rotar · Scroll para zoom</div>
-    <div style="margin-top:8px;">
-        <div style="font-size:10px;color:var(--gris);margin-bottom:4px;">✨ Prompt para IA (opcional)</div>
-        <textarea id="promptIA" placeholder="Ej: piso mármol blanco, luz cálida de tarde, estilo moderno..."
-            style="width:100%;background:var(--oscuro);border:1px solid rgba(124,58,237,0.25);border-radius:8px;padding:8px;color:var(--texto);font-size:11px;font-family:'Segoe UI',sans-serif;outline:none;resize:none;height:56px;line-height:1.4;"></textarea>
+    <!-- Cuerpo colapsable -->
+    <div class="cp-body" id="cpBody">
+        <div class="cp-grid">
+            <div class="cp-campo"><label>Posición X</label><input type="range" id="cpX" min="-4" max="4" value="0" step="0.1" oninput="moverCamaraPivote()"></div>
+            <div class="cp-campo"><label>Posición Z</label><input type="range" id="cpZ" min="-4" max="4" value="0" step="0.1" oninput="moverCamaraPivote()"></div>
+            <div class="cp-campo"><label>Altura Y</label><input type="range" id="cpY" min="0.5" max="2.5" value="1.6" step="0.1" oninput="moverCamaraPivote()"></div>
+            <div class="cp-campo"><label>Campo visual</label><input type="range" id="cpFov" min="30" max="100" value="60" step="1" oninput="moverCamaraPivote()"></div>
+        </div>
+        <!-- Guía de controles de movimiento -->
+        <div style="font-size:10px;color:#A78BFA;font-weight:700;margin:6px 0 4px;">⌨️ Mover cámara</div>
+        <div class="cp-wasd">
+            <div></div>
+            <div class="cp-key center">W ↑</div>
+            <div></div>
+            <div class="cp-key">A ←</div>
+            <div class="cp-key">S ↓</div>
+            <div class="cp-key">D →</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-bottom:6px;">
+            <div class="cp-key" style="text-align:center;">Q subir</div>
+            <div class="cp-key" style="text-align:center;">E bajar</div>
+        </div>
+        <div class="cp-hint">🖱️ Arrastra para rotar · Scroll zoom · WASD para moverse</div>
+        <div style="margin-top:8px;">
+            <div style="font-size:10px;color:var(--gris);margin-bottom:4px;">✨ Prompt para IA (opcional)</div>
+            <textarea id="promptIA" placeholder="Ej: piso mármol blanco, luz cálida de tarde..."
+                style="width:100%;background:var(--oscuro);border:1px solid rgba(124,58,237,0.25);border-radius:8px;padding:8px;color:var(--texto);font-size:11px;font-family:'Segoe UI',sans-serif;outline:none;resize:none;height:50px;line-height:1.4;"></textarea>
+        </div>
+        <button class="btn-cp" onclick="capturarYGenerarIA()" id="btnCapturarIA">🤖 Capturar + IA hiperrealista</button>
+        <button class="btn-cp" onclick="capturarDesdeInterior()" style="background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;margin-top:4px;">📸 Solo capturar</button>
+        <button class="btn-cp btn-cp-salir" onclick="salirCamaraPivote()">✕ Salir</button>
     </div>
-    <button class="btn-cp" onclick="capturarYGenerarIA()" id="btnCapturarIA">🤖 Capturar + IA hiperrealista</button>
-    <button class="btn-cp" onclick="capturarDesdeInterior()" style="background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;margin-top:4px;">📸 Solo capturar</button>
-    <button class="btn-cp btn-cp-salir" onclick="salirCamaraPivote()">✕ Salir</button>
 </div>
 
 <div class="panel">
@@ -759,10 +791,85 @@ canvas.addEventListener('touchmove', (e) => {
 
 canvas.addEventListener('touchend', () => { muebleArrastrando = null; });
 
-// ── ESC para salir del modo mover ─────────────────────────────────────────
+// ── MINIMIZAR PANEL CÁMARA ────────────────────────────────────────────────
+let panelMinimizado = false;
+function toggleMinimizarPanel() {
+    panelMinimizado = !panelMinimizado;
+    const body = document.getElementById('cpBody');
+    const btn  = document.getElementById('cpToggleBtn');
+    body.classList.toggle('colapsado', panelMinimizado);
+    btn.textContent = panelMinimizado ? '+' : '—';
+}
+
+// ── MOVIMIENTO WASD + FLECHAS ─────────────────────────────────────────────
+const teclasPresionadas = {};
+const VEL_CAM = 0.04; // metros por frame
+
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && modoMover) desactivarMoverMueble();
+    teclasPresionadas[e.key.toLowerCase()] = true;
+
+    // ESC: salir modo mover o modo pivote
+    if (e.key === 'Escape') {
+        if (modoMover) desactivarMoverMueble();
+    }
+    // Evitar scroll de página con flechas cuando está en modo pivote
+    if (modoPivote && ['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key.toLowerCase())) {
+        e.preventDefault();
+    }
 });
+
+document.addEventListener('keyup', (e) => {
+    teclasPresionadas[e.key.toLowerCase()] = false;
+});
+
+// Mover cámara con WASD en el loop de animación
+function procesarMovimientoWASD() {
+    if (!modoPivote) return;
+
+    // Dirección de vista (hacia donde mira la cámara, ignorando Y)
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    dir.y = 0;
+    dir.normalize();
+
+    // Vector derecha
+    const right = new THREE.Vector3();
+    right.crossVectors(dir, new THREE.Vector3(0,1,0)).normalize();
+
+    const mover = new THREE.Vector3();
+
+    // Adelante / atrás
+    if (teclasPresionadas['w'] || teclasPresionadas['arrowup'])    mover.addScaledVector(dir,  VEL_CAM);
+    if (teclasPresionadas['s'] || teclasPresionadas['arrowdown'])  mover.addScaledVector(dir, -VEL_CAM);
+    // Laterales
+    if (teclasPresionadas['d'] || teclasPresionadas['arrowright']) mover.addScaledVector(right,  VEL_CAM);
+    if (teclasPresionadas['a'] || teclasPresionadas['arrowleft'])  mover.addScaledVector(right, -VEL_CAM);
+    // Altura
+    if (teclasPresionadas['q']) mover.y += VEL_CAM;
+    if (teclasPresionadas['e']) mover.y -= VEL_CAM;
+
+    if (mover.lengthSq() === 0) return;
+
+    // Limitar dentro de la habitación
+    const hw = estado.ancho/2 - 0.2;
+    const hl = estado.largo/2 - 0.2;
+    const nuevoPos = camera.position.clone().add(mover);
+    nuevoPos.x = Math.max(-hw, Math.min(hw, nuevoPos.x));
+    nuevoPos.z = Math.max(-hl, Math.min(hl, nuevoPos.z));
+    nuevoPos.y = Math.max(0.3, Math.min(estado.alto - 0.1, nuevoPos.y));
+
+    // Mover cámara y target juntos (mantiene la dirección de vista)
+    const delta = nuevoPos.clone().sub(camera.position);
+    camera.position.copy(nuevoPos);
+    controls.target.add(delta);
+
+    // Sincronizar sliders del panel
+    document.getElementById('cpX').value = nuevoPos.x.toFixed(2);
+    document.getElementById('cpY').value = nuevoPos.y.toFixed(2);
+    document.getElementById('cpZ').value = nuevoPos.z.toFixed(2);
+
+    controls.update();
+}
 
 // ── PORTAFOLIO ────────────────────────────────────────────────────────────
 async function cargarPortafolio() {
@@ -1062,6 +1169,7 @@ window.addEventListener('resize',onResize);
 
 function animate() {
     requestAnimationFrame(animate);
+    procesarMovimientoWASD();   // ← movimiento suave por frame
     controls.update();
     renderer.render(scene,camera);
 }
