@@ -4,7 +4,72 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Marketplace — DecoIArte</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+
+function abrirModalPorId(prodId) {
+    // Buscar en todos los productos cargados en la vista actual
+    const todosProds = window._productosVista || [];
+    const tienda     = window._tiendaVista    || {};
+    const prod = todosProds.find(p => p.id === prodId);
+    if (prod) abrirModalProducto(prod, tienda);
+}
+
+// ── MODAL PRODUCTO ────────────────────────────────────────────────────────
+let tiendaActual = null;
+
+function abrirModalProducto(p, tienda) {
+    // Imagen
+    const imgEl = document.getElementById('modalProdImg');
+    imgEl.innerHTML = p.imagen_url
+        ? `<img src="${p.imagen_url}" alt="${p.nombre}" onerror="this.parentElement.innerHTML='📦'">`
+        : '📦';
+
+    // Info
+    document.getElementById('modalProdCat').textContent    = p.categoria || 'General';
+    document.getElementById('modalProdNombre').textContent = p.nombre;
+    document.getElementById('modalProdDesc').textContent   = p.descripcion || 'Sin descripción disponible.';
+
+    // Precio
+    document.getElementById('modalProdPrecio').textContent = '$' + Number(p.precio).toLocaleString('es-CO');
+    const antesEl = document.getElementById('modalProdPrecioAntes');
+    antesEl.textContent = p.precio_antes ? '$' + Number(p.precio_antes).toLocaleString('es-CO') : '';
+    document.getElementById('modalProdUnidad').textContent = 'por ' + (p.unidad || 'm²');
+
+    // Stock
+    const stockEl = document.getElementById('modalProdStock');
+    if (p.stock > 0) {
+        stockEl.textContent = '✓ Disponible';
+        stockEl.className   = 'modal-prod-stock ok';
+    } else {
+        stockEl.textContent = '✗ Agotado';
+        stockEl.className   = 'modal-prod-stock no';
+    }
+
+    // Tienda
+    document.getElementById('modalProdTienda').innerHTML =
+        `🏪 <strong>${tienda.nombre}</strong> · 📍 ${tienda.ciudad || 'Colombia'}`;
+
+    // Botón pedir
+    const waLink = tienda.whatsapp_contacto
+        ? `https://wa.me/${tienda.whatsapp_contacto}?text=Hola,%20quiero%20consultar%20sobre:%20${encodeURIComponent(p.nombre)}`
+        : '#';
+    document.getElementById('modalBtnPedir').href = waLink;
+
+    // Abrir
+    document.getElementById('modalProductoOverlay').classList.add('open');
+    document.body.style.overflow = 'hidden';
+}
+
+function cerrarModalProducto(e) {
+    if (e && e.target !== document.getElementById('modalProductoOverlay')) return;
+    document.getElementById('modalProductoOverlay').classList.remove('open');
+    document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') cerrarModalProducto();
+});
+</script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
@@ -151,6 +216,61 @@
             footer { padding: 30px 20px; }
         }
         @media (max-width: 420px) { .productos-grid { grid-template-columns: 1fr; } }
+
+        /* ── MODAL PRODUCTO ── */
+        .modal-producto-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.75);
+            backdrop-filter: blur(6px);
+            z-index: 600;
+            display: none; align-items: center; justify-content: center;
+            padding: 20px;
+        }
+        .modal-producto-overlay.open { display: flex; }
+        .modal-producto {
+            background: #FFFFFF;
+            border-radius: 24px;
+            max-width: 520px; width: 100%;
+            max-height: 90vh; overflow-y: auto;
+            position: relative;
+            animation: modalIn 0.25s ease;
+        }
+        @keyframes modalIn { from{opacity:0;transform:scale(0.95)} to{opacity:1;transform:scale(1)} }
+        .modal-prod-img {
+            width: 100%; height: 280px;
+            background: #F3F4F6;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 64px; border-radius: 24px 24px 0 0;
+            overflow: hidden;
+        }
+        .modal-prod-img img { width: 100%; height: 100%; object-fit: cover; }
+        .modal-prod-body { padding: 28px; }
+        .modal-prod-cat { font-size: 12px; color: var(--morado); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+        .modal-prod-nombre { font-size: 22px; font-weight: 900; color: #111827; margin-bottom: 10px; line-height: 1.2; }
+        .modal-prod-desc { font-size: 14px; color: #6B7280; line-height: 1.7; margin-bottom: 20px; }
+        .modal-prod-precio-wrap { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+        .modal-prod-precio { font-size: 28px; font-weight: 900; background: var(--degradado); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .modal-prod-precio-antes { font-size: 16px; color: #9CA3AF; text-decoration: line-through; }
+        .modal-prod-unidad { font-size: 14px; color: #9CA3AF; margin-bottom: 20px; }
+        .modal-prod-stock { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; padding: 6px 14px; border-radius: 50px; margin-bottom: 20px; }
+        .modal-prod-stock.ok { background: rgba(16,185,129,0.1); color: #059669; border: 1px solid rgba(16,185,129,0.3); }
+        .modal-prod-stock.no { background: rgba(239,68,68,0.1); color: #DC2626; border: 1px solid rgba(239,68,68,0.3); }
+        .modal-prod-acciones { display: flex; gap: 12px; flex-wrap: wrap; }
+        .modal-btn-pedir { background: var(--degradado); color: white; padding: 14px 28px; border-radius: 50px; font-size: 15px; font-weight: 700; border: none; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; transition: opacity 0.3s; font-family: 'Segoe UI', sans-serif; flex: 1; justify-content: center; }
+        .modal-btn-pedir:hover { opacity: 0.85; }
+        .modal-btn-cerrar-prod { background: #F3F4F6; color: #374151; padding: 14px 20px; border-radius: 50px; font-size: 15px; font-weight: 600; border: none; cursor: pointer; transition: background 0.2s; font-family: 'Segoe UI', sans-serif; }
+        .modal-btn-cerrar-prod:hover { background: #E5E7EB; }
+        .modal-prod-close {
+            position: absolute; top: 14px; right: 14px;
+            width: 36px; height: 36px; border-radius: 50%;
+            background: rgba(0,0,0,0.4); color: white;
+            border: none; cursor: pointer; font-size: 18px;
+            display: flex; align-items: center; justify-content: center;
+            transition: background 0.2s; z-index: 10;
+        }
+        .modal-prod-close:hover { background: rgba(0,0,0,0.6); }
+        .modal-prod-tienda { display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: #F9FAFB; border-radius: 12px; margin-bottom: 20px; font-size: 13px; color: #6B7280; }
+        .modal-prod-tienda strong { color: #111827; }
     </style>
 </head>
 <body>
@@ -359,6 +479,9 @@ async function verTienda(tiendaId) {
 }
 
 function renderProductos(productos, tienda) {
+    // Guardar para acceso desde modal
+    window._productosVista = productos;
+    window._tiendaVista    = tienda;
     const grid     = document.getElementById('productosGrid');
     const contador = document.getElementById('contadorProductos');
     contador.textContent = `${productos.length} producto${productos.length !== 1 ? 's' : ''}`;
@@ -371,8 +494,8 @@ function renderProductos(productos, tienda) {
     const waBase = tienda.whatsapp_contacto
         ? `https://wa.me/${tienda.whatsapp_contacto}?text=Hola,%20quiero%20comprar:` : '#';
 
-    grid.innerHTML = productos.map(p => `
-        <div class="producto-card">
+    grid.innerHTML = productos.map((p, idx) => `
+        <div class="producto-card" onclick="abrirModalPorId('${p.id}')" style="cursor:pointer;">
             <div class="producto-img">
                 ${p.imagen_url
                     ? `<img src="${p.imagen_url}" alt="${p.nombre}" loading="lazy" onerror="this.parentElement.innerHTML='📦'">`
@@ -428,6 +551,95 @@ function aplicarFiltros() {
     if (busquedaActual) filtradas = filtradas.filter(t => t.nombre.toLowerCase().includes(busquedaActual) || (t.descripcion||'').toLowerCase().includes(busquedaActual) || (t.ciudad||'').toLowerCase().includes(busquedaActual));
     renderTiendas(filtradas);
 }
+
+
+function abrirModalPorId(prodId) {
+    // Buscar en todos los productos cargados en la vista actual
+    const todosProds = window._productosVista || [];
+    const tienda     = window._tiendaVista    || {};
+    const prod = todosProds.find(p => p.id === prodId);
+    if (prod) abrirModalProducto(prod, tienda);
+}
+
+// ── MODAL PRODUCTO ────────────────────────────────────────────────────────
+let tiendaActual = null;
+
+function abrirModalProducto(p, tienda) {
+    // Imagen
+    const imgEl = document.getElementById('modalProdImg');
+    imgEl.innerHTML = p.imagen_url
+        ? `<img src="${p.imagen_url}" alt="${p.nombre}" onerror="this.parentElement.innerHTML='📦'">`
+        : '📦';
+
+    // Info
+    document.getElementById('modalProdCat').textContent    = p.categoria || 'General';
+    document.getElementById('modalProdNombre').textContent = p.nombre;
+    document.getElementById('modalProdDesc').textContent   = p.descripcion || 'Sin descripción disponible.';
+
+    // Precio
+    document.getElementById('modalProdPrecio').textContent = '$' + Number(p.precio).toLocaleString('es-CO');
+    const antesEl = document.getElementById('modalProdPrecioAntes');
+    antesEl.textContent = p.precio_antes ? '$' + Number(p.precio_antes).toLocaleString('es-CO') : '';
+    document.getElementById('modalProdUnidad').textContent = 'por ' + (p.unidad || 'm²');
+
+    // Stock
+    const stockEl = document.getElementById('modalProdStock');
+    if (p.stock > 0) {
+        stockEl.textContent = '✓ Disponible';
+        stockEl.className   = 'modal-prod-stock ok';
+    } else {
+        stockEl.textContent = '✗ Agotado';
+        stockEl.className   = 'modal-prod-stock no';
+    }
+
+    // Tienda
+    document.getElementById('modalProdTienda').innerHTML =
+        `🏪 <strong>${tienda.nombre}</strong> · 📍 ${tienda.ciudad || 'Colombia'}`;
+
+    // Botón pedir
+    const waLink = tienda.whatsapp_contacto
+        ? `https://wa.me/${tienda.whatsapp_contacto}?text=Hola,%20quiero%20consultar%20sobre:%20${encodeURIComponent(p.nombre)}`
+        : '#';
+    document.getElementById('modalBtnPedir').href = waLink;
+
+    // Abrir
+    document.getElementById('modalProductoOverlay').classList.add('open');
+    document.body.style.overflow = 'hidden';
+}
+
+function cerrarModalProducto(e) {
+    if (e && e.target !== document.getElementById('modalProductoOverlay')) return;
+    document.getElementById('modalProductoOverlay').classList.remove('open');
+    document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') cerrarModalProducto();
+});
 </script>
+
+<!-- MODAL PRODUCTO -->
+<div class="modal-producto-overlay" id="modalProductoOverlay" onclick="cerrarModalProducto(event)">
+    <div class="modal-producto" id="modalProductoBox">
+        <button class="modal-prod-close" onclick="cerrarModalProducto()">✕</button>
+        <div class="modal-prod-img" id="modalProdImg">📦</div>
+        <div class="modal-prod-body">
+            <div class="modal-prod-cat" id="modalProdCat"></div>
+            <div class="modal-prod-nombre" id="modalProdNombre"></div>
+            <div class="modal-prod-tienda" id="modalProdTienda"></div>
+            <div class="modal-prod-desc" id="modalProdDesc"></div>
+            <div class="modal-prod-precio-wrap">
+                <span class="modal-prod-precio" id="modalProdPrecio"></span>
+                <span class="modal-prod-precio-antes" id="modalProdPrecioAntes"></span>
+            </div>
+            <div class="modal-prod-unidad" id="modalProdUnidad"></div>
+            <div class="modal-prod-stock" id="modalProdStock"></div>
+            <div class="modal-prod-acciones">
+                <a class="modal-btn-pedir" id="modalBtnPedir" href="#" target="_blank">💬 Pedir por WhatsApp</a>
+                <button class="modal-btn-cerrar-prod" onclick="cerrarModalProducto()">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
 </body>
 </html>
