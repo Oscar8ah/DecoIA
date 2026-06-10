@@ -267,8 +267,8 @@
         <div class="form-campo"><label>Nombre *</label><input type="text" id="prodNombre" placeholder="Ej: Porcelanato Mármol Carrara 60x60"></div>
         <div class="form-campo"><label>Descripción</label><textarea id="prodDesc" placeholder="Características, ventajas..."></textarea></div>
         <div class="form-grid-2">
-            <div class="form-campo"><label>Precio COP *</label><input type="number" id="prodPrecio" placeholder="85000"></div>
-            <div class="form-campo"><label>Precio anterior</label><input type="number" id="prodPrecioAntes" placeholder="120000"></div>
+            <div class="form-campo"><label>Precio COP *</label><input type="number" id="prodPrecio" placeholder="85000" step="1" min="0" oninput="this.value=Math.floor(this.value)"></div>
+            <div class="form-campo"><label>Precio anterior</label><input type="number" id="prodPrecioAntes" placeholder="120000" step="1" min="0" oninput="this.value=Math.floor(this.value)"></div>
         </div>
         <div class="form-grid-2">
             <div class="form-campo">
@@ -834,7 +834,11 @@ function renderMiTienda(tienda) {
         <div class="tienda-status-info"><div class="tienda-status-titulo">${tienda.nombre}</div><div class="tienda-status-sub">Activa en la marketplace · ${verificacionTexto(tienda.estado_verificacion)}</div></div>
         <a href="/marketplace" target="_blank" style="background:var(--degradado);color:white;padding:10px 20px;border-radius:50px;font-size:13px;font-weight:700;text-decoration:none;">Ver tienda →</a>`;
     document.getElementById('dotTienda').className = 'dot-verde';
-    if (tienda.logo_url) { document.getElementById('logoPreviewBox').innerHTML=`<img src="${tienda.logo_url}" alt="Logo">`; document.getElementById('tiendaLogoUrl').value=tienda.logo_url; }
+    if (tienda.logo_url) {
+        document.getElementById('logoPreviewBox').innerHTML=`<img src="${tienda.logo_url}" alt="Logo">`;
+        document.getElementById('tiendaLogoUrl').value=tienda.logo_url;
+        document.getElementById('logoUploadStatus').innerHTML=`<span style="color:#6EE7B7;">✅ Logo cargado</span> <button onclick="eliminarLogo()" style="margin-left:12px;background:rgba(239,68,68,0.1);color:#FCA5A5;border:1px solid rgba(239,68,68,0.3);padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Segoe UI',sans-serif;">🗑️ Eliminar logo</button>`;
+    }
     document.getElementById('tiendaNombre').value    = tienda.nombre||'';
     document.getElementById('tiendaDesc').value      = tienda.descripcion||'';
     document.getElementById('tiendaCategoria').value = tienda.categoria_principal||'';
@@ -873,7 +877,10 @@ async function guardarTienda() {
     if (!nombre||!categoria) { mostrarAlerta('tiendaAlerta','⚠️ Nombre y categoría son obligatorios.','error'); return; }
     const btn=document.getElementById('btnGuardarTienda');
     btn.disabled=true; btn.innerHTML='<span class="spinner-btn"></span>Guardando...';
-    const datos={ nombre, descripcion:document.getElementById('tiendaDesc').value.trim(), categoria_principal:categoria, ciudad:document.getElementById('tiendaCiudad').value.trim(), whatsapp_contacto:document.getElementById('tiendaWa').value.trim(), logo_url:document.getElementById('tiendaLogoUrl').value||null, activa:true };
+    const logoUrlActual = document.getElementById('tiendaLogoUrl').value;
+    const datos={ nombre, descripcion:document.getElementById('tiendaDesc').value.trim(), categoria_principal:categoria, ciudad:document.getElementById('tiendaCiudad').value.trim(), whatsapp_contacto:document.getElementById('tiendaWa').value.trim(), activa:true };
+    // Solo incluir logo_url si tiene valor, para no borrar el logo existente
+    if (logoUrlActual) datos.logo_url = logoUrlActual;
     let error;
     if (tiendaId) { ({error}=await db.from('tiendas').update(datos).eq('id',tiendaId)); }
     else { const slug=nombre.toLowerCase().replace(/[^a-z0-9]+/g,'-')+'-'+Date.now(); const{data,error:err}=await db.from('tiendas').insert({...datos,empresa_id:empresaId,slug}).select().single(); error=err; if(data) tiendaId=data.id; }
