@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from app.api.whatsapp import router as whatsapp_router
 from app.api.notificaciones import router as notificaciones_router
 from app.api.render3d import router as render3d_router
+from app.api.fondo import router as fondo_router
 
 load_dotenv()
 
@@ -21,7 +22,7 @@ app = FastAPI(
     version="0.1.0"
 )
 
-# ── CORS: permitir peticiones desde Vercel y desarrollo local ──
+# ── CORS ──────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -42,3 +43,4 @@ templates = Jinja2Templates(directory="app/templates")
 app.include_router(whatsapp_router)
 app.include_router(notificaciones_router)
 app.include_router(render3d_router)
+app.include_router(fondo_router)
