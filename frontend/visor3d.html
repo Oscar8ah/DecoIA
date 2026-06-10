@@ -872,22 +872,46 @@ function procesarMovimientoWASD() {
 }
 
 // ── PORTAFOLIO ────────────────────────────────────────────────────────────
+const TIENDA_DEMO_SLUG = 'pisos-demo';
+
 async function cargarPortafolio() {
     try {
+        let tiendaId     = null;
+        let tiendaNombre = 'Portafolio';
+
+        // 1. Intentar tienda propia del usuario logueado
         const { data: { session } } = await db.auth.getSession();
-        if (!session) { mostrarEmptyPort('Inicia sesión para ver tu portafolio'); return; }
-        const { data: empresa } = await db.from('empresas').select('id').eq('email', session.user.email).maybeSingle();
-        if (!empresa) { mostrarEmptyPort('No se encontró tu empresa'); return; }
-        const { data: tienda } = await db.from('tiendas').select('id,nombre').eq('empresa_id', empresa.id).maybeSingle();
-        if (!tienda) { mostrarEmptyPort('Crea tu tienda en el dashboard para ver el portafolio aquí'); return; }
-        const { data: productos } = await db.from('productos').select('*').eq('tienda_id', tienda.id).eq('activo', true).order('categoria');
+        if (session) {
+            const { data: empresa } = await db.from('empresas').select('id').eq('email', session.user.email).maybeSingle();
+            if (empresa) {
+                const { data: tiendaPropia } = await db.from('tiendas').select('id,nombre').eq('empresa_id', empresa.id).maybeSingle();
+                if (tiendaPropia) { tiendaId = tiendaPropia.id; tiendaNombre = tiendaPropia.nombre; }
+            }
+        }
+
+        // 2. Fallback → tienda demo global
+        if (!tiendaId) {
+            const { data: demo } = await db.from('tiendas').select('id,nombre').eq('slug', TIENDA_DEMO_SLUG).maybeSingle();
+            if (demo) { tiendaId = demo.id; tiendaNombre = demo.nombre + ' 🏪'; }
+        }
+
+        if (!tiendaId) { mostrarEmptyPort('No hay productos disponibles aún'); return; }
+
+        // Actualizar título del panel
+        const tituloPanel = document.querySelector('#pagina-mitienda .panel-titulo, .panel-titulo');
+        document.querySelectorAll('.panel-titulo').forEach(el => {
+            if (el.textContent.includes('Portafolio')) el.textContent = tiendaNombre;
+        });
+
+        const { data: productos } = await db.from('productos').select('*').eq('tienda_id', tiendaId).eq('activo', true).order('categoria');
         todosProductos = productos || [];
-        if (todosProductos.length === 0) { mostrarEmptyPort('Agrega productos en tu tienda para verlos aquí'); return; }
+        if (todosProductos.length === 0) { mostrarEmptyPort('La tienda no tiene productos aún'); return; }
         renderPortafolio(todosProductos);
+
         const params = new URLSearchParams(window.location.search);
         const prodId = params.get('producto');
         if (prodId) { const prod = todosProductos.find(p => p.id === prodId); if (prod) mostrarProductoCliente(prod); }
-    } catch(e) { mostrarEmptyPort('Error cargando portafolio'); }
+    } catch(e) { console.error(e); mostrarEmptyPort('Error cargando portafolio'); }
 }
 
 function mostrarEmptyPort(msg) {
