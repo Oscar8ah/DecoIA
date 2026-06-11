@@ -49,9 +49,9 @@
         #canvas3d.modo-mover { cursor:crosshair; }
         #canvas3d.modo-mover:active { cursor:move; }
 
-        #vistaFoto { position:fixed; top:96px; left:0; right:300px; bottom:0; background:var(--oscuro); display:none; align-items:center; justify-content:center; flex-direction:column; gap:20px; padding:20px; }
-        .foto-ia-container { max-width:90%; max-height:75vh; border-radius:16px; overflow:hidden; border:2px solid rgba(124,58,237,0.3); box-shadow:0 0 40px rgba(124,58,237,0.2); }
-        .foto-ia-container img { width:100%; height:100%; object-fit:contain; display:block; }
+        #vistaFoto { position:fixed; top:96px; left:0; right:300px; bottom:0; background:var(--oscuro); display:none; align-items:center; justify-content:center; flex-direction:column; gap:16px; padding:16px; overflow-y:auto; }
+        .foto-ia-container { width:100%; max-width:900px; border-radius:16px; overflow:hidden; border:2px solid rgba(124,58,237,0.3); box-shadow:0 0 40px rgba(124,58,237,0.2); flex-shrink:0; }
+        .foto-ia-container img { width:100%; height:auto; object-fit:contain; display:block; }
         .foto-empty { text-align:center; color:var(--gris); }
         .foto-empty .icon { font-size:56px; margin-bottom:16px; }
         .btn-enviar-cliente { background:linear-gradient(135deg,#25D366,#128C7E); color:white; border:none; padding:14px 28px; border-radius:50px; font-size:15px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:10px; font-family:'Segoe UI',sans-serif; transition:opacity 0.3s; }
@@ -1752,14 +1752,24 @@ async function capturarYGenerarIA() {
             return id.replace(/_/g,' ') + ' ' + pos;
         });
 
-        // Ventanas
-        const ventanaDesc = ['ventana_blanca','ventana_negra'].filter(v => mobiliarioMeshes[v]).map(v => {
-            const g = mobiliarioMeshes[v];
-            const color = v === 'ventana_blanca' ? 'blanco' : 'negro';
-            const w = (g.userData.ventanaAncho || 1.2).toFixed(1);
-            const h = (g.userData.ventanaAlto  || 0.9).toFixed(1);
-            return `ventana corrediza aluminio marco ${color} de ${w}×${h}m`;
-        }).join(', ');
+        // Ventanas — incluyendo balcón
+        const ventanaDesc = ['ventana_blanca','ventana_negra','ventana_balcon'].filter(v => mobiliarioMeshes[v]).map(v => {
+            const g  = mobiliarioMeshes[v];
+            const vw = (g.userData.ventanaAncho || 1.2).toFixed(2);
+            const vh = (g.userData.ventanaAlto  || 0.9).toFixed(2);
+            const p  = g.position;
+            let paredV = '';
+            if (Math.abs(p.z + largo/2) < 0.5)      paredV = 'pared del fondo';
+            else if (Math.abs(p.z - largo/2) < 0.5) paredV = 'pared frontal';
+            else if (Math.abs(p.x + ancho/2) < 0.5) paredV = 'pared izquierda';
+            else if (Math.abs(p.x - ancho/2) < 0.5) paredV = 'pared derecha';
+            const tipo = v === 'ventana_balcon'
+                ? `ventana balcón piso-a-techo ${vw}×${vh}m de aluminio, 3 hojas verticales`
+                : `ventana corrediza aluminio marco ${v==='ventana_blanca'?'blanco':'negro'} ${vw}×${vh}m`;
+            const pctAncho = ((parseFloat(vw)/ancho)*100).toFixed(0);
+            const pctAlto  = ((parseFloat(vh)/alto)*100).toFixed(0);
+            return `${tipo} en ${paredV} (ocupa ${pctAncho}% del ancho y ${pctAlto}% del alto de esa pared)`;
+        }).join('. ');
 
         // Luces techo
         const lucesDesc = Object.keys(lucesTecho).map(k =>
@@ -1770,17 +1780,36 @@ async function capturarYGenerarIA() {
         let matDesc = `piso de ${estado.materialPiso}`;
         if (productoActivo) matDesc += `, ${productoActivo.nombre} en ${etiquetaSuperficie(superficieActiva)||'piso'}`;
 
+        // Proporciones relativas del espacio
+        const propAncho = (ancho / largo).toFixed(2);
+        const propAlto  = (alto  / largo).toFixed(2);
+        const areaM2    = (ancho * largo).toFixed(1);
+
+        // Posición relativa de muebles (en % del espacio)
+        const mueblesConPct = Object.entries(mobiliarioMeshes).map(([id, g]) => {
+            const p  = g.position;
+            const px = (((p.x + ancho/2) / ancho) * 100).toFixed(0);
+            const pz = (((p.z + largo/2) / largo) * 100).toFixed(0);
+            const py = ((p.y / alto) * 100).toFixed(0);
+            return `${id.replace(/_/g,' ')} en posición X:${px}% Y:${py}% Z:${pz}% del espacio`;
+        }).join('; ');
+
         const promptFinal =
-            `Fotografía arquitectónica hiperrealista de interior, calidad editorial profesional. ` +
-            `${estado.habitacion} de ${ancho.toFixed(1)}m × ${largo.toFixed(1)}m × ${alto.toFixed(1)}m de alto. ` +
+            `INSTRUCCIÓN CRÍTICA: Renderiza EXACTAMENTE lo que muestra la imagen de referencia adjunta, respetando todas las proporciones espaciales. ` +
+            `Es un ${estado.habitacion} de ${ancho.toFixed(2)}m ancho × ${largo.toFixed(2)}m largo × ${alto.toFixed(2)}m alto. ` +
+            `Proporción ancho/largo=${propAncho}, altura/largo=${propAlto}. Área total: ${areaM2}m². ` +
             `${matDesc}. Paredes color ${estado.colorPared}. ` +
-            (mueblesList.length ? `Mobiliario (respetar posición exacta): ${mueblesList.join('; ')}. ` : '') +
-            (ventanaDesc ? `${ventanaDesc} incrustada en la pared, con vista al exterior. ` : '') +
+            (mueblesConPct ? `Mobiliario con posición exacta en porcentaje del espacio: ${mueblesConPct}. ` : '') +
+            (ventanaDesc ? `Ventanas (respetar tamaño proporcional a la pared): ${ventanaDesc}. ` : '') +
             (lucesDesc ? `Iluminación de techo: ${lucesDesc}. ` : '') +
-            `Mantener EXACTAMENTE la distribución espacial de la imagen de referencia. ` +
-            `Iluminación cinematográfica, sombras suaves PCF, texturas PBR fotorrealistas, ACES tone mapping. ` +
-            `Sin texto, sin marcas de agua, sin marcos. ` +
-            (promptUser ? promptUser : 'Estilo moderno contemporáneo, luz natural cálida de tarde.');
+            `REGLAS OBLIGATORIAS: ` +
+            `(1) Las dimensiones del espacio deben ser visualmente correctas — si el cuarto es más ancho que largo, debe verse así. ` +
+            `(2) Los muebles deben tener escala proporcional al espacio — una cama en un cuarto de 3m ocupa más espacio visual que en uno de 6m. ` +
+            `(3) Las ventanas deben verse exactamente del tamaño indicado respecto a la pared donde están. ` +
+            `(4) La perspectiva y punto de fuga deben coincidir con la imagen de referencia. ` +
+            `(5) NO inventar muebles, plantas, ni elementos que no estén en la imagen de referencia. ` +
+            `Fotografía arquitectónica hiperrealista, iluminación cinematográfica ACES, sombras PCFSoft, texturas PBR. Sin texto, sin marcas de agua. ` +
+            (promptUser ? `Estilo adicional: ${promptUser}.` : 'Estilo moderno contemporáneo, luz natural cálida.');
 
         const response = await fetch('https://decoia.onrender.com/generar-render-3d', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
