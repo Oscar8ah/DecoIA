@@ -475,6 +475,32 @@ function construirGeometriaVentana(g, id, W, H) {
 }
 
 
+
+function cerrarPanelVentana() {
+    document.getElementById('ventanaDimPanel').style.display = 'none';
+    window._ventanaPanelId = null;
+}
+
+function abrirPanelVentana(id) {
+    const nombres = {
+        ventana_blanca: '🪟 Ventana blanca',
+        ventana_negra:  '🖤 Ventana negra',
+        ventana_balcon: '🏙️ Ventana balcón'
+    };
+    const tituloEl = document.getElementById('vdpTitulo');
+    if (tituloEl) tituloEl.textContent = nombres[id] || '🪟 Ventana';
+    window._ventanaPanelId = id;
+    // Cargar dims actuales de esa ventana
+    const g = mobiliarioMeshes[id];
+    if (g) {
+        const inputA = document.getElementById('vdpAncho');
+        const inputH = document.getElementById('vdpAlto');
+        if (inputA) inputA.value = g.userData.ventanaAncho || (id==='ventana_balcon' ? 2.4 : 1.2);
+        if (inputH) inputH.value = g.userData.ventanaAlto  || (id==='ventana_balcon' ? 2.2 : 0.9);
+    }
+    document.getElementById('ventanaDimPanel').style.display = 'block';
+}
+
 function togglePanelVentana() {
     const body = document.getElementById('vdpContenido');
     const btn  = document.getElementById('btnMinVentana');
@@ -544,25 +570,27 @@ function construirGeometriaVentanaBalcon(g, W, H) {
 }
 
 function aplicarDimensionesVentana() {
-    const w = parseFloat(document.getElementById('vdpAncho').value)||1.2;
-    const h = parseFloat(document.getElementById('vdpAlto').value)||0.9;
-    window._ventanaAncho = Math.max(0.4, Math.min(3.0, w));
-    window._ventanaAlto  = Math.max(0.3, Math.min(2.4, h));
-    ['ventana_blanca','ventana_negra','ventana_balcon'].forEach(id => {
-        const g = mobiliarioMeshes[id];
-        if (g) {
-            if (id === 'ventana_balcon') {
-                construirGeometriaVentanaBalcon(g, window._ventanaAncho, window._ventanaAlto);
-                g.position.y = window._ventanaAlto / 2;
-            } else {
-                construirGeometriaVentana(g, id, window._ventanaAncho, window._ventanaAlto);
-            }
-            g.userData.ventanaAncho = window._ventanaAncho;
-            g.userData.ventanaAlto  = window._ventanaAlto;
-            actualizarHuecoVentana(id);
-        }
-    });
-    mostrarToast('🪟 Ventana: ' + window._ventanaAncho + '×' + window._ventanaAlto + 'm');
+    const w   = parseFloat(document.getElementById('vdpAncho').value)||1.2;
+    const h   = parseFloat(document.getElementById('vdpAlto').value)||0.9;
+    const wCl = Math.max(0.4, Math.min(4.0, w));
+    const hCl = Math.max(0.3, Math.min(3.0, h));
+    // Aplicar solo a la ventana activa del panel
+    const id = window._ventanaPanelId || muebleSeleccionado;
+    if (!id || !id.startsWith('ventana')) { mostrarToast('⚠️ Selecciona una ventana primero'); return; }
+    const g = mobiliarioMeshes[id];
+    if (!g) return;
+    window._ventanaAncho = wCl;
+    window._ventanaAlto  = hCl;
+    if (id === 'ventana_balcon') {
+        construirGeometriaVentanaBalcon(g, wCl, hCl);
+        g.position.y = hCl / 2;
+    } else {
+        construirGeometriaVentana(g, id, wCl, hCl);
+    }
+    g.userData.ventanaAncho = wCl;
+    g.userData.ventanaAlto  = hCl;
+    actualizarHuecoVentana(id);
+    mostrarToast('🪟 ' + id.replace('_',' ') + ': ' + wCl + '×' + hCl + 'm');
 }
 
 const huecosVentana = {};
@@ -613,7 +641,8 @@ let paredVentanaActual = null;
 
 function seleccionarParedVentana(pared) {
     paredVentanaActual = pared;
-    const id = ['ventana_blanca','ventana_negra'].find(v => mobiliarioMeshes[v]);
+    const id = ['ventana_blanca','ventana_negra','ventana_balcon'].find(v => mobiliarioMeshes[v] && muebleSeleccionado === v)
+             || ['ventana_blanca','ventana_negra','ventana_balcon'].find(v => mobiliarioMeshes[v]);
     if (!id) return;
     const g = mobiliarioMeshes[id];
     const { ancho, largo, alto } = estado;
@@ -632,8 +661,11 @@ function pegarVentanaAPared(ventanaGrupo, ndc) {
     const hw = ancho/2, hl = largo/2;
     const vW = ventanaGrupo.userData.ventanaAncho || 1.2;
     const vH = ventanaGrupo.userData.ventanaAlto  || 0.9;
-    const yMin = vH/2 + 0.25;
-    const yMax = alto - vH/2 - 0.15;
+    // Balcón va desde el piso — y fijo en vH/2
+    const esBalcon = (muebleSeleccionado === 'ventana_balcon');
+    const yFijo    = esBalcon ? vH/2 : null;
+    const yMin     = esBalcon ? vH/2 : vH/2 + 0.25;
+    const yMax     = esBalcon ? vH/2 : alto - vH/2 - 0.15;
 
     // Si no hay pared elegida, detectar la más cercana a la posición actual
     if (!paredVentanaActual) {
@@ -659,7 +691,7 @@ function pegarVentanaAPared(ventanaGrupo, ndc) {
         const xMax = hw - vW/2 - 0.05;
         ventanaGrupo.position.set(
             Math.max(-xMax, Math.min(xMax, pt.x)),
-            Math.max(yMin, Math.min(yMax, pt.y)),
+            yFijo !== null ? yFijo : Math.max(yMin, Math.min(yMax, pt.y)),
             zFijo
         );
         ventanaGrupo.rotation.y = 0;
@@ -672,7 +704,7 @@ function pegarVentanaAPared(ventanaGrupo, ndc) {
         const zMax   = hl - vW/2 - 0.05;
         ventanaGrupo.position.set(
             xFijo,
-            Math.max(yMin, Math.min(yMax, pt.y)),
+            yFijo !== null ? yFijo : Math.max(yMin, Math.min(yMax, pt.y)),
             Math.max(-zMax, Math.min(zMax, pt.z))
         );
         ventanaGrupo.rotation.y = Math.PI/2;
@@ -809,9 +841,8 @@ function toggleMueble(id) {
             mobiliarioMeshes[id] = grupo;
             scene.add(grupo);
             if (id.startsWith('ventana')) {
-                // Mostrar panel de dimensiones
-                document.getElementById('ventanaDimPanel').style.display = 'block';
-                mostrarToast('🪟 Ventana agregada — ajusta dimensiones y usa ↔ para pegar a pared');
+                abrirPanelVentana(id);
+                mostrarToast('🪟 Ventana agregada — elige pared y ajusta dimensiones');
             } else {
                 mostrarToast(`${CATALOGO_MUEBLES.find(m=>m.id===id)?.icon} Mueble agregado — usa ↔ para mover`);
             }
@@ -2055,9 +2086,13 @@ cargarFotoIA();
 <!-- PANEL DIMENSIONES VENTANA -->
 <div class="ventana-dim-panel" id="ventanaDimPanel">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-        <div class="vdp-titulo" style="margin-bottom:0;">🪟 Dimensiones ventana</div>
-        <button onclick="togglePanelVentana()" id="btnMinVentana"
-            style="background:rgba(255,255,255,0.08);border:none;color:var(--gris);width:22px;height:22px;border-radius:50%;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;font-family:'Segoe UI',sans-serif;">—</button>
+        <div class="vdp-titulo" style="margin-bottom:0;" id="vdpTitulo">🪟 Dimensiones ventana</div>
+        <div style="display:flex;gap:6px;align-items:center;">
+            <button onclick="cerrarPanelVentana()" id="btnCerrarVentana"
+                style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#FCA5A5;width:22px;height:22px;border-radius:50%;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;font-family:'Segoe UI',sans-serif;">✕</button>
+            <button onclick="togglePanelVentana()" id="btnMinVentana"
+                style="background:rgba(255,255,255,0.08);border:none;color:var(--gris);width:22px;height:22px;border-radius:50%;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;font-family:'Segoe UI',sans-serif;">—</button>
+        </div>
     </div>
     <div id="vdpContenido">
     <div class="vdp-row">
