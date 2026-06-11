@@ -951,69 +951,44 @@ function aplicarProductoPortafolio(prodId) {
     const prod = todosProductos.find(p => p.id === prodId);
     if (!prod) return;
 
-    // Marcar card como activa visualmente
+    // Marcar card como activa
     document.querySelectorAll('.prod-port-card').forEach(c => c.classList.remove('activo'));
-    const card = document.getElementById(`prodcard-${prodId}`);
+    const card = document.getElementById('prodcard-' + prodId);
     if (card) card.classList.add('activo');
     productoActivo = prod;
 
+    // En modo interior → aplicar a superficie seleccionada
+    if (modoInterior && superficieActiva) {
+        aplicarProductoASuperficie(prod, superficieActiva);
+        return;
+    }
+
+    // Modo normal — aplicar según categoría
     const esPiso    = ['pisos','enchapes','materiales'].includes(prod.categoria);
     const esPintura = prod.categoria === 'pintura';
 
-    // Si tiene imagen → aplicar como textura real
     if (prod.imagen_url) {
         const loader = new THREE.TextureLoader();
         loader.crossOrigin = 'anonymous';
-        loader.load(
-            prod.imagen_url,
-            (texture) => {
-                // Textura repetida para dar sensación de baldosa/piso
-                texture.wrapS = THREE.RepeatWrapping;
-                texture.wrapT = THREE.RepeatWrapping;
-
-                if (esPiso) {
-                    // Repetir la textura según el tamaño del piso
-                    const repX = Math.max(1, estado.ancho / 1.2);
-                    const repZ = Math.max(1, estado.largo / 1.2);
-                    texture.repeat.set(repX, repZ);
-                    if (meshes.piso) {
-                        meshes.piso.material = new THREE.MeshStandardMaterial({
-                            map: texture, roughness: 0.4, metalness: 0.05
-                        });
-                    }
-                    mostrarToast(`🪵 "${prod.nombre}" aplicado al piso ✅`);
-
-                } else if (esPintura) {
-                    // Para pintura usar el color dominante de la imagen
-                    texture.repeat.set(1, 1);
-                    ['paredTrasera','paredFrontal','paredIzq','paredDer'].forEach(k => {
-                        if (meshes[k]) {
-                            meshes[k].material = new THREE.MeshStandardMaterial({
-                                map: texture, roughness: 0.85
-                            });
-                        }
-                    });
-                    mostrarToast(`🎨 "${prod.nombre}" aplicado a paredes ✅`);
-
-                } else {
-                    // Otros → piso
-                    texture.repeat.set(Math.max(1, estado.ancho/1.2), Math.max(1, estado.largo/1.2));
-                    if (meshes.piso) {
-                        meshes.piso.material = new THREE.MeshStandardMaterial({
-                            map: texture, roughness: 0.4
-                        });
-                    }
-                    mostrarToast(`✅ "${prod.nombre}" aplicado`);
-                }
-            },
-            undefined,
-            () => {
-                // Error cargando imagen → fallback a color
-                aplicarColorFallback(prod, esPiso, esPintura);
+        loader.load(prod.imagen_url, (texture) => {
+            texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+            if (esPiso) {
+                texture.repeat.set(Math.max(1,estado.ancho/1.2), Math.max(1,estado.largo/1.2));
+                if (meshes.piso) meshes.piso.material = new THREE.MeshStandardMaterial({ map:texture, roughness:0.4, metalness:0.05 });
+                mostrarToast('🪵 "' + prod.nombre + '" aplicado al piso ✅');
+            } else if (esPintura) {
+                texture.repeat.set(1,1);
+                ['paredTrasera','paredFrontal','paredIzq','paredDer'].forEach(k => {
+                    if (meshes[k]) meshes[k].material = new THREE.MeshStandardMaterial({ map:texture, roughness:0.85 });
+                });
+                mostrarToast('🎨 "' + prod.nombre + '" aplicado a paredes ✅');
+            } else {
+                texture.repeat.set(Math.max(1,estado.ancho/1.2), Math.max(1,estado.largo/1.2));
+                if (meshes.piso) meshes.piso.material = new THREE.MeshStandardMaterial({ map:texture, roughness:0.4 });
+                mostrarToast('✅ "' + prod.nombre + '" aplicado');
             }
-        );
+        }, undefined, () => aplicarColorFallback(prod, esPiso, esPintura));
     } else {
-        // Sin imagen → usar color de referencia
         aplicarColorFallback(prod, esPiso, esPintura);
     }
 }
@@ -1064,10 +1039,10 @@ function construirHabitacion() {
     aEliminar.forEach(obj => scene.remove(obj));
     meshes = {};
     // Limpiar luces de techo
-    Object.keys(lucesTeche).forEach(k => {
+    Object.keys(lucesTecho).forEach(k => {
         document.getElementById(`luz${k.charAt(0).toUpperCase()+k.slice(1)}`)?.classList.remove('activo');
     });
-    lucesTeche = {};
+    lucesTecho = {};
 
     const {ancho,largo,alto} = estado;
     const hw=ancho/2, hl=largo/2;
@@ -1466,9 +1441,9 @@ const CONFIGS_LUZ_TECHO = {
 
 function toggleLuzTecho(tipo, btn) {
     // Si ya está activa, quitarla
-    if (lucesTeche[tipo]) {
-        scene.remove(lucesTeche[tipo]);
-        delete lucesTeche[tipo];
+    if (lucesTecho[tipo]) {
+        scene.remove(lucesTecho[tipo]);
+        delete lucesTecho[tipo];
         btn.classList.remove('activo');
         mostrarToast('💡 Luz quitada');
         return;
@@ -1552,55 +1527,11 @@ function toggleLuzTecho(tipo, btn) {
     }
 
     scene.add(grupo);
-    lucesTeche[tipo] = grupo;
+    lucesTecho[tipo] = grupo;
     mostrarToast(`💡 ${tipo === 'ojoBuey' ? 'Ojos de buey' : tipo === 'lineal' ? 'Luz lineal' : tipo === 'colgante' ? 'Colgante' : 'Tira LED'} agregados ✅`);
 }
 
-// ── MODIFICAR aplicarProductoPortafolio para respetar superficie activa ──
-// Override de la función original para aplicar a la superficie seleccionada
-const _aplicarOriginal = aplicarProductoPortafolio;
-window.aplicarProductoPortafolio = function(prodId) {
-    const prod = todosProductos.find(p => p.id === prodId);
-    if (!prod) return;
-
-    document.querySelectorAll('.prod-port-card').forEach(c => c.classList.remove('activo'));
-    const card = document.getElementById(`prodcard-${prodId}`);
-    if (card) card.classList.add('activo');
-    productoActivo = prod;
-
-    // En modo interior → aplicar a la superficie seleccionada
-    if (modoInterior && superficieActiva) {
-        aplicarProductoASuperficie(prod, superficieActiva);
-    } else {
-        // Modo normal — comportamiento original por categoría
-        const esPiso    = ['pisos','enchapes','materiales'].includes(prod.categoria);
-        const esPintura = prod.categoria === 'pintura';
-        if (prod.imagen_url) {
-            const loader = new THREE.TextureLoader();
-            loader.crossOrigin = 'anonymous';
-            loader.load(prod.imagen_url, (texture) => {
-                texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-                if (esPiso) {
-                    texture.repeat.set(Math.max(1,estado.ancho/1.2), Math.max(1,estado.largo/1.2));
-                    if (meshes.piso) meshes.piso.material = new THREE.MeshStandardMaterial({ map:texture, roughness:0.4, metalness:0.05 });
-                    mostrarToast(`🪵 "${prod.nombre}" → piso ✅`);
-                } else if (esPintura) {
-                    texture.repeat.set(1,1);
-                    ['paredTrasera','paredFrontal','paredIzq','paredDer'].forEach(k => {
-                        if (meshes[k]) meshes[k].material = new THREE.MeshStandardMaterial({ map:texture, roughness:0.85 });
-                    });
-                    mostrarToast(`🎨 "${prod.nombre}" → todas las paredes ✅`);
-                } else {
-                    texture.repeat.set(Math.max(1,estado.ancho/1.2), Math.max(1,estado.largo/1.2));
-                    if (meshes.piso) meshes.piso.material = new THREE.MeshStandardMaterial({ map:texture, roughness:0.4 });
-                    mostrarToast(`✅ "${prod.nombre}" aplicado`);
-                }
-            }, undefined, () => aplicarColorFallback(prod, esPiso, esPintura));
-        } else {
-            aplicarColorFallback(prod, esPiso, esPintura);
-        }
-    }
-}
+// aplicarProductoPortafolio ya integrado arriba
 
 function aplicarProductoASuperficie(prod, superficie) {
     const mesh = meshes[superficie];
