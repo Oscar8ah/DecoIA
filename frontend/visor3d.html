@@ -1058,11 +1058,11 @@ function construirHabitacion() {
     scene.add(piso); meshes.piso=piso;
 
     // TECHO — oculto por defecto, visible solo en modo interior
-    const matTecho = new THREE.MeshStandardMaterial({color:0xF5F5F5,roughness:0.9,side:THREE.BackSide});
-    const techo = new THREE.Mesh(new THREE.BoxGeometry(ancho,0.08,largo), matTecho);
-    techo.position.set(0, alto+0.04, 0);
+    const matTecho = new THREE.MeshStandardMaterial({color:0xF5F5F5, roughness:0.9, side:THREE.BackSide});
+    const techo = new THREE.Mesh(new THREE.BoxGeometry(ancho, 0.1, largo), matTecho);
+    techo.position.set(0, alto, 0);
     techo.receiveShadow = true;
-    techo.visible = modoInterior;   // solo visible en modo interior
+    techo.visible = false;  // siempre oculto hasta entrar al modo interior
     scene.add(techo); meshes.techo = techo;
 
     ['Trasera','Frontal','Izq','Der'].forEach((nombre,i) => {
