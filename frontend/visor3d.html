@@ -474,6 +474,16 @@ function construirGeometriaVentana(g, id, W, H) {
     const mp=new THREE.Mesh(new THREE.BoxGeometry(0.01,0.035,0.016),matManija); mp.position.set(0.008,0.018,D*0.04+0.02); g.add(mp);
 }
 
+
+function togglePanelVentana() {
+    const body = document.getElementById('vdpContenido');
+    const btn  = document.getElementById('btnMinVentana');
+    if (!body || !btn) return;
+    const visible = body.style.display !== 'none';
+    body.style.display = visible ? 'none' : 'block';
+    btn.textContent    = visible ? '+' : '—';
+}
+
 function aplicarDimensionesVentana() {
     const w = parseFloat(document.getElementById('vdpAncho').value)||1.2;
     const h = parseFloat(document.getElementById('vdpAlto').value)||0.9;
@@ -617,6 +627,11 @@ const { w: initW, h: initH } = getCanvasSize();
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, preserveDrawingBuffer:true });
 renderer.setPixelRatio(window.devicePixelRatio);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
+renderer.toneMapping          = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure  = 1.15;
+renderer.outputColorSpace     = THREE.SRGBColorSpace;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
 renderer.setClearColor(0x0F0F1A);
@@ -1417,20 +1432,45 @@ function construirHabitacion() {
 function configurarLuces() {
     Object.values(luces).forEach(l=>scene.remove(l));
     luces={};
-    const i=estado.intensidadLuz;
-    const amb=new THREE.AmbientLight(0xffffff,0.4*i); scene.add(amb); luces.ambient=amb;
-    const dir=new THREE.DirectionalLight(0xffffff,0.8*i);
-    dir.position.set(5,8,5); dir.castShadow=true;
-    dir.shadow.mapSize.width=dir.shadow.mapSize.height=2048;
-    dir.shadow.camera.left=dir.shadow.camera.bottom=-15;
-    dir.shadow.camera.right=dir.shadow.camera.top=15;
-    scene.add(dir); luces.directional=dir;
-    const pt=new THREE.PointLight(0xFFFAE6,0.6*i,15);
-    pt.position.set(0,estado.alto-0.3,0); pt.castShadow=true;
-    scene.add(pt); luces.point=pt;
-    const lamp=new THREE.Mesh(new THREE.SphereGeometry(0.12,8,8),
-        new THREE.MeshStandardMaterial({color:0xFFFFCC,emissive:0xFFEE88,emissiveIntensity:0.8}));
-    lamp.position.set(0,estado.alto-0.2,0); scene.add(lamp); luces.lampara=lamp;
+    const i = estado.intensidadLuz;
+
+    // Luz ambiente suave
+    const amb = new THREE.AmbientLight(0xFFF5E6, 0.35*i);
+    scene.add(amb); luces.ambient = amb;
+
+    // Luz solar principal — sombras suaves PCFSoft
+    const dir = new THREE.DirectionalLight(0xFFF8F0, 1.1*i);
+    dir.position.set(6, 10, 5);
+    dir.castShadow = true;
+    dir.shadow.radius = 4;                        // suaviza las sombras
+    dir.shadow.mapSize.width  = 2048;
+    dir.shadow.mapSize.height = 2048;
+    dir.shadow.camera.left   = -15;
+    dir.shadow.camera.right  =  15;
+    dir.shadow.camera.top    =  15;
+    dir.shadow.camera.bottom = -15;
+    dir.shadow.bias = -0.001;
+    scene.add(dir); luces.directional = dir;
+
+    // Luz de relleno — lado opuesto, más fría y tenue
+    const fill = new THREE.DirectionalLight(0xCCDDFF, 0.3*i);
+    fill.position.set(-5, 6, -4);
+    scene.add(fill); luces.fill = fill;
+
+    // Luz cenital puntual — simula luz de techo
+    const pt = new THREE.PointLight(0xFFFAE6, 0.5*i, 18);
+    pt.position.set(0, estado.alto-0.3, 0);
+    pt.castShadow = true;
+    pt.shadow.radius = 3;
+    scene.add(pt); luces.point = pt;
+
+    // Bombilla visible
+    const lamp = new THREE.Mesh(
+        new THREE.SphereGeometry(0.1, 8, 8),
+        new THREE.MeshStandardMaterial({ color:0xFFFFCC, emissive:0xFFEE88, emissiveIntensity:0.9 })
+    );
+    lamp.position.set(0, estado.alto-0.2, 0);
+    scene.add(lamp); luces.lampara = lamp;
 }
 
 // ── CAMBIOS ───────────────────────────────────────────────────────────────
@@ -1573,34 +1613,76 @@ function cambiarVista(vista) {
 
 // ── CAPTURAR + IA ─────────────────────────────────────────────────────────
 async function capturarYGenerarIA() {
-    const btn=document.getElementById('btnCapturarIA');
-    const prompt=document.getElementById('promptIA').value.trim();
-    btn.disabled=true;
-    btn.innerHTML='<span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:6px;"></span>Generando...';
+    const btn = document.getElementById('btnCapturarIA');
+    const promptUser = document.getElementById('promptIA').value.trim();
+    btn.disabled = true;
+    btn.innerHTML = '<span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:6px;"></span>Generando...';
     mostrarToast('🤖 IA procesando tu render...');
     try {
-        renderer.render(scene,camera);
-        const base64Canvas=canvas.toDataURL('image/png',1.0).split(',')[1];
-        const {ancho,largo,alto}=estado;
-        const promptFinal=`Render fotorrealista de interior arquitectónico colombiano. Espacio de ${ancho}m x ${largo}m x ${alto}m de altura. Materiales: ${estado.materialPiso}, paredes color ${estado.colorPared}. ${prompt?'Detalles: '+prompt:'Estilo moderno contemporáneo, iluminación natural cálida.'} Alta resolución, fotografía arquitectónica profesional, sin texto ni marcas de agua.`;
-        const response=await fetch('https://decoia.onrender.com/generar-render-3d',{
-            method:'POST', headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({imagen_base64:base64Canvas, prompt:promptFinal, empresa_id:await obtenerEmpresaId()})
+        renderer.render(scene, camera);
+        const base64Canvas = canvas.toDataURL('image/png', 1.0).split(',')[1];
+        const { ancho, largo, alto } = estado;
+
+        // Describir muebles con posición
+        const mueblesList = Object.entries(mobiliarioMeshes).map(([id, g]) => {
+            const p = g.position;
+            let pos = '';
+            if (Math.abs(p.z + largo/2) < 0.8)      pos = 'contra pared del fondo';
+            else if (Math.abs(p.z - largo/2) < 0.8) pos = 'contra pared frontal';
+            else if (Math.abs(p.x + ancho/2) < 0.8) pos = 'contra pared izquierda';
+            else if (Math.abs(p.x - ancho/2) < 0.8) pos = 'contra pared derecha';
+            else pos = 'al centro';
+            return id.replace(/_/g,' ') + ' ' + pos;
         });
-        if(!response.ok) throw new Error('Error del servidor: '+response.status);
-        const data=await response.json();
-        if(data.status==='error') throw new Error(data.error||'Error desconocido');
-        if(!data.url_imagen) throw new Error('No se recibió URL de imagen');
-        fotoIaUrl=data.url_imagen;
-        document.getElementById('tabFoto').textContent='📸 Render IA ✅';
+
+        // Ventanas
+        const ventanaDesc = ['ventana_blanca','ventana_negra'].filter(v => mobiliarioMeshes[v]).map(v => {
+            const g = mobiliarioMeshes[v];
+            const color = v === 'ventana_blanca' ? 'blanco' : 'negro';
+            const w = (g.userData.ventanaAncho || 1.2).toFixed(1);
+            const h = (g.userData.ventanaAlto  || 0.9).toFixed(1);
+            return `ventana corrediza aluminio marco ${color} de ${w}×${h}m`;
+        }).join(', ');
+
+        // Luces techo
+        const lucesDesc = Object.keys(lucesTecho).map(k =>
+            ({ojoBuey:'ojos de buey',lineal:'luz lineal',colgante:'lámpara colgante',led:'tira LED'}[k]||k)
+        ).join(', ');
+
+        // Material aplicado
+        let matDesc = `piso de ${estado.materialPiso}`;
+        if (productoActivo) matDesc += `, ${productoActivo.nombre} en ${etiquetaSuperficie(superficieActiva)||'piso'}`;
+
+        const promptFinal =
+            `Fotografía arquitectónica hiperrealista de interior, calidad editorial profesional. ` +
+            `${estado.habitacion} de ${ancho.toFixed(1)}m × ${largo.toFixed(1)}m × ${alto.toFixed(1)}m de alto. ` +
+            `${matDesc}. Paredes color ${estado.colorPared}. ` +
+            (mueblesList.length ? `Mobiliario (respetar posición exacta): ${mueblesList.join('; ')}. ` : '') +
+            (ventanaDesc ? `${ventanaDesc} incrustada en la pared, con vista al exterior. ` : '') +
+            (lucesDesc ? `Iluminación de techo: ${lucesDesc}. ` : '') +
+            `Mantener EXACTAMENTE la distribución espacial de la imagen de referencia. ` +
+            `Iluminación cinematográfica, sombras suaves PCF, texturas PBR fotorrealistas, ACES tone mapping. ` +
+            `Sin texto, sin marcas de agua, sin marcos. ` +
+            (promptUser ? promptUser : 'Estilo moderno contemporáneo, luz natural cálida de tarde.');
+
+        const response = await fetch('https://decoia.onrender.com/generar-render-3d', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imagen_base64: base64Canvas, prompt: promptFinal, empresa_id: await obtenerEmpresaId() })
+        });
+        if (!response.ok) throw new Error('Error del servidor: ' + response.status);
+        const data = await response.json();
+        if (data.status === 'error') throw new Error(data.error || 'Error desconocido');
+        if (!data.url_imagen) throw new Error('No se recibió URL de imagen');
+        fotoIaUrl = data.url_imagen;
+        document.getElementById('tabFoto').textContent = '📸 Render IA ✅';
         mostrarToast('✅ ¡Render generado! Abriendo pestaña...');
-        setTimeout(()=>cambiarVista('foto'),1500);
+        setTimeout(() => cambiarVista('foto'), 1500);
     } catch(e) {
         console.error(e);
-        mostrarToast('❌ '+(e.message||'Error generando render'));
+        mostrarToast('❌ ' + (e.message || 'Error generando render'));
     }
-    btn.disabled=false;
-    btn.innerHTML='🤖 Capturar + IA hiperrealista';
+    btn.disabled = false;
+    btn.innerHTML = '🤖 Capturar + IA hiperrealista';
 }
 
 async function obtenerEmpresaId() {
@@ -1886,7 +1968,12 @@ cargarFotoIA();
 
 <!-- PANEL DIMENSIONES VENTANA -->
 <div class="ventana-dim-panel" id="ventanaDimPanel">
-    <div class="vdp-titulo">🪟 Dimensiones ventana</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div class="vdp-titulo" style="margin-bottom:0;">🪟 Dimensiones ventana</div>
+        <button onclick="togglePanelVentana()" id="btnMinVentana"
+            style="background:rgba(255,255,255,0.08);border:none;color:var(--gris);width:22px;height:22px;border-radius:50%;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;font-family:'Segoe UI',sans-serif;">—</button>
+    </div>
+    <div id="vdpContenido">
     <div class="vdp-row">
         <span class="vdp-label">Ancho</span>
         <input class="vdp-input" id="vdpAncho" type="number" value="1.2" min="0.4" max="3.0" step="0.1">
