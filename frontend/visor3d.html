@@ -476,6 +476,9 @@ const CATALOGO_MUEBLES = [
     { id:'armario',    nombre:'Armario',       icon:'🚪', hint:'Dormitorio' },
     { id:'planta',     nombre:'Planta',        icon:'🌿', hint:'Decoración' },
     { id:'lampara_pie',nombre:'Lámpara pie',   icon:'💡', hint:'Decoración' },
+    // ── VENTANAS ──
+    { id:'ventana_blanca', nombre:'Ventana blanca', icon:'🪟', hint:'Pared — marco blanco' },
+    { id:'ventana_negra',  nombre:'Ventana negra',  icon:'🖼️', hint:'Pared — marco negro' },
 ];
 
 let meshes            = {};
@@ -701,6 +704,95 @@ function crearMueble(id, posX=0, posZ=0) {
             g.position.set(posX, 0, posZ);
             break;
         }
+        case 'ventana_blanca':
+        case 'ventana_negra': {
+            const colorMarco = id === 'ventana_blanca' ? 0xF5F5F5 : 0x1A1A1A;
+            const colorPerfil = id === 'ventana_blanca' ? 0xEEEEEE : 0x222222;
+            const matMarco  = new THREE.MeshStandardMaterial({ color: colorMarco, roughness: 0.3, metalness: 0.2 });
+            const matPerfil = new THREE.MeshStandardMaterial({ color: colorPerfil, roughness: 0.3, metalness: 0.3 });
+            const matVidrio = new THREE.MeshStandardMaterial({
+                color: 0x88AACC,
+                transparent: true,
+                opacity: 0.25,
+                metalness: 0.9,
+                roughness: 0.05,
+                envMapIntensity: 1.0,
+                side: THREE.DoubleSide
+            });
+            const matSilicona = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.9 });
+
+            // Dimensiones de la ventana
+            const W = 1.4;  // ancho total
+            const H = 1.0;  // alto total
+            const B = 0.07; // grosor del marco
+            const D = 0.12; // profundidad del marco (sale de la pared)
+
+            // ── Marco exterior ──
+            // Barra superior e inferior
+            [H/2 - B/2, -H/2 + B/2].forEach(y => {
+                const barra = new THREE.Mesh(new THREE.BoxGeometry(W, B, D), matMarco);
+                barra.position.set(0, y, 0);
+                g.add(barra);
+            });
+            // Barra izquierda y derecha
+            [-W/2 + B/2, W/2 - B/2].forEach(x => {
+                const barra = new THREE.Mesh(new THREE.BoxGeometry(B, H - B*2, D), matMarco);
+                barra.position.set(x, 0, 0);
+                g.add(barra);
+            });
+
+            // ── Parteluz central (división vertical) ──
+            const parteluz = new THREE.Mesh(new THREE.BoxGeometry(B * 0.8, H - B*2, D * 0.8), matPerfil);
+            parteluz.position.set(0, 0, 0);
+            g.add(parteluz);
+
+            // ── Parteluz horizontal (división horizontal a 60% del alto) ──
+            const partehz = new THREE.Mesh(new THREE.BoxGeometry(W - B*2, B * 0.8, D * 0.8), matPerfil);
+            partehz.position.set(0, H * 0.1, 0);
+            g.add(partehz);
+
+            // ── Vidrios (4 paneles) ──
+            const vW = (W - B*2 - B*0.8) / 2 - 0.01;
+            const vH1 = (H - B*2) * 0.4 - 0.01;   // abajo
+            const vH2 = (H - B*2) * 0.6 - 0.01;   // arriba
+            const yBase = -B * 0.5;
+            const yArr  = B * 0.1 + vH2/2 + vH1/2 + B*0.4;
+
+            // 4 vidrios: izq-abajo, der-abajo, izq-arriba, der-arriba
+            [
+                { x: -vW/2 - B*0.4, y: yBase - vH1/2 + H*0.1, w: vW, h: vH1 },
+                { x:  vW/2 + B*0.4, y: yBase - vH1/2 + H*0.1, w: vW, h: vH1 },
+                { x: -vW/2 - B*0.4, y: yBase + vH2/2 + H*0.1 + B*0.4, w: vW, h: vH2 },
+                { x:  vW/2 + B*0.4, y: yBase + vH2/2 + H*0.1 + B*0.4, w: vW, h: vH2 },
+            ].forEach(v => {
+                const vidrio = new THREE.Mesh(new THREE.BoxGeometry(v.w, v.h, 0.006), matVidrio);
+                vidrio.position.set(v.x, v.y, 0.01);
+                g.add(vidrio);
+            });
+
+            // ── Silicona/junta en esquinas ──
+            const esquinas = [[-W/2, H/2], [W/2, H/2], [-W/2, -H/2], [W/2, -H/2]];
+            esquinas.forEach(([x, y]) => {
+                const esq = new THREE.Mesh(new THREE.BoxGeometry(B, B, D * 1.01), matSilicona);
+                esq.position.set(x, y, 0);
+                g.add(esq);
+            });
+
+            // ── Manija de la ventana ──
+            const manijaMat = new THREE.MeshStandardMaterial({ color: id === 'ventana_blanca' ? 0xCCCCCC : 0x888888, roughness: 0.2, metalness: 0.8 });
+            const manija = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.12, 8), manijaMat);
+            manija.rotation.z = Math.PI / 2;
+            manija.position.set(0.06, H * 0.1, D / 2 + 0.02);
+            g.add(manija);
+            const mBase = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.07, 0.03), manijaMat);
+            mBase.position.set(0, H * 0.1, D / 2 + 0.01);
+            g.add(mBase);
+
+            // La ventana se coloca flotando — el usuario la arrastra a la pared
+            g.position.set(posX, estado.alto * 0.55, posZ);
+            break;
+        }
+
         default:
             return null;
     }
@@ -782,17 +874,20 @@ canvas.addEventListener('mousemove', (e) => {
     mouse.set(ndc.x, ndc.y);
     raycaster.setFromCamera(mouse, camera);
 
-    // Intersectar con plano Y=0 (piso)
-    raycaster.ray.intersectPlane(planoArrastre, puntoArrastre);
+    const id = muebleArrastrando.userData.muebleId || '';
+    const esVentana = id.startsWith('ventana');
 
-    // Limitar dentro de la habitación
-    const hw = estado.ancho/2 - 0.3;
-    const hl = estado.largo/2 - 0.3;
-    const nx = Math.max(-hw, Math.min(hw, puntoArrastre.x));
-    const nz = Math.max(-hl, Math.min(hl, puntoArrastre.z));
-
-    muebleArrastrando.position.x = nx;
-    muebleArrastrando.position.z = nz;
+    if (esVentana) {
+        // Ventanas se pegan a la pared más cercana
+        pegarVentanaAPared(muebleArrastrando, ndc);
+    } else {
+        // Muebles normales — plano Y=0
+        raycaster.ray.intersectPlane(planoArrastre, puntoArrastre);
+        const hw = estado.ancho/2 - 0.3;
+        const hl = estado.largo/2 - 0.3;
+        muebleArrastrando.position.x = Math.max(-hw, Math.min(hw, puntoArrastre.x));
+        muebleArrastrando.position.z = Math.max(-hl, Math.min(hl, puntoArrastre.z));
+    }
 });
 
 canvas.addEventListener('mouseup', () => {
