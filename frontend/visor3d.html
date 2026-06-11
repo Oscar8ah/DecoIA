@@ -166,6 +166,29 @@
             .panel { top:auto; right:0; left:0; width:100%; height:220px; flex-direction:row; overflow-x:auto; overflow-y:hidden; }
             .panel-section { min-width:180px; border-bottom:none; border-right:1px solid rgba(124,58,237,0.1); }
         }
+
+        /* ── PANEL DIMENSIONES VENTANA ── */
+        .ventana-dim-panel {
+            position:fixed; bottom:20px; right:316px;
+            background:rgba(15,15,26,0.95); backdrop-filter:blur(8px);
+            border:1px solid rgba(124,58,237,0.35); border-radius:14px;
+            padding:14px 16px; z-index:150; display:none; min-width:210px;
+        }
+        .ventana-dim-panel.visible { display:block; }
+        .vdp-titulo { font-size:11px; font-weight:700; color:#A78BFA;
+            text-transform:uppercase; letter-spacing:0.05em; margin-bottom:10px; }
+        .vdp-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+        .vdp-label { font-size:11px; color:var(--gris); width:50px; flex-shrink:0; }
+        .vdp-input { flex:1; background:var(--oscuro); border:1px solid rgba(124,58,237,0.25);
+            border-radius:7px; padding:5px 8px; color:var(--texto); font-size:12px;
+            font-family:'Segoe UI',sans-serif; outline:none; }
+        .vdp-input:focus { border-color:var(--morado); }
+        .vdp-unit { font-size:11px; color:var(--gris); }
+        .vdp-btn { width:100%; background:var(--degradado); color:white; border:none;
+            padding:8px; border-radius:8px; font-size:12px; font-weight:700;
+            cursor:pointer; font-family:'Segoe UI',sans-serif; margin-top:4px; }
+        .vdp-hint { font-size:10px; color:var(--gris); margin-top:8px;
+            line-height:1.5; text-align:center; }
     </style>
 </head>
 <body>
@@ -417,6 +440,89 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// ── VENTANA CORREDIZA ALUMINIO ────────────────────────────────────────────
+function construirGeometriaVentana(g, id, W, H) {
+    while (g.children.length > 0) g.remove(g.children[0]);
+    const colorAlum   = id === 'ventana_blanca' ? 0xDDDDDD : 0x252525;
+    const colorBrillo = id === 'ventana_blanca' ? 0xEEEEEE : 0x333333;
+    const matAlum   = new THREE.MeshStandardMaterial({ color:colorAlum,   roughness:0.25, metalness:0.75 });
+    const matBrillo = new THREE.MeshStandardMaterial({ color:colorBrillo, roughness:0.2,  metalness:0.85 });
+    const matVidrio = new THREE.MeshStandardMaterial({ color:0xBBCCDD, transparent:true, opacity:0.15, metalness:0.95, roughness:0.02, side:THREE.DoubleSide });
+    const matManija = new THREE.MeshStandardMaterial({ color:0x111111, roughness:0.3, metalness:0.8 });
+    const B = Math.max(0.025, W*0.028);
+    const D = 0.055;
+    // Marco exterior
+    [[W,B,D,0,H/2,0],[W,B,D,0,-H/2,0],[B,H,D,-W/2,0,0],[B,H,D,W/2,0,0],[W,B*0.5,D*1.1,0,-H/2+B*0.25,D*0.05]].forEach(([w,h,d,x,y,z])=>{
+        const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),matAlum); m.position.set(x,y,z); g.add(m);
+    });
+    // Divisor
+    const div=new THREE.Mesh(new THREE.BoxGeometry(B*1.1,H-B*2,D*0.8),matBrillo); div.position.set(0,0,0); g.add(div);
+    // Hoja izquierda
+    const hw=W/2-B*1.4;
+    [[hw,B*0.85,D*0.7,-W/4,H/2-B*0.75,D*0.04],[hw,B*0.85,D*0.7,-W/4,-H/2+B*0.75,D*0.04],[B*0.85,H-B*2.5,D*0.7,-W/2+B*1.1,0,D*0.04],[B*0.85,H-B*2.5,D*0.7,-B*0.55,0,D*0.04]].forEach(([w,h,d,x,y,z])=>{
+        const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),matBrillo); m.position.set(x,y,z); g.add(m);
+    });
+    const vi=new THREE.Mesh(new THREE.BoxGeometry(hw-B*1.2,H-B*3,0.004),matVidrio); vi.position.set(-W/4,0,D*0.04); g.add(vi);
+    // Hoja derecha
+    const off=D*0.07;
+    [[hw,B*0.85,D*0.7,W/4,H/2-B*0.75,-off],[hw,B*0.85,D*0.7,W/4,-H/2+B*0.75,-off],[B*0.85,H-B*2.5,D*0.7,B*0.55,0,-off],[B*0.85,H-B*2.5,D*0.7,W/2-B*1.1,0,-off]].forEach(([w,h,d,x,y,z])=>{
+        const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),matBrillo); m.position.set(x,y,z); g.add(m);
+    });
+    const vd=new THREE.Mesh(new THREE.BoxGeometry(hw-B*1.2,H-B*3,0.004),matVidrio); vd.position.set(W/4,0,-off); g.add(vd);
+    // Manija
+    const mb=new THREE.Mesh(new THREE.BoxGeometry(0.022,0.06,0.02),matManija); mb.position.set(0.008,0,D*0.04+0.01); g.add(mb);
+    const mp=new THREE.Mesh(new THREE.BoxGeometry(0.01,0.035,0.016),matManija); mp.position.set(0.008,0.018,D*0.04+0.02); g.add(mp);
+}
+
+function aplicarDimensionesVentana() {
+    const w = parseFloat(document.getElementById('vdpAncho').value)||1.2;
+    const h = parseFloat(document.getElementById('vdpAlto').value)||0.9;
+    window._ventanaAncho = Math.max(0.4, Math.min(3.0, w));
+    window._ventanaAlto  = Math.max(0.3, Math.min(2.4, h));
+    ['ventana_blanca','ventana_negra'].forEach(id => {
+        const g = mobiliarioMeshes[id];
+        if (g) {
+            construirGeometriaVentana(g, id, window._ventanaAncho, window._ventanaAlto);
+            g.userData.ventanaAncho = window._ventanaAncho;
+            g.userData.ventanaAlto  = window._ventanaAlto;
+            actualizarHuecoVentana(id);
+        }
+    });
+    mostrarToast('🪟 Ventana: ' + window._ventanaAncho + '×' + window._ventanaAlto + 'm');
+}
+
+const huecosVentana = {};
+
+function crearHuecoVentana(ventanaId, posVentana, rotY) {
+    if (huecosVentana[ventanaId]) { scene.remove(huecosVentana[ventanaId]); delete huecosVentana[ventanaId]; }
+    const g = mobiliarioMeshes[ventanaId];
+    if (!g) return;
+    const vW = g.userData.ventanaAncho || 1.2;
+    const vH = g.userData.ventanaAlto  || 0.9;
+    const matHueco = new THREE.MeshStandardMaterial({ color:0x05080F, roughness:1, metalness:0, side:THREE.DoubleSide });
+    const hueco = new THREE.Mesh(new THREE.BoxGeometry(vW-0.01, vH-0.01, 0.18), matHueco);
+    hueco.position.copy(posVentana);
+    hueco.rotation.y = rotY;
+    scene.add(hueco);
+    huecosVentana[ventanaId] = hueco;
+}
+
+function actualizarHuecoVentana(ventanaId) {
+    const h = huecosVentana[ventanaId];
+    if (!h) return;
+    const g = mobiliarioMeshes[ventanaId];
+    if (!g) return;
+    const vW = g.userData.ventanaAncho||1.2;
+    const vH = g.userData.ventanaAlto||0.9;
+    h.geometry.dispose();
+    h.geometry = new THREE.BoxGeometry(vW-0.01, vH-0.01, 0.18);
+}
+
+function limpiarHuecosVentana() {
+    Object.values(huecosVentana).forEach(h => scene.remove(h));
+    Object.keys(huecosVentana).forEach(k => delete huecosVentana[k]);
+}
+
 const PANEL_W  = 300;
 const HEADER_H = 96;
 function getCanvasSize() {
@@ -534,12 +640,17 @@ function toggleMueble(id) {
         if (muebleSeleccionado === id) desactivarMoverMueble();
         mostrarToast(`${CATALOGO_MUEBLES.find(m=>m.id===id)?.icon} Mueble quitado`);
     } else {
-        // Agregar al centro de la habitación
         const grupo = crearMueble(id);
         if (grupo) {
             mobiliarioMeshes[id] = grupo;
             scene.add(grupo);
-            mostrarToast(`${CATALOGO_MUEBLES.find(m=>m.id===id)?.icon} Mueble agregado — usa ↔ para mover`);
+            if (id.startsWith('ventana')) {
+                // Mostrar panel de dimensiones
+                document.getElementById('ventanaDimPanel').style.display = 'block';
+                mostrarToast('🪟 Ventana agregada — ajusta dimensiones y usa ↔ para pegar a pared');
+            } else {
+                mostrarToast(`${CATALOGO_MUEBLES.find(m=>m.id===id)?.icon} Mueble agregado — usa ↔ para mover`);
+            }
         }
     }
     renderListaMuebles();
@@ -706,103 +817,12 @@ function crearMueble(id, posX=0, posZ=0) {
         }
         case 'ventana_blanca':
         case 'ventana_negra': {
-            // Ventana corrediza de aluminio — 2 hojas, marco delgado
-            // Referencia: ventana tipo Colombia estándar
-            const colorAlum  = id === 'ventana_blanca' ? 0xE8E8E8 : 0x2A2A2A;
-            const colorBrillo = id === 'ventana_blanca' ? 0xF0F0F0 : 0x383838;
-
-            const matAlum = new THREE.MeshStandardMaterial({
-                color: colorAlum, roughness: 0.25, metalness: 0.75
-            });
-            const matAlumBrillo = new THREE.MeshStandardMaterial({
-                color: colorBrillo, roughness: 0.2, metalness: 0.85
-            });
-            const matVidrio = new THREE.MeshStandardMaterial({
-                color: 0xC8D8E8, transparent: true, opacity: 0.18,
-                metalness: 0.95, roughness: 0.02, side: THREE.DoubleSide
-            });
-            const matManija = new THREE.MeshStandardMaterial({
-                color: 0x1A1A1A, roughness: 0.3, metalness: 0.7
-            });
-
-            // Dimensiones reales proporcionales
-            const W  = 1.20;  // ancho total
-            const H  = 0.90;  // alto total
-            const B  = 0.035; // grosor perfilería aluminio (delgado)
-            const D  = 0.06;  // profundidad del marco
-
-            // ── Marco exterior 4 lados ──
-            const perfiles = [
-                // top, bottom
-                { g: new THREE.BoxGeometry(W, B, D), p: [0,  H/2, 0] },
-                { g: new THREE.BoxGeometry(W, B, D), p: [0, -H/2, 0] },
-                // left, right
-                { g: new THREE.BoxGeometry(B, H, D), p: [-W/2, 0, 0] },
-                { g: new THREE.BoxGeometry(B, H, D), p: [ W/2, 0, 0] },
-                // guía inferior (riel) — más prominente
-                { g: new THREE.BoxGeometry(W, B*0.6, D*1.1), p: [0, -H/2 + B*0.3, D*0.05] },
-                // guía superior
-                { g: new THREE.BoxGeometry(W, B*0.5, D*0.9), p: [0, H/2 - B*0.25, 0] },
-            ];
-            perfiles.forEach(({g: geo, p}) => {
-                const m = new THREE.Mesh(geo, matAlum);
-                m.position.set(...p); g.add(m);
-            });
-
-            // ── Divisor central (perfil del encuentro de las 2 hojas) ──
-            const divisor = new THREE.Mesh(new THREE.BoxGeometry(B * 1.2, H - B*2, D * 0.85), matAlumBrillo);
-            divisor.position.set(0, 0, 0);
-            g.add(divisor);
-
-            // ── Hoja izquierda (fija) ──
-            const hojaIzqW = W/2 - B*1.5;
-            // Marco hoja izq
-            [
-                { g: new THREE.BoxGeometry(hojaIzqW, B*0.9, D*0.75), p: [-W/4 - B*0.2,  H/2 - B*0.8, D*0.05] },
-                { g: new THREE.BoxGeometry(hojaIzqW, B*0.9, D*0.75), p: [-W/4 - B*0.2, -H/2 + B*0.8, D*0.05] },
-                { g: new THREE.BoxGeometry(B*0.9, H - B*3, D*0.75),  p: [-W/2 + B*1.2, 0, D*0.05] },
-                { g: new THREE.BoxGeometry(B*0.9, H - B*3, D*0.75),  p: [-B*0.7, 0, D*0.05] },
-            ].forEach(({g: geo, p}) => {
-                const m = new THREE.Mesh(geo, matAlumBrillo);
-                m.position.set(...p); g.add(m);
-            });
-            // Vidrio hoja izq
-            const vIzq = new THREE.Mesh(
-                new THREE.BoxGeometry(hojaIzqW - B*1.5, H - B*3.5, 0.004),
-                matVidrio
-            );
-            vIzq.position.set(-W/4 - B*0.2, 0, D*0.05);
-            g.add(vIzq);
-
-            // ── Hoja derecha (corrediza — ligeramente adelantada) ──
-            const hojaDelD = D * 0.08;
-            [
-                { g: new THREE.BoxGeometry(hojaIzqW, B*0.9, D*0.75), p: [W/4 + B*0.2,  H/2 - B*0.8, -hojaDelD] },
-                { g: new THREE.BoxGeometry(hojaIzqW, B*0.9, D*0.75), p: [W/4 + B*0.2, -H/2 + B*0.8, -hojaDelD] },
-                { g: new THREE.BoxGeometry(B*0.9, H - B*3, D*0.75),  p: [B*0.7, 0, -hojaDelD] },
-                { g: new THREE.BoxGeometry(B*0.9, H - B*3, D*0.75),  p: [W/2 - B*1.2, 0, -hojaDelD] },
-            ].forEach(({g: geo, p}) => {
-                const m = new THREE.Mesh(geo, matAlumBrillo);
-                m.position.set(...p); g.add(m);
-            });
-            // Vidrio hoja der
-            const vDer = new THREE.Mesh(
-                new THREE.BoxGeometry(hojaIzqW - B*1.5, H - B*3.5, 0.004),
-                matVidrio
-            );
-            vDer.position.set(W/4 + B*0.2, 0, -hojaDelD);
-            g.add(vDer);
-
-            // ── Manija central ──
-            const mBase = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.065, 0.022), matManija);
-            mBase.position.set(0.01, 0, D*0.05 + 0.011);
-            g.add(mBase);
-            const mGarfio = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.04, 0.018), matManija);
-            mGarfio.position.set(0.01, 0.015, D*0.05 + 0.022);
-            g.add(mGarfio);
-
-            // Posición inicial en la pared trasera, altura de ventana estándar
+            const vW = window._ventanaAncho || 1.20;
+            const vH = window._ventanaAlto  || 0.90;
+            construirGeometriaVentana(g, id, vW, vH);
             g.position.set(posX, estado.alto * 0.55, posZ);
+            g.userData.ventanaAncho = vW;
+            g.userData.ventanaAlto  = vH;
             break;
         }
 
@@ -905,8 +925,17 @@ canvas.addEventListener('mousemove', (e) => {
 
 canvas.addEventListener('mouseup', () => {
     if (muebleArrastrando) {
+        const id = muebleArrastrando.userData.muebleId || '';
+        if (id.startsWith('ventana')) {
+            // Crear hueco en la pared al soltar
+            const pos = muebleArrastrando.position.clone();
+            const rotY = muebleArrastrando.rotation.y;
+            crearHuecoVentana(id, pos, rotY);
+            mostrarToast('🪟 Ventana incrustada en la pared ✅');
+        } else {
+            mostrarToast('✅ Posición guardada');
+        }
         muebleArrastrando = null;
-        mostrarToast('✅ Posición guardada');
     }
 });
 
@@ -1196,6 +1225,8 @@ function construirHabitacion() {
         document.getElementById(`luz${k.charAt(0).toUpperCase()+k.slice(1)}`)?.classList.remove('activo');
     });
     lucesTecho = {};
+    // Limpiar huecos de ventanas
+    limpiarHuecosVentana();
 
     const {ancho,largo,alto} = estado;
     const hw=ancho/2, hl=largo/2;
@@ -1743,5 +1774,22 @@ function aplicarProductoASuperficie(prod, superficie) {
 document.addEventListener('DOMContentLoaded',()=>cargarFotoIA());
 cargarFotoIA();
 </script>
+
+<!-- PANEL DIMENSIONES VENTANA -->
+<div class="ventana-dim-panel" id="ventanaDimPanel">
+    <div class="vdp-titulo">🪟 Dimensiones ventana</div>
+    <div class="vdp-row">
+        <span class="vdp-label">Ancho</span>
+        <input class="vdp-input" id="vdpAncho" type="number" value="1.2" min="0.4" max="3.0" step="0.1">
+        <span class="vdp-unit">m</span>
+    </div>
+    <div class="vdp-row">
+        <span class="vdp-label">Alto</span>
+        <input class="vdp-input" id="vdpAlto" type="number" value="0.9" min="0.3" max="2.4" step="0.1">
+        <span class="vdp-unit">m</span>
+    </div>
+    <button class="vdp-btn" onclick="aplicarDimensionesVentana()">↺ Aplicar dimensiones</button>
+    <div class="vdp-hint">Arrastra con ↔ para pegar a la pared.<br>Se incrusta automáticamente al soltar.</div>
+</div>
 </body>
 </html>
