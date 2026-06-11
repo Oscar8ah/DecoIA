@@ -534,65 +534,74 @@ function limpiarHuecosVentana() {
 }
 
 // ── PEGAR VENTANA A PARED ─────────────────────────────────────────────────
+// pared donde está anclada la ventana mientras se arrastra
+let paredVentanaActual = null;
+
+function seleccionarParedVentana(pared) {
+    paredVentanaActual = pared;
+    const id = ['ventana_blanca','ventana_negra'].find(v => mobiliarioMeshes[v]);
+    if (!id) return;
+    const g = mobiliarioMeshes[id];
+    const { ancho, largo, alto } = estado;
+    const hw = ancho/2, hl = largo/2;
+    const vH = g.userData.ventanaAlto || 0.9;
+    const y  = Math.min(alto * 0.55, alto - vH/2 - 0.15);
+    if (pared==='trasera')  { g.position.set(0, y, -hl+0.06); g.rotation.y=0; }
+    if (pared==='frontal')  { g.position.set(0, y,  hl-0.06); g.rotation.y=0; }
+    if (pared==='izq')      { g.position.set(-hw+0.06, y, 0); g.rotation.y=Math.PI/2; }
+    if (pared==='der')      { g.position.set( hw-0.06, y, 0); g.rotation.y=Math.PI/2; }
+    mostrarToast('🪟 Ventana en pared ' + pared + ' — usa ↔ para ajustar posición');
+}
+
 function pegarVentanaAPared(ventanaGrupo, ndc) {
     const { ancho, largo, alto } = estado;
-    const hw = ancho / 2;
-    const hl = largo / 2;
+    const hw = ancho/2, hl = largo/2;
+    const vW = ventanaGrupo.userData.ventanaAncho || 1.2;
+    const vH = ventanaGrupo.userData.ventanaAlto  || 0.9;
+    const yMin = vH/2 + 0.25;
+    const yMax = alto - vH/2 - 0.15;
 
-    // Actualizar raycaster con posición actual del mouse
+    // Si no hay pared elegida, detectar la más cercana a la posición actual
+    if (!paredVentanaActual) {
+        const p = ventanaGrupo.position;
+        const dists = [
+            { n:'trasera', d: Math.abs(p.z + hl) },
+            { n:'frontal', d: Math.abs(p.z - hl) },
+            { n:'izq',     d: Math.abs(p.x + hw) },
+            { n:'der',     d: Math.abs(p.x - hw) },
+        ];
+        paredVentanaActual = dists.sort((a,b)=>a.d-b.d)[0].n;
+    }
+
     mouse.set(ndc.x, ndc.y);
     raycaster.setFromCamera(mouse, camera);
 
-    // Probar intersección con cada pared usando planos verticales
-    const paredes = [
-        { nombre:'trasera',  plano: new THREE.Plane(new THREE.Vector3(0,0, 1), hl),  zFijo:-hl+0.06, rotY:0 },
-        { nombre:'frontal',  plano: new THREE.Plane(new THREE.Vector3(0,0,-1), hl),  zFijo: hl-0.06, rotY:0 },
-        { nombre:'izq',      plano: new THREE.Plane(new THREE.Vector3( 1,0,0), hw),  xFijo:-hw+0.06, rotY:Math.PI/2 },
-        { nombre:'der',      plano: new THREE.Plane(new THREE.Vector3(-1,0,0), hw),  xFijo: hw-0.06, rotY:Math.PI/2 },
-    ];
-
-    let mejorDist = Infinity;
-    let mejorPared = null;
-    let mejorPunto = new THREE.Vector3();
-
-    paredes.forEach(p => {
-        const pt = new THREE.Vector3();
-        if (raycaster.ray.intersectPlane(p.plano, pt)) {
-            const dist = camera.position.distanceTo(pt);
-            if (dist < mejorDist && dist < 20) {
-                mejorDist  = dist;
-                mejorPared = p;
-                mejorPunto.copy(pt);
-            }
-        }
-    });
-
-    if (!mejorPared) return;
-
-    // Altura — entre 0.4m del suelo y 0.3m del techo
-    const vH = ventanaGrupo.userData.ventanaAlto || 0.9;
-    const vW = ventanaGrupo.userData.ventanaAncho || 1.2;
-    const yMin = vH/2 + 0.3;
-    const yMax = alto - vH/2 - 0.2;
-    const y = Math.max(yMin, Math.min(yMax, mejorPunto.y));
-
-    // Posicionar sobre la pared correcta
-    if (mejorPared.nombre === 'trasera' || mejorPared.nombre === 'frontal') {
-        const xMax = hw - vW/2 - 0.1;
+    if (paredVentanaActual === 'trasera' || paredVentanaActual === 'frontal') {
+        const zFijo = paredVentanaActual === 'trasera' ? -hl+0.06 : hl-0.06;
+        const signo = paredVentanaActual === 'trasera' ? 1 : -1;
+        const plano = new THREE.Plane(new THREE.Vector3(0,0,signo), hl);
+        const pt    = new THREE.Vector3();
+        if (!raycaster.ray.intersectPlane(plano, pt)) return;
+        const xMax = hw - vW/2 - 0.05;
         ventanaGrupo.position.set(
-            Math.max(-xMax, Math.min(xMax, mejorPunto.x)),
-            y,
-            mejorPared.zFijo
+            Math.max(-xMax, Math.min(xMax, pt.x)),
+            Math.max(yMin, Math.min(yMax, pt.y)),
+            zFijo
         );
-        ventanaGrupo.rotation.y = mejorPared.rotY;
+        ventanaGrupo.rotation.y = 0;
     } else {
-        const zMax = hl - vW/2 - 0.1;
+        const xFijo  = paredVentanaActual === 'izq' ? -hw+0.06 : hw-0.06;
+        const signo  = paredVentanaActual === 'izq' ? 1 : -1;
+        const plano  = new THREE.Plane(new THREE.Vector3(signo,0,0), hw);
+        const pt     = new THREE.Vector3();
+        if (!raycaster.ray.intersectPlane(plano, pt)) return;
+        const zMax   = hl - vW/2 - 0.05;
         ventanaGrupo.position.set(
-            mejorPared.xFijo,
-            y,
-            Math.max(-zMax, Math.min(zMax, mejorPunto.z))
+            xFijo,
+            Math.max(yMin, Math.min(yMax, pt.y)),
+            Math.max(-zMax, Math.min(zMax, pt.z))
         );
-        ventanaGrupo.rotation.y = mejorPared.rotY;
+        ventanaGrupo.rotation.y = Math.PI/2;
     }
 }
 
@@ -932,6 +941,7 @@ function desactivarMoverMueble() {
     muebleSeleccionado = null;
     modoMover = false;
     muebleArrastrando = null;
+    paredVentanaActual = null;
     controls.enabled = true;
     canvas.classList.remove('modo-mover');
     document.getElementById('modoBadge').classList.remove('visible');
@@ -1888,7 +1898,16 @@ cargarFotoIA();
         <span class="vdp-unit">m</span>
     </div>
     <button class="vdp-btn" onclick="aplicarDimensionesVentana()">↺ Aplicar dimensiones</button>
-    <div class="vdp-hint">Arrastra con ↔ para pegar a la pared.<br>Se incrusta automáticamente al soltar.</div>
+    <div style="margin-top:10px;">
+        <div style="font-size:10px;color:var(--gris);margin-bottom:6px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;">📌 Colocar en pared</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;">
+            <button onclick="seleccionarParedVentana('trasera')" style="padding:7px 4px;border-radius:7px;background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;font-size:11px;font-weight:700;cursor:pointer;font-family:'Segoe UI',sans-serif;">🧱 Fondo</button>
+            <button onclick="seleccionarParedVentana('frontal')" style="padding:7px 4px;border-radius:7px;background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;font-size:11px;font-weight:700;cursor:pointer;font-family:'Segoe UI',sans-serif;">🚪 Frente</button>
+            <button onclick="seleccionarParedVentana('izq')" style="padding:7px 4px;border-radius:7px;background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;font-size:11px;font-weight:700;cursor:pointer;font-family:'Segoe UI',sans-serif;">◀ Izquierda</button>
+            <button onclick="seleccionarParedVentana('der')" style="padding:7px 4px;border-radius:7px;background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;font-size:11px;font-weight:700;cursor:pointer;font-family:'Segoe UI',sans-serif;">▶ Derecha</button>
+        </div>
+        <div style="font-size:10px;color:var(--gris);margin-top:6px;line-height:1.5;">1. Elige la pared 2. Usa ↔ para ajustar posición exacta.</div>
+    </div>
 </div>
 </body>
 </html>
