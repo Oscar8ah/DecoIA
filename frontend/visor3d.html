@@ -393,7 +393,7 @@
             <button class="cam-btn" onclick="setCamara('interior')">👁️ Interior</button>
             <button class="cam-btn" onclick="setCamara('libre')">🔄 Libre</button>
         </div>
-        <button onclick="activarCamaraPivote()" style="width:100%;margin-top:10px;padding:9px;border-radius:8px;background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;font-size:12px;font-weight:700;cursor:pointer;font-family:'Segoe UI',sans-serif;">
+        <button id="btnCamaraInterior" onclick="toggleCamaraInterior()" style="width:100%;margin-top:10px;padding:9px;border-radius:8px;background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;font-size:12px;font-weight:700;cursor:pointer;font-family:'Segoe UI',sans-serif;">
             📷 Entrar con cámara interior
         </button>
     </div>
@@ -706,89 +706,102 @@ function crearMueble(id, posX=0, posZ=0) {
         }
         case 'ventana_blanca':
         case 'ventana_negra': {
-            const colorMarco = id === 'ventana_blanca' ? 0xF5F5F5 : 0x1A1A1A;
-            const colorPerfil = id === 'ventana_blanca' ? 0xEEEEEE : 0x222222;
-            const matMarco  = new THREE.MeshStandardMaterial({ color: colorMarco, roughness: 0.3, metalness: 0.2 });
-            const matPerfil = new THREE.MeshStandardMaterial({ color: colorPerfil, roughness: 0.3, metalness: 0.3 });
+            // Ventana corrediza de aluminio — 2 hojas, marco delgado
+            // Referencia: ventana tipo Colombia estándar
+            const colorAlum  = id === 'ventana_blanca' ? 0xE8E8E8 : 0x2A2A2A;
+            const colorBrillo = id === 'ventana_blanca' ? 0xF0F0F0 : 0x383838;
+
+            const matAlum = new THREE.MeshStandardMaterial({
+                color: colorAlum, roughness: 0.25, metalness: 0.75
+            });
+            const matAlumBrillo = new THREE.MeshStandardMaterial({
+                color: colorBrillo, roughness: 0.2, metalness: 0.85
+            });
             const matVidrio = new THREE.MeshStandardMaterial({
-                color: 0x88AACC,
-                transparent: true,
-                opacity: 0.25,
-                metalness: 0.9,
-                roughness: 0.05,
-                envMapIntensity: 1.0,
-                side: THREE.DoubleSide
+                color: 0xC8D8E8, transparent: true, opacity: 0.18,
+                metalness: 0.95, roughness: 0.02, side: THREE.DoubleSide
             });
-            const matSilicona = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.9 });
-
-            // Dimensiones de la ventana
-            const W = 1.4;  // ancho total
-            const H = 1.0;  // alto total
-            const B = 0.07; // grosor del marco
-            const D = 0.12; // profundidad del marco (sale de la pared)
-
-            // ── Marco exterior ──
-            // Barra superior e inferior
-            [H/2 - B/2, -H/2 + B/2].forEach(y => {
-                const barra = new THREE.Mesh(new THREE.BoxGeometry(W, B, D), matMarco);
-                barra.position.set(0, y, 0);
-                g.add(barra);
-            });
-            // Barra izquierda y derecha
-            [-W/2 + B/2, W/2 - B/2].forEach(x => {
-                const barra = new THREE.Mesh(new THREE.BoxGeometry(B, H - B*2, D), matMarco);
-                barra.position.set(x, 0, 0);
-                g.add(barra);
+            const matManija = new THREE.MeshStandardMaterial({
+                color: 0x1A1A1A, roughness: 0.3, metalness: 0.7
             });
 
-            // ── Parteluz central (división vertical) ──
-            const parteluz = new THREE.Mesh(new THREE.BoxGeometry(B * 0.8, H - B*2, D * 0.8), matPerfil);
-            parteluz.position.set(0, 0, 0);
-            g.add(parteluz);
+            // Dimensiones reales proporcionales
+            const W  = 1.20;  // ancho total
+            const H  = 0.90;  // alto total
+            const B  = 0.035; // grosor perfilería aluminio (delgado)
+            const D  = 0.06;  // profundidad del marco
 
-            // ── Parteluz horizontal (división horizontal a 60% del alto) ──
-            const partehz = new THREE.Mesh(new THREE.BoxGeometry(W - B*2, B * 0.8, D * 0.8), matPerfil);
-            partehz.position.set(0, H * 0.1, 0);
-            g.add(partehz);
+            // ── Marco exterior 4 lados ──
+            const perfiles = [
+                // top, bottom
+                { g: new THREE.BoxGeometry(W, B, D), p: [0,  H/2, 0] },
+                { g: new THREE.BoxGeometry(W, B, D), p: [0, -H/2, 0] },
+                // left, right
+                { g: new THREE.BoxGeometry(B, H, D), p: [-W/2, 0, 0] },
+                { g: new THREE.BoxGeometry(B, H, D), p: [ W/2, 0, 0] },
+                // guía inferior (riel) — más prominente
+                { g: new THREE.BoxGeometry(W, B*0.6, D*1.1), p: [0, -H/2 + B*0.3, D*0.05] },
+                // guía superior
+                { g: new THREE.BoxGeometry(W, B*0.5, D*0.9), p: [0, H/2 - B*0.25, 0] },
+            ];
+            perfiles.forEach(({g: geo, p}) => {
+                const m = new THREE.Mesh(geo, matAlum);
+                m.position.set(...p); g.add(m);
+            });
 
-            // ── Vidrios (4 paneles) ──
-            const vW = (W - B*2 - B*0.8) / 2 - 0.01;
-            const vH1 = (H - B*2) * 0.4 - 0.01;   // abajo
-            const vH2 = (H - B*2) * 0.6 - 0.01;   // arriba
-            const yBase = -B * 0.5;
-            const yArr  = B * 0.1 + vH2/2 + vH1/2 + B*0.4;
+            // ── Divisor central (perfil del encuentro de las 2 hojas) ──
+            const divisor = new THREE.Mesh(new THREE.BoxGeometry(B * 1.2, H - B*2, D * 0.85), matAlumBrillo);
+            divisor.position.set(0, 0, 0);
+            g.add(divisor);
 
-            // 4 vidrios: izq-abajo, der-abajo, izq-arriba, der-arriba
+            // ── Hoja izquierda (fija) ──
+            const hojaIzqW = W/2 - B*1.5;
+            // Marco hoja izq
             [
-                { x: -vW/2 - B*0.4, y: yBase - vH1/2 + H*0.1, w: vW, h: vH1 },
-                { x:  vW/2 + B*0.4, y: yBase - vH1/2 + H*0.1, w: vW, h: vH1 },
-                { x: -vW/2 - B*0.4, y: yBase + vH2/2 + H*0.1 + B*0.4, w: vW, h: vH2 },
-                { x:  vW/2 + B*0.4, y: yBase + vH2/2 + H*0.1 + B*0.4, w: vW, h: vH2 },
-            ].forEach(v => {
-                const vidrio = new THREE.Mesh(new THREE.BoxGeometry(v.w, v.h, 0.006), matVidrio);
-                vidrio.position.set(v.x, v.y, 0.01);
-                g.add(vidrio);
+                { g: new THREE.BoxGeometry(hojaIzqW, B*0.9, D*0.75), p: [-W/4 - B*0.2,  H/2 - B*0.8, D*0.05] },
+                { g: new THREE.BoxGeometry(hojaIzqW, B*0.9, D*0.75), p: [-W/4 - B*0.2, -H/2 + B*0.8, D*0.05] },
+                { g: new THREE.BoxGeometry(B*0.9, H - B*3, D*0.75),  p: [-W/2 + B*1.2, 0, D*0.05] },
+                { g: new THREE.BoxGeometry(B*0.9, H - B*3, D*0.75),  p: [-B*0.7, 0, D*0.05] },
+            ].forEach(({g: geo, p}) => {
+                const m = new THREE.Mesh(geo, matAlumBrillo);
+                m.position.set(...p); g.add(m);
             });
+            // Vidrio hoja izq
+            const vIzq = new THREE.Mesh(
+                new THREE.BoxGeometry(hojaIzqW - B*1.5, H - B*3.5, 0.004),
+                matVidrio
+            );
+            vIzq.position.set(-W/4 - B*0.2, 0, D*0.05);
+            g.add(vIzq);
 
-            // ── Silicona/junta en esquinas ──
-            const esquinas = [[-W/2, H/2], [W/2, H/2], [-W/2, -H/2], [W/2, -H/2]];
-            esquinas.forEach(([x, y]) => {
-                const esq = new THREE.Mesh(new THREE.BoxGeometry(B, B, D * 1.01), matSilicona);
-                esq.position.set(x, y, 0);
-                g.add(esq);
+            // ── Hoja derecha (corrediza — ligeramente adelantada) ──
+            const hojaDelD = D * 0.08;
+            [
+                { g: new THREE.BoxGeometry(hojaIzqW, B*0.9, D*0.75), p: [W/4 + B*0.2,  H/2 - B*0.8, -hojaDelD] },
+                { g: new THREE.BoxGeometry(hojaIzqW, B*0.9, D*0.75), p: [W/4 + B*0.2, -H/2 + B*0.8, -hojaDelD] },
+                { g: new THREE.BoxGeometry(B*0.9, H - B*3, D*0.75),  p: [B*0.7, 0, -hojaDelD] },
+                { g: new THREE.BoxGeometry(B*0.9, H - B*3, D*0.75),  p: [W/2 - B*1.2, 0, -hojaDelD] },
+            ].forEach(({g: geo, p}) => {
+                const m = new THREE.Mesh(geo, matAlumBrillo);
+                m.position.set(...p); g.add(m);
             });
+            // Vidrio hoja der
+            const vDer = new THREE.Mesh(
+                new THREE.BoxGeometry(hojaIzqW - B*1.5, H - B*3.5, 0.004),
+                matVidrio
+            );
+            vDer.position.set(W/4 + B*0.2, 0, -hojaDelD);
+            g.add(vDer);
 
-            // ── Manija de la ventana ──
-            const manijaMat = new THREE.MeshStandardMaterial({ color: id === 'ventana_blanca' ? 0xCCCCCC : 0x888888, roughness: 0.2, metalness: 0.8 });
-            const manija = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.12, 8), manijaMat);
-            manija.rotation.z = Math.PI / 2;
-            manija.position.set(0.06, H * 0.1, D / 2 + 0.02);
-            g.add(manija);
-            const mBase = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.07, 0.03), manijaMat);
-            mBase.position.set(0, H * 0.1, D / 2 + 0.01);
+            // ── Manija central ──
+            const mBase = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.065, 0.022), matManija);
+            mBase.position.set(0.01, 0, D*0.05 + 0.011);
             g.add(mBase);
+            const mGarfio = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.04, 0.018), matManija);
+            mGarfio.position.set(0.01, 0.015, D*0.05 + 0.022);
+            g.add(mGarfio);
 
-            // La ventana se coloca flotando — el usuario la arrastra a la pared
+            // Posición inicial en la pared trasera, altura de ventana estándar
             g.position.set(posX, estado.alto * 0.55, posZ);
             break;
         }
@@ -1482,12 +1495,23 @@ function enviarAlCliente() {
 // ── CÁMARA PIVOTE ─────────────────────────────────────────────────────────
 let modoPivote=false;
 
+
+// ── TOGGLE CÁMARA INTERIOR ────────────────────────────────────────────────
+function toggleCamaraInterior() {
+    if (modoInterior) {
+        salirCamaraPivote();
+    } else {
+        activarCamaraPivote();
+    }
+}
 function activarCamaraPivote() {
     if(modoMover) desactivarMoverMueble();
     modoPivote=true;
     modoInterior=true;
-    // Mostrar techo y panel de superficies
     if (meshes.techo) meshes.techo.visible = true;
+    // Cambiar texto del botón
+    const btnCam = document.getElementById('btnCamaraInterior');
+    if (btnCam) { btnCam.textContent = '🚪 Salir de cámara interior'; btnCam.style.background='rgba(239,68,68,0.12)'; btnCam.style.borderColor='rgba(239,68,68,0.35)'; btnCam.style.color='#FCA5A5'; }
     const panelSup = document.getElementById('panelSuperficie');
     const supHintEl = document.getElementById('supHint');
     if (panelSup) panelSup.classList.add('visible');
@@ -1523,8 +1547,10 @@ function salirCamaraPivote() {
     modoPivote=false;
     modoInterior=false;
     document.getElementById('camaraPivote').classList.remove('activa');
-    // Ocultar techo al salir del modo interior
     if (meshes.techo) meshes.techo.visible = false;
+    // Restaurar botón
+    const btnCamS = document.getElementById('btnCamaraInterior');
+    if (btnCamS) { btnCamS.textContent = '📷 Entrar con cámara interior'; btnCamS.style.background='rgba(124,58,237,0.15)'; btnCamS.style.borderColor='rgba(124,58,237,0.3)'; btnCamS.style.color='#A78BFA'; }
     const panelSupSalir = document.getElementById('panelSuperficie');
     if (panelSupSalir) panelSupSalir.classList.remove('visible');
     // Quitar highlight de superficie
