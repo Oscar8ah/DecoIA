@@ -303,6 +303,47 @@
         </div>
     </div>
 
+    <!-- SELECTOR SUPERFICIE — solo visible en modo interior -->
+    <div class="panel-section superficie-selector" id="panelSuperficie">
+        <div class="panel-titulo">🎯 Superficie activa</div>
+        <div class="sup-hint" id="supHint">Entra al modo cámara interior para seleccionar superficies</div>
+        <div class="sup-grid" style="margin-top:10px;">
+            <button class="sup-btn" id="sup-piso" onclick="seleccionarSuperficie('piso',this)">
+                <span class="sup-icon">🟫</span>Piso
+            </button>
+            <button class="sup-btn" id="sup-techo" onclick="seleccionarSuperficie('techo',this)">
+                <span class="sup-icon">⬜</span>Techo
+            </button>
+            <button class="sup-btn" id="sup-paredTrasera" onclick="seleccionarSuperficie('paredTrasera',this)">
+                <span class="sup-icon">🧱</span>Fondo
+            </button>
+            <button class="sup-btn" id="sup-paredIzq" onclick="seleccionarSuperficie('paredIzq',this)">
+                <span class="sup-icon">◀️</span>Izq
+            </button>
+            <button class="sup-btn" id="sup-paredDer" onclick="seleccionarSuperficie('paredDer',this)">
+                <span class="sup-icon">▶️</span>Der
+            </button>
+            <button class="sup-btn" id="sup-paredFrontal" onclick="seleccionarSuperficie('paredFrontal',this)">
+                <span class="sup-icon">🚪</span>Frente
+            </button>
+        </div>
+        <div class="panel-titulo" style="margin-top:12px;">💡 Luces de techo</div>
+        <div class="luces-techo-grid">
+            <button class="luz-techo-btn" id="luzOjoBuey" onclick="toggleLuzTecho('ojoBuey',this)">
+                <span style="font-size:16px;display:block;margin-bottom:2px;">💡</span>Ojo de buey
+            </button>
+            <button class="luz-techo-btn" id="luzLineal" onclick="toggleLuzTecho('lineal',this)">
+                <span style="font-size:16px;display:block;margin-bottom:2px;">🔲</span>Luz lineal
+            </button>
+            <button class="luz-techo-btn" id="luzColgante" onclick="toggleLuzTecho('colgante',this)">
+                <span style="font-size:16px;display:block;margin-bottom:2px;">🔆</span>Colgante
+            </button>
+            <button class="luz-techo-btn" id="luzLed" onclick="toggleLuzTecho('led',this)">
+                <span style="font-size:16px;display:block;margin-bottom:2px;">✨</span>Tira LED
+            </button>
+        </div>
+    </div>
+
     <div class="panel-section">
         <div class="panel-titulo">🎨 Material genérico piso</div>
         <div class="materiales-grid">
@@ -1062,7 +1103,7 @@ function construirHabitacion() {
     const techo = new THREE.Mesh(new THREE.BoxGeometry(ancho, 0.1, largo), matTecho);
     techo.position.set(0, alto, 0);
     techo.receiveShadow = true;
-    techo.visible = false;  // siempre oculto hasta entrar al modo interior
+    techo.visible = false; // v2 fix: siempre false al construir
     scene.add(techo); meshes.techo = techo;
 
     ['Trasera','Frontal','Izq','Der'].forEach((nombre,i) => {
@@ -1352,8 +1393,10 @@ function activarCamaraPivote() {
     modoInterior=true;
     // Mostrar techo y panel de superficies
     if (meshes.techo) meshes.techo.visible = true;
-    document.getElementById('panelSuperficie').classList.add('visible');
-    document.getElementById('supHint').textContent = 'Haz click en un botón para seleccionar la superficie a decorar';
+    const panelSup = document.getElementById('panelSuperficie');
+    const supHintEl = document.getElementById('supHint');
+    if (panelSup) panelSup.classList.add('visible');
+    if (supHintEl) supHintEl.textContent = 'Haz click en un botón para seleccionar la superficie a decorar';
     document.getElementById('camaraPivote').classList.add('activa');
     const {ancho,largo,alto}=estado;
     document.getElementById('cpX').min=-(ancho/2-0.5); document.getElementById('cpX').max=(ancho/2-0.5);
@@ -1387,7 +1430,8 @@ function salirCamaraPivote() {
     document.getElementById('camaraPivote').classList.remove('activa');
     // Ocultar techo al salir del modo interior
     if (meshes.techo) meshes.techo.visible = false;
-    document.getElementById('panelSuperficie').classList.remove('visible');
+    const panelSupSalir = document.getElementById('panelSuperficie');
+    if (panelSupSalir) panelSupSalir.classList.remove('visible');
     // Quitar highlight de superficie
     quitarHighlightSuperficie();
     controls.minDistance=2; controls.maxDistance=25; controls.maxPolarAngle=Math.PI/1.8;
