@@ -950,21 +950,92 @@ function mostrarProductoCliente(prod) {
 function aplicarProductoPortafolio(prodId) {
     const prod = todosProductos.find(p => p.id === prodId);
     if (!prod) return;
-    document.querySelectorAll('.prod-port-card').forEach(c=>c.classList.remove('activo'));
+
+    // Marcar card como activa visualmente
+    document.querySelectorAll('.prod-port-card').forEach(c => c.classList.remove('activo'));
     const card = document.getElementById(`prodcard-${prodId}`);
     if (card) card.classList.add('activo');
     productoActivo = prod;
-    const cols = { pisos:0xC4913A, enchapes:0xE8E0D0, materiales:0x888888, pintura:0xF5F5F5, cocinas:0xD4C5A9, baños:0xE0EEF4, puertas:0x8B6914, electricos:0xF5F0E0 };
+
+    const esPiso    = ['pisos','enchapes','materiales'].includes(prod.categoria);
+    const esPintura = prod.categoria === 'pintura';
+
+    // Si tiene imagen → aplicar como textura real
+    if (prod.imagen_url) {
+        const loader = new THREE.TextureLoader();
+        loader.crossOrigin = 'anonymous';
+        loader.load(
+            prod.imagen_url,
+            (texture) => {
+                // Textura repetida para dar sensación de baldosa/piso
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+
+                if (esPiso) {
+                    // Repetir la textura según el tamaño del piso
+                    const repX = Math.max(1, estado.ancho / 1.2);
+                    const repZ = Math.max(1, estado.largo / 1.2);
+                    texture.repeat.set(repX, repZ);
+                    if (meshes.piso) {
+                        meshes.piso.material = new THREE.MeshStandardMaterial({
+                            map: texture, roughness: 0.4, metalness: 0.05
+                        });
+                    }
+                    mostrarToast(`🪵 "${prod.nombre}" aplicado al piso ✅`);
+
+                } else if (esPintura) {
+                    // Para pintura usar el color dominante de la imagen
+                    texture.repeat.set(1, 1);
+                    ['paredTrasera','paredFrontal','paredIzq','paredDer'].forEach(k => {
+                        if (meshes[k]) {
+                            meshes[k].material = new THREE.MeshStandardMaterial({
+                                map: texture, roughness: 0.85
+                            });
+                        }
+                    });
+                    mostrarToast(`🎨 "${prod.nombre}" aplicado a paredes ✅`);
+
+                } else {
+                    // Otros → piso
+                    texture.repeat.set(Math.max(1, estado.ancho/1.2), Math.max(1, estado.largo/1.2));
+                    if (meshes.piso) {
+                        meshes.piso.material = new THREE.MeshStandardMaterial({
+                            map: texture, roughness: 0.4
+                        });
+                    }
+                    mostrarToast(`✅ "${prod.nombre}" aplicado`);
+                }
+            },
+            undefined,
+            () => {
+                // Error cargando imagen → fallback a color
+                aplicarColorFallback(prod, esPiso, esPintura);
+            }
+        );
+    } else {
+        // Sin imagen → usar color de referencia
+        aplicarColorFallback(prod, esPiso, esPintura);
+    }
+}
+
+function aplicarColorFallback(prod, esPiso, esPintura) {
+    const cols = {
+        pisos:0xC4913A, enchapes:0xE8E0D0, materiales:0x888888,
+        pintura:0xF5F5F5, cocinas:0xD4C5A9, baños:0xE0EEF4,
+        puertas:0x8B6914, electricos:0xF5F0E0
+    };
     const color = cols[prod.categoria] || 0xC4913A;
-    if (['pisos','enchapes','materiales'].includes(prod.categoria)) {
+    if (esPiso) {
         if (meshes.piso) meshes.piso.material = new THREE.MeshStandardMaterial({ color, roughness:0.5, metalness:0.05 });
         mostrarToast(`🪵 "${prod.nombre}" aplicado al piso`);
-    } else if (prod.categoria === 'pintura') {
-        ['paredTrasera','paredFrontal','paredIzq','paredDer'].forEach(k => { if(meshes[k]) meshes[k].material.color.setHex(color); });
+    } else if (esPintura) {
+        ['paredTrasera','paredFrontal','paredIzq','paredDer'].forEach(k => {
+            if (meshes[k]) meshes[k].material.color.setHex(color);
+        });
         mostrarToast(`🎨 "${prod.nombre}" aplicado a paredes`);
     } else {
         if (meshes.piso) meshes.piso.material = new THREE.MeshStandardMaterial({ color, roughness:0.5 });
-        mostrarToast(`✅ "${prod.nombre}" aplicado al espacio`);
+        mostrarToast(`✅ "${prod.nombre}" aplicado`);
     }
 }
 
@@ -1044,8 +1115,8 @@ function construirHabitacion() {
      {geo:new THREE.BoxGeometry(0.03,zh,largo),pos:[-hw+0.02,zh/2,0]},{geo:new THREE.BoxGeometry(0.03,zh,largo),pos:[hw-0.02,zh/2,0]}]
     .forEach(z => { const zoc=new THREE.Mesh(z.geo,zocaloMat); zoc.position.set(...z.pos); scene.add(zoc); });
 
-    // Reaplicar
-    if (productoActivo) aplicarProductoPortafolio(productoActivo.id);
+    // Reaplicar — delay para que el mesh esté listo antes de cargar textura
+    if (productoActivo) setTimeout(() => aplicarProductoPortafolio(productoActivo.id), 50);
     else if (meshes.piso) meshes.piso.material = crearMaterialPiso(estado.materialPiso);
 
     // Re-agregar muebles que estaban en escena
