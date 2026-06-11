@@ -55,6 +55,10 @@ function abrirModalProducto(p, tienda) {
         : '#';
     document.getElementById('modalBtnPedir').href = waLink;
 
+    // Guardar refs para el carrito
+    window._modalProd   = p;
+    window._modalTienda = tienda;
+
     // Abrir
     document.getElementById('modalProductoOverlay').classList.add('open');
     document.body.style.overflow = 'hidden';
@@ -69,6 +73,290 @@ function cerrarModalProducto(e) {
 document.addEventListener('keydown', e => {
     if (e.key === 'Escape') cerrarModalProducto();
 });
+// ══════════════════════════════════════════════════════════════════
+// CARRITO DE COMPRAS — DecoIArte Marketplace
+// Persiste en localStorage, agrupa por tienda,
+// notifica por WhatsApp, listo para Wompi V2
+// ══════════════════════════════════════════════════════════════════
+
+// Estado del carrito: { tiendaId: { tienda: {}, items: [{prod, qty}] } }
+let carrito = {};
+
+// ── INIT ──────────────────────────────────────────────────────────
+function carritoInit() {
+    try {
+        const saved = localStorage.getItem('decoiarte_carrito');
+        if (saved) carrito = JSON.parse(saved);
+    } catch(e) { carrito = {}; }
+    carritoRenderBadge();
+}
+
+function carritoGuardar() {
+    try { localStorage.setItem('decoiarte_carrito', JSON.stringify(carrito)); } catch(e) {}
+    carritoRenderBadge();
+}
+
+// ── AGREGAR / QUITAR ──────────────────────────────────────────────
+function carritoAgregar(prod, tienda) {
+    const tid = tienda.id;
+    if (!carrito[tid]) {
+        carrito[tid] = { tienda: { id:tienda.id, nombre:tienda.nombre, ciudad:tienda.ciudad||'Colombia', whatsapp:tienda.whatsapp_contacto||'' }, items: [] };
+    }
+    const existing = carrito[tid].items.find(i => i.prod.id === prod.id);
+    if (existing) {
+        existing.qty += 1;
+    } else {
+        carrito[tid].items.push({ prod, qty: 1, seleccionado: true });
+    }
+    carritoGuardar();
+    mostrarToastCarrito(`🛒 "${prod.nombre}" agregado al carrito`);
+    carritoRenderPanel();
+}
+
+function carritoQuitarItem(tiendaId, prodId) {
+    if (!carrito[tiendaId]) return;
+    carrito[tiendaId].items = carrito[tiendaId].items.filter(i => i.prod.id !== prodId);
+    if (carrito[tiendaId].items.length === 0) delete carrito[tiendaId];
+    carritoGuardar();
+    carritoRenderPanel();
+}
+
+function carritoAjustarQty(tiendaId, prodId, delta) {
+    const grupo = carrito[tiendaId];
+    if (!grupo) return;
+    const item = grupo.items.find(i => i.prod.id === prodId);
+    if (!item) return;
+    item.qty = Math.max(1, item.qty + delta);
+    carritoGuardar();
+    carritoRenderPanel();
+}
+
+function carritoToggleItem(tiendaId, prodId) {
+    const item = carrito[tiendaId]?.items.find(i => i.prod.id === prodId);
+    if (item) { item.seleccionado = !item.seleccionado; carritoGuardar(); carritoRenderPanel(); }
+}
+
+function carritoLimpiar() {
+    if (!confirm('¿Vaciar el carrito?')) return;
+    carrito = {};
+    carritoGuardar();
+    carritoRenderPanel();
+}
+
+// ── CÁLCULOS ──────────────────────────────────────────────────────
+function carritoTotalTienda(tid) {
+    return (carrito[tid]?.items || [])
+        .filter(i => i.seleccionado)
+        .reduce((s, i) => s + i.prod.precio * i.qty, 0);
+}
+
+function carritoTotalGeneral() {
+    return Object.keys(carrito).reduce((s, tid) => s + carritoTotalTienda(tid), 0);
+}
+
+function carritoConteoTotal() {
+    return Object.values(carrito).reduce((s, g) => s + g.items.length, 0);
+}
+
+// ── BADGE ─────────────────────────────────────────────────────────
+function carritoRenderBadge() {
+    const n = carritoConteoTotal();
+    const badge = document.getElementById('carritoBadge');
+    const btn   = document.getElementById('carritoBtn');
+    if (!badge || !btn) return;
+    badge.textContent = n;
+    badge.style.display = n > 0 ? 'flex' : 'none';
+    btn.style.display = 'flex';
+}
+
+// ── PANEL CARRITO ─────────────────────────────────────────────────
+function carritoAbrir() {
+    document.getElementById('carritoPanel').classList.add('open');
+    document.getElementById('carritoOverlay').classList.add('open');
+    document.body.style.overflow = 'hidden';
+    carritoRenderPanel();
+}
+
+function carritoFormatPrecio(n) {
+    return '$' + Number(n).toLocaleString('es-CO');
+}
+
+function carritoRenderPanel() {
+    const contenido = document.getElementById('carritoCuerpo');
+    const grupos    = Object.entries(carrito);
+
+    if (grupos.length === 0) {
+        contenido.innerHTML = `
+            <div style="text-align:center;padding:60px 20px;color:#9CA3AF;">
+                <div style="font-size:52px;margin-bottom:16px;">🛒</div>
+                <p style="font-size:16px;font-weight:600;color:#374151;margin-bottom:8px;">Tu carrito está vacío</p>
+                <p style="font-size:14px;">Explora el marketplace y agrega productos</p>
+            </div>`;
+        document.getElementById('carritoFooter').style.display = 'none';
+        return;
+    }
+
+    document.getElementById('carritoFooter').style.display = 'block';
+
+    contenido.innerHTML = grupos.map(([tid, grupo]) => {
+        const subtotal = carritoTotalTienda(tid);
+        return `
+        <div class="carrito-grupo">
+            <div class="carrito-grupo-header">
+                <span class="carrito-tienda-nombre">🏪 ${grupo.tienda.nombre}</span>
+                <span class="carrito-tienda-ciudad">📍 ${grupo.tienda.ciudad}</span>
+            </div>
+            ${grupo.items.map(item => `
+            <div class="carrito-item ${item.seleccionado ? '' : 'deseleccionado'}">
+                <input type="checkbox" class="carrito-check"
+                    ${item.seleccionado ? 'checked' : ''}
+                    onchange="carritoToggleItem('${tid}','${item.prod.id}')">
+                <div class="carrito-item-img">
+                    ${item.prod.imagen_url
+                        ? `<img src="${item.prod.imagen_url}" alt="${item.prod.nombre}" onerror="this.parentElement.innerHTML='📦'">`
+                        : '📦'}
+                </div>
+                <div class="carrito-item-info">
+                    <div class="carrito-item-nombre">${item.prod.nombre}</div>
+                    <div class="carrito-item-precio">${carritoFormatPrecio(item.prod.precio)}/${item.prod.unidad||'m²'}</div>
+                    <div class="carrito-qty">
+                        <button onclick="carritoAjustarQty('${tid}','${item.prod.id}',-1)">−</button>
+                        <span>${item.qty}</span>
+                        <button onclick="carritoAjustarQty('${tid}','${item.prod.id}',1)">+</button>
+                    </div>
+                </div>
+                <div class="carrito-item-acciones">
+                    <div class="carrito-item-total">${carritoFormatPrecio(item.prod.precio * item.qty)}</div>
+                    <button class="carrito-btn-quitar" onclick="carritoQuitarItem('${tid}','${item.prod.id}')">🗑️</button>
+                </div>
+            </div>`).join('')}
+            <div class="carrito-subtotal">
+                <span>Subtotal ${grupo.tienda.nombre}</span>
+                <strong>${carritoFormatPrecio(subtotal)}</strong>
+            </div>
+            <button class="carrito-btn-solicitar" onclick="carritoSolicitarTienda('${tid}')">
+                💬 Solicitar cotización + domicilio a ${grupo.tienda.nombre}
+            </button>
+        </div>`;
+    }).join('');
+
+    // Total general
+    document.getElementById('carritoTotal').textContent = carritoFormatPrecio(carritoTotalGeneral());
+}
+
+// ── ENVIAR PEDIDO POR WHATSAPP ────────────────────────────────────
+function carritoSolicitarTienda(tid) {
+    const grupo = carrito[tid];
+    if (!grupo) return;
+
+    const itemsSeleccionados = grupo.items.filter(i => i.seleccionado);
+    if (itemsSeleccionados.length === 0) {
+        alert('Selecciona al menos un producto de esta tienda');
+        return;
+    }
+
+    const subtotal = carritoTotalTienda(tid);
+    const lista = itemsSeleccionados.map(i =>
+        `  • ${i.prod.nombre} x${i.qty} = ${carritoFormatPrecio(i.prod.precio * i.qty)}`
+    ).join('\n');
+
+    const mensaje =
+        `🛒 *Pedido desde DecoIArte Marketplace*\n\n` +
+        `Hola! Quiero cotizar los siguientes productos:\n\n` +
+        `${lista}\n\n` +
+        `*Subtotal productos:* ${carritoFormatPrecio(subtotal)}\n\n` +
+        `📦 ¿Cuál es el costo de domicilio a mi dirección?\n` +
+        `(Una vez confirmado, procedemos con el pago)`;
+
+    const wa = grupo.tienda.whatsapp;
+    if (!wa) {
+        alert('Esta tienda no tiene WhatsApp registrado');
+        return;
+    }
+
+    window.open(`https://wa.me/${wa}?text=${encodeURIComponent(mensaje)}`, '_blank');
+
+    // Notificar también al admin (Oscar)
+    notificarAdminPedido(grupo, itemsSeleccionados, subtotal);
+}
+
+async function notificarAdminPedido(grupo, items, subtotal) {
+    try {
+        const lista = items.map(i => `${i.prod.nombre} x${i.qty}`).join(', ');
+        await fetch('https://decoia.onrender.com/notificar-pedido', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                tienda_nombre: grupo.tienda.nombre,
+                tienda_ciudad: grupo.tienda.ciudad,
+                productos:     lista,
+                subtotal:      subtotal,
+                origen:        'marketplace_web'
+            })
+        });
+    } catch(e) { /* silencioso */ }
+}
+
+function carritoSolicitarTodo() {
+    const grupos = Object.keys(carrito);
+    if (grupos.length === 0) return;
+    grupos.forEach(tid => carritoSolicitarTienda(tid));
+}
+
+// ── TOAST CARRITO ─────────────────────────────────────────────────
+let toastCarritoTimer;
+function mostrarToastCarrito(msg) {
+    let t = document.getElementById('toastCarrito');
+    if (!t) {
+        t = document.createElement('div');
+        t.id = 'toastCarrito';
+        t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#111827;color:white;padding:12px 24px;border-radius:50px;font-size:14px;font-weight:600;z-index:999;opacity:0;transition:opacity 0.3s;pointer-events:none;white-space:nowrap;box-shadow:0 8px 30px rgba(0,0,0,0.3);';
+        document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.opacity = '1';
+    clearTimeout(toastCarritoTimer);
+    toastCarritoTimer = setTimeout(() => { t.style.opacity = '0'; }, 2500);
+}
+
+carritoInit();
+
+
+function modalAgregarCarrito() {
+    if (window._modalProd && window._modalTienda) {
+        carritoAgregar(window._modalProd, window._modalTienda);
+        // Cambiar botón temporalmente
+        const btn = document.getElementById('modalBtnCarrito');
+        btn.textContent = '✅ ¡Agregado!';
+        btn.style.background = '#10B981';
+        btn.style.color = 'white';
+        btn.style.borderColor = '#10B981';
+        setTimeout(() => {
+            btn.textContent = '🛒 Añadir al carrito';
+            btn.style.background = '';
+            btn.style.color = '';
+            btn.style.borderColor = '';
+        }, 2000);
+    }
+}
+
+// Override carritoAbrir para toggle
+const _carritoAbrirOrig = typeof carritoAbrir !== 'undefined' ? carritoAbrir : null;
+function carritoTogglePanel() {
+    const panel   = document.getElementById('carritoPanel');
+    const overlay = document.getElementById('carritoOverlay');
+    if (panel.classList.contains('open')) {
+        panel.classList.remove('open');
+        overlay.classList.remove('open');
+        document.body.style.overflow = '';
+    } else {
+        panel.classList.add('open');
+        overlay.classList.add('open');
+        document.body.style.overflow = 'hidden';
+        carritoRenderPanel();
+    }
+}
+
 </script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -237,13 +525,19 @@ document.addEventListener('keydown', e => {
         }
         @keyframes modalIn { from{opacity:0;transform:scale(0.95)} to{opacity:1;transform:scale(1)} }
         .modal-prod-img {
-            width: 100%; height: 280px;
+            width: 100%;
+            min-height: 200px; max-height: 380px;
             background: #F3F4F6;
             display: flex; align-items: center; justify-content: center;
             font-size: 64px; border-radius: 24px 24px 0 0;
-            overflow: hidden;
+            overflow: hidden; position: relative;
         }
-        .modal-prod-img img { width: 100%; height: 100%; object-fit: cover; }
+        .modal-prod-img img {
+            width: 100%; height: auto;
+            max-height: 380px;
+            object-fit: contain;
+            padding: 16px;
+        }
         .modal-prod-body { padding: 28px; }
         .modal-prod-cat { font-size: 12px; color: var(--morado); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
         .modal-prod-nombre { font-size: 22px; font-weight: 900; color: #111827; margin-bottom: 10px; line-height: 1.2; }
@@ -271,6 +565,135 @@ document.addEventListener('keydown', e => {
         .modal-prod-close:hover { background: rgba(0,0,0,0.6); }
         .modal-prod-tienda { display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: #F9FAFB; border-radius: 12px; margin-bottom: 20px; font-size: 13px; color: #6B7280; }
         .modal-prod-tienda strong { color: #111827; }
+
+        /* ══ BOTÓN CARRITO FLOTANTE ══ */
+        #carritoBtn {
+            position: fixed; bottom: 30px; left: 30px;
+            background: var(--degradado); color: white;
+            width: 60px; height: 60px; border-radius: 50%;
+            border: none; cursor: pointer; font-size: 26px;
+            display: none; align-items: center; justify-content: center;
+            box-shadow: 0 6px 25px rgba(124,58,237,0.45);
+            transition: transform 0.2s; z-index: 400;
+        }
+        #carritoBtn:hover { transform: scale(1.1); }
+        #carritoBadge {
+            position: absolute; top: -4px; right: -4px;
+            background: #EF4444; color: white;
+            width: 22px; height: 22px; border-radius: 50%;
+            font-size: 11px; font-weight: 800;
+            display: none; align-items: center; justify-content: center;
+            border: 2px solid white;
+        }
+
+        /* ══ PANEL LATERAL CARRITO ══ */
+        #carritoOverlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); backdrop-filter:blur(4px); z-index:700; }
+        #carritoOverlay.open { display:block; }
+        #carritoPanel {
+            position: fixed; top: 0; right: -420px;
+            width: 420px; max-width: 100vw;
+            height: 100vh; background: #F9FAFB;
+            z-index: 800; transition: right 0.3s ease;
+            display: flex; flex-direction: column;
+            box-shadow: -8px 0 40px rgba(0,0,0,0.15);
+        }
+        #carritoPanel.open { right: 0; }
+
+        .carrito-header {
+            background: white; padding: 20px 24px;
+            border-bottom: 1px solid #E5E7EB;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .carrito-header h2 { font-size: 20px; font-weight: 800; color: #111827; }
+        .carrito-header-right { display: flex; gap: 10px; align-items: center; }
+        .carrito-btn-limpiar { background: none; border: none; color: #9CA3AF; font-size: 13px; cursor: pointer; transition: color 0.2s; }
+        .carrito-btn-limpiar:hover { color: #EF4444; }
+        .carrito-btn-cerrar { background: #F3F4F6; border: none; width: 36px; height: 36px; border-radius: 50%; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
+        .carrito-btn-cerrar:hover { background: #E5E7EB; }
+
+        #carritoCuerpo { flex: 1; overflow-y: auto; padding: 16px; }
+
+        .carrito-grupo {
+            background: white; border-radius: 16px;
+            border: 1px solid #E5E7EB;
+            margin-bottom: 16px; overflow: hidden;
+        }
+        .carrito-grupo-header {
+            padding: 14px 16px; background: #F3F4F6;
+            border-bottom: 1px solid #E5E7EB;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .carrito-tienda-nombre { font-size: 14px; font-weight: 700; color: #111827; }
+        .carrito-tienda-ciudad { font-size: 12px; color: #6B7280; }
+
+        .carrito-item {
+            display: flex; gap: 12px; align-items: center;
+            padding: 14px 16px; border-bottom: 1px solid #F3F4F6;
+            transition: opacity 0.2s;
+        }
+        .carrito-item.deseleccionado { opacity: 0.45; }
+        .carrito-check { width: 18px; height: 18px; accent-color: var(--morado); cursor: pointer; flex-shrink: 0; }
+        .carrito-item-img {
+            width: 52px; height: 52px; border-radius: 10px;
+            background: #F3F4F6; display: flex; align-items: center;
+            justify-content: center; font-size: 22px; overflow: hidden; flex-shrink: 0;
+        }
+        .carrito-item-img img { width: 100%; height: 100%; object-fit: cover; }
+        .carrito-item-info { flex: 1; min-width: 0; }
+        .carrito-item-nombre { font-size: 13px; font-weight: 700; color: #111827; margin-bottom: 3px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .carrito-item-precio { font-size: 12px; color: #6B7280; margin-bottom: 6px; }
+        .carrito-qty { display: flex; align-items: center; gap: 8px; }
+        .carrito-qty button { width: 26px; height: 26px; border-radius: 50%; border: 1px solid #E5E7EB; background: #F9FAFB; font-size: 16px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #374151; transition: all 0.2s; line-height: 1; }
+        .carrito-qty button:hover { background: var(--morado); color: white; border-color: var(--morado); }
+        .carrito-qty span { font-size: 14px; font-weight: 700; color: #111827; min-width: 20px; text-align: center; }
+        .carrito-item-acciones { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+        .carrito-item-total { font-size: 14px; font-weight: 800; background: var(--degradado); -webkit-background-clip: text; -webkit-text-fill-color: transparent; white-space: nowrap; }
+        .carrito-btn-quitar { background: none; border: none; font-size: 16px; cursor: pointer; opacity: 0.5; transition: opacity 0.2s; }
+        .carrito-btn-quitar:hover { opacity: 1; }
+
+        .carrito-subtotal {
+            padding: 12px 16px; display: flex; justify-content: space-between;
+            font-size: 14px; color: #374151; background: #FAFAFA;
+            border-top: 1px solid #E5E7EB;
+        }
+        .carrito-subtotal strong { color: #111827; }
+        .carrito-btn-solicitar {
+            display: block; width: calc(100% - 32px); margin: 12px 16px;
+            background: #25D366; color: white; border: none;
+            padding: 13px; border-radius: 50px; font-size: 14px; font-weight: 700;
+            cursor: pointer; transition: opacity 0.3s; font-family: 'Segoe UI', sans-serif;
+        }
+        .carrito-btn-solicitar:hover { opacity: 0.85; }
+
+        #carritoFooter {
+            background: white; padding: 16px 20px;
+            border-top: 1px solid #E5E7EB;
+        }
+        .carrito-total-row {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 14px;
+        }
+        .carrito-total-label { font-size: 16px; font-weight: 700; color: #374151; }
+        #carritoTotal { font-size: 22px; font-weight: 900; background: var(--degradado); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .carrito-nota { font-size: 12px; color: #9CA3AF; margin-bottom: 12px; line-height: 1.5; }
+        .carrito-btn-todo {
+            width: 100%; background: var(--degradado); color: white;
+            border: none; padding: 16px; border-radius: 50px;
+            font-size: 16px; font-weight: 700; cursor: pointer;
+            transition: opacity 0.3s; font-family: 'Segoe UI', sans-serif;
+        }
+        .carrito-btn-todo:hover { opacity: 0.85; }
+
+        /* Botón añadir al carrito en modal producto */
+        .modal-btn-carrito {
+            background: white; color: var(--morado);
+            border: 2px solid var(--morado);
+            padding: 14px 20px; border-radius: 50px;
+            font-size: 15px; font-weight: 700; cursor: pointer;
+            transition: all 0.2s; font-family: 'Segoe UI', sans-serif;
+            display: inline-flex; align-items: center; gap: 8px;
+        }
+        .modal-btn-carrito:hover { background: var(--morado); color: white; }
     </style>
 </head>
 <body>
@@ -602,6 +1025,10 @@ function abrirModalProducto(p, tienda) {
         : '#';
     document.getElementById('modalBtnPedir').href = waLink;
 
+    // Guardar refs para el carrito
+    window._modalProd   = p;
+    window._modalTienda = tienda;
+
     // Abrir
     document.getElementById('modalProductoOverlay').classList.add('open');
     document.body.style.overflow = 'hidden';
@@ -616,6 +1043,290 @@ function cerrarModalProducto(e) {
 document.addEventListener('keydown', e => {
     if (e.key === 'Escape') cerrarModalProducto();
 });
+// ══════════════════════════════════════════════════════════════════
+// CARRITO DE COMPRAS — DecoIArte Marketplace
+// Persiste en localStorage, agrupa por tienda,
+// notifica por WhatsApp, listo para Wompi V2
+// ══════════════════════════════════════════════════════════════════
+
+// Estado del carrito: { tiendaId: { tienda: {}, items: [{prod, qty}] } }
+let carrito = {};
+
+// ── INIT ──────────────────────────────────────────────────────────
+function carritoInit() {
+    try {
+        const saved = localStorage.getItem('decoiarte_carrito');
+        if (saved) carrito = JSON.parse(saved);
+    } catch(e) { carrito = {}; }
+    carritoRenderBadge();
+}
+
+function carritoGuardar() {
+    try { localStorage.setItem('decoiarte_carrito', JSON.stringify(carrito)); } catch(e) {}
+    carritoRenderBadge();
+}
+
+// ── AGREGAR / QUITAR ──────────────────────────────────────────────
+function carritoAgregar(prod, tienda) {
+    const tid = tienda.id;
+    if (!carrito[tid]) {
+        carrito[tid] = { tienda: { id:tienda.id, nombre:tienda.nombre, ciudad:tienda.ciudad||'Colombia', whatsapp:tienda.whatsapp_contacto||'' }, items: [] };
+    }
+    const existing = carrito[tid].items.find(i => i.prod.id === prod.id);
+    if (existing) {
+        existing.qty += 1;
+    } else {
+        carrito[tid].items.push({ prod, qty: 1, seleccionado: true });
+    }
+    carritoGuardar();
+    mostrarToastCarrito(`🛒 "${prod.nombre}" agregado al carrito`);
+    carritoRenderPanel();
+}
+
+function carritoQuitarItem(tiendaId, prodId) {
+    if (!carrito[tiendaId]) return;
+    carrito[tiendaId].items = carrito[tiendaId].items.filter(i => i.prod.id !== prodId);
+    if (carrito[tiendaId].items.length === 0) delete carrito[tiendaId];
+    carritoGuardar();
+    carritoRenderPanel();
+}
+
+function carritoAjustarQty(tiendaId, prodId, delta) {
+    const grupo = carrito[tiendaId];
+    if (!grupo) return;
+    const item = grupo.items.find(i => i.prod.id === prodId);
+    if (!item) return;
+    item.qty = Math.max(1, item.qty + delta);
+    carritoGuardar();
+    carritoRenderPanel();
+}
+
+function carritoToggleItem(tiendaId, prodId) {
+    const item = carrito[tiendaId]?.items.find(i => i.prod.id === prodId);
+    if (item) { item.seleccionado = !item.seleccionado; carritoGuardar(); carritoRenderPanel(); }
+}
+
+function carritoLimpiar() {
+    if (!confirm('¿Vaciar el carrito?')) return;
+    carrito = {};
+    carritoGuardar();
+    carritoRenderPanel();
+}
+
+// ── CÁLCULOS ──────────────────────────────────────────────────────
+function carritoTotalTienda(tid) {
+    return (carrito[tid]?.items || [])
+        .filter(i => i.seleccionado)
+        .reduce((s, i) => s + i.prod.precio * i.qty, 0);
+}
+
+function carritoTotalGeneral() {
+    return Object.keys(carrito).reduce((s, tid) => s + carritoTotalTienda(tid), 0);
+}
+
+function carritoConteoTotal() {
+    return Object.values(carrito).reduce((s, g) => s + g.items.length, 0);
+}
+
+// ── BADGE ─────────────────────────────────────────────────────────
+function carritoRenderBadge() {
+    const n = carritoConteoTotal();
+    const badge = document.getElementById('carritoBadge');
+    const btn   = document.getElementById('carritoBtn');
+    if (!badge || !btn) return;
+    badge.textContent = n;
+    badge.style.display = n > 0 ? 'flex' : 'none';
+    btn.style.display = 'flex';
+}
+
+// ── PANEL CARRITO ─────────────────────────────────────────────────
+function carritoAbrir() {
+    document.getElementById('carritoPanel').classList.add('open');
+    document.getElementById('carritoOverlay').classList.add('open');
+    document.body.style.overflow = 'hidden';
+    carritoRenderPanel();
+}
+
+function carritoFormatPrecio(n) {
+    return '$' + Number(n).toLocaleString('es-CO');
+}
+
+function carritoRenderPanel() {
+    const contenido = document.getElementById('carritoCuerpo');
+    const grupos    = Object.entries(carrito);
+
+    if (grupos.length === 0) {
+        contenido.innerHTML = `
+            <div style="text-align:center;padding:60px 20px;color:#9CA3AF;">
+                <div style="font-size:52px;margin-bottom:16px;">🛒</div>
+                <p style="font-size:16px;font-weight:600;color:#374151;margin-bottom:8px;">Tu carrito está vacío</p>
+                <p style="font-size:14px;">Explora el marketplace y agrega productos</p>
+            </div>`;
+        document.getElementById('carritoFooter').style.display = 'none';
+        return;
+    }
+
+    document.getElementById('carritoFooter').style.display = 'block';
+
+    contenido.innerHTML = grupos.map(([tid, grupo]) => {
+        const subtotal = carritoTotalTienda(tid);
+        return `
+        <div class="carrito-grupo">
+            <div class="carrito-grupo-header">
+                <span class="carrito-tienda-nombre">🏪 ${grupo.tienda.nombre}</span>
+                <span class="carrito-tienda-ciudad">📍 ${grupo.tienda.ciudad}</span>
+            </div>
+            ${grupo.items.map(item => `
+            <div class="carrito-item ${item.seleccionado ? '' : 'deseleccionado'}">
+                <input type="checkbox" class="carrito-check"
+                    ${item.seleccionado ? 'checked' : ''}
+                    onchange="carritoToggleItem('${tid}','${item.prod.id}')">
+                <div class="carrito-item-img">
+                    ${item.prod.imagen_url
+                        ? `<img src="${item.prod.imagen_url}" alt="${item.prod.nombre}" onerror="this.parentElement.innerHTML='📦'">`
+                        : '📦'}
+                </div>
+                <div class="carrito-item-info">
+                    <div class="carrito-item-nombre">${item.prod.nombre}</div>
+                    <div class="carrito-item-precio">${carritoFormatPrecio(item.prod.precio)}/${item.prod.unidad||'m²'}</div>
+                    <div class="carrito-qty">
+                        <button onclick="carritoAjustarQty('${tid}','${item.prod.id}',-1)">−</button>
+                        <span>${item.qty}</span>
+                        <button onclick="carritoAjustarQty('${tid}','${item.prod.id}',1)">+</button>
+                    </div>
+                </div>
+                <div class="carrito-item-acciones">
+                    <div class="carrito-item-total">${carritoFormatPrecio(item.prod.precio * item.qty)}</div>
+                    <button class="carrito-btn-quitar" onclick="carritoQuitarItem('${tid}','${item.prod.id}')">🗑️</button>
+                </div>
+            </div>`).join('')}
+            <div class="carrito-subtotal">
+                <span>Subtotal ${grupo.tienda.nombre}</span>
+                <strong>${carritoFormatPrecio(subtotal)}</strong>
+            </div>
+            <button class="carrito-btn-solicitar" onclick="carritoSolicitarTienda('${tid}')">
+                💬 Solicitar cotización + domicilio a ${grupo.tienda.nombre}
+            </button>
+        </div>`;
+    }).join('');
+
+    // Total general
+    document.getElementById('carritoTotal').textContent = carritoFormatPrecio(carritoTotalGeneral());
+}
+
+// ── ENVIAR PEDIDO POR WHATSAPP ────────────────────────────────────
+function carritoSolicitarTienda(tid) {
+    const grupo = carrito[tid];
+    if (!grupo) return;
+
+    const itemsSeleccionados = grupo.items.filter(i => i.seleccionado);
+    if (itemsSeleccionados.length === 0) {
+        alert('Selecciona al menos un producto de esta tienda');
+        return;
+    }
+
+    const subtotal = carritoTotalTienda(tid);
+    const lista = itemsSeleccionados.map(i =>
+        `  • ${i.prod.nombre} x${i.qty} = ${carritoFormatPrecio(i.prod.precio * i.qty)}`
+    ).join('\n');
+
+    const mensaje =
+        `🛒 *Pedido desde DecoIArte Marketplace*\n\n` +
+        `Hola! Quiero cotizar los siguientes productos:\n\n` +
+        `${lista}\n\n` +
+        `*Subtotal productos:* ${carritoFormatPrecio(subtotal)}\n\n` +
+        `📦 ¿Cuál es el costo de domicilio a mi dirección?\n` +
+        `(Una vez confirmado, procedemos con el pago)`;
+
+    const wa = grupo.tienda.whatsapp;
+    if (!wa) {
+        alert('Esta tienda no tiene WhatsApp registrado');
+        return;
+    }
+
+    window.open(`https://wa.me/${wa}?text=${encodeURIComponent(mensaje)}`, '_blank');
+
+    // Notificar también al admin (Oscar)
+    notificarAdminPedido(grupo, itemsSeleccionados, subtotal);
+}
+
+async function notificarAdminPedido(grupo, items, subtotal) {
+    try {
+        const lista = items.map(i => `${i.prod.nombre} x${i.qty}`).join(', ');
+        await fetch('https://decoia.onrender.com/notificar-pedido', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                tienda_nombre: grupo.tienda.nombre,
+                tienda_ciudad: grupo.tienda.ciudad,
+                productos:     lista,
+                subtotal:      subtotal,
+                origen:        'marketplace_web'
+            })
+        });
+    } catch(e) { /* silencioso */ }
+}
+
+function carritoSolicitarTodo() {
+    const grupos = Object.keys(carrito);
+    if (grupos.length === 0) return;
+    grupos.forEach(tid => carritoSolicitarTienda(tid));
+}
+
+// ── TOAST CARRITO ─────────────────────────────────────────────────
+let toastCarritoTimer;
+function mostrarToastCarrito(msg) {
+    let t = document.getElementById('toastCarrito');
+    if (!t) {
+        t = document.createElement('div');
+        t.id = 'toastCarrito';
+        t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#111827;color:white;padding:12px 24px;border-radius:50px;font-size:14px;font-weight:600;z-index:999;opacity:0;transition:opacity 0.3s;pointer-events:none;white-space:nowrap;box-shadow:0 8px 30px rgba(0,0,0,0.3);';
+        document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.opacity = '1';
+    clearTimeout(toastCarritoTimer);
+    toastCarritoTimer = setTimeout(() => { t.style.opacity = '0'; }, 2500);
+}
+
+carritoInit();
+
+
+function modalAgregarCarrito() {
+    if (window._modalProd && window._modalTienda) {
+        carritoAgregar(window._modalProd, window._modalTienda);
+        // Cambiar botón temporalmente
+        const btn = document.getElementById('modalBtnCarrito');
+        btn.textContent = '✅ ¡Agregado!';
+        btn.style.background = '#10B981';
+        btn.style.color = 'white';
+        btn.style.borderColor = '#10B981';
+        setTimeout(() => {
+            btn.textContent = '🛒 Añadir al carrito';
+            btn.style.background = '';
+            btn.style.color = '';
+            btn.style.borderColor = '';
+        }, 2000);
+    }
+}
+
+// Override carritoAbrir para toggle
+const _carritoAbrirOrig = typeof carritoAbrir !== 'undefined' ? carritoAbrir : null;
+function carritoTogglePanel() {
+    const panel   = document.getElementById('carritoPanel');
+    const overlay = document.getElementById('carritoOverlay');
+    if (panel.classList.contains('open')) {
+        panel.classList.remove('open');
+        overlay.classList.remove('open');
+        document.body.style.overflow = '';
+    } else {
+        panel.classList.add('open');
+        overlay.classList.add('open');
+        document.body.style.overflow = 'hidden';
+        carritoRenderPanel();
+    }
+}
+
 </script>
 
 <!-- MODAL PRODUCTO -->
@@ -635,10 +1346,42 @@ document.addEventListener('keydown', e => {
             <div class="modal-prod-unidad" id="modalProdUnidad"></div>
             <div class="modal-prod-stock" id="modalProdStock"></div>
             <div class="modal-prod-acciones">
-                <a class="modal-btn-pedir" id="modalBtnPedir" href="#" target="_blank">💬 Pedir por WhatsApp</a>
-                <button class="modal-btn-cerrar-prod" onclick="cerrarModalProducto()">Cerrar</button>
+                <button class="modal-btn-carrito" id="modalBtnCarrito" onclick="modalAgregarCarrito()">🛒 Añadir al carrito</button>
+                <a class="modal-btn-pedir" id="modalBtnPedir" href="#" target="_blank" style="flex:none;padding:14px 18px;">💬 Pedir</a>
             </div>
+            <button class="modal-btn-cerrar-prod" onclick="cerrarModalProducto()" style="width:100%;margin-top:10px;">Cerrar</button>
         </div>
+    </div>
+</div>
+
+<!-- BOTÓN CARRITO FLOTANTE -->
+<button id="carritoBtn" onclick="carritoTogglePanel()">
+    🛒
+    <span id="carritoBadge"></span>
+</button>
+
+<!-- OVERLAY CARRITO -->
+<div id="carritoOverlay" onclick="carritoTogglePanel()"></div>
+
+<!-- PANEL CARRITO -->
+<div id="carritoPanel">
+    <div class="carrito-header">
+        <h2>🛒 Mi carrito</h2>
+        <div class="carrito-header-right">
+            <button class="carrito-btn-limpiar" onclick="carritoLimpiar()">Vaciar</button>
+            <button class="carrito-btn-cerrar" onclick="carritoTogglePanel()">✕</button>
+        </div>
+    </div>
+    <div id="carritoCuerpo"></div>
+    <div id="carritoFooter" style="display:none;">
+        <div class="carrito-total-row">
+            <span class="carrito-total-label">Total estimado</span>
+            <span id="carritoTotal">$0</span>
+        </div>
+        <div class="carrito-nota">* El precio final incluye el domicilio que cada tienda confirmará por WhatsApp.</div>
+        <button class="carrito-btn-todo" onclick="carritoSolicitarTodo()">
+            💬 Solicitar cotización a todas las tiendas
+        </button>
     </div>
 </div>
 </body>
