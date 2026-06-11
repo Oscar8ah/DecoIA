@@ -1063,6 +1063,11 @@ function construirHabitacion() {
     scene.traverse(obj => { if (obj.isMesh || obj.isGroup) aEliminar.push(obj); });
     aEliminar.forEach(obj => scene.remove(obj));
     meshes = {};
+    // Limpiar luces de techo
+    Object.keys(lucesTeche).forEach(k => {
+        document.getElementById(`luz${k.charAt(0).toUpperCase()+k.slice(1)}`)?.classList.remove('activo');
+    });
+    lucesTeche = {};
 
     const {ancho,largo,alto} = estado;
     const hw=ancho/2, hl=largo/2;
@@ -1072,6 +1077,14 @@ function construirHabitacion() {
     const piso = new THREE.Mesh(new THREE.BoxGeometry(ancho,0.1,largo), matPiso);
     piso.position.set(0,-0.05,0); piso.receiveShadow=true;
     scene.add(piso); meshes.piso=piso;
+
+    // TECHO — oculto por defecto, visible solo en modo interior
+    const matTecho = new THREE.MeshStandardMaterial({color:0xF5F5F5,roughness:0.9,side:THREE.BackSide});
+    const techo = new THREE.Mesh(new THREE.BoxGeometry(ancho,0.08,largo), matTecho);
+    techo.position.set(0, alto+0.04, 0);
+    techo.receiveShadow = true;
+    techo.visible = modoInterior;   // solo visible en modo interior
+    scene.add(techo); meshes.techo = techo;
 
     ['Trasera','Frontal','Izq','Der'].forEach((nombre,i) => {
         let geo;
@@ -1357,6 +1370,11 @@ let modoPivote=false;
 function activarCamaraPivote() {
     if(modoMover) desactivarMoverMueble();
     modoPivote=true;
+    modoInterior=true;
+    // Mostrar techo y panel de superficies
+    if (meshes.techo) meshes.techo.visible = true;
+    document.getElementById('panelSuperficie').classList.add('visible');
+    document.getElementById('supHint').textContent = 'Haz click en un botón para seleccionar la superficie a decorar';
     document.getElementById('camaraPivote').classList.add('activa');
     const {ancho,largo,alto}=estado;
     document.getElementById('cpX').min=-(ancho/2-0.5); document.getElementById('cpX').max=(ancho/2-0.5);
@@ -1385,9 +1403,241 @@ function capturarDesdeInterior() {
 }
 
 function salirCamaraPivote() {
-    modoPivote=false; document.getElementById('camaraPivote').classList.remove('activa');
+    modoPivote=false;
+    modoInterior=false;
+    document.getElementById('camaraPivote').classList.remove('activa');
+    // Ocultar techo al salir del modo interior
+    if (meshes.techo) meshes.techo.visible = false;
+    document.getElementById('panelSuperficie').classList.remove('visible');
+    // Quitar highlight de superficie
+    quitarHighlightSuperficie();
     controls.minDistance=2; controls.maxDistance=25; controls.maxPolarAngle=Math.PI/1.8;
     setCamara('libre'); mostrarToast('🔄 Vista libre restaurada');
+}
+
+
+// ── SELECCIÓN DE SUPERFICIE ───────────────────────────────────────────────
+let materialOriginalSuperficie = null;  // guardar material antes del highlight
+
+function seleccionarSuperficie(nombre, btn) {
+    superficieActiva = nombre;
+
+    // Actualizar botones
+    document.querySelectorAll('.sup-btn').forEach(b => b.classList.remove('activo'));
+    if (btn) btn.classList.add('activo');
+
+    // Quitar highlight anterior
+    quitarHighlightSuperficie();
+
+    // Aplicar highlight naranja suave a la superficie seleccionada
+    const mesh = meshes[nombre];
+    if (mesh) {
+        materialOriginalSuperficie = { nombre, material: mesh.material.clone() };
+        // Overlay de selección — emissive amarillo suave
+        mesh.material.emissive = new THREE.Color(0xFFAA00);
+        mesh.material.emissiveIntensity = 0.25;
+        mostrarToast(`🎯 Superficie: ${etiquetaSuperficie(nombre)} — elige un producto del portafolio`);
+    }
+}
+
+function quitarHighlightSuperficie() {
+    if (materialOriginalSuperficie) {
+        const mesh = meshes[materialOriginalSuperficie.nombre];
+        if (mesh && mesh.material) {
+            mesh.material.emissive = new THREE.Color(0x000000);
+            mesh.material.emissiveIntensity = 0;
+        }
+        materialOriginalSuperficie = null;
+    }
+}
+
+function etiquetaSuperficie(nombre) {
+    const map = { piso:'Piso', techo:'Techo', paredTrasera:'Pared fondo', paredFrontal:'Pared frente', paredIzq:'Pared izquierda', paredDer:'Pared derecha' };
+    return map[nombre] || nombre;
+}
+
+// ── LUCES DE TECHO ────────────────────────────────────────────────────────
+const CONFIGS_LUZ_TECHO = {
+    ojoBuey: { cantidad: 4, radio: 0.08, color: 0xFFFFEE, emissive: 0xFFFF88, intLuz: 1.2, rangeLuz: 4 },
+    lineal:  { cantidad: 2, radio: 0,    color: 0xFFFFFF, emissive: 0xFFFFFF, intLuz: 0.8, rangeLuz: 6, esLineal: true },
+    colgante:{ cantidad: 1, radio: 0.12, color: 0xFFEECC, emissive: 0xFFDD88, intLuz: 1.5, rangeLuz: 5 },
+    led:     { cantidad: 0, esLed: true, color: 0x4488FF, emissive: 0x2266FF, intLuz: 0.6 },
+};
+
+function toggleLuzTecho(tipo, btn) {
+    // Si ya está activa, quitarla
+    if (lucesTeche[tipo]) {
+        scene.remove(lucesTeche[tipo]);
+        delete lucesTeche[tipo];
+        btn.classList.remove('activo');
+        mostrarToast('💡 Luz quitada');
+        return;
+    }
+
+    btn.classList.add('activo');
+    const cfg = CONFIGS_LUZ_TECHO[tipo];
+    const grupo = new THREE.Group();
+    const { ancho, largo, alto } = estado;
+
+    if (cfg.esLed) {
+        // Tira LED — franja de luz en el perímetro del techo
+        const matLed = new THREE.MeshStandardMaterial({ color: cfg.color, emissive: new THREE.Color(cfg.emissive), emissiveIntensity: 1.5 });
+        const ledAncho = new THREE.Mesh(new THREE.BoxGeometry(ancho - 0.2, 0.04, 0.06), matLed);
+        ledAncho.position.set(0, alto - 0.05, -largo/2 + 0.1);
+        const ledAncho2 = ledAncho.clone();
+        ledAncho2.position.set(0, alto - 0.05, largo/2 - 0.1);
+        const ledLargo = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.04, largo - 0.2), matLed);
+        ledLargo.position.set(-ancho/2 + 0.1, alto - 0.05, 0);
+        const ledLargo2 = ledLargo.clone();
+        ledLargo2.position.set(ancho/2 - 0.1, alto - 0.05, 0);
+        grupo.add(ledAncho, ledAncho2, ledLargo, ledLargo2);
+        // Luz ambiental suave azulada
+        const luzLed = new THREE.PointLight(cfg.color, cfg.intLuz, ancho + largo);
+        luzLed.position.set(0, alto - 0.1, 0);
+        grupo.add(luzLed);
+
+    } else if (cfg.esLineal) {
+        // Barras lineales
+        const matLineal = new THREE.MeshStandardMaterial({ color: 0xFFFFFF, emissive: new THREE.Color(0xFFFFFF), emissiveIntensity: 1.2 });
+        [-ancho/4, ancho/4].forEach((x, i) => {
+            const barra = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.04, largo * 0.6), matLineal);
+            barra.position.set(x, alto - 0.05, 0);
+            grupo.add(barra);
+            const luz = new THREE.PointLight(0xFFFFEE, cfg.intLuz, cfg.rangeLuz);
+            luz.position.set(x, alto - 0.15, 0);
+            grupo.add(luz);
+        });
+
+    } else {
+        // Ojos de buey o colgante — distribución en cuadrícula
+        const matBombilla = new THREE.MeshStandardMaterial({ color: cfg.color, emissive: new THREE.Color(cfg.emissive), emissiveIntensity: 1.0 });
+        const matAro = new THREE.MeshStandardMaterial({ color: 0xCCCCCC, roughness: 0.3, metalness: 0.8 });
+
+        const posiciones = cfg.cantidad === 1
+            ? [[0, 0]]
+            : [[-ancho/3, -largo/3], [ancho/3, -largo/3], [-ancho/3, largo/3], [ancho/3, largo/3]];
+
+        posiciones.forEach(([x, z]) => {
+            // Aro metálico
+            const aro = new THREE.Mesh(new THREE.CylinderGeometry(cfg.radio + 0.03, cfg.radio + 0.03, 0.04, 16, 1, true), matAro);
+            aro.position.set(x, alto - 0.05, z);
+            grupo.add(aro);
+
+            // Bombilla
+            const bombilla = new THREE.Mesh(new THREE.SphereGeometry(cfg.radio, 12, 8), matBombilla);
+            if (tipo === 'colgante') {
+                // Cable
+                const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.4, 6), new THREE.MeshStandardMaterial({ color: 0x333333 }));
+                cable.position.set(x, alto - 0.25, z);
+                grupo.add(cable);
+                bombilla.position.set(x, alto - 0.5, z);
+                // Pantalla del colgante
+                const pantalla = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.18, 0.14, 0.2, 12, 1, true),
+                    new THREE.MeshStandardMaterial({ color: 0xF5F0E8, roughness: 0.9, side: THREE.DoubleSide })
+                );
+                pantalla.position.set(x, alto - 0.5, z);
+                grupo.add(pantalla);
+            } else {
+                bombilla.position.set(x, alto - 0.07, z);
+            }
+            grupo.add(bombilla);
+
+            // Luz puntual
+            const luz = new THREE.PointLight(cfg.color, cfg.intLuz, cfg.rangeLuz);
+            luz.position.set(x, alto - 0.15, z);
+            luz.castShadow = true;
+            grupo.add(luz);
+        });
+    }
+
+    scene.add(grupo);
+    lucesTeche[tipo] = grupo;
+    mostrarToast(`💡 ${tipo === 'ojoBuey' ? 'Ojos de buey' : tipo === 'lineal' ? 'Luz lineal' : tipo === 'colgante' ? 'Colgante' : 'Tira LED'} agregados ✅`);
+}
+
+// ── MODIFICAR aplicarProductoPortafolio para respetar superficie activa ──
+// Override de la función original para aplicar a la superficie seleccionada
+const _aplicarOriginal = aplicarProductoPortafolio;
+window.aplicarProductoPortafolio = function(prodId) {
+    const prod = todosProductos.find(p => p.id === prodId);
+    if (!prod) return;
+
+    document.querySelectorAll('.prod-port-card').forEach(c => c.classList.remove('activo'));
+    const card = document.getElementById(`prodcard-${prodId}`);
+    if (card) card.classList.add('activo');
+    productoActivo = prod;
+
+    // En modo interior → aplicar a la superficie seleccionada
+    if (modoInterior && superficieActiva) {
+        aplicarProductoASuperficie(prod, superficieActiva);
+    } else {
+        // Modo normal — comportamiento original por categoría
+        const esPiso    = ['pisos','enchapes','materiales'].includes(prod.categoria);
+        const esPintura = prod.categoria === 'pintura';
+        if (prod.imagen_url) {
+            const loader = new THREE.TextureLoader();
+            loader.crossOrigin = 'anonymous';
+            loader.load(prod.imagen_url, (texture) => {
+                texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+                if (esPiso) {
+                    texture.repeat.set(Math.max(1,estado.ancho/1.2), Math.max(1,estado.largo/1.2));
+                    if (meshes.piso) meshes.piso.material = new THREE.MeshStandardMaterial({ map:texture, roughness:0.4, metalness:0.05 });
+                    mostrarToast(`🪵 "${prod.nombre}" → piso ✅`);
+                } else if (esPintura) {
+                    texture.repeat.set(1,1);
+                    ['paredTrasera','paredFrontal','paredIzq','paredDer'].forEach(k => {
+                        if (meshes[k]) meshes[k].material = new THREE.MeshStandardMaterial({ map:texture, roughness:0.85 });
+                    });
+                    mostrarToast(`🎨 "${prod.nombre}" → todas las paredes ✅`);
+                } else {
+                    texture.repeat.set(Math.max(1,estado.ancho/1.2), Math.max(1,estado.largo/1.2));
+                    if (meshes.piso) meshes.piso.material = new THREE.MeshStandardMaterial({ map:texture, roughness:0.4 });
+                    mostrarToast(`✅ "${prod.nombre}" aplicado`);
+                }
+            }, undefined, () => aplicarColorFallback(prod, esPiso, esPintura));
+        } else {
+            aplicarColorFallback(prod, esPiso, esPintura);
+        }
+    }
+}
+
+function aplicarProductoASuperficie(prod, superficie) {
+    const mesh = meshes[superficie];
+    if (!mesh) { mostrarToast('⚠️ Superficie no disponible'); return; }
+
+    const etiqueta = etiquetaSuperficie(superficie);
+
+    if (prod.imagen_url) {
+        const loader = new THREE.TextureLoader();
+        loader.crossOrigin = 'anonymous';
+        loader.load(prod.imagen_url, (texture) => {
+            texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+            // Ajustar repetición según la superficie
+            if (superficie === 'piso' || superficie === 'techo') {
+                texture.repeat.set(Math.max(1, estado.ancho/1.2), Math.max(1, estado.largo/1.2));
+            } else if (superficie === 'paredTrasera' || superficie === 'paredFrontal') {
+                texture.repeat.set(Math.max(1, estado.ancho/1.2), Math.max(1, estado.alto/1.2));
+            } else {
+                texture.repeat.set(Math.max(1, estado.largo/1.2), Math.max(1, estado.alto/1.2));
+            }
+            mesh.material = new THREE.MeshStandardMaterial({ map: texture, roughness: superficie==='piso'?0.4:0.85, metalness: 0.0 });
+            // Mantener highlight
+            mesh.material.emissive = new THREE.Color(0x000000);
+            mostrarToast(`✅ "${prod.nombre}" → ${etiqueta}`);
+        }, undefined, () => {
+            // Fallback color
+            const cols = { pisos:0xC4913A, enchapes:0xE8E0D0, materiales:0x888888, pintura:0xF5F5F5 };
+            const color = cols[prod.categoria] || 0xC4913A;
+            mesh.material = new THREE.MeshStandardMaterial({ color, roughness:0.5 });
+            mostrarToast(`✅ "${prod.nombre}" → ${etiqueta}`);
+        });
+    } else {
+        const cols = { pisos:0xC4913A, enchapes:0xE8E0D0, materiales:0x888888, pintura:0xF5F5F5, cocinas:0xD4C5A9, baños:0xE0EEF4, puertas:0x8B6914 };
+        const color = cols[prod.categoria] || 0xC4913A;
+        mesh.material = new THREE.MeshStandardMaterial({ color, roughness:0.5 });
+        mostrarToast(`✅ "${prod.nombre}" → ${etiqueta}`);
+    }
 }
 
 document.addEventListener('DOMContentLoaded',()=>cargarFotoIA());
