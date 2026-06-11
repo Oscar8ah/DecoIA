@@ -439,9 +439,13 @@ const CATALOGO_MUEBLES = [
 
 let meshes            = {};
 let luces             = {};
-let mobiliarioMeshes  = {};   // id → THREE.Group
+let mobiliarioMeshes  = {};
 let todosProductos    = [];
 let productoActivo    = null;
+let modoInterior      = false;
+let superficieActiva  = 'piso';
+let lucesTecho        = {};
+let materialOriginalSuperficie = null;
 
 // ── DRAG & DROP estado ────────────────────────────────────────────────────
 let modoMover        = false;
@@ -1392,7 +1396,7 @@ function salirCamaraPivote() {
 
 
 // ── SELECCIÓN DE SUPERFICIE ───────────────────────────────────────────────
-let materialOriginalSuperficie = null;  // guardar material antes del highlight
+// materialOriginalSuperficie declarado arriba
 
 function seleccionarSuperficie(nombre, btn) {
     superficieActiva = nombre;
