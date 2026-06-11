@@ -977,11 +977,18 @@ canvas.addEventListener('mousedown', (e) => {
     const grupo = mobiliarioMeshes[muebleSeleccionado];
     if (!grupo) return;
 
-    // Buscar si el click es en el mueble o cerca del piso
+    // Para ventanas: activar drag directamente (renderOrder interfiere con raycast)
+    if (muebleSeleccionado.startsWith('ventana')) {
+        muebleArrastrando = grupo;
+        controls.enabled  = false;
+        e.stopPropagation();
+        return;
+    }
+
+    // Para muebles normales: raycast normal
     const meshesDelGrupo = [];
     grupo.traverse(o => { if (o.isMesh) meshesDelGrupo.push(o); });
     const intersects = raycaster.intersectObjects(meshesDelGrupo, true);
-
     if (intersects.length > 0) {
         muebleArrastrando = grupo;
         controls.enabled  = false;
@@ -1015,11 +1022,15 @@ canvas.addEventListener('mouseup', () => {
     if (muebleArrastrando) {
         const id = muebleArrastrando.userData.muebleId || '';
         if (id.startsWith('ventana')) {
-            // Crear hueco en la pared al soltar
             const pos = muebleArrastrando.position.clone();
-            const rotY = muebleArrastrando.rotation.y;
-            crearHuecoVentana(id, pos, rotY);
-            mostrarToast('🪟 Ventana incrustada en la pared ✅');
+            // Solo crear hueco si la ventana llegó a una pared (pos no es 0,0,0)
+            const enPared = Math.abs(pos.x) > 0.5 || Math.abs(pos.z) > 0.5;
+            if (enPared) {
+                crearHuecoVentana(id, pos, muebleArrastrando.rotation.y);
+                mostrarToast('🪟 Ventana incrustada ✅');
+            } else {
+                mostrarToast('↔ Arrastra hasta una pared para incrustar');
+            }
         } else {
             mostrarToast('✅ Posición guardada');
         }
