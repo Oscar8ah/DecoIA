@@ -484,15 +484,79 @@ function togglePanelVentana() {
     btn.textContent    = visible ? '+' : '—';
 }
 
+
+function construirGeometriaVentanaBalcon(g, W, H) {
+    while (g.children.length > 0) g.remove(g.children[0]);
+
+    const matAlum = new THREE.MeshStandardMaterial({ color:0xD8D8D8, roughness:0.2, metalness:0.8 });
+    const matVidrio = new THREE.MeshStandardMaterial({
+        color:0xCCDDEE, transparent:true, opacity:0.12,
+        metalness:0.98, roughness:0.01, side:THREE.DoubleSide,
+        envMapIntensity: 1.5
+    });
+    const matManija = new THREE.MeshStandardMaterial({ color:0x888888, roughness:0.2, metalness:0.9 });
+
+    const B  = 0.04;   // perfilería delgada
+    const D  = 0.08;   // profundidad
+    const nHojas = 3;  // 3 hojas verticales
+
+    // Marco exterior
+    [[W,B,D,0,H/2,0],[W,B,D,0,-H/2,0],
+     [B,H,D,-W/2,0,0],[B,H,D,W/2,0,0],
+     [W,B*0.6,D*1.1,0,-H/2+B*0.3,D*0.06], // riel inferior
+     [W,B*0.5,D*0.9,0, H/2-B*0.25,0]       // riel superior
+    ].forEach(([w,h,d,x,y,z])=>{
+        const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),matAlum);
+        m.position.set(x,y,z); g.add(m);
+    });
+
+    // 3 hojas verticales
+    const hw = (W - B*2) / nHojas;
+    for (let i = 0; i < nHojas; i++) {
+        const xHoja = -W/2 + B + hw*(i+0.5);
+        const offset = (i % 2 === 0) ? 0 : D*0.08; // hojas alternas ligeramente detrás
+
+        // Marco de hoja
+        [[hw,B*0.9,D*0.7,xHoja, H/2-B*0.7,-offset],
+         [hw,B*0.9,D*0.7,xHoja,-H/2+B*0.7,-offset],
+         [B*0.9,H-B*2,D*0.7, xHoja-hw/2+B*0.5,0,-offset],
+         [B*0.9,H-B*2,D*0.7, xHoja+hw/2-B*0.5,0,-offset],
+        ].forEach(([w,h,d,x,y,z])=>{
+            const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),matAlum);
+            m.position.set(x,y,z); g.add(m);
+        });
+
+        // Vidrio de hoja — casi toda la altura
+        const vGlass = new THREE.Mesh(
+            new THREE.BoxGeometry(hw-B*1.8, H-B*2.5, 0.005),
+            matVidrio
+        );
+        vGlass.position.set(xHoja, 0, -offset);
+        g.add(vGlass);
+
+        // Manija en hoja central
+        if (i === 1) {
+            const mj = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.1, 0.025), matManija);
+            mj.position.set(xHoja - hw*0.45, -H*0.05, D*0.04+0.012);
+            g.add(mj);
+        }
+    }
+}
+
 function aplicarDimensionesVentana() {
     const w = parseFloat(document.getElementById('vdpAncho').value)||1.2;
     const h = parseFloat(document.getElementById('vdpAlto').value)||0.9;
     window._ventanaAncho = Math.max(0.4, Math.min(3.0, w));
     window._ventanaAlto  = Math.max(0.3, Math.min(2.4, h));
-    ['ventana_blanca','ventana_negra'].forEach(id => {
+    ['ventana_blanca','ventana_negra','ventana_balcon'].forEach(id => {
         const g = mobiliarioMeshes[id];
         if (g) {
-            construirGeometriaVentana(g, id, window._ventanaAncho, window._ventanaAlto);
+            if (id === 'ventana_balcon') {
+                construirGeometriaVentanaBalcon(g, window._ventanaAncho, window._ventanaAlto);
+                g.position.y = window._ventanaAlto / 2;
+            } else {
+                construirGeometriaVentana(g, id, window._ventanaAncho, window._ventanaAlto);
+            }
             g.userData.ventanaAncho = window._ventanaAncho;
             g.userData.ventanaAlto  = window._ventanaAlto;
             actualizarHuecoVentana(id);
@@ -680,8 +744,9 @@ const CATALOGO_MUEBLES = [
     { id:'planta',     nombre:'Planta',        icon:'🌿', hint:'Decoración' },
     { id:'lampara_pie',nombre:'Lámpara pie',   icon:'💡', hint:'Decoración' },
     // ── VENTANAS ──
-    { id:'ventana_blanca', nombre:'Ventana blanca', icon:'🪟', hint:'Pared — marco blanco' },
-    { id:'ventana_negra',  nombre:'Ventana negra',  icon:'🖼️', hint:'Pared — marco negro' },
+    { id:'ventana_blanca',  nombre:'Ventana blanca',  icon:'🪟', hint:'Pared — marco blanco' },
+    { id:'ventana_negra',   nombre:'Ventana negra',   icon:'🖼️', hint:'Pared — marco negro' },
+    { id:'ventana_balcon',  nombre:'Ventana balcón',  icon:'🏙️', hint:'Piso a techo — 3 hojas' },
 ];
 
 let meshes            = {};
@@ -925,6 +990,16 @@ function crearMueble(id, posX=0, posZ=0) {
             break;
         }
 
+        case 'ventana_balcon': {
+            const vW = window._ventanaAncho || 2.4;
+            const vH = window._ventanaAlto  || 2.2;
+            construirGeometriaVentanaBalcon(g, vW, vH);
+            g.position.set(posX, vH/2, posZ);
+            g.userData.ventanaAncho = vW;
+            g.userData.ventanaAlto  = vH;
+            break;
+        }
+
         default:
             return null;
     }
@@ -1112,6 +1187,17 @@ const teclasPresionadas = {};
 const VEL_CAM = 0.04; // metros por frame
 
 document.addEventListener('keydown', (e) => {
+    // Si el foco está en un input o textarea, NO capturar teclas de movimiento
+    const tag = document.activeElement?.tagName?.toLowerCase();
+    if (tag === 'input' || tag === 'textarea') {
+        // Solo capturar ESC para salir de modos
+        if (e.key === 'Escape') {
+            document.activeElement.blur();
+            if (modoMover) desactivarMoverMueble();
+        }
+        return; // ignorar todo lo demás
+    }
+
     teclasPresionadas[e.key.toLowerCase()] = true;
 
     // ESC: salir modo mover o modo pivote
