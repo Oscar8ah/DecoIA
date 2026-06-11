@@ -499,12 +499,22 @@ function crearHuecoVentana(ventanaId, posVentana, rotY) {
     if (!g) return;
     const vW = g.userData.ventanaAncho || 1.2;
     const vH = g.userData.ventanaAlto  || 0.9;
-    const matHueco = new THREE.MeshStandardMaterial({ color:0x05080F, roughness:1, metalness:0, side:THREE.DoubleSide });
-    const hueco = new THREE.Mesh(new THREE.BoxGeometry(vW-0.01, vH-0.01, 0.18), matHueco);
+
+    // El hueco simula la apertura en la pared
+    // Color muy oscuro, renderizado DETRÁS de la ventana
+    const matHueco = new THREE.MeshStandardMaterial({
+        color: 0x05080F, roughness: 1, metalness: 0,
+        side: THREE.DoubleSide, depthWrite: true
+    });
+    const hueco = new THREE.Mesh(new THREE.BoxGeometry(vW - 0.01, vH - 0.01, 0.14), matHueco);
     hueco.position.copy(posVentana);
     hueco.rotation.y = rotY;
+    hueco.renderOrder = -1; // detrás de todo
     scene.add(hueco);
     huecosVentana[ventanaId] = hueco;
+
+    // Poner la ventana delante del hueco
+    if (g) g.renderOrder = 1;
 }
 
 function actualizarHuecoVentana(ventanaId) {
@@ -521,6 +531,69 @@ function actualizarHuecoVentana(ventanaId) {
 function limpiarHuecosVentana() {
     Object.values(huecosVentana).forEach(h => scene.remove(h));
     Object.keys(huecosVentana).forEach(k => delete huecosVentana[k]);
+}
+
+// ── PEGAR VENTANA A PARED ─────────────────────────────────────────────────
+function pegarVentanaAPared(ventanaGrupo, ndc) {
+    const { ancho, largo, alto } = estado;
+    const hw = ancho / 2;
+    const hl = largo / 2;
+
+    // Actualizar raycaster con posición actual del mouse
+    mouse.set(ndc.x, ndc.y);
+    raycaster.setFromCamera(mouse, camera);
+
+    // Probar intersección con cada pared usando planos verticales
+    const paredes = [
+        { nombre:'trasera',  plano: new THREE.Plane(new THREE.Vector3(0,0, 1), hl),  zFijo:-hl+0.06, rotY:0 },
+        { nombre:'frontal',  plano: new THREE.Plane(new THREE.Vector3(0,0,-1), hl),  zFijo: hl-0.06, rotY:0 },
+        { nombre:'izq',      plano: new THREE.Plane(new THREE.Vector3( 1,0,0), hw),  xFijo:-hw+0.06, rotY:Math.PI/2 },
+        { nombre:'der',      plano: new THREE.Plane(new THREE.Vector3(-1,0,0), hw),  xFijo: hw-0.06, rotY:Math.PI/2 },
+    ];
+
+    let mejorDist = Infinity;
+    let mejorPared = null;
+    let mejorPunto = new THREE.Vector3();
+
+    paredes.forEach(p => {
+        const pt = new THREE.Vector3();
+        if (raycaster.ray.intersectPlane(p.plano, pt)) {
+            const dist = camera.position.distanceTo(pt);
+            if (dist < mejorDist && dist < 20) {
+                mejorDist  = dist;
+                mejorPared = p;
+                mejorPunto.copy(pt);
+            }
+        }
+    });
+
+    if (!mejorPared) return;
+
+    // Altura — entre 0.4m del suelo y 0.3m del techo
+    const vH = ventanaGrupo.userData.ventanaAlto || 0.9;
+    const vW = ventanaGrupo.userData.ventanaAncho || 1.2;
+    const yMin = vH/2 + 0.3;
+    const yMax = alto - vH/2 - 0.2;
+    const y = Math.max(yMin, Math.min(yMax, mejorPunto.y));
+
+    // Posicionar sobre la pared correcta
+    if (mejorPared.nombre === 'trasera' || mejorPared.nombre === 'frontal') {
+        const xMax = hw - vW/2 - 0.1;
+        ventanaGrupo.position.set(
+            Math.max(-xMax, Math.min(xMax, mejorPunto.x)),
+            y,
+            mejorPared.zFijo
+        );
+        ventanaGrupo.rotation.y = mejorPared.rotY;
+    } else {
+        const zMax = hl - vW/2 - 0.1;
+        ventanaGrupo.position.set(
+            mejorPared.xFijo,
+            y,
+            Math.max(-zMax, Math.min(zMax, mejorPunto.z))
+        );
+        ventanaGrupo.rotation.y = mejorPared.rotY;
+    }
 }
 
 const PANEL_W  = 300;
@@ -622,9 +695,11 @@ function renderListaMuebles() {
                 </button>
                 ${enEscena ? `
                 <button class="btn-mueble btn-mover ${muebleSeleccionado===m.id ? 'activo' : ''}"
-                    onclick="activarMoverMueble('${m.id}')" title="Mover">↔</button>
-                <button class="btn-mueble btn-rotar"
-                    onclick="rotarMueble('${m.id}')" title="Rotar 45°">↻</button>
+                    onclick="activarMoverMueble('${m.id}')" title="Mover a pared">↔</button>
+                ${m.id.startsWith('ventana')
+                    ? `<button class="btn-mueble btn-rotar" onclick="rotarVentana('${m.id}')" title="Cambiar pared (H/V)">⟂</button>`
+                    : `<button class="btn-mueble btn-rotar" onclick="rotarMueble('${m.id}')" title="Rotar 45°">↻</button>`
+                }
                 ` : ''}
             </div>
         </div>`;
@@ -864,6 +939,19 @@ function desactivarMoverMueble() {
 }
 
 // ── ROTAR MUEBLE 45° ─────────────────────────────────────────────────────
+
+function rotarVentana(id) {
+    const g = mobiliarioMeshes[id];
+    if (!g) return;
+    // Alternar entre horizontal (0°) y vertical (90°) en la pared
+    const actual = Math.round(g.rotation.y * 180 / Math.PI) % 180;
+    g.rotation.y = (actual === 0) ? Math.PI/2 : 0;
+    // Actualizar hueco si existe
+    if (huecosVentana[id]) {
+        huecosVentana[id].rotation.y = g.rotation.y;
+    }
+    mostrarToast('⟂ Ventana girada — arrastra para pegar a nueva pared');
+}
 function rotarMueble(id) {
     const g = mobiliarioMeshes[id];
     if (!g) return;
