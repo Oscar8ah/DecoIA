@@ -12,7 +12,6 @@
             --degradado: linear-gradient(135deg, #3B82F6 0%, #7C3AED 100%);
             --oscuro: #0F0F1A; --oscuro2: #1A1A2E;
             --texto: #F8FAFC; --gris: #94A3B8;
-            --error: #EF4444; --exito: #10B981;
         }
         body { font-family: 'Segoe UI', sans-serif; background: var(--oscuro); color: var(--texto); min-height: 100vh; overflow-x: hidden; }
         nav { position:fixed; top:0; width:100%; padding:20px 60px; display:flex; justify-content:space-between; align-items:center; background:rgba(15,15,26,0.95); backdrop-filter:blur(10px); z-index:100; border-bottom:1px solid rgba(124,58,237,0.2); }
@@ -20,56 +19,102 @@
         .nav-back { color:var(--gris); text-decoration:none; font-size:15px; transition:color 0.3s; }
         .nav-back:hover { color:var(--texto); }
         .bg-glow { position:fixed; width:500px; height:500px; background:radial-gradient(circle,rgba(124,58,237,0.12) 0%,transparent 70%); top:20%; left:50%; transform:translateX(-50%); pointer-events:none; z-index:0; }
-        .registro-container { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:120px 20px 60px; position:relative; z-index:1; }
-        .registro-box { width:100%; max-width:520px; }
-        .registro-header { text-align:center; margin-bottom:35px; }
-        .registro-badge { display:inline-block; background:rgba(124,58,237,0.15); border:1px solid rgba(124,58,237,0.4); padding:7px 18px; border-radius:50px; font-size:13px; color:#A78BFA; margin-bottom:20px; }
-        .registro-header h1 { font-size:36px; font-weight:900; margin-bottom:10px; line-height:1.2; }
+
+        /* ── CONTENEDOR PRINCIPAL ── */
+        .registro-container { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:100px 20px 60px; position:relative; z-index:1; }
+        .registro-box { width:100%; max-width:560px; }
+
+        /* ── SELECTOR TIPO USUARIO ── */
+        .tipo-selector { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:28px; }
+        .tipo-btn {
+            padding:20px 16px; border-radius:16px; border:2px solid rgba(124,58,237,0.2);
+            background:var(--oscuro2); cursor:pointer; text-align:center;
+            transition:all 0.25s; position:relative; overflow:hidden;
+        }
+        .tipo-btn:hover { border-color:rgba(124,58,237,0.5); }
+        .tipo-btn.activo { border-color:var(--morado); background:rgba(124,58,237,0.1); box-shadow:0 0 24px rgba(124,58,237,0.2); }
+        .tipo-btn .tipo-icon { font-size:32px; margin-bottom:10px; display:block; }
+        .tipo-btn .tipo-nombre { font-size:15px; font-weight:700; color:var(--texto); margin-bottom:4px; }
+        .tipo-btn .tipo-desc { font-size:12px; color:var(--gris); line-height:1.4; }
+        .tipo-badge { position:absolute; top:10px; right:10px; background:var(--degradado); padding:3px 10px; border-radius:50px; font-size:10px; font-weight:700; }
+
+        /* ── HEADER ── */
+        .registro-header { text-align:center; margin-bottom:28px; }
+        .registro-badge { display:inline-block; background:rgba(124,58,237,0.15); border:1px solid rgba(124,58,237,0.4); padding:7px 18px; border-radius:50px; font-size:13px; color:#A78BFA; margin-bottom:16px; }
+        .registro-header h1 { font-size:32px; font-weight:900; margin-bottom:8px; line-height:1.2; }
         .registro-header h1 span { background:var(--degradado); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
-        .registro-header p { color:var(--gris); font-size:16px; line-height:1.6; }
-        .form-card { background:var(--oscuro2); border:1px solid rgba(124,58,237,0.25); border-radius:24px; padding:45px 40px; box-shadow:0 0 60px rgba(124,58,237,0.08); }
-        .label-titulo { display:block; font-size:13px; font-weight:600; color:var(--gris); margin-bottom:12px; text-transform:uppercase; letter-spacing:0.05em; }
-        .planes-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:30px; }
+        .registro-header p { color:var(--gris); font-size:15px; line-height:1.6; }
+
+        /* ── CARD FORMULARIO ── */
+        .form-card { background:var(--oscuro2); border:1px solid rgba(124,58,237,0.25); border-radius:24px; padding:36px 36px; box-shadow:0 0 60px rgba(124,58,237,0.08); }
+        .label-titulo { display:block; font-size:12px; font-weight:700; color:var(--gris); margin-bottom:12px; text-transform:uppercase; letter-spacing:0.05em; }
+
+        /* ── PLANES (solo para empresa) ── */
+        .planes-wrap { display:none; }
+        .planes-wrap.visible { display:block; margin-bottom:24px; }
+        .planes-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
         .plan-option { position:relative; cursor:pointer; }
         .plan-option input[type="radio"] { position:absolute; opacity:0; width:0; height:0; }
-        .plan-card { background:var(--oscuro); border:2px solid rgba(124,58,237,0.2); border-radius:14px; padding:16px 14px; transition:all 0.25s; cursor:pointer; display:block; }
+        .plan-card { background:var(--oscuro); border:2px solid rgba(124,58,237,0.2); border-radius:14px; padding:14px 12px; transition:all 0.25s; cursor:pointer; display:block; }
         .plan-option input:checked + .plan-card { border-color:var(--morado); background:rgba(124,58,237,0.1); box-shadow:0 0 20px rgba(124,58,237,0.2); }
         .plan-card:hover { border-color:rgba(124,58,237,0.5); }
-        .plan-card-nombre { font-size:14px; font-weight:700; background:var(--degradado); -webkit-background-clip:text; -webkit-text-fill-color:transparent; margin-bottom:4px; }
-        .plan-card-precio { font-size:17px; font-weight:800; color:var(--texto); margin-bottom:2px; }
+        .plan-card-nombre { font-size:13px; font-weight:700; background:var(--degradado); -webkit-background-clip:text; -webkit-text-fill-color:transparent; margin-bottom:3px; }
+        .plan-card-precio { font-size:16px; font-weight:800; color:var(--texto); margin-bottom:2px; }
         .plan-card-fotos { font-size:11px; color:var(--gris); }
-        .plan-popular-badge { display:inline-block; background:var(--degradado); padding:2px 8px; border-radius:20px; font-size:10px; font-weight:700; color:white; margin-bottom:6px; }
+        .plan-popular-badge { display:inline-block; background:var(--degradado); padding:2px 8px; border-radius:20px; font-size:10px; font-weight:700; color:white; margin-bottom:4px; }
+
+        /* ── DIVIDER ── */
         .divider { display:flex; align-items:center; gap:12px; margin-bottom:20px; }
         .divider-line { flex:1; height:1px; background:rgba(124,58,237,0.2); }
         .divider-text { font-size:13px; color:var(--gris); white-space:nowrap; }
-        .btn-google { width:100%; background:white; color:#1F2937; border:none; padding:16px; border-radius:50px; font-size:16px; font-weight:700; cursor:pointer; transition:transform 0.2s,box-shadow 0.3s; font-family:'Segoe UI',sans-serif; display:flex; align-items:center; justify-content:center; gap:12px; box-shadow:0 4px 20px rgba(0,0,0,0.3); margin-bottom:16px; }
+
+        /* ── BOTÓN GOOGLE ── */
+        .btn-google { width:100%; background:white; color:#1F2937; border:none; padding:16px; border-radius:50px; font-size:16px; font-weight:700; cursor:pointer; transition:transform 0.2s,box-shadow 0.3s; font-family:'Segoe UI',sans-serif; display:flex; align-items:center; justify-content:center; gap:12px; box-shadow:0 4px 20px rgba(0,0,0,0.3); margin-bottom:14px; }
         .btn-google:hover:not(:disabled) { transform:translateY(-2px); box-shadow:0 8px 30px rgba(0,0,0,0.4); }
         .btn-google:disabled { opacity:0.6; cursor:not-allowed; }
-        .seguridad-text { text-align:center; font-size:12px; color:var(--gris); margin-bottom:20px; line-height:1.5; }
+
+        .seguridad-text { text-align:center; font-size:12px; color:var(--gris); line-height:1.5; }
         .seguridad-text span { color:#A78BFA; }
-        .alerta { border-radius:12px; padding:14px 18px; font-size:14px; margin-bottom:20px; display:none; line-height:1.5; }
+
+        /* ── ESTADOS ── */
+        .alerta { border-radius:12px; padding:14px 18px; font-size:14px; margin-bottom:18px; display:none; line-height:1.5; }
         .alerta.error { background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.4); color:#FCA5A5; display:block; }
-        .alerta.exito { background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.4); color:#6EE7B7; display:block; }
         .spinner { display:inline-block; width:18px; height:18px; border:2px solid rgba(100,100,100,0.3); border-top-color:#333; border-radius:50%; animation:spin 0.7s linear infinite; vertical-align:middle; margin-right:8px; }
         @keyframes spin { to { transform:rotate(360deg); } }
-        .exito-screen { display:none; text-align:center; padding:10px 0; }
-        .exito-icon { font-size:70px; margin-bottom:20px; animation:bounce 0.6s ease; }
-        @keyframes bounce { 0%{transform:scale(0)} 60%{transform:scale(1.2)} 100%{transform:scale(1)} }
-        .exito-screen h2 { font-size:28px; font-weight:800; margin-bottom:12px; }
-        .exito-screen h2 span { background:var(--degradado); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
-        .exito-screen p { color:var(--gris); font-size:15px; line-height:1.6; margin-bottom:25px; }
-        .exito-datos { background:var(--oscuro); border:1px solid rgba(124,58,237,0.25); border-radius:14px; padding:20px; margin-bottom:25px; text-align:left; }
-        .exito-datos p { font-size:14px; margin-bottom:8px; color:var(--gris); }
-        .exito-datos strong { color:var(--texto); }
-        .btn-dashboard { display:inline-block; background:var(--degradado); color:white; padding:16px 40px; border-radius:50px; font-size:16px; font-weight:700; text-decoration:none; transition:opacity 0.3s,transform 0.2s; box-shadow:0 0 30px rgba(124,58,237,0.35); }
-        .btn-dashboard:hover { opacity:0.9; transform:translateY(-2px); }
+
         .loading-screen { display:none; text-align:center; padding:30px 0; }
-        .loading-spinner-grande { width:60px; height:60px; border:4px solid rgba(124,58,237,0.2); border-top-color:var(--morado); border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 20px; }
+        .loading-spinner-grande { width:56px; height:56px; border:4px solid rgba(124,58,237,0.2); border-top-color:var(--morado); border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 20px; }
         .loading-screen p { color:var(--gris); font-size:16px; }
-        .login-link { text-align:center; margin-top:24px; color:var(--gris); font-size:14px; }
+
+        /* ── PANTALLA ÉXITO EMPRESA ── */
+        .exito-screen { display:none; text-align:center; padding:10px 0; }
+        .exito-icon { font-size:64px; margin-bottom:16px; animation:bounce 0.6s ease; }
+        @keyframes bounce { 0%{transform:scale(0)} 60%{transform:scale(1.2)} 100%{transform:scale(1)} }
+        .exito-screen h2 { font-size:26px; font-weight:800; margin-bottom:10px; }
+        .exito-screen h2 span { background:var(--degradado); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+        .exito-screen p { color:var(--gris); font-size:14px; line-height:1.6; margin-bottom:20px; }
+        .exito-datos { background:var(--oscuro); border:1px solid rgba(124,58,237,0.25); border-radius:14px; padding:18px; margin-bottom:22px; text-align:left; }
+        .exito-datos p { font-size:13px; margin-bottom:6px; color:var(--gris); }
+        .exito-datos strong { color:var(--texto); }
+        .btn-ir { display:inline-block; background:var(--degradado); color:white; padding:14px 36px; border-radius:50px; font-size:15px; font-weight:700; text-decoration:none; transition:opacity 0.3s,transform 0.2s; box-shadow:0 0 30px rgba(124,58,237,0.35); }
+        .btn-ir:hover { opacity:0.9; transform:translateY(-2px); }
+
+        /* ── PANTALLA ÉXITO CONSUMIDOR ── */
+        .exito-consumidor { display:none; text-align:center; padding:10px 0; }
+        .exito-consumidor .exito-icon { font-size:64px; margin-bottom:16px; }
+        .exito-consumidor h2 { font-size:26px; font-weight:800; margin-bottom:10px; }
+        .exito-consumidor h2 span { background:var(--degradado); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+        .exito-consumidor p { color:var(--gris); font-size:14px; margin-bottom:22px; line-height:1.6; }
+        .accesos-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:20px; }
+        .acceso-card { background:var(--oscuro); border:1px solid rgba(124,58,237,0.2); border-radius:14px; padding:16px 12px; text-align:center; }
+        .acceso-card .acceso-icon { font-size:24px; margin-bottom:6px; }
+        .acceso-card p { font-size:12px; color:var(--gris); line-height:1.4; }
+
+        .login-link { text-align:center; margin-top:20px; color:var(--gris); font-size:14px; }
         .login-link a { color:#A78BFA; text-decoration:none; font-weight:600; }
-        @media (max-width:600px) { nav { padding:15px 20px; } .form-card { padding:30px 20px; } .registro-header h1 { font-size:28px; } }
-        @media (max-width:400px) { .planes-grid { grid-template-columns:1fr; } }
+
+        @media (max-width:600px) { nav { padding:15px 20px; } .form-card { padding:24px 18px; } .tipo-selector { grid-template-columns:1fr; } }
+        @media (max-width:400px) { .planes-grid { grid-template-columns:1fr; } .accesos-grid { grid-template-columns:1fr; } }
     </style>
 </head>
 <body>
@@ -85,9 +130,9 @@
     <div class="registro-box">
 
         <div class="registro-header">
-            <div class="registro-badge">🚀 Registro gratuito</div>
-            <h1>Crea tu cuenta<br><span>en segundos</span></h1>
-            <p>Sin tarjeta de crédito. Elige tu plan y entra con Google.</p>
+            <div class="registro-badge" id="registroBadge">🚀 Registro gratuito</div>
+            <h1>Únete a<br><span>DecoIArte</span></h1>
+            <p id="registroDesc">Elige cómo quieres usar la plataforma</p>
         </div>
 
         <div class="form-card">
@@ -96,51 +141,71 @@
             <!-- CARGANDO -->
             <div class="loading-screen" id="loadingScreen">
                 <div class="loading-spinner-grande"></div>
-                <p>Completando tu registro...<br>Un momento por favor ✨</p>
+                <p id="loadingMsg">Verificando tu cuenta...<br>Un momento por favor ✨</p>
             </div>
 
             <!-- FORMULARIO -->
             <div id="formContenido">
-                <label class="label-titulo">1. Elige tu plan</label>
-                <div class="planes-grid">
-                    <label class="plan-option">
-                        <input type="radio" name="plan" value="basico">
-                        <span class="plan-card">
-                            <div class="plan-card-nombre">Básico</div>
-                            <div class="plan-card-precio">$700K</div>
-                            <div class="plan-card-fotos">100 fotos/mes</div>
-                        </span>
-                    </label>
-                    <label class="plan-option">
-                        <input type="radio" name="plan" value="profesional" checked>
-                        <span class="plan-card">
-                            <div class="plan-popular-badge">⭐ Popular</div>
-                            <div class="plan-card-nombre">Profesional</div>
-                            <div class="plan-card-precio">$1.200K</div>
-                            <div class="plan-card-fotos">200 fotos/mes</div>
-                        </span>
-                    </label>
-                    <label class="plan-option">
-                        <input type="radio" name="plan" value="premium">
-                        <span class="plan-card">
-                            <div class="plan-card-nombre">Premium</div>
-                            <div class="plan-card-precio">$1.500K</div>
-                            <div class="plan-card-fotos">300 fotos/mes</div>
-                        </span>
-                    </label>
-                    <label class="plan-option">
-                        <input type="radio" name="plan" value="corporativo">
-                        <span class="plan-card">
-                            <div class="plan-card-nombre">Corporativo</div>
-                            <div class="plan-card-precio">$3.000K</div>
-                            <div class="plan-card-fotos">500 fotos/mes</div>
-                        </span>
-                    </label>
+
+                <!-- SELECTOR TIPO -->
+                <label class="label-titulo">¿Cómo quieres entrar?</label>
+                <div class="tipo-selector">
+                    <div class="tipo-btn activo" id="btnTipoEmpresa" onclick="seleccionarTipo('empresa')">
+                        <span class="tipo-badge">💼</span>
+                        <span class="tipo-icon">🏪</span>
+                        <div class="tipo-nombre">Soy un negocio</div>
+                        <div class="tipo-desc">Quiero vender mis productos y usar el bot de WhatsApp</div>
+                    </div>
+                    <div class="tipo-btn" id="btnTipoConsumidor" onclick="seleccionarTipo('consumidor')">
+                        <span class="tipo-icon">🏠</span>
+                        <div class="tipo-nombre">Quiero remodelar</div>
+                        <div class="tipo-desc">Exploro productos, uso el visor 3D y compro lo que me guste</div>
+                    </div>
+                </div>
+
+                <!-- PLANES (solo empresa) -->
+                <div class="planes-wrap visible" id="planesWrap">
+                    <label class="label-titulo">Elige tu plan</label>
+                    <div class="planes-grid">
+                        <label class="plan-option">
+                            <input type="radio" name="plan" value="basico">
+                            <span class="plan-card">
+                                <div class="plan-card-nombre">Básico</div>
+                                <div class="plan-card-precio">$700K</div>
+                                <div class="plan-card-fotos">100 fotos/mes</div>
+                            </span>
+                        </label>
+                        <label class="plan-option">
+                            <input type="radio" name="plan" value="profesional" checked>
+                            <span class="plan-card">
+                                <div class="plan-popular-badge">⭐ Popular</div>
+                                <div class="plan-card-nombre">Profesional</div>
+                                <div class="plan-card-precio">$1.200K</div>
+                                <div class="plan-card-fotos">200 fotos/mes</div>
+                            </span>
+                        </label>
+                        <label class="plan-option">
+                            <input type="radio" name="plan" value="premium">
+                            <span class="plan-card">
+                                <div class="plan-card-nombre">Premium</div>
+                                <div class="plan-card-precio">$1.500K</div>
+                                <div class="plan-card-fotos">300 fotos/mes</div>
+                            </span>
+                        </label>
+                        <label class="plan-option">
+                            <input type="radio" name="plan" value="corporativo">
+                            <span class="plan-card">
+                                <div class="plan-card-nombre">Corporativo</div>
+                                <div class="plan-card-precio">$3.000K</div>
+                                <div class="plan-card-fotos">500 fotos/mes</div>
+                            </span>
+                        </label>
+                    </div>
                 </div>
 
                 <div class="divider">
                     <div class="divider-line"></div>
-                    <span class="divider-text">2. Entra con tu cuenta</span>
+                    <span class="divider-text" id="dividerText">Entra con tu cuenta Google</span>
                     <div class="divider-line"></div>
                 </div>
 
@@ -155,23 +220,49 @@
                 </button>
 
                 <div class="seguridad-text">
-                    🔒 Tu cuenta de Google <span>nunca comparte tu contraseña</span> con DecoIArte.<br>
-                    Solo usamos tu nombre y correo para crear tu cuenta.
+                    🔒 Tu cuenta de Google <span>nunca comparte tu contraseña</span> con DecoIArte.
                 </div>
             </div>
 
-            <!-- ÉXITO -->
-            <div class="exito-screen" id="exitoScreen">
+            <!-- ÉXITO EMPRESA -->
+            <div class="exito-screen" id="exitoEmpresa">
                 <div class="exito-icon">🎉</div>
                 <h2>¡Bienvenido a<br><span>DecoIArte!</span></h2>
-                <p>Tu cuenta fue creada exitosamente.<br>En breve te contactamos para activar tu bot de WhatsApp.</p>
-                <div class="exito-datos" id="exitoDatos"></div>
-                <a href="/dashboard" class="btn-dashboard">Ir a mi Dashboard →</a>
+                <p>Tu cuenta de negocio fue creada.<br>Pronto te contactamos para activar tu bot de WhatsApp.</p>
+                <div class="exito-datos" id="exitoDatosEmpresa"></div>
+                <a href="/dashboard" class="btn-ir">Ir a mi Dashboard →</a>
             </div>
+
+            <!-- ÉXITO CONSUMIDOR -->
+            <div class="exito-consumidor" id="exitoConsumidor">
+                <div class="exito-icon">🏠</div>
+                <h2>¡Listo para<br><span>remodelar!</span></h2>
+                <p>Tu cuenta está activa. Explora el marketplace,<br>usa el visor 3D y compra lo que te guste.</p>
+                <div class="accesos-grid">
+                    <div class="acceso-card">
+                        <div class="acceso-icon">🛍️</div>
+                        <p>Marketplace con productos de todas las tiendas</p>
+                    </div>
+                    <div class="acceso-card">
+                        <div class="acceso-icon">🏗️</div>
+                        <p>Visor 3D arquitectónico con render IA</p>
+                    </div>
+                    <div class="acceso-card">
+                        <div class="acceso-icon">🛒</div>
+                        <p>Carrito multi-tienda y compra segura</p>
+                    </div>
+                    <div class="acceso-card">
+                        <div class="acceso-icon">🖼️</div>
+                        <p>Imagen desbloqueada al completar tu compra</p>
+                    </div>
+                </div>
+                <a href="/marketplace" class="btn-ir">Explorar marketplace →</a>
+            </div>
+
         </div>
 
         <div class="login-link" id="loginLink">
-            ¿Ya tienes cuenta? <a href="/dashboard">Inicia sesión aquí</a>
+            ¿Ya tienes cuenta? <a href="/dashboard">Entrar a mi cuenta</a>
         </div>
 
     </div>
@@ -180,27 +271,34 @@
 <script>
 const SUPABASE_URL      = 'https://cqwbsikyzdtegutyvgfo.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxd2JzaWt5emR0ZWd1dHl2Z2ZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NTk5MjUsImV4cCI6MjA5NDMzNTkyNX0.v9Qmp85POur1zZ3nHVYNRyhqHAi4VawafBsCiXF72Yo';
-
-// Tu número de WhatsApp para notificaciones (con código de país)
-const OSCAR_WHATSAPP = '573159423174';
-
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const PRECIOS_PLAN = {
-    basico: '$700.000/mes', profesional: '$1.200.000/mes',
-    premium: '$1.500.000/mes', corporativo: '$3.000.000/mes'
-};
-const NOMBRES_PLAN = {
-    basico: 'Básico', profesional: 'Profesional',
-    premium: 'Premium', corporativo: 'Corporativo'
-};
+const PRECIOS_PLAN = { basico:'$700.000/mes', profesional:'$1.200.000/mes', premium:'$1.500.000/mes', corporativo:'$3.000.000/mes' };
+const NOMBRES_PLAN = { basico:'Básico', profesional:'Profesional', premium:'Premium', corporativo:'Corporativo' };
+
+let tipoActual = 'empresa'; // 'empresa' | 'consumidor'
+
+// ── SELECTOR TIPO ─────────────────────────────────────────────────────────
+function seleccionarTipo(tipo) {
+    tipoActual = tipo;
+    document.getElementById('btnTipoEmpresa').classList.toggle('activo', tipo === 'empresa');
+    document.getElementById('btnTipoConsumidor').classList.toggle('activo', tipo === 'consumidor');
+    document.getElementById('planesWrap').classList.toggle('visible', tipo === 'empresa');
+    document.getElementById('dividerText').textContent = tipo === 'empresa'
+        ? 'Entra con tu cuenta Google'
+        : 'Entra con Google — es gratis';
+    // Guardar tipo para el callback
+    try { localStorage.setItem('decoiarte_tipo', tipo); } catch(e) {}
+}
 
 // ── LOGIN CON GOOGLE ──────────────────────────────────────────────────────
 async function loginConGoogle() {
     const plan = document.querySelector('input[name="plan"]:checked')?.value || 'profesional';
-    try { localStorage.setItem('decoiarte_plan', plan); } catch(e) {}
-    document.cookie = `decoiarte_plan=${plan};path=/;max-age=300`;
+    try {
+        localStorage.setItem('decoiarte_plan', plan);
+        localStorage.setItem('decoiarte_tipo', tipoActual);
+    } catch(e) {}
 
     const btn = document.getElementById('btnGoogle');
     btn.disabled = true;
@@ -212,158 +310,138 @@ async function loginConGoogle() {
     });
 
     if (error) {
-        mostrarAlerta('❌ Error conectando con Google. Intenta de nuevo.', 'error');
+        mostrarAlerta('❌ Error conectando con Google. Intenta de nuevo.');
         btn.disabled = false;
-        btn.innerHTML = `<svg viewBox="0 0 24 24" width="22" height="22">
-            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-        </svg>Continuar con Google`;
+        btn.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>Continuar con Google';
     }
 }
 
-// ── OBTENER PLAN GUARDADO ─────────────────────────────────────────────────
-function obtenerPlanGuardado() {
-    try { const p = localStorage.getItem('decoiarte_plan'); if (p) return p; } catch(e) {}
-    const m = document.cookie.match(/decoiarte_plan=([^;]+)/);
-    if (m) return m[1];
-    return 'profesional';
-}
-
-// ── NOTIFICACIÓN WHATSAPP A OSCAR ─────────────────────────────────────────
-async function notificarNuevoCliente(nombre, email, plan) {
-    try {
-        const fecha    = new Date().toLocaleDateString('es-CO', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
-        const precio   = PRECIOS_PLAN[plan] || '—';
-        const planNombre = NOMBRES_PLAN[plan] || plan;
-
-        const mensaje = encodeURIComponent(
-            `🎉 *Nuevo cliente en DecoIArte!*\n\n` +
-            `🏢 *Negocio:* ${nombre}\n` +
-            `📧 *Email:* ${email}\n` +
-            `📦 *Plan:* ${planNombre}\n` +
-            `💰 *Valor:* ${precio}\n` +
-            `📅 *Fecha:* ${fecha}\n\n` +
-            `👉 Actívalo en: decoiarte.com/admin`
-        );
-
-        // Usar la API de WhatsApp Cloud para enviar el mensaje a Oscar
-        // Nota: esto usa el endpoint de notificaciones del backend
-        await fetch(`https://decoia.onrender.com/notificar-registro`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nombre, email, plan: planNombre, precio })
-        });
-
-        logger_info(`Notificación enviada para: ${email}`);
-    } catch(e) {
-        // Silencioso — no afecta el flujo del usuario
-        console.log('Notificación pendiente:', e.message);
-    }
-}
-
-// ── MANEJAR CALLBACK DE GOOGLE ────────────────────────────────────────────
+// ── CALLBACK GOOGLE ───────────────────────────────────────────────────────
 async function manejarCallback() {
     const { data: { session }, error } = await db.auth.getSession();
     if (error || !session) return;
 
     const user = session.user;
-    const plan = obtenerPlanGuardado();
+    let tipo = 'empresa';
+    try { tipo = localStorage.getItem('decoiarte_tipo') || 'empresa'; } catch(e) {}
+    const plan = (() => { try { return localStorage.getItem('decoiarte_plan') || 'profesional'; } catch(e) { return 'profesional'; } })();
 
+    // Mostrar loading
     document.getElementById('formContenido').style.display = 'none';
     document.getElementById('loginLink').style.display     = 'none';
     document.getElementById('loadingScreen').style.display = 'block';
 
     try {
-        // Verificar si ya existe
-        const { data: empresaExistente } = await db
-            .from('empresas').select('id, nombre, plan_id')
+        // ── 1. Verificar si es empresa existente ──────────────────────────
+        const { data: empresa } = await db
+            .from('empresas').select('id,nombre,plan_id')
             .eq('email', user.email).maybeSingle();
 
-        if (empresaExistente) {
-            try { localStorage.removeItem('decoiarte_plan'); } catch(e) {}
-            document.cookie = 'decoiarte_plan=;path=/;max-age=0';
+        if (empresa) {
+            limpiarStorage();
             window.location.href = '/dashboard';
             return;
         }
 
-        // Obtener plan
-        const { data: planData, error: planError } = await db
-            .from('planes').select('id, nombre, precio, fotos_incluidas')
-            .eq('nombre', plan).maybeSingle();
+        // ── 2. Verificar si es consumidor existente ───────────────────────
+        const { data: consumidor } = await db
+            .from('consumidores').select('id,nombre')
+            .eq('email', user.email).maybeSingle();
 
-        if (planError || !planData) throw new Error('Plan no encontrado: ' + plan);
-
-        const nombreNegocio = user.user_metadata?.full_name
-            || user.user_metadata?.name
-            || user.email.split('@')[0];
-
-        // Crear empresa
-        const { error: insertError } = await db.from('empresas').insert({
-            nombre:            nombreNegocio,
-            email:             user.email,
-            plan_id:           planData.id,
-            fotos_disponibles: planData.fotos_incluidas,
-            fotos_usadas:      0,
-            estado:            'pendiente_pago',
-            pago_metodo:       'pendiente'
-        });
-
-        if (insertError) {
-            if (insertError.code === '23505') { window.location.href = '/dashboard'; return; }
-            throw insertError;
+        if (consumidor) {
+            limpiarStorage();
+            window.location.href = '/marketplace';
+            return;
         }
 
-        // ── NOTIFICAR A OSCAR POR WHATSAPP ────────────────────────────────
-        await notificarNuevoCliente(nombreNegocio, user.email, plan);
+        // ── 3. Usuario nuevo — crear según tipo elegido ───────────────────
+        const nombre = user.user_metadata?.full_name || user.user_metadata?.name || user.email.split('@')[0];
 
-        // Limpiar y mostrar éxito
-        try { localStorage.removeItem('decoiarte_plan'); } catch(e) {}
-        document.cookie = 'decoiarte_plan=;path=/;max-age=0';
-        document.getElementById('loadingScreen').style.display = 'none';
-        mostrarExito(nombreNegocio, user.email, plan, planData.fotos_incluidas);
+        if (tipo === 'consumidor') {
+            // Crear consumidor
+            const { error: errC } = await db.from('consumidores').insert({
+                nombre,
+                email:      user.email,
+                avatar_url: user.user_metadata?.avatar_url || null,
+                estado:     'activo'
+            });
+            if (errC && errC.code !== '23505') throw errC;
 
-    } catch (err) {
+            limpiarStorage();
+            document.getElementById('loadingScreen').style.display = 'none';
+            mostrarExitoConsumidor(nombre);
+
+        } else {
+            // Crear empresa
+            const { data: planData, error: planError } = await db
+                .from('planes').select('id,nombre,precio,fotos_incluidas')
+                .eq('nombre', plan).maybeSingle();
+            if (planError || !planData) throw new Error('Plan no encontrado: ' + plan);
+
+            const { error: errE } = await db.from('empresas').insert({
+                nombre,
+                email:             user.email,
+                plan_id:           planData.id,
+                fotos_disponibles: planData.fotos_incluidas,
+                fotos_usadas:      0,
+                estado:            'pendiente_pago',
+                pago_metodo:       'pendiente'
+            });
+            if (errE && errE.code !== '23505') throw errE;
+
+            // Notificar a Oscar
+            await notificarNuevoNegocio(nombre, user.email, plan);
+
+            limpiarStorage();
+            document.getElementById('loadingScreen').style.display = 'none';
+            mostrarExitoEmpresa(nombre, user.email, plan, planData.fotos_incluidas);
+        }
+
+    } catch(err) {
         console.error(err);
         document.getElementById('loadingScreen').style.display = 'none';
         document.getElementById('formContenido').style.display = 'block';
         document.getElementById('loginLink').style.display     = 'block';
-        mostrarAlerta('❌ Error: ' + (err.message || 'Intenta de nuevo.'), 'error');
+        mostrarAlerta('❌ Error: ' + (err.message || 'Intenta de nuevo.'));
     }
 }
 
-// ── PANTALLA DE ÉXITO ─────────────────────────────────────────────────────
-function mostrarExito(nombre, email, plan, fotos) {
-    document.getElementById('formContenido').style.display = 'none';
-    document.getElementById('loadingScreen').style.display = 'none';
-    document.getElementById('loginLink').style.display     = 'none';
-    limpiarAlerta();
-
-    document.getElementById('exitoDatos').innerHTML = `
+// ── PANTALLAS DE ÉXITO ────────────────────────────────────────────────────
+function mostrarExitoEmpresa(nombre, email, plan, fotos) {
+    document.getElementById('exitoDatosEmpresa').innerHTML = `
         <p>👤 <strong>${nombre}</strong></p>
         <p>📧 <strong>${email}</strong></p>
         <p>📦 Plan: <strong>${NOMBRES_PLAN[plan] || plan}</strong></p>
-        <p>📸 Fotos incluidas: <strong>${fotos} imágenes/mes</strong></p>
-        <p style="margin-top:12px;font-size:13px;color:#A78BFA;">
-            ✅ Te contactaremos pronto para activar tu bot de WhatsApp.
-        </p>`;
-
-    document.getElementById('exitoScreen').style.display = 'block';
+        <p>📸 <strong>${fotos} imágenes/mes</strong></p>
+        <p style="margin-top:10px;font-size:12px;color:#A78BFA;">✅ Te contactaremos para activar tu bot de WhatsApp.</p>`;
+    document.getElementById('exitoEmpresa').style.display = 'block';
 }
 
-function mostrarAlerta(mensaje, tipo) {
+function mostrarExitoConsumidor(nombre) {
+    document.getElementById('exitoConsumidor').style.display = 'block';
+}
+
+// ── NOTIFICAR OSCAR ───────────────────────────────────────────────────────
+async function notificarNuevoNegocio(nombre, email, plan) {
+    try {
+        await fetch('https://decoia.onrender.com/notificar-registro', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nombre, email, plan: NOMBRES_PLAN[plan]||plan, precio: PRECIOS_PLAN[plan]||'—' })
+        });
+    } catch(e) { console.log('Notificación pendiente:', e.message); }
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────
+function limpiarStorage() {
+    try { localStorage.removeItem('decoiarte_plan'); localStorage.removeItem('decoiarte_tipo'); } catch(e) {}
+}
+
+function mostrarAlerta(msg) {
     const a = document.getElementById('alerta');
-    a.textContent = mensaje;
-    a.className   = `alerta ${tipo}`;
+    a.textContent = msg;
+    a.className   = 'alerta error';
 }
-
-function limpiarAlerta() {
-    const a = document.getElementById('alerta');
-    a.className = 'alerta'; a.textContent = '';
-}
-
-function logger_info(msg) { console.log('[DecoIArte]', msg); }
 
 window.addEventListener('DOMContentLoaded', () => { manejarCallback(); });
 </script>
