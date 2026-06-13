@@ -1216,7 +1216,83 @@ function toggleMinimizarPanel() {
 // ── MOVIMIENTO WASD + FLECHAS ─────────────────────────────────────────────
 const teclasPresionadas = {};
 const VEL_CAM = 0.04; // metros por frame
+// ═══════════════════════════════════════════════════════════════
+// BLOQUEO DE IMAGEN — pegar este bloque ANTES del addEventListener
+// keydown en visor3d.html
+// ═══════════════════════════════════════════════════════════════
 
+// ── VERIFICAR ROL DEL USUARIO ─────────────────────────────────
+let rolUsuario = null;
+
+async function verificarRolYAcceso() {
+    try {
+        const { data:{ session } } = await db.auth.getSession();
+        if (!session) { rolUsuario = null; return; }
+        const email = session.user.email;
+        const { data:empresa } = await db.from('empresas').select('id').eq('email', email).maybeSingle();
+        if (empresa) { rolUsuario = 'empresa'; return; }
+        const { data:consumidor } = await db.from('consumidores').select('id').eq('email', email).maybeSingle();
+        if (consumidor) { rolUsuario = 'consumidor'; return; }
+        rolUsuario = null;
+    } catch(e) { rolUsuario = null; }
+}
+
+function imagenBloqueada() {
+    // Empresas siempre pueden descargar (es su visor)
+    return rolUsuario !== 'empresa';
+}
+
+function mostrarModalBloqueo() {
+    let modal = document.getElementById('modalBloqueoImagen');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'modalBloqueoImagen';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;backdrop-filter:blur(8px);';
+        modal.innerHTML = `
+            <div style="background:#1A1A2E;border:1px solid rgba(124,58,237,0.4);border-radius:20px;padding:36px 32px;max-width:420px;width:100%;text-align:center;">
+                <div style="font-size:52px;margin-bottom:16px;">🔒</div>
+                <h2 style="font-size:22px;font-weight:800;color:#F8FAFC;margin-bottom:10px;">Imagen bloqueada</h2>
+                <p style="color:#94A3B8;font-size:14px;line-height:1.7;margin-bottom:24px;">
+                    Para descargar esta imagen necesitas agregar los productos al carrito y completar tu compra. 
+                    Una vez pagado, recibirás la imagen directamente.
+                </p>
+                <div style="display:flex;flex-direction:column;gap:10px;">
+                    <a href="/marketplace" style="background:linear-gradient(135deg,#3B82F6,#7C3AED);color:white;padding:14px 24px;border-radius:50px;font-size:15px;font-weight:700;text-decoration:none;display:block;">
+                        🛒 Ir al marketplace y comprar
+                    </a>
+                    <button onclick="document.getElementById('modalBloqueoImagen').style.display='none'"
+                        style="background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;padding:12px 24px;border-radius:50px;font-size:14px;font-weight:600;cursor:pointer;font-family:'Segoe UI',sans-serif;">
+                        ✕ Cerrar
+                    </button>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+    } else {
+        modal.style.display = 'flex';
+    }
+}
+
+function aplicarOverlayBloqueo(imgElement) {
+    const container = imgElement.closest('.foto-ia-container');
+    if (!container || container.querySelector('.overlay-bloqueo')) return;
+    const overlay = document.createElement('div');
+    overlay.className = 'overlay-bloqueo';
+    overlay.style.cssText = 'position:absolute;inset:0;background:linear-gradient(to bottom,transparent 30%,rgba(0,0,0,0.92) 100%);display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:24px;';
+    overlay.innerHTML = `
+        <div style="text-align:center;">
+            <div style="font-size:36px;margin-bottom:8px;">🔒</div>
+            <p style="color:white;font-size:15px;font-weight:700;margin-bottom:4px;">Imagen bloqueada</p>
+            <p style="color:rgba(255,255,255,0.7);font-size:12px;margin-bottom:16px;">Completa tu compra para desbloquear</p>
+            <a href="/marketplace" style="background:linear-gradient(135deg,#3B82F6,#7C3AED);color:white;padding:10px 20px;border-radius:50px;font-size:13px;font-weight:700;text-decoration:none;">
+                🛒 Comprar ahora
+            </a>
+        </div>`;
+    container.style.position = 'relative';
+    container.style.userSelect = 'none';
+    container.appendChild(overlay);
+    imgElement.addEventListener('contextmenu', e => e.preventDefault());
+    imgElement.style.pointerEvents = 'none';
+}
 document.addEventListener('keydown', (e) => {
     // Si el foco está en un input o textarea, NO capturar teclas de movimiento
     const tag = document.activeElement?.tagName?.toLowerCase();
@@ -1671,6 +1747,7 @@ function actualizarStats() {
 }
 
 function capturarRender() {
+    if (imagenBloqueada()) { mostrarModalBloqueo(); return; }
     renderer.render(scene,camera);
     const link=document.createElement('a');
     link.download=`render_decoiarte_${Date.now()}.png`;
@@ -1905,6 +1982,7 @@ function moverCamaraPivote() {
 }
 
 function capturarDesdeInterior() {
+    if (imagenBloqueada()) { mostrarModalBloqueo(); return; }
     renderer.render(scene,camera);
     const link=document.createElement('a'); link.download=`render_interior_${Date.now()}.png`;
     link.href=canvas.toDataURL('image/png',1.0); link.click();
@@ -2108,7 +2186,10 @@ function aplicarProductoASuperficie(prod, superficie) {
     }
 }
 
-document.addEventListener('DOMContentLoaded',()=>cargarFotoIA());
+document.addEventListener('DOMContentLoaded', async () => {
+    await verificarRolYAcceso();
+    cargarFotoIA();
+});
 cargarFotoIA();
 </script>
 
