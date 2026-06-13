@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DecoIArte — Remodelación con Inteligencia Artificial</title>
+    <title>DecoIArte — Compra y transforma tu espacio con IA</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
@@ -15,80 +15,113 @@
         body { font-family: 'Segoe UI', sans-serif; background: var(--oscuro); color: var(--texto); overflow-x: hidden; }
 
         /* NAVBAR */
-        nav { position: fixed; top: 0; width: 100%; padding: 20px 60px; display: flex; justify-content: space-between; align-items: center; background: rgba(15,15,26,0.9); backdrop-filter: blur(10px); z-index: 100; border-bottom: 1px solid rgba(124,58,237,0.2); }
-        .logo { font-size: 28px; font-weight: 800; background: var(--degradado); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .nav-links { display: flex; gap: 20px; align-items: center; }
-        .nav-links a { color: var(--gris); text-decoration: none; font-size: 15px; transition: color 0.3s; }
+        nav { position: fixed; top: 0; width: 100%; padding: 18px 60px; display: flex; justify-content: space-between; align-items: center; background: rgba(15,15,26,0.95); backdrop-filter: blur(10px); z-index: 100; border-bottom: 1px solid rgba(124,58,237,0.2); }
+        .logo { font-size: 26px; font-weight: 800; background: var(--degradado); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .nav-links { display: flex; gap: 16px; align-items: center; }
+        .nav-links a { color: var(--gris); text-decoration: none; font-size: 14px; transition: color 0.3s; }
         .nav-links a:hover { color: var(--texto); }
-        .btn-nav-entrar { background: transparent; color: #A78BFA !important; border: 1px solid rgba(124,58,237,0.4); padding: 10px 22px; border-radius: 50px; font-weight: 600; transition: all 0.3s !important; }
-        .btn-nav-entrar:hover { background: rgba(124,58,237,0.1) !important; border-color: var(--morado) !important; }
-        .btn-nav { background: var(--degradado); color: white !important; padding: 10px 25px; border-radius: 50px; font-weight: 600; transition: opacity 0.3s !important; }
+        .btn-nav-tiendas { background: rgba(124,58,237,0.1); color: #A78BFA !important; border: 1px solid rgba(124,58,237,0.3); padding: 9px 20px; border-radius: 50px; font-weight: 600; transition: all 0.3s !important; }
+        .btn-nav-tiendas:hover { background: rgba(124,58,237,0.2) !important; }
+        .btn-nav-entrar { background: transparent; color: #A78BFA !important; border: 1px solid rgba(124,58,237,0.4); padding: 9px 20px; border-radius: 50px; font-weight: 600; transition: all 0.3s !important; }
+        .btn-nav-entrar:hover { background: rgba(124,58,237,0.1) !important; }
+        .btn-nav { background: var(--degradado); color: white !important; padding: 9px 22px; border-radius: 50px; font-weight: 600; transition: opacity 0.3s !important; }
         .btn-nav:hover { opacity: 0.85; }
 
         /* HERO */
         .hero { min-height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; padding: 120px 20px 80px; position: relative; overflow: hidden; }
-        .hero::before { content: ''; position: absolute; width: 600px; height: 600px; background: radial-gradient(circle, rgba(124,58,237,0.15) 0%, transparent 70%); top: 50%; left: 50%; transform: translate(-50%, -50%); }
-        .hero-badge { display: inline-block; background: rgba(124,58,237,0.15); border: 1px solid rgba(124,58,237,0.4); padding: 8px 20px; border-radius: 50px; font-size: 14px; color: #A78BFA; margin-bottom: 30px; }
-        .hero h1 { font-size: clamp(40px, 7vw, 80px); font-weight: 900; line-height: 1.1; margin-bottom: 25px; }
+        .hero::before { content: ''; position: absolute; width: 700px; height: 700px; background: radial-gradient(circle, rgba(124,58,237,0.12) 0%, transparent 70%); top: 50%; left: 50%; transform: translate(-50%, -50%); }
+        .hero-badge { display: inline-block; background: rgba(124,58,237,0.15); border: 1px solid rgba(124,58,237,0.4); padding: 8px 20px; border-radius: 50px; font-size: 14px; color: #A78BFA; margin-bottom: 28px; }
+        .hero h1 { font-size: clamp(38px, 6.5vw, 76px); font-weight: 900; line-height: 1.1; margin-bottom: 22px; }
         .hero h1 span { background: var(--degradado); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .hero p { font-size: 20px; color: var(--gris); max-width: 600px; margin: 0 auto 50px; line-height: 1.7; }
-        .hero-buttons { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
-        .btn-primary { background: var(--degradado); color: white; padding: 18px 45px; border-radius: 50px; font-size: 18px; font-weight: 700; text-decoration: none; transition: transform 0.3s, box-shadow 0.3s; box-shadow: 0 0 30px rgba(124,58,237,0.4); }
-        .btn-primary:hover { transform: translateY(-3px); box-shadow: 0 0 50px rgba(124,58,237,0.6); }
-        .btn-secondary { background: transparent; color: white; padding: 18px 45px; border-radius: 50px; font-size: 18px; font-weight: 600; text-decoration: none; border: 2px solid rgba(124,58,237,0.5); transition: border-color 0.3s; }
-        .btn-secondary:hover { border-color: var(--morado); }
+        .hero p { font-size: 19px; color: var(--gris); max-width: 580px; margin: 0 auto 48px; line-height: 1.7; }
 
-        /* Banda "Ya tengo cuenta" */
-        .ya-cliente { background: rgba(124,58,237,0.06); border-top: 1px solid rgba(124,58,237,0.15); border-bottom: 1px solid rgba(124,58,237,0.15); padding: 18px 20px; text-align: center; font-size: 15px; color: var(--gris); }
-        .ya-cliente a { color: #A78BFA; text-decoration: none; font-weight: 700; margin-left: 8px; border: 1px solid rgba(124,58,237,0.35); padding: 7px 20px; border-radius: 50px; transition: all 0.2s; display: inline-block; }
-        .ya-cliente a:hover { background: rgba(124,58,237,0.1); }
+        /* DOS CAMINOS */
+        .dos-caminos { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px; }
+        .camino-card { background: var(--oscuro2); border: 2px solid rgba(124,58,237,0.25); border-radius: 20px; padding: 28px 32px; max-width: 280px; text-align: center; transition: all 0.3s; text-decoration: none; }
+        .camino-card:hover { border-color: var(--morado); transform: translateY(-4px); box-shadow: 0 0 30px rgba(124,58,237,0.2); }
+        .camino-card.principal { border-color: var(--morado); box-shadow: 0 0 30px rgba(124,58,237,0.25); }
+        .camino-icon { font-size: 40px; margin-bottom: 12px; display: block; }
+        .camino-titulo { font-size: 17px; font-weight: 800; color: var(--texto); margin-bottom: 6px; }
+        .camino-desc { font-size: 13px; color: var(--gris); line-height: 1.5; margin-bottom: 16px; }
+        .camino-btn { display: block; padding: 12px 24px; border-radius: 50px; font-size: 14px; font-weight: 700; transition: opacity 0.3s; }
+        .camino-card.principal .camino-btn { background: var(--degradado); color: white; }
+        .camino-card .camino-btn { background: rgba(124,58,237,0.15); color: #A78BFA; border: 1px solid rgba(124,58,237,0.3); }
+
+        .hero-sub { font-size: 14px; color: var(--gris); margin-top: 8px; }
+        .hero-sub a { color: #A78BFA; text-decoration: none; font-weight: 600; }
 
         /* COMO FUNCIONA */
-        .section { padding: 100px 60px; max-width: 1200px; margin: 0 auto; }
-        .section-title { text-align: center; font-size: 42px; font-weight: 800; margin-bottom: 15px; }
-        .section-sub { text-align: center; color: var(--gris); font-size: 18px; margin-bottom: 70px; }
-        .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 30px; }
-        .step { background: var(--oscuro2); border: 1px solid rgba(124,58,237,0.2); border-radius: 20px; padding: 40px 30px; text-align: center; transition: transform 0.3s, border-color 0.3s; }
-        .step:hover { transform: translateY(-5px); border-color: rgba(124,58,237,0.6); }
-        .step-num { width: 60px; height: 60px; background: var(--degradado); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 800; margin: 0 auto 25px; }
-        .step h3 { font-size: 20px; margin-bottom: 12px; }
-        .step p { color: var(--gris); line-height: 1.6; }
+        .section { padding: 90px 60px; max-width: 1200px; margin: 0 auto; }
+        .section-title { text-align: center; font-size: 38px; font-weight: 800; margin-bottom: 12px; }
+        .section-sub { text-align: center; color: var(--gris); font-size: 17px; margin-bottom: 60px; }
+
+        /* Tabs como funciona */
+        .tabs-funciona { display: flex; gap: 10px; justify-content: center; margin-bottom: 48px; }
+        .tab-fn { padding: 11px 28px; border-radius: 50px; font-size: 15px; font-weight: 600; cursor: pointer; border: 1px solid rgba(124,58,237,0.3); background: transparent; color: var(--gris); font-family: 'Segoe UI', sans-serif; transition: all 0.25s; }
+        .tab-fn.active { background: var(--degradado); color: white; border-color: transparent; }
+        .tab-fn:hover:not(.active) { color: var(--texto); border-color: rgba(124,58,237,0.5); }
+        .steps-wrap { display: none; }
+        .steps-wrap.active { display: block; }
+
+        .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; }
+        .step { background: var(--oscuro2); border: 1px solid rgba(124,58,237,0.2); border-radius: 20px; padding: 36px 28px; text-align: center; transition: transform 0.3s, border-color 0.3s; }
+        .step:hover { transform: translateY(-4px); border-color: rgba(124,58,237,0.5); }
+        .step-num { width: 54px; height: 54px; background: var(--degradado); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 800; margin: 0 auto 20px; }
+        .step h3 { font-size: 18px; margin-bottom: 10px; }
+        .step p { color: var(--gris); line-height: 1.6; font-size: 14px; }
+        .step-cta { display: inline-block; margin-top: 16px; background: var(--degradado); color: white; padding: 10px 22px; border-radius: 50px; font-size: 13px; font-weight: 700; text-decoration: none; }
+
+        /* TIENDAS */
+        .tiendas-bg { background: rgba(124,58,237,0.04); border-top: 1px solid rgba(124,58,237,0.1); border-bottom: 1px solid rgba(124,58,237,0.1); padding: 60px 20px; }
+        .tiendas-inner { max-width: 900px; margin: 0 auto; text-align: center; }
+        .tiendas-inner h3 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+        .tiendas-inner p { color: var(--gris); font-size: 15px; margin-bottom: 32px; }
+        .tiendas-logos { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; }
+        .tienda-logo-card { background: var(--oscuro2); border: 1px solid rgba(124,58,237,0.2); border-radius: 14px; padding: 16px 20px; min-width: 100px; text-align: center; font-size: 13px; color: var(--gris); font-weight: 600; }
+        .tienda-logo-card img { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; display: block; margin: 0 auto 8px; }
+        .ver-todas { display: inline-block; margin-top: 24px; background: transparent; color: #A78BFA; border: 1px solid rgba(124,58,237,0.4); padding: 12px 28px; border-radius: 50px; font-size: 14px; font-weight: 700; text-decoration: none; transition: all 0.3s; }
+        .ver-todas:hover { background: rgba(124,58,237,0.1); }
 
         /* PLANES */
-        .planes-bg { background: var(--oscuro2); padding: 100px 20px; }
-        .planes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 30px; max-width: 1200px; margin: 0 auto; }
-        .plan { background: var(--oscuro); border: 1px solid rgba(124,58,237,0.2); border-radius: 24px; padding: 45px 35px; position: relative; transition: transform 0.3s; }
-        .plan:hover { transform: translateY(-5px); }
+        .planes-bg { background: var(--oscuro2); padding: 90px 20px; }
+        .planes { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 24px; max-width: 1100px; margin: 0 auto; }
+        .plan { background: var(--oscuro); border: 1px solid rgba(124,58,237,0.2); border-radius: 22px; padding: 40px 30px; position: relative; transition: transform 0.3s; }
+        .plan:hover { transform: translateY(-4px); }
         .plan.popular { border-color: var(--morado); box-shadow: 0 0 40px rgba(124,58,237,0.2); }
-        .badge-popular { position: absolute; top: -15px; left: 50%; transform: translateX(-50%); background: var(--degradado); padding: 6px 20px; border-radius: 50px; font-size: 13px; font-weight: 700; white-space: nowrap; }
-        .plan-nombre { font-size: 22px; font-weight: 700; margin-bottom: 10px; background: var(--degradado); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .plan-precio { font-size: 38px; font-weight: 900; margin-bottom: 5px; }
-        .plan-precio span { font-size: 16px; color: var(--gris); font-weight: 400; }
-        .plan-fotos { color: var(--gris); font-size: 14px; margin-bottom: 30px; padding-bottom: 25px; border-bottom: 1px solid rgba(255,255,255,0.1); }
-        .plan-features { list-style: none; margin-bottom: 35px; }
-        .plan-features li { padding: 8px 0; color: var(--gris); font-size: 15px; }
+        .badge-popular { position: absolute; top: -14px; left: 50%; transform: translateX(-50%); background: var(--degradado); padding: 5px 18px; border-radius: 50px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+        .plan-nombre { font-size: 20px; font-weight: 700; margin-bottom: 8px; background: var(--degradado); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .plan-precio { font-size: 34px; font-weight: 900; margin-bottom: 4px; }
+        .plan-precio span { font-size: 15px; color: var(--gris); font-weight: 400; }
+        .plan-fotos { color: var(--gris); font-size: 13px; margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+        .plan-features { list-style: none; margin-bottom: 28px; }
+        .plan-features li { padding: 6px 0; color: var(--gris); font-size: 14px; }
         .plan-features li::before { content: '✓ '; color: var(--morado); font-weight: 700; }
-        .btn-plan { display: block; text-align: center; background: var(--degradado); color: white; padding: 15px; border-radius: 50px; font-weight: 700; text-decoration: none; transition: opacity 0.3s; }
+        .btn-plan { display: block; text-align: center; background: var(--degradado); color: white; padding: 13px; border-radius: 50px; font-weight: 700; text-decoration: none; transition: opacity 0.3s; }
         .btn-plan:hover { opacity: 0.85; }
 
         /* CTA */
-        .cta { padding: 120px 20px; text-align: center; }
-        .cta h2 { font-size: clamp(32px, 5vw, 60px); font-weight: 900; margin-bottom: 20px; }
-        .cta p { color: var(--gris); font-size: 20px; margin-bottom: 50px; }
+        .cta { padding: 100px 20px; text-align: center; }
+        .cta h2 { font-size: clamp(28px, 4.5vw, 54px); font-weight: 900; margin-bottom: 16px; }
+        .cta p { color: var(--gris); font-size: 18px; margin-bottom: 44px; }
+        .cta-btns { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+        .btn-primary { background: var(--degradado); color: white; padding: 16px 40px; border-radius: 50px; font-size: 17px; font-weight: 700; text-decoration: none; transition: transform 0.3s, box-shadow 0.3s; box-shadow: 0 0 30px rgba(124,58,237,0.35); }
+        .btn-primary:hover { transform: translateY(-3px); box-shadow: 0 0 50px rgba(124,58,237,0.5); }
+        .btn-outline { background: transparent; color: white; padding: 16px 40px; border-radius: 50px; font-size: 17px; font-weight: 600; text-decoration: none; border: 2px solid rgba(124,58,237,0.5); transition: border-color 0.3s; }
+        .btn-outline:hover { border-color: var(--morado); }
 
         /* FOOTER */
-        footer { background: var(--oscuro2); padding: 40px 60px; text-align: center; color: var(--gris); border-top: 1px solid rgba(124,58,237,0.2); font-size: 14px; }
+        footer { background: var(--oscuro2); padding: 36px 60px; text-align: center; color: var(--gris); border-top: 1px solid rgba(124,58,237,0.2); font-size: 14px; }
         footer span { background: var(--degradado); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 700; }
 
-        /* WHATSAPP FLOAT */
-        .whatsapp-float { position: fixed; bottom: 30px; right: 30px; background: #25D366; width: 65px; height: 65px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; text-decoration: none; box-shadow: 0 5px 25px rgba(37,211,102,0.5); transition: transform 0.3s; z-index: 999; }
+        .whatsapp-float { position: fixed; bottom: 28px; right: 28px; background: #25D366; width: 62px; height: 62px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; text-decoration: none; box-shadow: 0 5px 25px rgba(37,211,102,0.45); transition: transform 0.3s; z-index: 999; }
         .whatsapp-float:hover { transform: scale(1.1); }
 
         @media (max-width: 768px) {
-            nav { padding: 15px 20px; }
-            .nav-links { gap: 10px; }
-            .nav-links a:not(.btn-nav):not(.btn-nav-entrar) { display: none; }
-            .section { padding: 60px 20px; }
+            nav { padding: 14px 18px; }
+            .nav-links a:not(.btn-nav):not(.btn-nav-entrar):not(.btn-nav-tiendas) { display: none; }
+            .section { padding: 60px 18px; }
+            .dos-caminos { flex-direction: column; align-items: center; }
+            .camino-card { max-width: 100%; width: 100%; }
         }
     </style>
 </head>
@@ -99,7 +132,7 @@
     <div class="nav-links">
         <a href="#como-funciona">¿Cómo funciona?</a>
         <a href="#planes">Planes</a>
-        <a href="#contacto">Contacto</a>
+        <a href="/marketplace" class="btn-nav-tiendas">🛍️ Ver tiendas</a>
         <a href="/login" class="btn-nav-entrar">Entrar →</a>
         <a href="/registro" class="btn-nav">Crear cuenta</a>
     </div>
@@ -107,53 +140,117 @@
 
 <!-- HERO -->
 <section class="hero">
-    <div>
-        <div class="hero-badge">🏠 Inteligencia Artificial para Remodelación</div>
-        <h1>Transforma cualquier<br>espacio con <span>IA</span></h1>
-        <p>Envía una foto por WhatsApp y nuestra IA te muestra cómo quedaría tu espacio remodelado en segundos.</p>
-        <div class="hero-buttons">
-            <a href="/registro" class="btn-primary">🚀 Crear cuenta gratis</a>
-            <a href="#como-funciona" class="btn-secondary">Ver cómo funciona</a>
+    <div style="position:relative;z-index:1;">
+        <div class="hero-badge">🏠 Inteligencia Artificial para Remodelación · Colombia</div>
+        <h1>Compra y transforma<br>tu espacio con <span>IA</span></h1>
+        <p>Sube una foto de tu espacio, elige los productos que más te gustan y ve cómo quedaría antes de comprar.</p>
+
+        <div class="dos-caminos">
+            <a href="/remodelar" class="camino-card principal">
+                <span class="camino-icon">🤖</span>
+                <div class="camino-titulo">Transformar con IA</div>
+                <div class="camino-desc">Sube una foto de tu espacio, elige productos y ve el resultado en segundos.</div>
+                <span class="camino-btn">✨ Empezar ahora</span>
+            </a>
+            <a href="/marketplace" class="camino-card">
+                <span class="camino-icon">🛍️</span>
+                <div class="camino-titulo">Ver tiendas</div>
+                <div class="camino-desc">Explora el catálogo de todas las tiendas y compra directamente lo que necesitas.</div>
+                <span class="camino-btn">🏪 Explorar tiendas</span>
+            </a>
+        </div>
+
+        <div class="hero-sub">
+            ¿Tienes un negocio? <a href="/registro">Regístralo gratis →</a>
+            &nbsp;·&nbsp; ¿Ya tienes cuenta? <a href="/login">Entrar →</a>
         </div>
     </div>
 </section>
-
-<!-- BANDA YA TENGO CUENTA -->
-<div class="ya-cliente">
-    ¿Ya tienes una cuenta en DecoIArte?
-    <a href="/login">→ Entrar a mi cuenta</a>
-</div>
 
 <!-- COMO FUNCIONA -->
 <section id="como-funciona">
     <div class="section">
         <h2 class="section-title">¿Cómo funciona?</h2>
-        <p class="section-sub">En 3 simples pasos tu cliente ve su espacio transformado</p>
-        <div class="steps">
-            <div class="step">
-                <div class="step-num">1</div>
-                <h3>Envía una foto</h3>
-                <p>Tu cliente toma una foto de su espacio y la envía por WhatsApp a tu número de negocio.</p>
+        <p class="section-sub">Elige cómo quieres usar DecoIArte</p>
+
+        <div class="tabs-funciona">
+            <button class="tab-fn active" onclick="mostrarTab('consumidor',this)">🏠 Quiero remodelar</button>
+            <button class="tab-fn" onclick="mostrarTab('negocio',this)">🏪 Tengo un negocio</button>
+        </div>
+
+        <!-- Tab consumidor -->
+        <div class="steps-wrap active" id="tab-consumidor">
+            <div class="steps">
+                <div class="step">
+                    <div class="step-num">1</div>
+                    <h3>Sube tu foto</h3>
+                    <p>Toma una foto de tu sala, cocina, habitación o baño y súbela en segundos.</p>
+                </div>
+                <div class="step">
+                    <div class="step-num">2</div>
+                    <h3>Elige los productos</h3>
+                    <p>Escoge el piso, la pintura o los materiales que más te gustan del catálogo de tiendas.</p>
+                </div>
+                <div class="step">
+                    <div class="step-num">3</div>
+                    <h3>Ve el resultado</h3>
+                    <p>La IA transforma tu espacio en segundos. Compara el antes y el después con el slider.</p>
+                </div>
+                <div class="step">
+                    <div class="step-num">4</div>
+                    <h3>Compra y descarga</h3>
+                    <p>Agrega al carrito, paga y recibe tu imagen desbloqueada + coordinas el domicilio con la tienda.</p>
+                    <a href="/remodelar" class="step-cta">✨ Probar ahora gratis</a>
+                </div>
             </div>
-            <div class="step">
-                <div class="step-num">2</div>
-                <h3>La IA analiza</h3>
-                <p>Nuestra IA detecta pisos, paredes, muebles y elementos del espacio automáticamente.</p>
-            </div>
-            <div class="step">
-                <div class="step-num">3</div>
-                <h3>¡Resultado WOW!</h3>
-                <p>En segundos el cliente recibe la foto de su espacio remodelado con tus productos aplicados.</p>
+        </div>
+
+        <!-- Tab negocio -->
+        <div class="steps-wrap" id="tab-negocio">
+            <div class="steps">
+                <div class="step">
+                    <div class="step-num">1</div>
+                    <h3>Regístrate</h3>
+                    <p>Crea tu cuenta, elige tu plan y sube el catálogo de productos de tu tienda.</p>
+                </div>
+                <div class="step">
+                    <div class="step-num">2</div>
+                    <h3>Conecta WhatsApp</h3>
+                    <p>Tu cliente escanea un QR o escribe a tu número. El bot con IA responde automáticamente.</p>
+                </div>
+                <div class="step">
+                    <div class="step-num">3</div>
+                    <h3>La IA hace magia</h3>
+                    <p>El cliente sube una foto, elige un producto y recibe el render de su espacio remodelado.</p>
+                </div>
+                <div class="step">
+                    <div class="step-num">4</div>
+                    <h3>Vende más</h3>
+                    <p>Tu tienda aparece en el marketplace. Los clientes compran tus productos desde DecoIArte.</p>
+                    <a href="/registro" class="step-cta">🚀 Registrar mi negocio</a>
+                </div>
             </div>
         </div>
     </div>
 </section>
 
+<!-- TIENDAS INSCRITAS -->
+<div class="tiendas-bg" id="tiendas-seccion">
+    <div class="tiendas-inner">
+        <h3>Tiendas que ya están en DecoIArte</h3>
+        <p>Explora sus productos y transforma tu espacio con lo mejor del mercado colombiano</p>
+        <div class="tiendas-logos" id="tiendasLogos">
+            <div class="tienda-logo-card" style="opacity:0.5;">Cargando tiendas...</div>
+        </div>
+        <a href="/marketplace" class="ver-todas">Ver todas las tiendas →</a>
+    </div>
+</div>
+
 <!-- PLANES -->
 <section id="planes" class="planes-bg">
-    <div class="section">
-        <h2 class="section-title">Planes y precios</h2>
-        <p class="section-sub">Elige el plan ideal para tu negocio</p>
+    <div class="section" style="max-width:1200px;">
+        <h2 class="section-title">Planes para negocios</h2>
+        <p class="section-sub">Lleva tu tienda al siguiente nivel con IA</p>
         <div class="planes">
             <div class="plan">
                 <div class="plan-nombre">Básico</div>
@@ -161,10 +258,10 @@
                 <div class="plan-fotos">100 fotos incluidas · Recargas disponibles</div>
                 <ul class="plan-features">
                     <li>Bot WhatsApp con IA</li>
-                    <li>Detección automática de espacios</li>
-                    <li>Foto de referencia de producto</li>
+                    <li>Flujo Remodelar completo</li>
                     <li>Dashboard básico</li>
-                    <li>50 imágenes en historial</li>
+                    <li>Tienda en el marketplace</li>
+                    <li>Asesor solo ve historial</li>
                     <li>Soporte por WhatsApp</li>
                 </ul>
                 <a href="/registro" class="btn-plan">Comenzar</a>
@@ -176,11 +273,11 @@
                 <div class="plan-fotos">200 fotos incluidas · Recargas disponibles</div>
                 <ul class="plan-features">
                     <li>Todo lo del plan Básico</li>
-                    <li>CRM y seguimiento de clientes</li>
-                    <li>Catálogo desde PDF con IA</li>
-                    <li>Modal de productos</li>
+                    <li>Flujo Mi Plano (asesor edita)</li>
+                    <li>CRM de clientes</li>
+                    <li>Catálogo PDF con IA</li>
                     <li>Multiasesor</li>
-                    <li>200 imágenes en historial</li>
+                    <li>Soporte prioritario</li>
                 </ul>
                 <a href="/registro" class="btn-plan">Comenzar</a>
             </div>
@@ -194,7 +291,7 @@
                     <li>Cálculo de materiales con IA</li>
                     <li>Inventario en catálogo</li>
                     <li>300 imágenes en historial</li>
-                    <li>Soporte prioritario</li>
+                    <li>Soporte VIP</li>
                 </ul>
                 <a href="/registro" class="btn-plan">Comenzar</a>
             </div>
@@ -206,9 +303,9 @@
                     <li>Todo lo del plan Premium</li>
                     <li>Medición AR de espacios</li>
                     <li>Planos arquitectónicos con IA</li>
-                    <li>Cotizaciones entre empresas</li>
                     <li>API personalizada</li>
                     <li>Gerente de cuenta dedicado</li>
+                    <li>Cotizaciones entre empresas</li>
                 </ul>
                 <a href="/registro" class="btn-plan">Comenzar</a>
             </div>
@@ -218,11 +315,11 @@
 
 <!-- CTA FINAL -->
 <section class="cta" id="contacto">
-    <h2>¿Listo para transformar<br>tu negocio? 🚀</h2>
-    <p>Únete a los negocios que ya usan DecoIArte para vender más</p>
-    <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;">
-        <a href="/registro" class="btn-primary">Crear mi cuenta gratis</a>
-        <a href="/login" style="background:transparent;color:#A78BFA;padding:18px 40px;border-radius:50px;font-size:18px;font-weight:600;text-decoration:none;border:2px solid rgba(124,58,237,0.4);transition:border-color 0.3s;">Ya tengo cuenta →</a>
+    <h2>¿Listo para transformar<br>tu espacio? 🏠✨</h2>
+    <p>Únete a DecoIArte — gratis para consumidores, planes desde $700K para negocios</p>
+    <div class="cta-btns">
+        <a href="/remodelar" class="btn-primary">🤖 Transformar con IA</a>
+        <a href="/registro" class="btn-outline">🏪 Registrar mi negocio</a>
     </div>
 </section>
 
@@ -233,5 +330,39 @@
 
 <a href="https://wa.me/573159423174" class="whatsapp-float" target="_blank">💬</a>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL      = 'https://cqwbsikyzdtegutyvgfo.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxd2JzaWt5emR0ZWd1dHl2Z2ZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NTk5MjUsImV4cCI6MjA5NDMzNTkyNX0.v9Qmp85POur1zZ3nHVYNRyhqHAi4VawafBsCiXF72Yo';
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+function mostrarTab(tab, btn) {
+    document.querySelectorAll('.tab-fn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.steps-wrap').forEach(s => s.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + tab).classList.add('active');
+}
+
+async function cargarTiendas() {
+    try {
+        const { data: tiendas } = await db.from('tiendas')
+            .select('id,nombre,logo_url,categoria_principal')
+            .eq('activa', true).limit(8);
+        const contenedor = document.getElementById('tiendasLogos');
+        if (!tiendas?.length) {
+            contenedor.innerHTML = '<div class="tienda-logo-card" style="opacity:0.5;">Pronto más tiendas</div>';
+            return;
+        }
+        contenedor.innerHTML = tiendas.map(t => `
+            <a href="/marketplace" class="tienda-logo-card" style="text-decoration:none;color:var(--gris);">
+                ${t.logo_url ? `<img src="${t.logo_url}" alt="${t.nombre}">` : '<div style="font-size:28px;margin-bottom:8px;">🏪</div>'}
+                ${t.nombre}
+            </a>`).join('');
+    } catch(e) { console.error(e); }
+}
+
+cargarTiendas();
+</script>
 </body>
 </html>
