@@ -1,10 +1,11 @@
 {
   "rewrites": [
-    {"source": "/registro",       "destination": "/registro.html"},
-    {"source": "/dashboard",      "destination": "/dashboard.html"},
-    {"source": "/admin",          "destination": "/admin.html"},
-    {"source": "/marketplace",    "destination": "/marketplace.html"},
-    {"source": "/selector/:slug", "destination": "/selector.html"},
-    {"source": "/visor3d",        "destination": "/visor3d.html"}
+    { "source": "/login",       "destination": "/frontend/login.html" },
+    { "source": "/registro",    "destination": "/frontend/registro.html" },
+    { "source": "/dashboard",   "destination": "/frontend/dashboard.html" },
+    { "source": "/marketplace", "destination": "/frontend/marketplace.html" },
+    { "source": "/visor3d",     "destination": "/frontend/visor3d.html" },
+    { "source": "/selector",    "destination": "/frontend/selector.html" },
+    { "source": "/",            "destination": "/frontend/index.html" }
   ]
 }
