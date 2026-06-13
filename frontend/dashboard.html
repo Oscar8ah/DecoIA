@@ -609,7 +609,12 @@ window.addEventListener('DOMContentLoaded', async () => {
 
 async function cargarDatos(user) {
     const { data:empresa } = await db.from('empresas').select('*, planes(*)').eq('email',user.email).maybeSingle();
-    if (!empresa) { window.location.href='/registro'; return; }
+    if (!empresa) {
+    const { data:consumidor } = await db
+        .from('consumidores').select('id').eq('email',user.email).maybeSingle();
+    window.location.href = consumidor ? '/marketplace' : '/registro';
+    return;
+}
     empresaId  = empresa.id;
     planActual = empresa.planes?.nombre || 'basico';
     const [imagenesRes, tiendaRes] = await Promise.all([
