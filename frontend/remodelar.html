@@ -15,7 +15,7 @@
         }
         body { font-family:'Segoe UI',sans-serif; background:var(--oscuro); color:var(--texto); min-height:100vh; overflow-x:hidden; }
 
-        /* ── HEADER ── */
+        /* HEADER */
         .header { position:fixed; top:0; left:0; right:0; height:56px; background:rgba(15,15,26,0.97); backdrop-filter:blur(10px); border-bottom:1px solid rgba(124,58,237,0.2); display:flex; align-items:center; justify-content:space-between; padding:0 20px; z-index:200; }
         .logo { font-size:18px; font-weight:800; background:var(--degradado); -webkit-background-clip:text; -webkit-text-fill-color:transparent; text-decoration:none; }
         .header-actions { display:flex; gap:10px; align-items:center; }
@@ -25,12 +25,12 @@
         .carrito-badge { position:relative; }
         .carrito-count { position:absolute; top:-6px; right:-6px; background:#EF4444; color:white; font-size:10px; font-weight:700; width:18px; height:18px; border-radius:50%; display:none; align-items:center; justify-content:center; }
 
-        /* ── LAYOUT ── */
+        /* LAYOUT */
         .main { padding-top:56px; display:grid; grid-template-columns:1fr 300px; height:100vh; }
         .area-central { display:flex; flex-direction:column; height:calc(100vh - 56px); overflow:hidden; }
 
         /* PASOS */
-        .pasos-bar { display:flex; align-items:center; gap:0; padding:12px 20px; background:var(--oscuro2); border-bottom:1px solid rgba(124,58,237,0.1); }
+        .pasos-bar { display:flex; align-items:center; padding:12px 20px; background:var(--oscuro2); border-bottom:1px solid rgba(124,58,237,0.1); }
         .paso-item { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--gris); }
         .paso-item.activo { color:var(--texto); }
         .paso-item.done { color:var(--verde); }
@@ -41,11 +41,9 @@
 
         /* ZONA FOTO */
         .zona-foto { flex:1; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; background:var(--oscuro3);
-            /* Bloqueo selección */
-            -webkit-user-select:none; -moz-user-select:none; -ms-user-select:none; user-select:none;
-        }
+            -webkit-user-select:none; -moz-user-select:none; user-select:none; }
 
-        /* Upload */
+        /* UPLOAD */
         .upload-zone { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; text-align:center; padding:40px; width:100%; height:100%; transition:background 0.3s; }
         .upload-zone:hover { background:rgba(124,58,237,0.05); }
         .upload-zone input { display:none; }
@@ -55,42 +53,24 @@
         .upload-zone p { color:var(--gris); font-size:15px; line-height:1.6; max-width:400px; }
         .btn-upload { background:var(--degradado); color:white; padding:14px 32px; border-radius:50px; font-size:16px; font-weight:700; border:none; cursor:pointer; font-family:'Segoe UI',sans-serif; margin-top:8px; display:inline-block; }
 
-        /* Comparador */
+        /* COMPARADOR */
         .comparador { position:relative; width:100%; height:100%; display:none; user-select:none; }
         .comparador.visible { display:block; }
         .comp-img { position:absolute; inset:0; overflow:hidden; }
-        .comp-img img { width:100%; height:100%; object-fit:contain; display:block;
-            /* Bloqueo drag de imagen */
-            -webkit-user-drag:none; pointer-events:none;
-        }
-
-        /* ✅ CANVAS para imagen bloqueada — reemplaza el <img> del después */
+        .comp-img img { width:100%; height:100%; object-fit:contain; display:block; -webkit-user-drag:none; pointer-events:none; }
         .comp-despues { clip-path:inset(0 50% 0 0); }
-        #canvasDespues {
-            position:absolute; inset:0; width:100%; height:100%;
-            object-fit:contain; display:none;
-            -webkit-user-drag:none; pointer-events:none;
-        }
+
+        /* Canvas protegido */
+        #canvasDespues { position:absolute; inset:0; width:100%; height:100%; display:none; -webkit-user-drag:none; pointer-events:none; }
         #canvasDespues.visible { display:block; }
 
-        /* Marca de agua sobre la imagen */
-        .marca-agua {
-            position:absolute; inset:0; z-index:5; pointer-events:none; display:none;
-            background:repeating-linear-gradient(
-                -45deg,
-                transparent, transparent 80px,
-                rgba(124,58,237,0.06) 80px, rgba(124,58,237,0.06) 82px
-            );
-        }
+        /* Marca de agua CSS */
+        .marca-agua { position:absolute; inset:0; z-index:5; pointer-events:none; display:none;
+            background:repeating-linear-gradient(-45deg, transparent, transparent 80px, rgba(124,58,237,0.06) 80px, rgba(124,58,237,0.06) 82px); }
         .marca-agua.visible { display:block; }
-        .marca-agua::after {
-            content:'DecoIArte · Imagen protegida · decoiarte.com';
-            position:absolute; bottom:60px; left:50%; transform:translateX(-50%);
-            font-size:11px; color:rgba(255,255,255,0.25); white-space:nowrap;
-            font-family:'Segoe UI',sans-serif; letter-spacing:0.05em;
-            pointer-events:none;
-        }
+        .marca-agua::after { content:'DecoIArte · Imagen protegida · decoiarte.com'; position:absolute; bottom:60px; left:50%; transform:translateX(-50%); font-size:11px; color:rgba(255,255,255,0.22); white-space:nowrap; font-family:'Segoe UI',sans-serif; pointer-events:none; }
 
+        /* Slider */
         .comp-slider-line { position:absolute; top:0; bottom:0; width:3px; background:white; left:50%; transform:translateX(-50%); cursor:ew-resize; z-index:10; display:none; }
         .comp-slider-line.con-render { display:block; }
         .comp-handle { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:44px; height:44px; background:white; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:18px; box-shadow:0 4px 20px rgba(0,0,0,0.4); cursor:ew-resize; }
@@ -98,6 +78,12 @@
         .comp-label.con-render { display:block; }
         .comp-label-antes { left:16px; background:rgba(0,0,0,0.6); color:white; }
         .comp-label-despues { right:16px; background:rgba(124,58,237,0.8); color:white; }
+
+        /* ✅ Overlay candado — sobre la imagen renderizada */
+        .overlay-bloqueo { position:absolute; inset:0; background:linear-gradient(to bottom, transparent 35%, rgba(0,0,0,0.97) 100%); display:flex; flex-direction:column; align-items:center; justify-content:flex-end; padding:32px; z-index:8; }
+        .overlay-bloqueo h3 { font-size:20px; font-weight:800; color:white; margin-bottom:8px; }
+        .overlay-bloqueo p { color:rgba(255,255,255,0.7); font-size:13px; margin-bottom:20px; text-align:center; }
+        .btn-comprar-bloqueo { background:var(--degradado); color:white; padding:14px 32px; border-radius:50px; font-size:15px; font-weight:700; border:none; cursor:pointer; font-family:'Segoe UI',sans-serif; }
 
         /* Generando */
         .generando { display:none; flex-direction:column; align-items:center; justify-content:center; gap:20px; text-align:center; }
@@ -113,12 +99,11 @@
         .toolbar-btn { padding:8px 14px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; border:none; font-family:'Segoe UI',sans-serif; transition:all 0.2s; }
         .tb-cambiar { background:rgba(124,58,237,0.15); color:#A78BFA; border:1px solid rgba(124,58,237,0.3); }
         .tb-cambiar:hover { background:rgba(124,58,237,0.3); }
-        .tb-descargar { background:var(--degradado); color:white; }
         .tb-carrito { background:rgba(16,185,129,0.15); color:#6EE7B7; border:1px solid rgba(16,185,129,0.3); }
         .tb-carrito:hover { background:rgba(16,185,129,0.3); }
         .toolbar-sep { flex:1; }
 
-        /* ── PANEL ── */
+        /* PANEL */
         .panel { height:calc(100vh - 56px); background:var(--oscuro2); border-left:1px solid rgba(124,58,237,0.2); display:flex; flex-direction:column; overflow:hidden; }
         .panel-scroll { flex:1; overflow-y:auto; }
         .panel-section { padding:16px 18px; border-bottom:1px solid rgba(124,58,237,0.1); }
@@ -189,12 +174,6 @@
         .btn-pagar { width:100%; background:var(--degradado); color:white; border:none; padding:12px; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; font-family:'Segoe UI',sans-serif; margin-top:10px; }
         .carrito-vacio { text-align:center; color:var(--gris); font-size:13px; padding:16px 0; }
 
-        /* Bloqueo overlay */
-        .overlay-bloqueo { position:absolute; inset:0; background:linear-gradient(to bottom,transparent 35%,rgba(0,0,0,0.97) 100%); display:flex; flex-direction:column; align-items:center; justify-content:flex-end; padding:32px; z-index:8; }
-        .overlay-bloqueo h3 { font-size:20px; font-weight:800; color:white; margin-bottom:8px; }
-        .overlay-bloqueo p { color:rgba(255,255,255,0.7); font-size:13px; margin-bottom:20px; text-align:center; }
-        .btn-comprar-bloqueo { background:var(--degradado); color:white; padding:14px 32px; border-radius:50px; font-size:15px; font-weight:700; border:none; cursor:pointer; font-family:'Segoe UI',sans-serif; }
-
         /* Toast */
         .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--oscuro2); border:1px solid rgba(124,58,237,0.4); color:var(--texto); padding:12px 24px; border-radius:50px; font-size:14px; font-weight:600; z-index:999; opacity:0; transition:opacity 0.3s; pointer-events:none; white-space:nowrap; }
         .toast.show { opacity:1; }
@@ -234,7 +213,6 @@
 
         <div class="zona-foto" id="zonaFoto">
 
-            <!-- Upload -->
             <div class="upload-zone" id="uploadZone">
                 <input type="file" id="inputFoto" accept="image/*" onchange="subirFoto(this)" style="display:none">
                 <div class="upload-icon">🏠</div>
@@ -244,29 +222,25 @@
                 <p style="font-size:12px;margin-top:8px;">JPG o PNG · máx 10MB</p>
             </div>
 
-            <!-- Generando -->
             <div class="generando" id="generando">
                 <div class="gen-spinner"></div>
                 <div class="gen-texto">La IA está transformando tu espacio...</div>
                 <div class="gen-subtexto">Esto puede tomar 15–30 segundos</div>
             </div>
 
-            <!-- Comparador -->
             <div class="comparador" id="comparador">
+
                 <!-- ANTES: imagen normal -->
                 <div class="comp-img comp-antes">
                     <img id="imgAntes" src="" alt="Antes" draggable="false">
                 </div>
 
-                <!-- DESPUÉS: canvas protegido + overlay bloqueo -->
+                <!-- DESPUÉS: canvas protegido + marca agua + candado -->
                 <div class="comp-img comp-despues" id="compDespues">
-                    <!-- ✅ Canvas en lugar de <img> — no se puede guardar con click derecho -->
                     <canvas id="canvasDespues"></canvas>
-
-                    <!-- Marca de agua -->
                     <div class="marca-agua" id="marcaAgua"></div>
 
-                    <!-- Overlay bloqueo consumidor -->
+                    <!-- ✅ Overlay candado — siempre presente para consumidor -->
                     <div class="overlay-bloqueo" id="overlayBloqueo" style="display:none;">
                         <div style="font-size:40px;margin-bottom:12px;">🔒</div>
                         <h3>Tu espacio transformado está listo</h3>
@@ -284,6 +258,7 @@
 
         </div>
 
+        <!-- Toolbar SIN botón descargar -->
         <div class="foto-toolbar" id="fotoToolbar">
             <label class="toolbar-btn tb-cambiar" for="inputFoto2">
                 📸 Cambiar foto
@@ -291,8 +266,6 @@
             </label>
             <button class="toolbar-btn tb-carrito" onclick="scrollToCarrito()">🛒 Ver carrito</button>
             <div class="toolbar-sep"></div>
-            <!-- Botón descargar SOLO para empresas, oculto por defecto -->
-            <button class="toolbar-btn tb-descargar" id="btnDescargar" onclick="descargarResultado()" style="display:none">⬇️ Descargar</button>
         </div>
 
     </div>
@@ -322,7 +295,7 @@
 
             <div class="panel-section">
                 <div class="panel-titulo">Productos</div>
-                <div class="tabs-cat" id="tabsCat">
+                <div class="tabs-cat">
                     <button class="tab-cat active" onclick="filtrarProds('todos',this)">Todos</button>
                     <button class="tab-cat" onclick="filtrarProds('pisos',this)">Pisos</button>
                     <button class="tab-cat" onclick="filtrarProds('enchapes',this)">Enchapes</button>
@@ -382,9 +355,7 @@ let carrito          = [];
 let rolUsuario       = null;
 let sliderDragging   = false;
 
-// ── PROTECCIÓN ANTI-CAPTURA ─────────────────────────────────────────────
-
-// 1. Bloquear click derecho en toda la zona de foto
+// ── PROTECCIONES ────────────────────────────────────────────────────────
 document.addEventListener('contextmenu', (e) => {
     if (e.target.closest('#zonaFoto')) {
         e.preventDefault();
@@ -393,49 +364,37 @@ document.addEventListener('contextmenu', (e) => {
     }
 });
 
-// 2. Bloquear teclas de captura de pantalla y combinaciones
 document.addEventListener('keydown', (e) => {
-    // PrintScreen
     if (e.key === 'PrintScreen') {
         e.preventDefault();
         navigator.clipboard?.writeText('').catch(()=>{});
         toast('🔒 Captura de pantalla bloqueada');
         return false;
     }
-    // Ctrl+S, Ctrl+U, Ctrl+Shift+I, F12
     if ((e.ctrlKey || e.metaKey) && ['s','u','p'].includes(e.key.toLowerCase())) {
-        e.preventDefault();
-        return false;
+        e.preventDefault(); return false;
     }
-    // Ctrl+Shift+I / Ctrl+Shift+J (devtools)
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && ['i','j','c'].includes(e.key.toLowerCase())) {
-        e.preventDefault();
-        return false;
+        e.preventDefault(); return false;
     }
 });
 
-// 3. Bloquear drag de imágenes
 document.addEventListener('dragstart', (e) => {
-    if (e.target.tagName === 'IMG' || e.target.tagName === 'CANVAS') {
-        e.preventDefault();
-    }
+    if (e.target.tagName === 'IMG' || e.target.tagName === 'CANVAS') e.preventDefault();
 });
 
-// ── DIBUJAR IMAGEN EN CANVAS CON MARCA DE AGUA ─────────────────────────
+// ── CANVAS CON MARCA DE AGUA ────────────────────────────────────────────
 function dibujarEnCanvas(url) {
     return new Promise((resolve) => {
-        const canvas  = document.getElementById('canvasDespues');
-        const zona    = document.getElementById('zonaFoto');
-        const ctx     = canvas.getContext('2d');
-        const img     = new Image();
+        const canvas = document.getElementById('canvasDespues');
+        const zona   = document.getElementById('zonaFoto');
+        const ctx    = canvas.getContext('2d');
+        const img    = new Image();
         img.crossOrigin = 'anonymous';
 
         img.onload = () => {
-            // Tamaño del canvas = tamaño de la zona
             canvas.width  = zona.clientWidth;
             canvas.height = zona.clientHeight;
-
-            // Calcular posición object-fit:contain
             const scale = Math.min(canvas.width / img.width, canvas.height / img.height);
             const w = img.width  * scale;
             const h = img.height * scale;
@@ -445,16 +404,16 @@ function dibujarEnCanvas(url) {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(img, x, y, w, h);
 
-            // Marca de agua en el canvas (texto diagonal repetido)
+            // Marca de agua diagonal en el canvas
             ctx.save();
-            ctx.globalAlpha = 0.12;
+            ctx.globalAlpha = 0.13;
             ctx.fillStyle   = '#A78BFA';
             ctx.font        = 'bold 16px Segoe UI';
             ctx.rotate(-Math.PI / 6);
-            const marcaTxt = 'DecoIArte · Protegida';
+            const txt = 'DecoIArte · Protegida';
             for (let iy = -canvas.height; iy < canvas.height * 2; iy += 80) {
                 for (let ix = -canvas.width; ix < canvas.width * 2; ix += 200) {
-                    ctx.fillText(marcaTxt, ix, iy);
+                    ctx.fillText(txt, ix, iy);
                 }
             }
             ctx.restore();
@@ -464,7 +423,6 @@ function dibujarEnCanvas(url) {
         };
 
         img.onerror = () => {
-            // Fallback: mostrar canvas con mensaje
             canvas.width  = zona.clientWidth  || 400;
             canvas.height = zona.clientHeight || 300;
             const ctx2 = canvas.getContext('2d');
@@ -502,12 +460,12 @@ async function verificarRol() {
 
 // ── CACHE ───────────────────────────────────────────────────────────────
 async function restaurarCache() {
-    const cachedFoto      = sessionStorage.getItem('deco_foto_url');
-    const cachedFoto64    = sessionStorage.getItem('deco_foto_b64');
-    const cachedResultado = sessionStorage.getItem('deco_resultado_url');
-    const cachedCarrito   = sessionStorage.getItem('deco_carrito');
-    const cachedProducto  = sessionStorage.getItem('deco_producto_activo');
-    const cachedSuperficie= sessionStorage.getItem('deco_superficie');
+    const cachedFoto       = sessionStorage.getItem('deco_foto_url');
+    const cachedFoto64     = sessionStorage.getItem('deco_foto_b64');
+    const cachedResultado  = sessionStorage.getItem('deco_resultado_url');
+    const cachedCarrito    = sessionStorage.getItem('deco_carrito');
+    const cachedProducto   = sessionStorage.getItem('deco_producto_activo');
+    const cachedSuperficie = sessionStorage.getItem('deco_superficie');
 
     if (cachedSuperficie) {
         superficieActiva = cachedSuperficie;
@@ -558,7 +516,6 @@ async function subirFoto(input) {
         document.getElementById('comparador').classList.add('visible');
         document.getElementById('fotoToolbar').classList.add('visible');
 
-        // Limpiar resultado anterior
         resultadoUrl = null;
         sessionStorage.removeItem('deco_resultado_url');
         document.getElementById('sliderLine').classList.remove('con-render');
@@ -697,25 +654,18 @@ async function mostrarResultado(url, agregarCarrito) {
     document.getElementById('generando').classList.remove('visible');
     document.getElementById('comparador').classList.add('visible');
 
-    // Dibujar en canvas protegido
     await dibujarEnCanvas(url);
 
-    // Mostrar slider y labels
     document.getElementById('sliderLine').classList.add('con-render');
     document.getElementById('labelAntes').classList.add('con-render');
     document.getElementById('labelDespues').classList.add('con-render');
-
-    // Marca de agua CSS adicional
     document.getElementById('marcaAgua').classList.add('visible');
 
+    // ✅ Candado siempre visible para consumidor, oculto para empresa
     if (rolUsuario !== 'empresa') {
-        // Consumidor: mostrar bloqueo, ocultar descarga
         document.getElementById('overlayBloqueo').style.display = 'flex';
-        document.getElementById('btnDescargar').style.display = 'none';
     } else {
-        // Empresa: sin bloqueo, puede descargar
         document.getElementById('overlayBloqueo').style.display = 'none';
-        document.getElementById('btnDescargar').style.display = 'block';
     }
 
     moverSlider(50);
@@ -822,7 +772,6 @@ function renderCarrito() {
 
     items.innerHTML = html;
 
-    // Dibujar miniatura borrosa en el carrito
     if (hayRender) {
         setTimeout(() => {
             const mini = document.getElementById('miniCanvas');
@@ -851,15 +800,6 @@ function irAPagar() {
     setTimeout(() => window.location.href = '/marketplace', 1500);
 }
 
-function descargarResultado() {
-    if (!resultadoUrl || rolUsuario !== 'empresa') return;
-    const a = document.createElement('a');
-    a.href = resultadoUrl;
-    a.download = `decoiarte_render_${Date.now()}.jpg`;
-    a.click();
-    toast('⬇️ Descargando imagen...');
-}
-
 function actualizarPasos(pasoActual) {
     for (let i = 1; i <= 4; i++) {
         const el = document.getElementById('paso'+i);
@@ -870,8 +810,8 @@ function actualizarPasos(pasoActual) {
     }
 }
 
-function scrollToCarrito()  { document.getElementById('seccionCarrito').scrollIntoView({ behavior:'smooth' }); }
-function scrollToProductos(){ document.getElementById('productosGrid').scrollIntoView({ behavior:'smooth' }); toast('👇 Elige más productos del catálogo'); }
+function scrollToCarrito()   { document.getElementById('seccionCarrito').scrollIntoView({ behavior:'smooth' }); }
+function scrollToProductos() { document.getElementById('productosGrid').scrollIntoView({ behavior:'smooth' }); toast('👇 Elige más productos del catálogo'); }
 
 let toastTimer;
 function toast(msg) {
