@@ -318,7 +318,8 @@ TIENE_TERRAZA: [Si/No]
 TIENE_COMEDOR: [Si/No]
 PREGUNTA: [pregunta corta sobre qué espacio visualizar primero]
 
-IMPORTANTE: Lee TODAS las etiquetas del plano. NO omitas ningún espacio."""
+IMPORTANTE: Lee TODAS las etiquetas del plano. NO omitas ningún espacio aunque sea pequeño.
+CRÍTICO: NO uses asteriscos, negritas ni markdown. Responde en texto plano exactamente como el formato indicado."""
 },
                 {
                     "role": "user",
