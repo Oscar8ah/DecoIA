@@ -20,19 +20,16 @@
         .logo { font-size:18px; font-weight:800; background:var(--degradado); -webkit-background-clip:text; -webkit-text-fill-color:transparent; text-decoration:none; }
         .header-actions { display:flex; gap:10px; align-items:center; }
         .btn-sm { padding:8px 16px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; border:none; font-family:'Segoe UI',sans-serif; transition:all 0.2s; }
-        .btn-primary { background:var(--degradado); color:white; }
         .btn-secondary { background:var(--oscuro2); color:var(--gris); border:1px solid rgba(124,58,237,0.2); }
         .btn-secondary:hover { color:var(--texto); border-color:rgba(124,58,237,0.4); }
         .carrito-badge { position:relative; }
         .carrito-count { position:absolute; top:-6px; right:-6px; background:#EF4444; color:white; font-size:10px; font-weight:700; width:18px; height:18px; border-radius:50%; display:none; align-items:center; justify-content:center; }
 
-        /* ── LAYOUT PRINCIPAL ── */
+        /* ── LAYOUT ── */
         .main { padding-top:56px; display:grid; grid-template-columns:1fr 300px; height:100vh; }
-
-        /* ── ÁREA CENTRAL ── */
         .area-central { display:flex; flex-direction:column; height:calc(100vh - 56px); overflow:hidden; }
 
-        /* PASO INDICATOR */
+        /* PASOS */
         .pasos-bar { display:flex; align-items:center; gap:0; padding:12px 20px; background:var(--oscuro2); border-bottom:1px solid rgba(124,58,237,0.1); }
         .paso-item { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--gris); }
         .paso-item.activo { color:var(--texto); }
@@ -43,9 +40,12 @@
         .paso-sep { width:32px; height:1px; background:rgba(124,58,237,0.2); margin:0 8px; }
 
         /* ZONA FOTO */
-        .zona-foto { flex:1; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; background:var(--oscuro3); }
+        .zona-foto { flex:1; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; background:var(--oscuro3);
+            /* Bloqueo selección */
+            -webkit-user-select:none; -moz-user-select:none; -ms-user-select:none; user-select:none;
+        }
 
-        /* Upload inicial */
+        /* Upload */
         .upload-zone { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; text-align:center; padding:40px; width:100%; height:100%; transition:background 0.3s; }
         .upload-zone:hover { background:rgba(124,58,237,0.05); }
         .upload-zone input { display:none; }
@@ -55,12 +55,42 @@
         .upload-zone p { color:var(--gris); font-size:15px; line-height:1.6; max-width:400px; }
         .btn-upload { background:var(--degradado); color:white; padding:14px 32px; border-radius:50px; font-size:16px; font-weight:700; border:none; cursor:pointer; font-family:'Segoe UI',sans-serif; margin-top:8px; display:inline-block; }
 
-        /* Comparador antes/después */
+        /* Comparador */
         .comparador { position:relative; width:100%; height:100%; display:none; user-select:none; }
         .comparador.visible { display:block; }
         .comp-img { position:absolute; inset:0; overflow:hidden; }
-        .comp-img img { width:100%; height:100%; object-fit:contain; display:block; }
+        .comp-img img { width:100%; height:100%; object-fit:contain; display:block;
+            /* Bloqueo drag de imagen */
+            -webkit-user-drag:none; pointer-events:none;
+        }
+
+        /* ✅ CANVAS para imagen bloqueada — reemplaza el <img> del después */
         .comp-despues { clip-path:inset(0 50% 0 0); }
+        #canvasDespues {
+            position:absolute; inset:0; width:100%; height:100%;
+            object-fit:contain; display:none;
+            -webkit-user-drag:none; pointer-events:none;
+        }
+        #canvasDespues.visible { display:block; }
+
+        /* Marca de agua sobre la imagen */
+        .marca-agua {
+            position:absolute; inset:0; z-index:5; pointer-events:none; display:none;
+            background:repeating-linear-gradient(
+                -45deg,
+                transparent, transparent 80px,
+                rgba(124,58,237,0.06) 80px, rgba(124,58,237,0.06) 82px
+            );
+        }
+        .marca-agua.visible { display:block; }
+        .marca-agua::after {
+            content:'DecoIArte · Imagen protegida · decoiarte.com';
+            position:absolute; bottom:60px; left:50%; transform:translateX(-50%);
+            font-size:11px; color:rgba(255,255,255,0.25); white-space:nowrap;
+            font-family:'Segoe UI',sans-serif; letter-spacing:0.05em;
+            pointer-events:none;
+        }
+
         .comp-slider-line { position:absolute; top:0; bottom:0; width:3px; background:white; left:50%; transform:translateX(-50%); cursor:ew-resize; z-index:10; display:none; }
         .comp-slider-line.con-render { display:block; }
         .comp-handle { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:44px; height:44px; background:white; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:18px; box-shadow:0 4px 20px rgba(0,0,0,0.4); cursor:ew-resize; }
@@ -69,7 +99,7 @@
         .comp-label-antes { left:16px; background:rgba(0,0,0,0.6); color:white; }
         .comp-label-despues { right:16px; background:rgba(124,58,237,0.8); color:white; }
 
-        /* Estado generando */
+        /* Generando */
         .generando { display:none; flex-direction:column; align-items:center; justify-content:center; gap:20px; text-align:center; }
         .generando.visible { display:flex; }
         .gen-spinner { width:60px; height:60px; border:4px solid rgba(124,58,237,0.2); border-top-color:var(--morado); border-radius:50%; animation:spin 0.8s linear infinite; }
@@ -77,7 +107,7 @@
         .gen-texto { font-size:16px; color:var(--gris); }
         .gen-subtexto { font-size:13px; color:rgba(148,163,184,0.6); }
 
-        /* Toolbar foto */
+        /* Toolbar */
         .foto-toolbar { display:none; align-items:center; gap:8px; padding:10px 16px; background:rgba(15,15,26,0.95); border-top:1px solid rgba(124,58,237,0.15); }
         .foto-toolbar.visible { display:flex; }
         .toolbar-btn { padding:8px 14px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; border:none; font-family:'Segoe UI',sans-serif; transition:all 0.2s; }
@@ -88,30 +118,27 @@
         .tb-carrito:hover { background:rgba(16,185,129,0.3); }
         .toolbar-sep { flex:1; }
 
-        /* ── PANEL DERECHO ── */
+        /* ── PANEL ── */
         .panel { height:calc(100vh - 56px); background:var(--oscuro2); border-left:1px solid rgba(124,58,237,0.2); display:flex; flex-direction:column; overflow:hidden; }
         .panel-scroll { flex:1; overflow-y:auto; }
         .panel-section { padding:16px 18px; border-bottom:1px solid rgba(124,58,237,0.1); }
         .panel-titulo { font-size:11px; font-weight:700; color:#A78BFA; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:12px; }
 
-        /* Selector superficie */
         .sup-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; }
         .sup-btn { padding:10px 6px; border-radius:10px; font-size:11px; font-weight:600; cursor:pointer; border:2px solid rgba(124,58,237,0.2); background:var(--oscuro3); color:var(--gris); text-align:center; transition:all 0.2s; font-family:'Segoe UI',sans-serif; }
         .sup-btn:hover { border-color:rgba(124,58,237,0.4); color:var(--texto); }
         .sup-btn.activo { border-color:var(--morado); background:rgba(124,58,237,0.15); color:var(--texto); }
         .sup-icon { font-size:18px; display:block; margin-bottom:3px; }
 
-        /* Selector tienda */
         .tienda-selector { display:flex; flex-direction:column; gap:6px; }
         .tienda-opt { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px; cursor:pointer; border:1px solid rgba(124,58,237,0.15); background:var(--oscuro3); transition:all 0.2s; }
         .tienda-opt:hover { border-color:rgba(124,58,237,0.4); }
         .tienda-opt.activo { border-color:var(--morado); background:rgba(124,58,237,0.1); }
-        .tienda-logo { width:32px; height:32px; border-radius:8px; object-fit:cover; background:var(--oscuro); display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; overflow:hidden; }
+        .tienda-logo { width:32px; height:32px; border-radius:8px; background:var(--oscuro); display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; overflow:hidden; }
         .tienda-logo img { width:100%; height:100%; object-fit:cover; }
         .tienda-nombre { font-size:13px; font-weight:600; color:var(--texto); }
         .tienda-cat { font-size:11px; color:var(--gris); }
 
-        /* Productos */
         .tabs-cat { display:flex; gap:4px; flex-wrap:wrap; margin-bottom:10px; }
         .tab-cat { padding:5px 10px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; border:1px solid rgba(124,58,237,0.2); background:var(--oscuro3); color:var(--gris); font-family:'Segoe UI',sans-serif; transition:all 0.2s; }
         .tab-cat.active { background:rgba(124,58,237,0.15); border-color:var(--morado); color:var(--texto); }
@@ -119,67 +146,58 @@
         .prod-card { border-radius:10px; overflow:hidden; cursor:pointer; border:2px solid rgba(124,58,237,0.15); transition:all 0.2s; background:var(--oscuro3); }
         .prod-card:hover { border-color:rgba(124,58,237,0.4); transform:translateY(-1px); }
         .prod-card.activo { border-color:var(--morado); box-shadow:0 0 12px rgba(124,58,237,0.3); }
-        .prod-img { width:100%; height:64px; object-fit:cover; background:var(--oscuro); display:flex; align-items:center; justify-content:center; font-size:20px; }
-        .prod-img img { width:100%; height:100%; object-fit:cover; }
+        .prod-img { width:100%; height:64px; background:var(--oscuro); display:flex; align-items:center; justify-content:center; font-size:20px; }
+        .prod-img img { width:100%; height:100%; object-fit:cover; pointer-events:none; -webkit-user-drag:none; }
         .prod-info { padding:6px 8px; }
         .prod-nombre { font-size:11px; font-weight:700; color:var(--texto); margin-bottom:2px; line-height:1.2; }
         .prod-precio { font-size:10px; color:var(--gris); }
 
-        /* Prompt */
         .prompt-area { width:100%; background:var(--oscuro); border:1px solid rgba(124,58,237,0.25); border-radius:10px; padding:10px; color:var(--texto); font-size:12px; font-family:'Segoe UI',sans-serif; outline:none; resize:none; height:60px; line-height:1.5; }
         .prompt-area:focus { border-color:var(--morado); }
         .prompt-area::placeholder { color:rgba(148,163,184,0.4); }
 
-        /* Botón generar */
         .btn-generar { width:100%; background:var(--degradado); color:white; border:none; padding:14px; border-radius:12px; font-size:15px; font-weight:700; cursor:pointer; font-family:'Segoe UI',sans-serif; transition:opacity 0.3s; margin-top:4px; }
         .btn-generar:hover:not(:disabled) { opacity:0.85; }
         .btn-generar:disabled { opacity:0.5; cursor:not-allowed; }
         .spinner-btn { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,0.3); border-top-color:white; border-radius:50%; animation:spin 0.7s linear infinite; vertical-align:middle; margin-right:6px; }
 
-        /* ── CARRITO ── */
+        /* CARRITO */
         .carrito-items { display:flex; flex-direction:column; gap:6px; }
-
-        /* Item de imagen — NO se puede quitar */
         .carrito-item-imagen { display:flex; align-items:center; gap:8px; padding:8px 10px; background:rgba(124,58,237,0.08); border-radius:10px; border:1px solid rgba(124,58,237,0.3); }
-        .ci-render-thumb { width:48px; height:36px; border-radius:6px; object-fit:cover; background:var(--oscuro); flex-shrink:0; overflow:hidden; position:relative; }
-        .ci-render-thumb img { width:100%; height:100%; object-fit:cover; filter:blur(3px); }
-        .ci-lock { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:14px; background:rgba(0,0,0,0.4); border-radius:6px; }
+        .ci-render-thumb { width:48px; height:36px; border-radius:6px; background:var(--oscuro); flex-shrink:0; overflow:hidden; position:relative; }
+        .ci-render-thumb canvas { width:100%; height:100%; }
+        .ci-lock { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:14px; background:rgba(0,0,0,0.5); border-radius:6px; }
         .ci-render-info { flex:1; }
         .ci-render-titulo { font-size:11px; font-weight:700; color:#A78BFA; }
         .ci-render-sub { font-size:10px; color:var(--gris); margin-top:1px; }
-        .ci-lock-badge { font-size:10px; color:rgba(167,139,250,0.7); margin-top:2px; display:flex; align-items:center; gap:3px; }
-
-        /* Items de productos — SÍ se pueden quitar */
+        .ci-lock-badge { font-size:10px; color:rgba(167,139,250,0.7); margin-top:2px; }
         .carrito-item { display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--oscuro3); border-radius:10px; border:1px solid rgba(124,58,237,0.15); }
-        .ci-img { width:36px; height:36px; border-radius:6px; object-fit:cover; background:var(--oscuro); flex-shrink:0; overflow:hidden; display:flex; align-items:center; justify-content:center; font-size:14px; }
-        .ci-img img { width:100%; height:100%; object-fit:cover; }
+        .ci-img { width:36px; height:36px; border-radius:6px; background:var(--oscuro); flex-shrink:0; overflow:hidden; display:flex; align-items:center; justify-content:center; font-size:14px; }
+        .ci-img img { width:100%; height:100%; object-fit:cover; pointer-events:none; }
         .ci-info { flex:1; }
         .ci-nombre { font-size:11px; font-weight:600; color:var(--texto); }
         .ci-precio { font-size:10px; color:var(--gris); }
         .ci-remove { background:none; border:none; color:rgba(239,68,68,0.6); cursor:pointer; font-size:14px; padding:2px; }
         .ci-remove:hover { color:#EF4444; }
-
-        /* Separador y agregar más */
         .carrito-agregar-mas { display:flex; align-items:center; gap:8px; padding:10px 0 4px; }
         .agregar-mas-line { flex:1; height:1px; background:rgba(124,58,237,0.15); }
         .btn-agregar-mas { background:rgba(124,58,237,0.1); color:#A78BFA; border:1px solid rgba(124,58,237,0.25); padding:7px 14px; border-radius:8px; font-size:11px; font-weight:600; cursor:pointer; font-family:'Segoe UI',sans-serif; transition:all 0.2s; white-space:nowrap; }
         .btn-agregar-mas:hover { background:rgba(124,58,237,0.2); }
-
         .carrito-total { padding:12px 14px; background:rgba(124,58,237,0.08); border-radius:10px; border:1px solid rgba(124,58,237,0.2); margin-top:8px; }
         .ct-row { display:flex; justify-content:space-between; font-size:12px; color:var(--gris); margin-bottom:4px; }
         .ct-total { display:flex; justify-content:space-between; font-size:14px; font-weight:700; color:var(--texto); padding-top:8px; border-top:1px solid rgba(124,58,237,0.2); margin-top:6px; }
         .btn-pagar { width:100%; background:var(--degradado); color:white; border:none; padding:12px; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; font-family:'Segoe UI',sans-serif; margin-top:10px; }
         .carrito-vacio { text-align:center; color:var(--gris); font-size:13px; padding:16px 0; }
 
-        /* Toast */
-        .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--oscuro2); border:1px solid rgba(124,58,237,0.4); color:var(--texto); padding:12px 24px; border-radius:50px; font-size:14px; font-weight:600; z-index:999; opacity:0; transition:opacity 0.3s; pointer-events:none; white-space:nowrap; }
-        .toast.show { opacity:1; }
-
-        /* Bloqueo imagen */
-        .overlay-bloqueo { position:absolute; inset:0; background:linear-gradient(to bottom,transparent 40%,rgba(0,0,0,0.95) 100%); display:flex; flex-direction:column; align-items:center; justify-content:flex-end; padding:32px; }
+        /* Bloqueo overlay */
+        .overlay-bloqueo { position:absolute; inset:0; background:linear-gradient(to bottom,transparent 35%,rgba(0,0,0,0.97) 100%); display:flex; flex-direction:column; align-items:center; justify-content:flex-end; padding:32px; z-index:8; }
         .overlay-bloqueo h3 { font-size:20px; font-weight:800; color:white; margin-bottom:8px; }
         .overlay-bloqueo p { color:rgba(255,255,255,0.7); font-size:13px; margin-bottom:20px; text-align:center; }
         .btn-comprar-bloqueo { background:var(--degradado); color:white; padding:14px 32px; border-radius:50px; font-size:15px; font-weight:700; border:none; cursor:pointer; font-family:'Segoe UI',sans-serif; }
+
+        /* Toast */
+        .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--oscuro2); border:1px solid rgba(124,58,237,0.4); color:var(--texto); padding:12px 24px; border-radius:50px; font-size:14px; font-weight:600; z-index:999; opacity:0; transition:opacity 0.3s; pointer-events:none; white-space:nowrap; }
+        .toast.show { opacity:1; }
 
         @media (max-width:768px) {
             .main { grid-template-columns:1fr; grid-template-rows:1fr auto; }
@@ -202,37 +220,21 @@
 </div>
 
 <div class="main">
-
-    <!-- ÁREA CENTRAL -->
     <div class="area-central">
 
-        <!-- Barra de pasos -->
         <div class="pasos-bar">
-            <div class="paso-item activo" id="paso1">
-                <span class="paso-num">1</span>
-                <span>Sube tu foto</span>
-            </div>
+            <div class="paso-item activo" id="paso1"><span class="paso-num">1</span><span>Sube tu foto</span></div>
             <div class="paso-sep"></div>
-            <div class="paso-item" id="paso2">
-                <span class="paso-num">2</span>
-                <span>Elige superficie</span>
-            </div>
+            <div class="paso-item" id="paso2"><span class="paso-num">2</span><span>Elige superficie</span></div>
             <div class="paso-sep"></div>
-            <div class="paso-item" id="paso3">
-                <span class="paso-num">3</span>
-                <span>Elige producto</span>
-            </div>
+            <div class="paso-item" id="paso3"><span class="paso-num">3</span><span>Elige producto</span></div>
             <div class="paso-sep"></div>
-            <div class="paso-item" id="paso4">
-                <span class="paso-num">4</span>
-                <span>Ver resultado</span>
-            </div>
+            <div class="paso-item" id="paso4"><span class="paso-num">4</span><span>Ver resultado</span></div>
         </div>
 
-        <!-- Zona foto -->
         <div class="zona-foto" id="zonaFoto">
 
-            <!-- Upload inicial -->
+            <!-- Upload -->
             <div class="upload-zone" id="uploadZone">
                 <input type="file" id="inputFoto" accept="image/*" onchange="subirFoto(this)" style="display:none">
                 <div class="upload-icon">🏠</div>
@@ -249,13 +251,22 @@
                 <div class="gen-subtexto">Esto puede tomar 15–30 segundos</div>
             </div>
 
-            <!-- Comparador antes/después -->
+            <!-- Comparador -->
             <div class="comparador" id="comparador">
+                <!-- ANTES: imagen normal -->
                 <div class="comp-img comp-antes">
-                    <img id="imgAntes" src="" alt="Antes">
+                    <img id="imgAntes" src="" alt="Antes" draggable="false">
                 </div>
+
+                <!-- DESPUÉS: canvas protegido + overlay bloqueo -->
                 <div class="comp-img comp-despues" id="compDespues">
-                    <img id="imgDespues" src="" alt="Después">
+                    <!-- ✅ Canvas en lugar de <img> — no se puede guardar con click derecho -->
+                    <canvas id="canvasDespues"></canvas>
+
+                    <!-- Marca de agua -->
+                    <div class="marca-agua" id="marcaAgua"></div>
+
+                    <!-- Overlay bloqueo consumidor -->
                     <div class="overlay-bloqueo" id="overlayBloqueo" style="display:none;">
                         <div style="font-size:40px;margin-bottom:12px;">🔒</div>
                         <h3>Tu espacio transformado está listo</h3>
@@ -263,6 +274,7 @@
                         <button class="btn-comprar-bloqueo" onclick="scrollToCarrito()">🛒 Ver carrito y comprar</button>
                     </div>
                 </div>
+
                 <div class="comp-slider-line" id="sliderLine">
                     <div class="comp-handle">↔</div>
                 </div>
@@ -272,7 +284,6 @@
 
         </div>
 
-        <!-- Toolbar inferior -->
         <div class="foto-toolbar" id="fotoToolbar">
             <label class="toolbar-btn tb-cambiar" for="inputFoto2">
                 📸 Cambiar foto
@@ -280,52 +291,35 @@
             </label>
             <button class="toolbar-btn tb-carrito" onclick="scrollToCarrito()">🛒 Ver carrito</button>
             <div class="toolbar-sep"></div>
+            <!-- Botón descargar SOLO para empresas, oculto por defecto -->
             <button class="toolbar-btn tb-descargar" id="btnDescargar" onclick="descargarResultado()" style="display:none">⬇️ Descargar</button>
         </div>
 
     </div>
 
-    <!-- PANEL DERECHO -->
+    <!-- PANEL -->
     <div class="panel">
         <div class="panel-scroll" id="panelScroll">
 
-            <!-- 1. Superficie -->
             <div class="panel-section">
                 <div class="panel-titulo">¿Qué quieres cambiar?</div>
                 <div class="sup-grid">
-                    <button class="sup-btn activo" id="sup-piso" onclick="selSup('piso',this)">
-                        <span class="sup-icon">🪵</span>Piso
-                    </button>
-                    <button class="sup-btn" id="sup-pared" onclick="selSup('pared',this)">
-                        <span class="sup-icon">🧱</span>Paredes
-                    </button>
-                    <button class="sup-btn" id="sup-techo" onclick="selSup('techo',this)">
-                        <span class="sup-icon">⬜</span>Techo
-                    </button>
-                    <button class="sup-btn" id="sup-cocina" onclick="selSup('cocina',this)">
-                        <span class="sup-icon">🍳</span>Cocina
-                    </button>
-                    <button class="sup-btn" id="sup-bano" onclick="selSup('bano',this)">
-                        <span class="sup-icon">🚿</span>Baño
-                    </button>
-                    <button class="sup-btn" id="sup-todo" onclick="selSup('todo',this)">
-                        <span class="sup-icon">✨</span>Todo
-                    </button>
+                    <button class="sup-btn activo" id="sup-piso" onclick="selSup('piso',this)"><span class="sup-icon">🪵</span>Piso</button>
+                    <button class="sup-btn" id="sup-pared" onclick="selSup('pared',this)"><span class="sup-icon">🧱</span>Paredes</button>
+                    <button class="sup-btn" id="sup-techo" onclick="selSup('techo',this)"><span class="sup-icon">⬜</span>Techo</button>
+                    <button class="sup-btn" id="sup-cocina" onclick="selSup('cocina',this)"><span class="sup-icon">🍳</span>Cocina</button>
+                    <button class="sup-btn" id="sup-bano" onclick="selSup('bano',this)"><span class="sup-icon">🚿</span>Baño</button>
+                    <button class="sup-btn" id="sup-todo" onclick="selSup('todo',this)"><span class="sup-icon">✨</span>Todo</button>
                 </div>
             </div>
 
-            <!-- 2. Tienda -->
             <div class="panel-section">
                 <div class="panel-titulo">Portafolio de</div>
                 <div class="tienda-selector" id="tiendaSelector">
-                    <div style="text-align:center;color:var(--gris);font-size:13px;padding:12px;">
-                        <div style="font-size:24px;margin-bottom:6px;">🏪</div>
-                        Cargando tiendas...
-                    </div>
+                    <div style="text-align:center;color:var(--gris);font-size:13px;padding:12px;"><div style="font-size:24px;margin-bottom:6px;">🏪</div>Cargando tiendas...</div>
                 </div>
             </div>
 
-            <!-- 3. Productos -->
             <div class="panel-section">
                 <div class="panel-titulo">Productos</div>
                 <div class="tabs-cat" id="tabsCat">
@@ -335,60 +329,38 @@
                     <button class="tab-cat" onclick="filtrarProds('pintura',this)">Pintura</button>
                 </div>
                 <div class="productos-grid" id="productosGrid">
-                    <div style="grid-column:1/-1;text-align:center;color:var(--gris);font-size:13px;padding:12px;">
-                        Selecciona una tienda para ver productos
-                    </div>
+                    <div style="grid-column:1/-1;text-align:center;color:var(--gris);font-size:13px;padding:12px;">Selecciona una tienda para ver productos</div>
                 </div>
             </div>
 
-            <!-- 4. Prompt adicional -->
             <div class="panel-section">
                 <div class="panel-titulo">Estilo adicional (opcional)</div>
                 <textarea class="prompt-area" id="promptExtra" placeholder="Ej: luz cálida de tarde, estilo moderno, planta decorativa..."></textarea>
             </div>
 
-            <!-- Botón generar -->
             <div class="panel-section">
-                <button class="btn-generar" id="btnGenerar" onclick="generarRender()" disabled>
-                    🤖 Generar transformación
-                </button>
-                <div style="font-size:11px;color:var(--gris);text-align:center;margin-top:8px;line-height:1.5;">
-                    La imagen generada se bloqueará hasta completar la compra
-                </div>
+                <button class="btn-generar" id="btnGenerar" onclick="generarRender()" disabled>🤖 Generar transformación</button>
+                <div style="font-size:11px;color:var(--gris);text-align:center;margin-top:8px;line-height:1.5;">La imagen generada se bloqueará hasta completar la compra</div>
             </div>
 
-            <!-- 5. Carrito -->
             <div class="panel-section" id="seccionCarrito">
                 <div class="panel-titulo">Tu carrito</div>
                 <div class="carrito-items" id="carritoItems">
-                    <div class="carrito-vacio">Aún no hay productos en tu carrito</div>
+                    <div class="carrito-vacio">Aún no hay nada en tu carrito</div>
                 </div>
                 <div id="carritoResumen" style="display:none;">
                     <div class="carrito-total">
-                        <div class="ct-row" style="width:100%">
-                            <span>Subtotal productos</span>
-                            <span id="subtotalTexto">$0</span>
-                        </div>
-                        <div class="ct-row" style="width:100%">
-                            <span>Imagen IA</span>
-                            <span style="color:#A78BFA;">Se desbloquea al pagar</span>
-                        </div>
-                        <div class="ct-row" style="width:100%">
-                            <span>Domicilio</span>
-                            <span>Se define por tienda</span>
-                        </div>
+                        <div class="ct-row" style="width:100%"><span>Subtotal productos</span><span id="subtotalTexto">$0</span></div>
+                        <div class="ct-row" style="width:100%"><span>Imagen IA</span><span style="color:#A78BFA;">Se desbloquea al pagar</span></div>
+                        <div class="ct-row" style="width:100%"><span>Domicilio</span><span>Se define por tienda</span></div>
                     </div>
-                    <div class="ct-total">
-                        <span>Total</span>
-                        <span id="totalTexto">$0</span>
-                    </div>
+                    <div class="ct-total"><span>Total</span><span id="totalTexto">$0</span></div>
                     <button class="btn-pagar" onclick="irAPagar()">💳 Pagar y desbloquear imagen</button>
                 </div>
             </div>
 
         </div>
     </div>
-
 </div>
 
 <div class="toast" id="toast"></div>
@@ -399,7 +371,6 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// ── ESTADO ──────────────────────────────────────────────────────────────
 let fotoBase64       = null;
 let fotoUrl          = null;
 let resultadoUrl     = null;
@@ -407,11 +378,111 @@ let superficieActiva = 'piso';
 let tiendaActiva     = null;
 let productoActivo   = null;
 let todosProds       = [];
-let carrito          = [];          // solo productos, NO la imagen
+let carrito          = [];
 let rolUsuario       = null;
 let sliderDragging   = false;
 
-// ── VERIFICAR ACCESO ────────────────────────────────────────────────────
+// ── PROTECCIÓN ANTI-CAPTURA ─────────────────────────────────────────────
+
+// 1. Bloquear click derecho en toda la zona de foto
+document.addEventListener('contextmenu', (e) => {
+    if (e.target.closest('#zonaFoto')) {
+        e.preventDefault();
+        toast('🔒 Imagen protegida — completa tu compra para descargar');
+        return false;
+    }
+});
+
+// 2. Bloquear teclas de captura de pantalla y combinaciones
+document.addEventListener('keydown', (e) => {
+    // PrintScreen
+    if (e.key === 'PrintScreen') {
+        e.preventDefault();
+        navigator.clipboard?.writeText('').catch(()=>{});
+        toast('🔒 Captura de pantalla bloqueada');
+        return false;
+    }
+    // Ctrl+S, Ctrl+U, Ctrl+Shift+I, F12
+    if ((e.ctrlKey || e.metaKey) && ['s','u','p'].includes(e.key.toLowerCase())) {
+        e.preventDefault();
+        return false;
+    }
+    // Ctrl+Shift+I / Ctrl+Shift+J (devtools)
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && ['i','j','c'].includes(e.key.toLowerCase())) {
+        e.preventDefault();
+        return false;
+    }
+});
+
+// 3. Bloquear drag de imágenes
+document.addEventListener('dragstart', (e) => {
+    if (e.target.tagName === 'IMG' || e.target.tagName === 'CANVAS') {
+        e.preventDefault();
+    }
+});
+
+// ── DIBUJAR IMAGEN EN CANVAS CON MARCA DE AGUA ─────────────────────────
+function dibujarEnCanvas(url) {
+    return new Promise((resolve) => {
+        const canvas  = document.getElementById('canvasDespues');
+        const zona    = document.getElementById('zonaFoto');
+        const ctx     = canvas.getContext('2d');
+        const img     = new Image();
+        img.crossOrigin = 'anonymous';
+
+        img.onload = () => {
+            // Tamaño del canvas = tamaño de la zona
+            canvas.width  = zona.clientWidth;
+            canvas.height = zona.clientHeight;
+
+            // Calcular posición object-fit:contain
+            const scale = Math.min(canvas.width / img.width, canvas.height / img.height);
+            const w = img.width  * scale;
+            const h = img.height * scale;
+            const x = (canvas.width  - w) / 2;
+            const y = (canvas.height - h) / 2;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, x, y, w, h);
+
+            // Marca de agua en el canvas (texto diagonal repetido)
+            ctx.save();
+            ctx.globalAlpha = 0.12;
+            ctx.fillStyle   = '#A78BFA';
+            ctx.font        = 'bold 16px Segoe UI';
+            ctx.rotate(-Math.PI / 6);
+            const marcaTxt = 'DecoIArte · Protegida';
+            for (let iy = -canvas.height; iy < canvas.height * 2; iy += 80) {
+                for (let ix = -canvas.width; ix < canvas.width * 2; ix += 200) {
+                    ctx.fillText(marcaTxt, ix, iy);
+                }
+            }
+            ctx.restore();
+
+            canvas.style.display = 'block';
+            resolve();
+        };
+
+        img.onerror = () => {
+            // Fallback: mostrar canvas con mensaje
+            canvas.width  = zona.clientWidth  || 400;
+            canvas.height = zona.clientHeight || 300;
+            const ctx2 = canvas.getContext('2d');
+            ctx2.fillStyle = '#1A1A2E';
+            ctx2.fillRect(0,0,canvas.width,canvas.height);
+            ctx2.fillStyle = '#94A3B8';
+            ctx2.font = '14px Segoe UI';
+            ctx2.textAlign = 'center';
+            ctx2.fillText('Imagen lista — completa la compra para descargar', canvas.width/2, canvas.height/2);
+            canvas.style.display = 'block';
+            resolve();
+        };
+
+        img.src = url;
+    });
+}
+
+// ── ACCESO Y ROL ────────────────────────────────────────────────────────
 async function verificarAcceso() {
     const { data:{ session } } = await db.auth.getSession();
     if (!session) {
@@ -422,7 +493,6 @@ async function verificarAcceso() {
     return true;
 }
 
-// ── ROL ─────────────────────────────────────────────────────────────────
 async function verificarRol() {
     const { data:{ session } } = await db.auth.getSession();
     if (!session) { rolUsuario = null; return; }
@@ -430,8 +500,8 @@ async function verificarRol() {
     rolUsuario = empresa ? 'empresa' : 'consumidor';
 }
 
-// ── RESTAURAR SESIÓN DESDE CACHE ────────────────────────────────────────
-function restaurarCache() {
+// ── CACHE ───────────────────────────────────────────────────────────────
+async function restaurarCache() {
     const cachedFoto      = sessionStorage.getItem('deco_foto_url');
     const cachedFoto64    = sessionStorage.getItem('deco_foto_b64');
     const cachedResultado = sessionStorage.getItem('deco_resultado_url');
@@ -439,15 +509,14 @@ function restaurarCache() {
     const cachedProducto  = sessionStorage.getItem('deco_producto_activo');
     const cachedSuperficie= sessionStorage.getItem('deco_superficie');
 
-    if (cachedSuperficie) superficieActiva = cachedSuperficie;
-
-    if (cachedProducto) {
-        try { productoActivo = JSON.parse(cachedProducto); } catch(e) {}
+    if (cachedSuperficie) {
+        superficieActiva = cachedSuperficie;
+        document.querySelectorAll('.sup-btn').forEach(b => b.classList.remove('activo'));
+        const btn = document.getElementById('sup-' + cachedSuperficie);
+        if (btn) btn.classList.add('activo');
     }
-
-    if (cachedCarrito) {
-        try { carrito = JSON.parse(cachedCarrito); } catch(e) {}
-    }
+    if (cachedProducto) { try { productoActivo = JSON.parse(cachedProducto); } catch(e) {} }
+    if (cachedCarrito)  { try { carrito = JSON.parse(cachedCarrito); } catch(e) {} }
 
     if (cachedFoto && cachedFoto64) {
         fotoUrl    = cachedFoto;
@@ -460,18 +529,11 @@ function restaurarCache() {
 
     if (cachedResultado && cachedFoto) {
         resultadoUrl = cachedResultado;
-        mostrarResultado(resultadoUrl, false); // false = no re-agregar al carrito
+        await mostrarResultado(resultadoUrl, false);
         actualizarPasos(4);
         toast('🖼️ Imagen restaurada desde caché');
     } else if (cachedFoto) {
         actualizarPasos(2);
-    }
-
-    // Restaurar selección de superficie en UI
-    if (cachedSuperficie) {
-        document.querySelectorAll('.sup-btn').forEach(b => b.classList.remove('activo'));
-        const btn = document.getElementById('sup-' + cachedSuperficie);
-        if (btn) btn.classList.add('activo');
     }
 
     renderCarrito();
@@ -488,8 +550,6 @@ async function subirFoto(input) {
     reader.onload = (e) => {
         fotoUrl    = e.target.result;
         fotoBase64 = e.target.result.split(',')[1];
-
-        // Guardar en sessionStorage
         sessionStorage.setItem('deco_foto_url', fotoUrl);
         sessionStorage.setItem('deco_foto_b64', fotoBase64);
 
@@ -498,13 +558,14 @@ async function subirFoto(input) {
         document.getElementById('comparador').classList.add('visible');
         document.getElementById('fotoToolbar').classList.add('visible');
 
-        // Si se cambia la foto, limpiar resultado anterior
+        // Limpiar resultado anterior
         resultadoUrl = null;
         sessionStorage.removeItem('deco_resultado_url');
         document.getElementById('sliderLine').classList.remove('con-render');
         document.getElementById('labelAntes').classList.remove('con-render');
         document.getElementById('labelDespues').classList.remove('con-render');
-        document.getElementById('imgDespues').src = '';
+        document.getElementById('canvasDespues').style.display = 'none';
+        document.getElementById('marcaAgua').classList.remove('visible');
         document.getElementById('overlayBloqueo').style.display = 'none';
 
         actualizarPasos(2);
@@ -528,28 +589,22 @@ async function cargarTiendas() {
     const { data:tiendas } = await db.from('tiendas').select('id,nombre,logo_url,categoria_principal').eq('activa',true).limit(10);
     const sel = document.getElementById('tiendaSelector');
     if (!tiendas?.length) { sel.innerHTML = '<div style="text-align:center;color:var(--gris);font-size:13px;padding:12px;">No hay tiendas disponibles aún</div>'; return; }
-
     const opts = [{ id:'todas', nombre:'Todas las tiendas', logo_url:null, categoria_principal:'todo' }, ...tiendas];
     sel.innerHTML = opts.map(t => `
-        <div class="tienda-opt ${t.id==='todas'?'activo':''}" id="tienda-${t.id}" onclick="selTienda('${t.id}','${t.nombre}')">
+        <div class="tienda-opt ${t.id==='todas'?'activo':''}" id="tienda-${t.id}" onclick="selTienda('${t.id}')">
             <div class="tienda-logo">${t.logo_url?`<img src="${t.logo_url}" alt="${t.nombre}">`:'🏪'}</div>
-            <div>
-                <div class="tienda-nombre">${t.nombre}</div>
-                <div class="tienda-cat">${t.categoria_principal||'Varios'}</div>
-            </div>
+            <div><div class="tienda-nombre">${t.nombre}</div><div class="tienda-cat">${t.categoria_principal||'Varios'}</div></div>
         </div>`).join('');
-
     const ids = tiendas.map(t => t.id);
     const { data:prods } = await db.from('productos').select('*').in('tienda_id',ids).eq('activo',true).limit(60);
     todosProds = prods || [];
     renderProds(todosProds);
 }
 
-async function selTienda(id, nombre) {
+async function selTienda(id) {
     tiendaActiva = id;
     document.querySelectorAll('.tienda-opt').forEach(o => o.classList.remove('activo'));
     document.getElementById('tienda-'+id)?.classList.add('activo');
-
     if (id === 'todas') {
         const { data:tiendas } = await db.from('tiendas').select('id').eq('activa',true);
         const ids = tiendas?.map(t=>t.id)||[];
@@ -574,7 +629,7 @@ function renderProds(prods) {
     if (!prods?.length) { g.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--gris);font-size:12px;padding:12px;">Sin productos en esta categoría</div>'; return; }
     g.innerHTML = prods.map(p => `
         <div class="prod-card ${productoActivo?.id===p.id?'activo':''}" id="prod-${p.id}" onclick="selProd(${JSON.stringify(p).replace(/"/g,'&quot;')})">
-            <div class="prod-img">${p.imagen_url?`<img src="${p.imagen_url}" alt="${p.nombre}" onerror="this.parentElement.innerHTML='📦'">`:'📦'}</div>
+            <div class="prod-img">${p.imagen_url?`<img src="${p.imagen_url}" alt="${p.nombre}" draggable="false" onerror="this.parentElement.innerHTML='📦'">`:'📦'}</div>
             <div class="prod-info">
                 <div class="prod-nombre">${p.nombre}</div>
                 <div class="prod-precio">$${Number(p.precio).toLocaleString('es-CO')}/${p.unidad||'m²'}</div>
@@ -593,8 +648,7 @@ function selProd(p) {
 }
 
 function verificarListo() {
-    const listo = fotoBase64 && productoActivo;
-    document.getElementById('btnGenerar').disabled = !listo;
+    document.getElementById('btnGenerar').disabled = !(fotoBase64 && productoActivo);
 }
 
 // ── GENERAR RENDER ──────────────────────────────────────────────────────
@@ -607,21 +661,16 @@ async function generarRender() {
     document.getElementById('comparador').classList.remove('visible');
     document.getElementById('generando').classList.add('visible');
 
-    const supTextos = {
-        piso:'el piso', pared:'las paredes', techo:'el techo',
-        cocina:'la cocina', bano:'el baño', todo:'todo el espacio'
-    };
+    const supTextos = { piso:'el piso', pared:'las paredes', techo:'el techo', cocina:'la cocina', bano:'el baño', todo:'todo el espacio' };
     const promptExtra = document.getElementById('promptExtra').value.trim();
     const prompt = `Transforma ${supTextos[superficieActiva]||'el espacio'} usando el producto "${productoActivo.nombre}" (${productoActivo.categoria}). ` +
-        `Aplica la textura y color del producto de forma fotorrealista sobre ${supTextos[superficieActiva]||'la superficie'} del espacio. ` +
-        `Mantén todo lo demás igual — mismos muebles, misma perspectiva, misma iluminación. ` +
-        `Resultado: fotografía arquitectónica hiperrealista, iluminación ACES, sin texto ni marcas de agua. ` +
+        `Aplica la textura y color del producto de forma fotorrealista. Mantén muebles, perspectiva e iluminación igual. ` +
+        `Fotografía arquitectónica hiperrealista, iluminación ACES, sin texto ni marcas de agua. ` +
         (promptExtra ? `Estilo adicional: ${promptExtra}.` : '');
 
     try {
         const response = await fetch('https://decoia.onrender.com/generar-render-3d', {
-            method:'POST',
-            headers:{ 'Content-Type':'application/json' },
+            method:'POST', headers:{ 'Content-Type':'application/json' },
             body: JSON.stringify({ imagen_base64:fotoBase64, prompt, empresa_id:null })
         });
         if (!response.ok) throw new Error('Error ' + response.status);
@@ -629,11 +678,8 @@ async function generarRender() {
         if (data.status === 'error') throw new Error(data.error);
 
         resultadoUrl = data.url_imagen;
-
-        // Guardar en sessionStorage para no perder la imagen
         sessionStorage.setItem('deco_resultado_url', resultadoUrl);
-
-        mostrarResultado(resultadoUrl, true); // true = agregar al carrito
+        await mostrarResultado(resultadoUrl, true);
         actualizarPasos(4);
         toast('✨ ¡Transformación lista!');
     } catch(e) {
@@ -647,33 +693,34 @@ async function generarRender() {
     btn.innerHTML = '🤖 Generar transformación';
 }
 
-function mostrarResultado(url, agregarCarrito) {
+async function mostrarResultado(url, agregarCarrito) {
     document.getElementById('generando').classList.remove('visible');
-    document.getElementById('imgDespues').src = url;
     document.getElementById('comparador').classList.add('visible');
+
+    // Dibujar en canvas protegido
+    await dibujarEnCanvas(url);
 
     // Mostrar slider y labels
     document.getElementById('sliderLine').classList.add('con-render');
     document.getElementById('labelAntes').classList.add('con-render');
     document.getElementById('labelDespues').classList.add('con-render');
 
-    // Bloqueo para consumidor
+    // Marca de agua CSS adicional
+    document.getElementById('marcaAgua').classList.add('visible');
+
     if (rolUsuario !== 'empresa') {
+        // Consumidor: mostrar bloqueo, ocultar descarga
         document.getElementById('overlayBloqueo').style.display = 'flex';
         document.getElementById('btnDescargar').style.display = 'none';
     } else {
+        // Empresa: sin bloqueo, puede descargar
         document.getElementById('overlayBloqueo').style.display = 'none';
         document.getElementById('btnDescargar').style.display = 'block';
     }
 
     moverSlider(50);
-
-    // Agregar imagen al carrito (solo cuando se genera, no al restaurar)
-    if (agregarCarrito) {
-        agregarProductoAlCarrito();
-    } else {
-        renderCarrito();
-    }
+    if (agregarCarrito) agregarProductoAlCarrito();
+    else renderCarrito();
 }
 
 // ── SLIDER ──────────────────────────────────────────────────────────────
@@ -685,7 +732,6 @@ function moverSlider(pct) {
 document.addEventListener('DOMContentLoaded', () => {
     const line = document.getElementById('sliderLine');
     const zona = document.getElementById('zonaFoto');
-
     line.addEventListener('mousedown', () => { sliderDragging = true; });
     document.addEventListener('mouseup',  () => { sliderDragging = false; });
     document.addEventListener('mousemove', (e) => {
@@ -705,14 +751,12 @@ document.addEventListener('DOMContentLoaded', () => {
 // ── CARRITO ─────────────────────────────────────────────────────────────
 function agregarProductoAlCarrito() {
     if (!productoActivo) return;
-    const existe = carrito.find(c => c.id === productoActivo.id);
-    if (!existe) {
+    if (!carrito.find(c => c.id === productoActivo.id)) {
         carrito.push({ ...productoActivo });
         sessionStorage.setItem('deco_carrito', JSON.stringify(carrito));
         toast(`🛒 "${productoActivo.nombre}" agregado al carrito`);
     }
     renderCarrito();
-    // Scroll suave al carrito
     setTimeout(() => scrollToCarrito(), 400);
 }
 
@@ -720,20 +764,19 @@ function quitarDeCarrito(id) {
     carrito = carrito.filter(c => c.id !== id);
     sessionStorage.setItem('deco_carrito', JSON.stringify(carrito));
     renderCarrito();
-    toast('🗑️ Producto eliminado del carrito');
+    toast('🗑️ Producto eliminado');
 }
 
 function renderCarrito() {
-    const items    = document.getElementById('carritoItems');
-    const resumen  = document.getElementById('carritoResumen');
-    const count    = document.getElementById('carritoCount');
+    const items   = document.getElementById('carritoItems');
+    const resumen = document.getElementById('carritoResumen');
+    const count   = document.getElementById('carritoCount');
     const hayRender = !!resultadoUrl;
     const hayProds  = carrito.length > 0;
 
-    // Badge del header
-    const totalItems = carrito.length + (hayRender ? 1 : 0);
-    count.textContent = totalItems;
-    count.style.display = totalItems > 0 ? 'flex' : 'none';
+    const total = carrito.length + (hayRender ? 1 : 0);
+    count.textContent = total;
+    count.style.display = total > 0 ? 'flex' : 'none';
 
     if (!hayRender && !hayProds) {
         items.innerHTML = '<div class="carrito-vacio">Aún no hay nada en tu carrito</div>';
@@ -743,12 +786,11 @@ function renderCarrito() {
 
     let html = '';
 
-    // 1. Imagen del render — bloqueada, no se puede quitar
     if (hayRender) {
         html += `
         <div class="carrito-item-imagen">
             <div class="ci-render-thumb">
-                <img src="${resultadoUrl}" alt="Render">
+                <canvas id="miniCanvas" width="48" height="36"></canvas>
                 <div class="ci-lock">🔒</div>
             </div>
             <div class="ci-render-info">
@@ -759,20 +801,18 @@ function renderCarrito() {
         </div>`;
     }
 
-    // 2. Productos — sí se pueden quitar
     carrito.forEach(p => {
         html += `
         <div class="carrito-item">
-            <div class="ci-img">${p.imagen_url?`<img src="${p.imagen_url}" alt="${p.nombre}">`:'📦'}</div>
+            <div class="ci-img">${p.imagen_url?`<img src="${p.imagen_url}" alt="${p.nombre}" draggable="false">`:'📦'}</div>
             <div class="ci-info">
                 <div class="ci-nombre">${p.nombre}</div>
                 <div class="ci-precio">$${Number(p.precio).toLocaleString('es-CO')}/${p.unidad||'m²'}</div>
             </div>
-            <button class="ci-remove" onclick="quitarDeCarrito('${p.id}')" title="Quitar">✕</button>
+            <button class="ci-remove" onclick="quitarDeCarrito('${p.id}')">✕</button>
         </div>`;
     });
 
-    // 3. ¿Quieres agregar algo más?
     html += `
     <div class="carrito-agregar-mas">
         <div class="agregar-mas-line"></div>
@@ -782,25 +822,37 @@ function renderCarrito() {
 
     items.innerHTML = html;
 
-    // Resumen de totales
-    const total = carrito.reduce((s,p) => s + Number(p.precio), 0);
-    document.getElementById('subtotalTexto').textContent = '$' + total.toLocaleString('es-CO');
-    document.getElementById('totalTexto').textContent = '$' + total.toLocaleString('es-CO');
-    resumen.style.display = (hayRender || hayProds) ? 'block' : 'none';
+    // Dibujar miniatura borrosa en el carrito
+    if (hayRender) {
+        setTimeout(() => {
+            const mini = document.getElementById('miniCanvas');
+            if (!mini) return;
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+                const ctx = mini.getContext('2d');
+                ctx.filter = 'blur(3px)';
+                ctx.drawImage(img, 0, 0, 48, 36);
+            };
+            img.src = resultadoUrl;
+        }, 100);
+    }
+
+    const subtotal = carrito.reduce((s,p) => s + Number(p.precio), 0);
+    document.getElementById('subtotalTexto').textContent = '$' + subtotal.toLocaleString('es-CO');
+    document.getElementById('totalTexto').textContent    = '$' + subtotal.toLocaleString('es-CO');
+    resumen.style.display = 'block';
 }
 
 function irAPagar() {
-    if (!carrito.length && !resultadoUrl) return;
     sessionStorage.setItem('carrito_remodelar', JSON.stringify(carrito));
     sessionStorage.setItem('imagen_resultado', resultadoUrl || '');
     toast('💳 Redirigiendo al pago...');
     setTimeout(() => window.location.href = '/marketplace', 1500);
 }
 
-// ── DESCARGAR ────────────────────────────────────────────────────────────
 function descargarResultado() {
-    if (!resultadoUrl) return;
-    if (rolUsuario !== 'empresa') { toast('🔒 Completa tu compra para descargar'); return; }
+    if (!resultadoUrl || rolUsuario !== 'empresa') return;
     const a = document.createElement('a');
     a.href = resultadoUrl;
     a.download = `decoiarte_render_${Date.now()}.jpg`;
@@ -808,7 +860,6 @@ function descargarResultado() {
     toast('⬇️ Descargando imagen...');
 }
 
-// ── PASOS ────────────────────────────────────────────────────────────────
 function actualizarPasos(pasoActual) {
     for (let i = 1; i <= 4; i++) {
         const el = document.getElementById('paso'+i);
@@ -819,17 +870,9 @@ function actualizarPasos(pasoActual) {
     }
 }
 
-// ── SCROLL ───────────────────────────────────────────────────────────────
-function scrollToCarrito() {
-    document.getElementById('seccionCarrito').scrollIntoView({ behavior:'smooth' });
-}
+function scrollToCarrito()  { document.getElementById('seccionCarrito').scrollIntoView({ behavior:'smooth' }); }
+function scrollToProductos(){ document.getElementById('productosGrid').scrollIntoView({ behavior:'smooth' }); toast('👇 Elige más productos del catálogo'); }
 
-function scrollToProductos() {
-    document.getElementById('productosGrid').scrollIntoView({ behavior:'smooth' });
-    toast('👇 Elige más productos del catálogo');
-}
-
-// ── TOAST ────────────────────────────────────────────────────────────────
 let toastTimer;
 function toast(msg) {
     const t = document.getElementById('toast');
@@ -838,12 +881,11 @@ function toast(msg) {
     toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
 }
 
-// ── INIT ─────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
     const acceso = await verificarAcceso();
     if (!acceso) return;
     await verificarRol();
-    restaurarCache();      // restaurar imagen y carrito antes de cargar tiendas
+    await restaurarCache();
     await cargarTiendas();
 });
 </script>
