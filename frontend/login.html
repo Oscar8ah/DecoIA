@@ -44,7 +44,16 @@ async function detectarRol() {
     // ¿Es consumidor?
     const { data:consumidor } = await db.from('consumidores')
         .select('id').eq('email', email).maybeSingle();
-    if (consumidor) { window.location.href = '/marketplace'; return; }
+    if (consumidor) {
+    const redirect = sessionStorage.getItem('redirect_after_login');
+    if (redirect) {
+        sessionStorage.removeItem('redirect_after_login');
+        window.location.href = redirect;
+    } else {
+        window.location.href = '/marketplace';
+    }
+    return;
+}
 
     // Existe sesión Google pero no tiene rol → elegir rol
     window.location.href = '/registro';
