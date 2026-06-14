@@ -146,7 +146,7 @@
         <p>Sube una foto de tu espacio, elige los productos que más te gustan y ve cómo quedaría antes de comprar.</p>
 
         <div class="dos-caminos">
-            <a href="/remodelar" class="camino-card principal">
+            <a href="javascript:void(0)" onclick="irARemodelar()" class="camino-card principal"></a>
                 <span class="camino-icon">🤖</span>
                 <div class="camino-titulo">Transformar con IA</div>
                 <div class="camino-desc">Sube una foto de tu espacio, elige productos y ve el resultado en segundos.</div>
@@ -200,7 +200,7 @@
                     <div class="step-num">4</div>
                     <h3>Compra y descarga</h3>
                     <p>Agrega al carrito, paga y recibe tu imagen desbloqueada + coordinas el domicilio con la tienda.</p>
-                    <a href="/remodelar" class="step-cta">✨ Probar ahora gratis</a>
+                    <a href="javascript:void(0)" onclick="irARemodelar()" class="step-cta">✨ Probar ahora gratis</a>
                 </div>
             </div>
         </div>
@@ -318,7 +318,7 @@
     <h2>¿Listo para transformar<br>tu espacio? 🏠✨</h2>
     <p>Únete a DecoIArte — gratis para consumidores, planes desde $700K para negocios</p>
     <div class="cta-btns">
-        <a href="/remodelar" class="btn-primary">🤖 Transformar con IA</a>
+        <a href="javascript:void(0)" onclick="irARemodelar()" class="btn-primary">🤖 Transformar con IA</a>
         <a href="/registro" class="btn-outline">🏪 Registrar mi negocio</a>
     </div>
 </section>
@@ -363,6 +363,15 @@ async function cargarTiendas() {
 }
 
 cargarTiendas();
+async function irARemodelar() {
+    const { data:{ session } } = await db.auth.getSession();
+    if (session) {
+        window.location.href = '/remodelar';
+    } else {
+        sessionStorage.setItem('redirect_after_login', '/remodelar');
+        window.location.href = '/login';
+    }
+}
 </script>
 </body>
 </html>
