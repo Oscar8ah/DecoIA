@@ -46,14 +46,15 @@
         .zona-foto { flex:1; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; background:var(--oscuro3); }
 
         /* Upload inicial */
-        .upload-zone { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; text-align:center; padding:40px; cursor:pointer; width:100%; height:100%; transition:background 0.3s; }
+        .upload-zone { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; text-align:center; padding:40px; width:100%; height:100%; transition:background 0.3s; }
         .upload-zone:hover { background:rgba(124,58,237,0.05); }
         .upload-zone input { display:none; }
         .upload-icon { font-size:64px; }
         .upload-zone h2 { font-size:22px; font-weight:800; }
         .upload-zone h2 span { background:var(--degradado); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
         .upload-zone p { color:var(--gris); font-size:15px; line-height:1.6; max-width:400px; }
-        .btn-upload { background:var(--degradado); color:white; padding:14px 32px; border-radius:50px; font-size:16px; font-weight:700; border:none; cursor:pointer; font-family:'Segoe UI',sans-serif; margin-top:8px; }
+        /* ✅ FIX BUG 1: btn-upload ahora es un label que activa el input directamente */
+        .btn-upload { background:var(--degradado); color:white; padding:14px 32px; border-radius:50px; font-size:16px; font-weight:700; border:none; cursor:pointer; font-family:'Segoe UI',sans-serif; margin-top:8px; display:inline-block; }
 
         /* Comparador antes/después */
         .comparador { position:relative; width:100%; height:100%; display:none; user-select:none; }
@@ -61,9 +62,13 @@
         .comp-img { position:absolute; inset:0; overflow:hidden; }
         .comp-img img { width:100%; height:100%; object-fit:contain; display:block; }
         .comp-despues { clip-path:inset(0 50% 0 0); }
-        .comp-slider-line { position:absolute; top:0; bottom:0; width:3px; background:white; left:50%; transform:translateX(-50%); cursor:ew-resize; z-index:10; }
+        /* ✅ FIX BUG 2: slider line oculto por defecto, solo visible con clase .con-render */
+        .comp-slider-line { position:absolute; top:0; bottom:0; width:3px; background:white; left:50%; transform:translateX(-50%); cursor:ew-resize; z-index:10; display:none; }
+        .comp-slider-line.con-render { display:block; }
         .comp-handle { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:44px; height:44px; background:white; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:18px; box-shadow:0 4px 20px rgba(0,0,0,0.4); cursor:ew-resize; }
-        .comp-label { position:absolute; padding:6px 14px; border-radius:50px; font-size:12px; font-weight:700; top:16px; }
+        /* ✅ FIX BUG 2: labels también ocultos hasta tener render */
+        .comp-label { position:absolute; padding:6px 14px; border-radius:50px; font-size:12px; font-weight:700; top:16px; display:none; }
+        .comp-label.con-render { display:block; }
         .comp-label-antes { left:16px; background:rgba(0,0,0,0.6); color:white; }
         .comp-label-despues { right:16px; background:rgba(124,58,237,0.8); color:white; }
 
@@ -211,15 +216,16 @@
         <!-- Zona foto -->
         <div class="zona-foto" id="zonaFoto">
 
-            <!-- Upload inicial -->
-            <label class="upload-zone" id="uploadZone" for="inputFoto">
-                <input type="file" id="inputFoto" accept="image/*" onchange="subirFoto(this)">
+            <!-- ✅ FIX BUG 1: Upload zone sin label wrapper — el botón tiene su propio label -->
+            <div class="upload-zone" id="uploadZone">
+                <input type="file" id="inputFoto" accept="image/*" onchange="subirFoto(this)" style="display:none">
                 <div class="upload-icon">🏠</div>
                 <h2>Transforma tu <span>espacio con IA</span></h2>
                 <p>Sube una foto de tu sala, cocina, habitación o baño y ve cómo quedaría con los mejores productos.</p>
-                <button class="btn-upload" type="button">📸 Subir foto de mi espacio</button>
+                <!-- label apunta directo al input — no hay button que interfiera -->
+                <label for="inputFoto" class="btn-upload">📸 Subir foto de mi espacio</label>
                 <p style="font-size:12px;margin-top:8px;">JPG o PNG · máx 10MB</p>
-            </label>
+            </div>
 
             <!-- Generando -->
             <div class="generando" id="generando">
@@ -243,11 +249,12 @@
                         <button class="btn-comprar-bloqueo" onclick="scrollToCarrito()">🛒 Ver carrito y comprar</button>
                     </div>
                 </div>
+                <!-- ✅ FIX BUG 2: slider line y labels sin clase con-render → ocultos hasta mostrarResultado() -->
                 <div class="comp-slider-line" id="sliderLine">
                     <div class="comp-handle">↔</div>
                 </div>
-                <span class="comp-label comp-label-antes">Antes</span>
-                <span class="comp-label comp-label-despues">Después</span>
+                <span class="comp-label comp-label-antes" id="labelAntes">Antes</span>
+                <span class="comp-label comp-label-despues" id="labelDespues">Después</span>
             </div>
 
         </div>
@@ -387,6 +394,18 @@ let carrito       = [];
 let rolUsuario    = null;
 let sliderDragging= false;
 
+// ── ✅ FIX BUG 3: VERIFICAR LOGIN AL INICIO ───────────────────────────────
+async function verificarAcceso() {
+    const { data:{ session } } = await db.auth.getSession();
+    if (!session) {
+        // Guardar destino para volver después del login
+        sessionStorage.setItem('redirect_after_login', '/remodelar');
+        window.location.href = '/login';
+        return false;
+    }
+    return true;
+}
+
 // ── ROL ───────────────────────────────────────────────────────────────────
 async function verificarRol() {
     const { data:{ session } } = await db.auth.getSession();
@@ -410,6 +429,7 @@ async function subirFoto(input) {
         document.getElementById('uploadZone').style.display = 'none';
         document.getElementById('comparador').classList.add('visible');
         document.getElementById('fotoToolbar').classList.add('visible');
+        // ✅ FIX BUG 2: NO se agregan clases con-render aquí — el slider permanece oculto
         actualizarPasos(2);
         toast('📸 Foto cargada — elige superficie y producto');
     };
@@ -431,7 +451,6 @@ async function cargarTiendas() {
     const sel = document.getElementById('tiendaSelector');
     if (!tiendas?.length) { sel.innerHTML = '<div style="text-align:center;color:var(--gris);font-size:13px;padding:12px;">No hay tiendas disponibles aún</div>'; return; }
 
-    // Opción "Todas las tiendas"
     const opts = [{ id:'todas', nombre:'Todas las tiendas', logo_url:null, categoria_principal:'todo' }, ...tiendas];
     sel.innerHTML = opts.map(t => `
         <div class="tienda-opt ${t.id==='todas'?'activo':''}" id="tienda-${t.id}" onclick="selTienda('${t.id}','${t.nombre}')">
@@ -442,7 +461,6 @@ async function cargarTiendas() {
             </div>
         </div>`).join('');
 
-    // Cargar productos de todas las tiendas por defecto
     const ids = tiendas.map(t => t.id);
     const { data:prods } = await db.from('productos').select('*').in('tienda_id', ids).eq('activo',true).limit(60);
     todosProds = prods || [];
@@ -551,6 +569,11 @@ function mostrarResultado(url) {
     document.getElementById('imgDespues').src = url;
     document.getElementById('comparador').classList.add('visible');
 
+    // ✅ FIX BUG 2: Mostrar slider line y labels SOLO cuando hay resultado
+    document.getElementById('sliderLine').classList.add('con-render');
+    document.getElementById('labelAntes').classList.add('con-render');
+    document.getElementById('labelDespues').classList.add('con-render');
+
     // Mostrar overlay bloqueo si es consumidor
     if (rolUsuario !== 'empresa') {
         document.getElementById('overlayBloqueo').style.display = 'flex';
@@ -560,7 +583,6 @@ function mostrarResultado(url) {
         document.getElementById('btnDescargar').style.display = 'block';
     }
 
-    // Iniciar slider en 50%
     moverSlider(50);
 }
 
@@ -642,7 +664,6 @@ function renderCarrito() {
 
 function irAPagar() {
     if (!carrito.length) return;
-    // Guardar carrito en sessionStorage y redirigir a checkout
     sessionStorage.setItem('carrito_remodelar', JSON.stringify(carrito));
     sessionStorage.setItem('imagen_resultado', resultadoUrl || '');
     toast('💳 Redirigiendo al pago...');
@@ -684,8 +705,10 @@ function toast(msg) {
     toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
 }
 
-// ── INIT ──────────────────────────────────────────────────────────────────
+// ── ✅ FIX BUG 3: INIT — verificar acceso PRIMERO, luego cargar ───────────
 window.addEventListener('DOMContentLoaded', async () => {
+    const acceso = await verificarAcceso(); // redirige si no hay sesión
+    if (!acceso) return;                    // detiene la carga si redirigió
     await verificarRol();
     await cargarTiendas();
 });
