@@ -218,6 +218,9 @@ async def generar_imagen_con_producto(
             raise RuntimeError(f"Error aplicando producto: {response.status_code}")
 
 
+# ── REEMPLAZAR la función generar_vista_isometrica en imagen_service.py ──
+# Solo el bloque del prompt cambia — todo lo demás igual
+
 async def generar_vista_isometrica(imagen_bytes: bytes, info_plano: dict) -> str:
     """
     Genera una vista 3D isométrica a partir de un plano 2D.
@@ -229,51 +232,61 @@ async def generar_vista_isometrica(imagen_bytes: bytes, info_plano: dict) -> str
     habitaciones = info_plano.get("habitaciones", "")
     area         = info_plano.get("area_estimada", "por determinar")
     distribucion = info_plano.get("distribucion", "")
-    num_banos    = info_plano.get("num_banos", "")
+    num_banos    = info_plano.get("num_banos", "1")
     tiene_cocina = info_plano.get("tiene_cocina", True)
     tiene_sala   = info_plano.get("tiene_sala", True)
 
-    validacion = (
-        f"FLOOR PLAN VALIDATION — match exactly:\n"
-        f"- Property type: {tipo}\n"
-        f"- Detected rooms: {habitaciones}\n"
-        f"- Detected bathrooms: {num_banos}\n"
-        f"- Kitchen detected: {'Yes' if tiene_cocina else 'No'}\n"
-        f"- Living room detected: {'Yes' if tiene_sala else 'No'}\n"
-        f"- Estimated area: {area}\n"
-        f"- Layout: {distribucion}\n"
-    )
+    # Construir descripción detallada de espacios para el prompt
+    espacios = []
+    if tiene_sala:    espacios.append("living room / sala de estar")
+    if tiene_cocina:  espacios.append("kitchen / cocina")
+    if num_banos:     espacios.append(f"{num_banos} bathroom(s) / baño(s)")
+    if habitaciones:  espacios.append(f"rooms: {habitaciones}")
+    espacios_str = ", ".join(espacios)
 
     prompt = (
-        "You are a specialized technical architect focused on converting 2D floor plans "
-        "into precise isometric 3D visualizations. "
-        "Architectural accuracy is your absolute priority.\n\n"
-        "OBJECTIVE: Convert the attached 2D architectural floor plan into a technically "
-        "accurate isometric 3D view that faithfully preserves the original layout.\n\n"
-        "PRIMARY RULE: Geometric precision over aesthetics. "
-        "Reproduce EXACTLY what is shown in the floor plan. Do NOT invent, add, remove, "
-        "or relocate any architectural element.\n\n"
-        f"{validacion}\n"
-        "MANDATORY INSTRUCTIONS:\n"
-        "1. Analyze carefully: exterior walls, interior walls, rooms, bathrooms, "
-        "kitchen, living room, dining room, corridors, doors and windows.\n"
-        "2. Preserve EXACTLY: number of rooms, number of bathrooms, relative position "
-        "of each space, general shape of the property, internal layout, door positions, "
-        "window positions, and spatial relationships between areas.\n"
-        "3. STRICTLY PROHIBITED: adding rooms, removing rooms, moving walls, "
-        "changing proportions, reorganizing spaces, inventing architectural elements.\n"
-        "4. If ambiguity exists: maintain the original geometry.\n"
-        "5. BEFORE generating: verify room count, bathroom count, kitchen and living room presence.\n\n"
-        "OUTPUT SPECIFICATIONS:\n"
-        "- View angle: isometric 45-degree architectural view.\n"
-        "- Show: walls, doors, windows, and exact room distribution.\n"
-        "- Style: realistic architectural 3D render with warm colors. "
-        "Use natural wood floors (light oak), warm white walls, modern furniture in grey and beige tones. "
-        "Add realistic textures and materials. Vibrant and photorealistic, not a technical drawing.\n"
-        "- Lighting: soft uniform architectural lighting, no dramatic shadows.\n"
-        "- Quality: professional architectural visualization.\n\n"
-        "REQUIRED FIDELITY LEVEL: 95% to 100%.\n"
-        "PRIORITY ORDER: Architectural fidelity > Visual aesthetics."
+        "TASK: Convert this exact 2D architectural floor plan into a photorealistic isometric 3D render. "
+        "The floor plan image is the ONLY reference. You MUST reproduce its exact layout.\n\n"
+
+        "═══ CRITICAL RULES — VIOLATIONS ARE NOT ACCEPTABLE ═══\n"
+        "RULE 1 — EXACT GEOMETRY: Every wall, partition, room boundary must match the floor plan EXACTLY. "
+        "Do NOT move, add, or remove any wall.\n"
+        "RULE 2 — EXACT ROOM COUNT: The 3D render must have EXACTLY these spaces: "
+        f"{espacios_str}. No more, no less.\n"
+        "RULE 3 — EXACT PROPORTIONS: If a room is wider than tall in the plan, it must look wider in 3D. "
+        "Preserve all size relationships between spaces.\n"
+        "RULE 4 — EXACT POSITIONS: Doors and windows must appear in the SAME positions as in the floor plan. "
+        "Verify each opening location before placing it.\n"
+        "RULE 5 — NO INVENTION: Do NOT add rooms, corridors, balconies, or spaces not shown in the plan.\n\n"
+
+        "═══ SPATIAL LAYOUT FROM PLAN ANALYSIS ═══\n"
+        f"Property type: {tipo}\n"
+        f"Detected spaces: {espacios_str}\n"
+        f"Estimated area: {area}\n"
+        f"Layout description: {distribucion}\n"
+        f"Room details: {habitaciones}\n\n"
+
+        "═══ VERIFICATION CHECKLIST (apply before rendering) ═══\n"
+        f"☐ Exactly {num_banos} bathroom(s) visible\n"
+        f"☐ Kitchen {'present' if tiene_cocina else 'NOT present'}\n"
+        f"☐ Living room {'present' if tiene_sala else 'NOT present'}\n"
+        "☐ All walls match the floor plan\n"
+        "☐ Door positions match the floor plan\n\n"
+
+        "═══ VISUAL STYLE ═══\n"
+        "- View: isometric 45-degree bird's eye architectural render\n"
+        "- Walls: warm white (#F5F0E8), thin clean lines\n"
+        "- Floors: light natural oak hardwood throughout\n"
+        "- Furniture: modern minimalist, beige and grey tones, correctly scaled\n"
+        "- Kitchen: light wood cabinets, white countertops, appliances visible\n"
+        "- Bathrooms: white fixtures (toilet, sink, bathtub/shower)\n"
+        "- Living room: grey sofa set, coffee table, TV area\n"
+        "- Lighting: soft warm uniform light, subtle shadows for depth\n"
+        "- Quality: professional architectural visualization, photorealistic\n"
+        "- No text, no labels, no watermarks, no scale bars\n\n"
+
+        "FINAL PRIORITY: Geometric accuracy to the floor plan > Visual aesthetics. "
+        "A wrong room layout is NEVER acceptable even if it looks beautiful."
     )
 
     imagen_png = imagen_a_png_1024(imagen_bytes)
