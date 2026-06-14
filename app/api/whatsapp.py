@@ -10,9 +10,15 @@ from app.services.imagen_service import (
     generar_imagen_con_producto,
     generar_vista_isometrica,
 )
-from app.services.openai_service import analizar_espacio_foto, analizar_plano, analizar_mensaje_texto
+from app.services.openai_service import (
+    analizar_espacio_foto,
+    analizar_plano,
+    analizar_plano_completo,   # ✅ NUEVO
+    analizar_mensaje_texto,
+)
 from app.utils.supabase_client import get_supabase
 from datetime import datetime
+import json
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/webhook", tags=["whatsapp"])
@@ -20,16 +26,15 @@ router = APIRouter(prefix="/webhook", tags=["whatsapp"])
 mensajes_procesados_cache = set()
 estado_usuarios = {}
 
-# ── Tienda demo — slug fijo hasta que cada empresa configure la suya ──
 TIENDA_DEMO_SLUG = "pisos-demo"
 BASE_URL         = "https://decoiarte.com"
-ASESOR_NUMERO   = "573116280351"   # tu número personal Oscar
+ASESOR_NUMERO    = "573116280351"
 
 
-# ── UTILIDADES TIEMPO ─────────────────────────────────────────────────────
+# ── UTILIDADES ────────────────────────────────────────────────────────────
 def get_saludo() -> str:
     hora = datetime.now().hour
-    if 5 <= hora < 12:   return "¡Buenos días"
+    if 5 <= hora < 12:    return "¡Buenos días"
     elif 12 <= hora < 18: return "¡Buenas tardes"
     else:                 return "¡Buenas noches"
 
@@ -115,12 +120,7 @@ async def enviar_menu_principal(telefono: str, settings: Settings):
     )
 
 
-# ── OBTENER SLUG DE TIENDA SEGÚN EMPRESA ──────────────────────────────────
 async def obtener_slug_tienda(empresa_id: str = None) -> str:
-    """
-    Retorna el slug de la tienda activa de la empresa.
-    Si no tiene tienda configurada, usa la demo.
-    """
     if not empresa_id:
         return TIENDA_DEMO_SLUG
     try:
@@ -131,20 +131,14 @@ async def obtener_slug_tienda(empresa_id: str = None) -> str:
         return TIENDA_DEMO_SLUG
 
 
-# ── NOTIFICAR AL ASESOR ───────────────────────────────────────────────────
+# ── NOTIFICAR ASESOR ──────────────────────────────────────────────────────
 async def notificar_asesor(
-    cliente_tel: str,
-    tipo_trabajo: str,          # "remodelación" | "plano"
-    producto_nombre: str,
-    producto_precio: int,
-    producto_categoria: str,
-    url_foto_original: str,
-    url_foto_generada: str,
-    settings: Settings
+    cliente_tel: str, tipo_trabajo: str,
+    producto_nombre: str, producto_precio: int,
+    producto_categoria: str, url_foto_original: str,
+    url_foto_generada: str, settings: Settings
 ):
-    """Envía resumen completo al asesor cuando un cliente elige un producto."""
     precio_fmt = f"${producto_precio:,}".replace(",", ".")
-
     mensaje = (
         f"🔔 *Nueva selección de cliente — DecoIArte*\n\n"
         f"📱 *Cliente:* +{cliente_tel}\n"
@@ -157,26 +151,16 @@ async def notificar_asesor(
         f"✨ *Foto remodelada:* {url_foto_generada}\n\n"
         f"⚡ El cliente ya recibió el resultado por WhatsApp."
     )
-
     await enviar_mensaje_whatsapp(ASESOR_NUMERO, mensaje, settings)
     logger.info(f"Asesor notificado sobre selección de {cliente_tel}")
 
 
-# ── ESPERAR SELECCIÓN DEL CLIENTE EN EL SELECTOR ─────────────────────────
+# ── POLLING SELECCIÓN ─────────────────────────────────────────────────────
 async def esperar_seleccion_y_procesar(
-    sender: str,
-    session_id: str,
-    url_foto_original: str,
-    url_foto_generada: str,
-    tipo_trabajo: str,
-    settings: Settings,
-    timeout_seg: int = 300   # 5 minutos de espera
+    sender: str, session_id: str,
+    url_foto_original: str, url_foto_generada: str,
+    tipo_trabajo: str, settings: Settings, timeout_seg: int = 300
 ):
-    """
-    Polling cada 5 segundos durante timeout_seg.
-    Cuando el cliente elige un producto en el selector,
-    lo aplica a la foto y notifica al asesor.
-    """
     supabase  = get_supabase()
     intervalo = 5
     intentos  = timeout_seg // intervalo
@@ -187,12 +171,9 @@ async def esperar_seleccion_y_procesar(
         await asyncio.sleep(intervalo)
         try:
             r = supabase.table("selecciones_producto") \
-                .select("*") \
-                .eq("session_id", session_id) \
+                .select("*").eq("session_id", session_id) \
                 .eq("procesada", False) \
-                .order("created_at", desc=True) \
-                .limit(1) \
-                .execute()
+                .order("created_at", desc=True).limit(1).execute()
 
             if not r.data:
                 continue
@@ -200,60 +181,43 @@ async def esperar_seleccion_y_procesar(
             seleccion = r.data[0]
             logger.info(f"Selección encontrada: {seleccion['nombre']}")
 
-            # Marcar como procesada inmediatamente para evitar doble proceso
             supabase.table("selecciones_producto") \
-                .update({"procesada": True}) \
-                .eq("id", seleccion["id"]) \
-                .execute()
+                .update({"procesada": True}).eq("id", seleccion["id"]).execute()
 
-            # Confirmar al cliente que recibimos su elección
             await enviar_mensaje_whatsapp(
                 sender,
                 f"✅ ¡Perfecto! Elegiste *{seleccion['nombre']}*\n\n"
-                f"🤖 Aplicando el producto a tu foto...\n"
-                f"Esto toma unos segundos ⏳",
+                f"🤖 Aplicando el producto a tu foto...\nEsto toma unos segundos ⏳",
                 settings
             )
 
-            # Descargar foto original y aplicar el producto
-            url_resultado = url_foto_generada  # fallback si falla la aplicación
+            url_resultado = url_foto_generada
             try:
                 async with httpx.AsyncClient(timeout=30.0) as client:
-                    foto_r = await client.get(url_foto_original)
+                    foto_r    = await client.get(url_foto_original)
                     foto_bytes = foto_r.content
 
-                # Si el producto tiene imagen, aplicarlo; si no, usar la foto genérica
                 if seleccion.get("imagen_url"):
                     async with httpx.AsyncClient(timeout=30.0) as client:
-                        prod_r = await client.get(seleccion["imagen_url"])
+                        prod_r    = await client.get(seleccion["imagen_url"])
                         prod_bytes = prod_r.content
-
                     url_resultado = await generar_imagen_con_producto(
-                        foto_bytes,
-                        prod_bytes,
-                        seleccion["nombre"],
-                        seleccion.get("categoria", "material"),
+                        foto_bytes, prod_bytes,
+                        seleccion["nombre"], seleccion.get("categoria", "material"),
                     )
-                else:
-                    url_resultado = url_foto_generada
-
             except Exception as e:
                 logger.error(f"Error aplicando producto: {e}")
-                url_resultado = url_foto_generada
 
-            # Enviar resultado al cliente
             await enviar_imagen_whatsapp(
-                sender,
-                url_resultado,
+                sender, url_resultado,
                 f"✨ ¡Así quedaría tu espacio con *{seleccion['nombre']}*!\n\n"
                 f"💰 Precio: ${seleccion.get('precio', '')} / m²\n"
-                f"👨‍💼 Nuestro asesor te contactará pronto con la cotización completa 🏠",
+                f"👨‍💼 Nuestro asesor te contactará pronto 🏠",
                 settings
             )
 
             await enviar_botones_whatsapp(
-                sender,
-                "¿Qué deseas hacer ahora?",
+                sender, "¿Qué deseas hacer ahora?",
                 [
                     {"id": "btn_remodelar", "title": "🔄 Nuevo espacio"},
                     {"id": "btn_asesor",    "title": "👨‍💼 Hablar asesor"},
@@ -261,29 +225,24 @@ async def esperar_seleccion_y_procesar(
                 settings
             )
 
-            # Notificar al asesor
             await notificar_asesor(
-                cliente_tel      = sender,
-                tipo_trabajo     = tipo_trabajo,
-                producto_nombre  = seleccion["nombre"],
-                producto_precio  = seleccion.get("precio", 0),
-                producto_categoria = seleccion.get("categoria", ""),
-                url_foto_original  = url_foto_original,
-                url_foto_generada  = url_resultado,
-                settings           = settings,
+                cliente_tel=sender, tipo_trabajo=tipo_trabajo,
+                producto_nombre=seleccion["nombre"],
+                producto_precio=seleccion.get("precio", 0),
+                producto_categoria=seleccion.get("categoria", ""),
+                url_foto_original=url_foto_original,
+                url_foto_generada=url_resultado,
+                settings=settings,
             )
 
-            # Limpiar estado
             if sender in estado_usuarios:
                 del estado_usuarios[sender]
-
-            return  # éxito, salir del loop
+            return
 
         except Exception as e:
             logger.error(f"Error en polling selección: {e}")
             continue
 
-    # Timeout — el cliente no eligió nada en 5 minutos
     logger.info(f"Timeout esperando selección para {sender}")
     await enviar_mensaje_whatsapp(
         sender,
@@ -309,7 +268,10 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
                 settings
             )
 
-            resultado = analizar_plano(imagen_bytes)
+            # ✅ USAR analizar_plano_completo en lugar de analizar_plano
+            resultado_completo = analizar_plano_completo(imagen_bytes)
+            resultado          = resultado_completo.get("info", {})
+            modelo_3d          = resultado_completo.get("modelo_3d")  # JSON para Three.js
 
             if not resultado.get("es_plano", True):
                 await enviar_mensaje_whatsapp(
@@ -329,6 +291,7 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
             tipo         = resultado.get("tipo_plano", "espacio")
             distribucion = resultado.get("distribucion", "")
 
+            # Resumen del análisis
             await enviar_mensaje_whatsapp(
                 sender,
                 f"📐 *Plano analizado con IA* ✅\n\n"
@@ -339,37 +302,84 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
                 settings
             )
 
-            await enviar_mensaje_whatsapp(
-                sender,
-                "🎨 Generando vista 3D isométrica...\n"
-                "Esto toma unos segundos ⏳✨",
-                settings
-            )
+            # ✅ Informar cuántos módulos 3D se generaron
+            if modelo_3d and modelo_3d.get("modulos"):
+                num_modulos = len(modelo_3d["modulos"])
+                nombres_modulos = ", ".join(m["nombre"] for m in modelo_3d["modulos"])
+                await enviar_mensaje_whatsapp(
+                    sender,
+                    f"🏗️ *Modelo 3D generado:* {num_modulos} espacios\n"
+                    f"📦 {nombres_modulos}\n\n"
+                    f"Generando vista isométrica... ✨",
+                    settings
+                )
+            else:
+                await enviar_mensaje_whatsapp(
+                    sender,
+                    "🎨 Generando vista 3D isométrica...\n"
+                    "Esto toma unos segundos ⏳✨",
+                    settings
+                )
 
             url_isometrica = await generar_vista_isometrica(imagen_bytes, resultado)
 
             await enviar_imagen_whatsapp(
-                sender,
-                url_isometrica,
+                sender, url_isometrica,
                 f"🏠 *Vista 3D de tu {tipo}* ✨\n"
                 f"📏 Área: {area} · Acabados modernos aplicados",
                 settings
             )
 
-            # Guardar estado con la foto generada
+            # ✅ Guardar modelo_3d en el estado para usarlo en el visor
             session_id = f"{sender}_{int(datetime.now().timestamp())}"
             estado_usuarios[sender] = {
-                "modo":             "plano_analizado",
-                "session_id":       session_id,
+                "modo":              "plano_analizado",
+                "session_id":        session_id,
                 "url_foto_original": url_isometrica,
                 "url_foto_generada": url_isometrica,
-                "tipo_trabajo":     f"análisis de plano — {tipo}",
-                "plano_info":       resultado,
+                "tipo_trabajo":      f"análisis de plano — {tipo}",
+                "plano_info":        resultado,
+                "modelo_3d":         modelo_3d,   # ✅ JSON para Three.js
             }
 
-            # Obtener slug de la tienda
-            slug = await obtener_slug_tienda()
+            slug         = await obtener_slug_tienda()
             url_selector = f"{BASE_URL}/remodelar"
+
+            # ✅ Si hay modelo 3D, generar link al visor con el modelo
+            url_visor_3d = None
+            if modelo_3d:
+                try:
+                    # Guardar modelo en Supabase para recuperarlo en el visor
+                    supabase = get_supabase()
+                    r = supabase.table("modelos_3d_plano").insert({
+                        "session_id":  session_id,
+                        "telefono":    sender,
+                        "modelo_json": json.dumps(modelo_3d),
+                        "plano_info":  json.dumps(resultado),
+                        "created_at":  datetime.now().isoformat(),
+                    }).execute()
+                    if r.data:
+                        modelo_id    = r.data[0]["id"]
+                        url_visor_3d = f"{BASE_URL}/visor3d?plano={modelo_id}"
+                        logger.info(f"Modelo 3D guardado: {modelo_id}")
+                except Exception as e:
+                    logger.error(f"Error guardando modelo 3D: {e}")
+                    # No es crítico — seguimos sin el link al visor
+
+            estado_usuarios[sender]["url_selector"] = url_selector
+
+            # ✅ Mensaje con link al visor 3D si está disponible
+            if url_visor_3d:
+                await enviar_mensaje_whatsapp(
+                    sender,
+                    f"🏗️ *¡Tu modelo 3D está listo!*\n\n"
+                    f"👉 *Ver en visor 3D:*\n{url_visor_3d}\n\n"
+                    f"Desde el visor puedes:\n"
+                    f"• Rotar y explorar tu plano en 3D 🔄\n"
+                    f"• Cambiar materiales y colores 🎨\n"
+                    f"• Generar render con IA 🤖",
+                    settings
+                )
 
             await enviar_botones_whatsapp(
                 sender,
@@ -382,9 +392,6 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
                 ],
                 settings
             )
-
-            # Guardar URL del selector en el estado
-            estado_usuarios[sender]["url_selector"] = url_selector
 
         # ── MODO REMODELAR ────────────────────────────────────────────────
         else:
@@ -407,22 +414,19 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
 
             url_generada = await generar_imagen_remodelada(imagen_bytes, "moderno")
 
-            # Subir foto original a imgbb para tenerla disponible
             from app.services.imagen_service import subir_imagen_a_imgbb
             settings_obj = get_settings()
             url_original = await subir_imagen_a_imgbb(imagen_bytes, settings_obj.imgbb_api_key)
 
             await enviar_imagen_whatsapp(
-                sender,
-                url_generada,
+                sender, url_generada,
                 f"✨ ¡Así podría quedar tu {tipo_espacio}!\n"
                 f"Diseño moderno con acabados premium 🏠",
                 settings
             )
 
-            # Generar session_id y URL del selector
-            session_id = f"{sender}_{int(datetime.now().timestamp())}"
-            slug       = await obtener_slug_tienda()
+            session_id   = f"{sender}_{int(datetime.now().timestamp())}"
+            slug         = await obtener_slug_tienda()
             url_selector = f"{BASE_URL}/remodelar"
 
             estado_usuarios[sender] = {
@@ -508,7 +512,6 @@ async def receive_message(
                 button_id = interactive["button_reply"]["id"]
                 logger.info(f"Botón: {button_id} de {sender}")
 
-                # ── REMODELAR ─────────────────────────────────────────────
                 if button_id == "btn_remodelar":
                     estado_usuarios[sender] = {"modo": "remodelar"}
                     await enviar_mensaje_whatsapp(
@@ -520,7 +523,6 @@ async def receive_message(
                         settings
                     )
 
-                # ── PLANO ─────────────────────────────────────────────────
                 elif button_id == "btn_plano":
                     estado_usuarios[sender] = {"modo": "plano"}
                     await enviar_mensaje_whatsapp(
@@ -532,18 +534,16 @@ async def receive_message(
                         "• 📱 Captura de pantalla\n\n"
                         "La IA detectará habitaciones, áreas y distribución\n"
                         "con normas NTC colombianas 🇨🇴\n"
-                        "y generará una *vista 3D isométrica* ✨",
+                        "y generará un *modelo 3D automático* ✨",
                         settings
                     )
 
-                # ── VER PRODUCTOS DE LA TIENDA ────────────────────────────
                 elif button_id == "btn_ver_productos":
-                    user_state = estado_usuarios.get(sender, {})
+                    user_state   = estado_usuarios.get(sender, {})
                     url_selector = user_state.get("url_selector")
                     session_id   = user_state.get("session_id")
 
                     if not url_selector:
-                        # No hay estado previo — pedir foto primero
                         await enviar_mensaje_whatsapp(
                             sender,
                             "📸 Primero envíame una foto de tu espacio\n"
@@ -556,40 +556,33 @@ async def receive_message(
                     await enviar_mensaje_whatsapp(
                         sender,
                         f"🛍️ *Elige el producto que más te gusta*\n\n"
-                        f"Toca el link para ver el catálogo completo\n"
-                        f"y selecciona el material que quieres aplicar\n"
-                        f"a tu foto:\n\n"
+                        f"Toca el link para ver el catálogo completo:\n\n"
                         f"👉 {url_selector}\n\n"
                         f"_Una vez elijas, la IA lo aplicará automáticamente_ ✨",
                         settings
                     )
 
-                    # Iniciar polling en background
                     background_tasks.add_task(
                         esperar_seleccion_y_procesar,
-                        sender,
-                        session_id,
+                        sender, session_id,
                         user_state.get("url_foto_original", ""),
                         user_state.get("url_foto_generada", ""),
                         user_state.get("tipo_trabajo", "remodelación"),
                         settings,
                     )
 
-                # ── ASESOR ────────────────────────────────────────────────
                 elif button_id == "btn_asesor":
                     user_state = estado_usuarios.get(sender, {})
-
-                    # Si tiene trabajo previo, incluirlo en el mensaje al asesor
                     if user_state.get("url_foto_generada"):
                         await notificar_asesor(
-                            cliente_tel        = sender,
-                            tipo_trabajo       = user_state.get("tipo_trabajo", "consulta"),
-                            producto_nombre    = "Sin producto elegido — contacto directo",
-                            producto_precio    = 0,
-                            producto_categoria = "",
-                            url_foto_original  = user_state.get("url_foto_original", ""),
-                            url_foto_generada  = user_state.get("url_foto_generada", ""),
-                            settings           = settings,
+                            cliente_tel=sender,
+                            tipo_trabajo=user_state.get("tipo_trabajo", "consulta"),
+                            producto_nombre="Sin producto elegido — contacto directo",
+                            producto_precio=0,
+                            producto_categoria="",
+                            url_foto_original=user_state.get("url_foto_original", ""),
+                            url_foto_generada=user_state.get("url_foto_generada", ""),
+                            settings=settings,
                         )
 
                     await enviar_mensaje_whatsapp(
@@ -614,10 +607,7 @@ async def receive_message(
                 logger.warning(f"Prompt injection bloqueado de {sender}")
                 await enviar_mensaje_whatsapp(
                     sender,
-                    analisis_seguridad.get(
-                        "respuesta_segura",
-                        "Por favor envíame una foto de tu espacio 🏠"
-                    ),
+                    analisis_seguridad.get("respuesta_segura", "Por favor envíame una foto de tu espacio 🏠"),
                     settings
                 )
                 return {"status": "ok"}
