@@ -369,7 +369,7 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
 
             # Obtener slug de la tienda
             slug = await obtener_slug_tienda()
-            url_selector = f"{BASE_URL}/selector/{slug}?sid={session_id}"
+            url_selector = f"{BASE_URL}/remodelar"
 
             await enviar_botones_whatsapp(
                 sender,
@@ -423,7 +423,7 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
             # Generar session_id y URL del selector
             session_id = f"{sender}_{int(datetime.now().timestamp())}"
             slug       = await obtener_slug_tienda()
-            url_selector = f"{BASE_URL}/selector/{slug}?sid={session_id}"
+            url_selector = f"{BASE_URL}/remodelar"
 
             estado_usuarios[sender] = {
                 "modo":              "remodelado",
