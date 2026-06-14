@@ -6,7 +6,7 @@
     { "source": "/marketplace", "destination": "/marketplace.html" },
     { "source": "/visor3d",     "destination": "/visor3d.html" },
     { "source": "/selector",    "destination": "/selector.html" },
+    { "source": "/remodelar",   "destination": "/remodelar.html" },
     { "source": "/",            "destination": "/index.html" }
-    { "source": "/remodelar", "destination": "/remodelar.html" }
   ]
 }
