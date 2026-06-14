@@ -37,7 +37,7 @@
 
         /* DOS CAMINOS */
         .dos-caminos { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px; }
-        .camino-card { background: var(--oscuro2); border: 2px solid rgba(124,58,237,0.25); border-radius: 20px; padding: 28px 32px; max-width: 280px; text-align: center; transition: all 0.3s; text-decoration: none; }
+        .camino-card { background: var(--oscuro2); border: 2px solid rgba(124,58,237,0.25); border-radius: 20px; padding: 28px 32px; max-width: 280px; text-align: center; transition: all 0.3s; text-decoration: none; cursor: pointer; display: block; }
         .camino-card:hover { border-color: var(--morado); transform: translateY(-4px); box-shadow: 0 0 30px rgba(124,58,237,0.2); }
         .camino-card.principal { border-color: var(--morado); box-shadow: 0 0 30px rgba(124,58,237,0.25); }
         .camino-icon { font-size: 40px; margin-bottom: 12px; display: block; }
@@ -69,7 +69,7 @@
         .step-num { width: 54px; height: 54px; background: var(--degradado); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 800; margin: 0 auto 20px; }
         .step h3 { font-size: 18px; margin-bottom: 10px; }
         .step p { color: var(--gris); line-height: 1.6; font-size: 14px; }
-        .step-cta { display: inline-block; margin-top: 16px; background: var(--degradado); color: white; padding: 10px 22px; border-radius: 50px; font-size: 13px; font-weight: 700; text-decoration: none; }
+        .step-cta { display: inline-block; margin-top: 16px; background: var(--degradado); color: white; padding: 10px 22px; border-radius: 50px; font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; }
 
         /* TIENDAS */
         .tiendas-bg { background: rgba(124,58,237,0.04); border-top: 1px solid rgba(124,58,237,0.1); border-bottom: 1px solid rgba(124,58,237,0.1); padding: 60px 20px; }
@@ -104,7 +104,7 @@
         .cta h2 { font-size: clamp(28px, 4.5vw, 54px); font-weight: 900; margin-bottom: 16px; }
         .cta p { color: var(--gris); font-size: 18px; margin-bottom: 44px; }
         .cta-btns { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
-        .btn-primary { background: var(--degradado); color: white; padding: 16px 40px; border-radius: 50px; font-size: 17px; font-weight: 700; text-decoration: none; transition: transform 0.3s, box-shadow 0.3s; box-shadow: 0 0 30px rgba(124,58,237,0.35); }
+        .btn-primary { background: var(--degradado); color: white; padding: 16px 40px; border-radius: 50px; font-size: 17px; font-weight: 700; text-decoration: none; transition: transform 0.3s, box-shadow 0.3s; box-shadow: 0 0 30px rgba(124,58,237,0.35); cursor: pointer; border: none; font-family: 'Segoe UI', sans-serif; }
         .btn-primary:hover { transform: translateY(-3px); box-shadow: 0 0 50px rgba(124,58,237,0.5); }
         .btn-outline { background: transparent; color: white; padding: 16px 40px; border-radius: 50px; font-size: 17px; font-weight: 600; text-decoration: none; border: 2px solid rgba(124,58,237,0.5); transition: border-color 0.3s; }
         .btn-outline:hover { border-color: var(--morado); }
@@ -146,12 +146,13 @@
         <p>Sube una foto de tu espacio, elige los productos que más te gustan y ve cómo quedaría antes de comprar.</p>
 
         <div class="dos-caminos">
-            <a href="javascript:void(0)" onclick="irARemodelar()" class="camino-card principal"></a>
+            <!-- ✅ card completa con onclick, sin </a> prematuro -->
+            <div class="camino-card principal" onclick="irARemodelar()">
                 <span class="camino-icon">🤖</span>
                 <div class="camino-titulo">Transformar con IA</div>
                 <div class="camino-desc">Sube una foto de tu espacio, elige productos y ve el resultado en segundos.</div>
                 <span class="camino-btn">✨ Empezar ahora</span>
-            </a>
+            </div>
             <a href="/marketplace" class="camino-card">
                 <span class="camino-icon">🛍️</span>
                 <div class="camino-titulo">Ver tiendas</div>
@@ -200,7 +201,7 @@
                     <div class="step-num">4</div>
                     <h3>Compra y descarga</h3>
                     <p>Agrega al carrito, paga y recibe tu imagen desbloqueada + coordinas el domicilio con la tienda.</p>
-                    <a href="javascript:void(0)" onclick="irARemodelar()" class="step-cta">✨ Probar ahora gratis</a>
+                    <span class="step-cta" onclick="irARemodelar()">✨ Probar ahora gratis</span>
                 </div>
             </div>
         </div>
@@ -318,7 +319,7 @@
     <h2>¿Listo para transformar<br>tu espacio? 🏠✨</h2>
     <p>Únete a DecoIArte — gratis para consumidores, planes desde $700K para negocios</p>
     <div class="cta-btns">
-        <a href="javascript:void(0)" onclick="irARemodelar()" class="btn-primary">🤖 Transformar con IA</a>
+        <button class="btn-primary" onclick="irARemodelar()">🤖 Transformar con IA</button>
         <a href="/registro" class="btn-outline">🏪 Registrar mi negocio</a>
     </div>
 </section>
@@ -344,6 +345,16 @@ function mostrarTab(tab, btn) {
     document.getElementById('tab-' + tab).classList.add('active');
 }
 
+async function irARemodelar() {
+    const { data:{ session } } = await db.auth.getSession();
+    if (session) {
+        window.location.href = '/remodelar';
+    } else {
+        sessionStorage.setItem('redirect_after_login', '/remodelar');
+        window.location.href = '/login';
+    }
+}
+
 async function cargarTiendas() {
     try {
         const { data: tiendas } = await db.from('tiendas')
@@ -363,15 +374,6 @@ async function cargarTiendas() {
 }
 
 cargarTiendas();
-async function irARemodelar() {
-    const { data:{ session } } = await db.auth.getSession();
-    if (session) {
-        window.location.href = '/remodelar';
-    } else {
-        sessionStorage.setItem('redirect_after_login', '/remodelar');
-        window.location.href = '/login';
-    }
-}
 </script>
 </body>
 </html>
