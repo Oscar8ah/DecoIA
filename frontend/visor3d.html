@@ -2191,6 +2191,146 @@ document.addEventListener('DOMContentLoaded', async () => {
     cargarFotoIA();
 });
 cargarFotoIA();
+// ── CARGAR PLANO DESDE SUPABASE (via ?plano=ID) ──────────────────────────
+async function cargarPlanoDesdeBD(planoId) {
+    try {
+        mostrarToast('📐 Cargando tu plano 3D...');
+        const { data, error } = await db.from('modelos_3d_plano')
+            .select('modelo_json, plano_info')
+            .eq('id', planoId)
+            .maybeSingle();
+
+        if (error || !data) {
+            mostrarToast('❌ No se encontró el plano');
+            return;
+        }
+
+        const modelo3d = JSON.parse(data.modelo_json);
+        cargarDesdePlano(modelo3d);
+        mostrarToast('✅ ¡Plano 3D cargado!');
+    } catch(e) {
+        console.error('Error cargando plano:', e);
+        mostrarToast('❌ Error cargando el plano');
+    }
+}
+
+function cargarDesdePlano(modelo3d) {
+    if (!modelo3d || !modelo3d.modulos || !modelo3d.modulos.length) {
+        mostrarToast('⚠️ El plano no tiene módulos válidos');
+        return;
+    }
+
+    // Limpiar escena actual
+    const aEliminar = [];
+    scene.traverse(obj => { if (obj.isMesh || obj.isGroup) aEliminar.push(obj); });
+    aEliminar.forEach(obj => scene.remove(obj));
+    meshes = {};
+    mobiliarioMeshes = {};
+    limpiarHuecosVentana();
+
+    const modulos  = modelo3d.modulos;
+    const altoPiso = modelo3d.alto_piso || 2.6;
+    const paredes_compartidas = modelo3d.paredes_compartidas || [];
+
+    // Calcular centro del plano para centrar en Three.js
+    let maxX = 0, maxZ = 0;
+    modulos.forEach(m => {
+        if (m.x + m.ancho > maxX) maxX = m.x + m.ancho;
+        if (m.z + m.largo > maxZ) maxZ = m.z + m.largo;
+    });
+    const offsetX = maxX / 2;
+    const offsetZ = maxZ / 2;
+
+    // Construir cada módulo
+    modulos.forEach(mod => {
+        const x      = mod.x - offsetX + mod.ancho / 2;
+        const z      = mod.z - offsetZ + mod.largo / 2;
+        const ancho  = mod.ancho;
+        const largo  = mod.largo;
+        const alto   = mod.alto || altoPiso;
+        const color  = mod.color_pared || '#F5F5F5';
+        const mat    = mod.material_piso || 'ceramica';
+
+        const matPared = new THREE.MeshStandardMaterial({
+            color: new THREE.Color(color), roughness: 0.85, metalness: 0.0
+        });
+        const matPiso  = crearMaterialPiso(mat);
+
+        // Piso del módulo
+        const piso = new THREE.Mesh(new THREE.BoxGeometry(ancho, 0.1, largo), matPiso);
+        piso.position.set(x, -0.05, z);
+        piso.receiveShadow = true;
+        scene.add(piso);
+
+        // Identificar qué lados tienen pared compartida
+        const sinPared = new Set();
+        paredes_compartidas.forEach(pc => {
+            if (pc.modulo_a === mod.id || pc.modulo_b === mod.id) {
+                sinPared.add(pc.lado);
+                // El lado opuesto también se elimina en el módulo vecino
+                const opuesto = { norte:'sur', sur:'norte', este:'oeste', oeste:'este' };
+                if (pc.modulo_b === mod.id) sinPared.add(opuesto[pc.lado]);
+            }
+        });
+
+        // Paredes — solo las que NO son compartidas
+        const paredesConfig = [
+            { id:'norte', geo: new THREE.BoxGeometry(ancho, alto, 0.1), pos: [x, alto/2, z - largo/2] },
+            { id:'sur',   geo: new THREE.BoxGeometry(ancho, alto, 0.1), pos: [x, alto/2, z + largo/2] },
+            { id:'oeste', geo: new THREE.BoxGeometry(0.1, alto, largo),  pos: [x - ancho/2, alto/2, z] },
+            { id:'este',  geo: new THREE.BoxGeometry(0.1, alto, largo),  pos: [x + ancho/2, alto/2, z] },
+        ];
+
+        paredesConfig.forEach(p => {
+            if (sinPared.has(p.id)) return; // pared compartida — no dibujar
+            const pared = new THREE.Mesh(p.geo, matPared.clone());
+            pared.position.set(...p.pos);
+            pared.castShadow = true;
+            pared.receiveShadow = true;
+            scene.add(pared);
+        });
+
+        // Etiqueta flotante del nombre del módulo
+        // (usamos un sprite simple con canvas)
+        const canvas2d = document.createElement('canvas');
+        canvas2d.width = 256; canvas2d.height = 64;
+        const ctx2d = canvas2d.getContext('2d');
+        ctx2d.fillStyle = 'rgba(124,58,237,0.85)';
+        ctx2d.roundRect(4, 4, 248, 56, 12);
+        ctx2d.fill();
+        ctx2d.fillStyle = 'white';
+        ctx2d.font = 'bold 28px Segoe UI';
+        ctx2d.textAlign = 'center';
+        ctx2d.fillText(mod.nombre, 128, 40);
+        const tex = new THREE.CanvasTexture(canvas2d);
+        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
+        sprite.position.set(x, alto * 0.5, z);
+        sprite.scale.set(2.0, 0.5, 1);
+        scene.add(sprite);
+    });
+
+    // Actualizar estado con dimensiones del plano completo
+    estado.ancho = maxX;
+    estado.largo = maxZ;
+    estado.alto  = altoPiso;
+    actualizarStats();
+
+    // Centrar cámara sobre el plano completo
+    const distCam = Math.max(maxX, maxZ) * 1.5;
+    camera.position.set(0, distCam * 0.8, distCam);
+    controls.target.set(0, altoPiso * 0.4, 0);
+    controls.update();
+
+    configurarLuces();
+    mostrarToast(`🏠 Plano cargado — ${modulos.length} espacios`);
+}
+
+// Verificar si hay ?plano=ID en la URL al cargar
+(async () => {
+    const params  = new URLSearchParams(window.location.search);
+    const planoId = params.get('plano');
+    if (planoId) await cargarPlanoDesdeBD(planoId);
+})();
 </script>
 
 <!-- PANEL DIMENSIONES VENTANA -->
