@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     gmail_user: str
     gmail_app_password: str
 
+    # ✅ WOMPI — pagos Colombia
+    wompi_llave_publica: str = ""
+    wompi_llave_privada: str = ""
+    wompi_secreto_integridad: str = ""
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

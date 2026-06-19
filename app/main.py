@@ -8,6 +8,7 @@ from app.api.whatsapp import router as whatsapp_router
 from app.api.notificaciones import router as notificaciones_router
 from app.api.render3d import router as render3d_router
 from app.api.fondo import router as fondo_router
+from app.api.wompi import router as wompi_router   # ✅ NUEVO
 
 load_dotenv()
 
@@ -44,3 +45,4 @@ app.include_router(whatsapp_router)
 app.include_router(notificaciones_router)
 app.include_router(render3d_router)
 app.include_router(fondo_router)
+app.include_router(wompi_router)   # ✅ NUEVO
