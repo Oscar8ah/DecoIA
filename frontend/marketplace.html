@@ -1,10 +1,13 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+    <script src="https://checkout.wompi.co/widget.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Marketplace — DecoIArte</title>
+    <script src="https://checkout.wompi.co/widget.js" data-auto-open="false"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+    
 
 function abrirModalPorId(prodId) {
     // Buscar en todos los productos cargados en la vista actual
@@ -235,8 +238,16 @@ function carritoRenderPanel() {
                 <strong>${carritoFormatPrecio(subtotal)}</strong>
             </div>
             <button class="carrito-btn-solicitar" onclick="carritoSolicitarTienda('${tid}')">
-                💬 Solicitar cotización + domicilio a ${grupo.tienda.nombre}
-            </button>
+    💬 Cotizar por WhatsApp
+</button>
+<button class="carrito-btn-solicitar" style="background:var(--degradado);margin-top:6px;" onclick="pagarConWompi('${tid}')">
+    💳 Pagar ahora con Wompi
+</button>
+    💬 Cotizar por WhatsApp
+</button>
+<button class="carrito-btn-solicitar" style="background:var(--degradado);margin-top:6px;" onclick="pagarConWompi('${tid}')">
+    💳 Pagar ahora con Wompi
+</button>
         </div>`;
     }).join('');
 
@@ -1384,5 +1395,151 @@ function carritoTogglePanel() {
         </button>
     </div>
 </div>
+// ══════════════════════════════════════════════════════════════════
+// PATCH WOMPI — pegar este bloque ANTES del cierre </body>
+// en marketplace.html, justo antes de </body>
+// ══════════════════════════════════════════════════════════════════
+
+// ── WOMPI CHECKOUT ────────────────────────────────────────────────
+const WOMPI_LLAVE_PUBLICA = 'pub_test_VWTmTBcjGHtKGRGcBtuWZwDlWJn0xAzF';
+
+async function generarFirmaWompi(referencia, monto, moneda) {
+    // El secreto de integridad NUNCA va en el frontend
+    // Lo pedimos al backend que lo firma de forma segura
+    try {
+        const r = await fetch('https://decoia.onrender.com/wompi/firma', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ referencia, monto, moneda })
+        });
+        const data = await r.json();
+        return data.firma;
+    } catch(e) {
+        console.error('Error generando firma:', e);
+        return null;
+    }
+}
+
+async function pagarConWompi(tiendaId) {
+    const grupo = carrito[tiendaId];
+    if (!grupo) return;
+
+    const itemsSeleccionados = grupo.items.filter(i => i.seleccionado);
+    if (itemsSeleccionados.length === 0) {
+        mostrarToastCarrito('⚠️ Selecciona al menos un producto');
+        return;
+    }
+
+    const subtotal    = carritoTotalTienda(tiendaId);
+    const montoEnCentavos = subtotal * 100; // Wompi usa centavos
+    const referencia  = `DECO-${tiendaId.substring(0,8)}-${Date.now()}`;
+    const moneda      = 'COP';
+
+    mostrarToastCarrito('💳 Preparando pago...');
+
+    // Pedir firma al backend
+    const firma = await generarFirmaWompi(referencia, montoEnCentavos, moneda);
+    if (!firma) {
+        mostrarToastCarrito('❌ Error preparando el pago. Intenta de nuevo.');
+        return;
+    }
+
+    // Crear y abrir el widget de Wompi
+    const checkout = new WidgetCheckout({
+        currency:          moneda,
+        amountInCents:     montoEnCentavos,
+        reference:         referencia,
+        publicKey:         WOMPI_LLAVE_PUBLICA,
+        signature:         { integrity: firma },
+        redirectUrl:       `https://decoiarte.com/marketplace?pago=ok&ref=${referencia}`,
+        customerData: {
+            showNameField:  true,
+            showEmailField: true,
+            showPhoneNumberField: true,
+        }
+    });
+
+    checkout.open((result) => {
+        const { transaction } = result;
+        if (transaction && transaction.status === 'APPROVED') {
+            // Pago aprobado
+            mostrarToastCarrito('✅ ¡Pago aprobado! La tienda coordinará tu pedido.');
+            // Limpiar productos de esta tienda del carrito
+            delete carrito[tiendaId];
+            carritoGuardar();
+            carritoRenderPanel();
+            // Notificar al asesor
+            notificarAdminPedido(grupo, itemsSeleccionados, subtotal);
+        } else if (transaction && transaction.status === 'DECLINED') {
+            mostrarToastCarrito('❌ Pago rechazado. Intenta con otro método.');
+        } else {
+            mostrarToastCarrito('⚠️ Pago pendiente. Te notificaremos cuando se confirme.');
+        }
+    });
+}
+<script>
+const WOMPI_LLAVE_PUBLICA = 'pub_test_VWTmTBcjGHtKGRGcBtuWZwDlWJn0xAzF';
+
+async function generarFirmaWompi(referencia, monto, moneda) {
+    try {
+        const r = await fetch('https://decoia.onrender.com/wompi/firma', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ referencia, monto, moneda })
+        });
+        const data = await r.json();
+        return data.firma;
+    } catch(e) {
+        console.error('Error generando firma:', e);
+        return null;
+    }
+}
+
+async function pagarConWompi(tiendaId) {
+    const grupo = carrito[tiendaId];
+    if (!grupo) return;
+    const itemsSeleccionados = grupo.items.filter(i => i.seleccionado);
+    if (itemsSeleccionados.length === 0) {
+        mostrarToastCarrito('⚠️ Selecciona al menos un producto');
+        return;
+    }
+    const subtotal        = carritoTotalTienda(tiendaId);
+    const montoEnCentavos = subtotal * 100;
+    const referencia      = `DECO-${tiendaId.substring(0,8)}-${Date.now()}`;
+    const moneda          = 'COP';
+
+    mostrarToastCarrito('💳 Preparando pago...');
+
+    const firma = await generarFirmaWompi(referencia, montoEnCentavos, moneda);
+    if (!firma) {
+        mostrarToastCarrito('❌ Error preparando el pago. Intenta de nuevo.');
+        return;
+    }
+
+    const checkout = new WidgetCheckout({
+        currency:      moneda,
+        amountInCents: montoEnCentavos,
+        reference:     referencia,
+        publicKey:     WOMPI_LLAVE_PUBLICA,
+        signature:     { integrity: firma },
+        redirectUrl:   `https://decoiarte.com/marketplace?pago=ok&ref=${referencia}`,
+    });
+
+    checkout.open((result) => {
+        const { transaction } = result;
+        if (transaction && transaction.status === 'APPROVED') {
+            mostrarToastCarrito('✅ ¡Pago aprobado! La tienda coordinará tu pedido.');
+            delete carrito[tiendaId];
+            carritoGuardar();
+            carritoRenderPanel();
+            notificarAdminPedido(grupo, itemsSeleccionados, subtotal);
+        } else if (transaction && transaction.status === 'DECLINED') {
+            mostrarToastCarrito('❌ Pago rechazado. Intenta con otro método.');
+        } else {
+            mostrarToastCarrito('⚠️ Pago pendiente. Te notificaremos pronto.');
+        }
+    });
+}
+</script>
 </body>
 </html>
