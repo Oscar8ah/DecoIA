@@ -15,8 +15,8 @@
         body { font-family: 'Segoe UI', sans-serif; background: var(--oscuro); color: var(--texto); overflow-x: hidden; }
 
         /* NAVBAR */
-        nav { position: fixed; top: 0; width: 100%; padding: 18px 60px; display: flex; justify-content: space-between; align-items: center; background: rgba(15,15,26,0.95); backdrop-filter: blur(10px); z-index: 100; border-bottom: 1px solid rgba(124,58,237,0.2); }
-        .logo { font-size: 26px; font-weight: 800; background: var(--degradado); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        nav { position: fixed; top: 0; width: 100%; padding: 12px 60px; display: flex; justify-content: space-between; align-items: center; background: rgba(15,15,26,0.97); backdrop-filter: blur(10px); z-index: 100; border-bottom: 1px solid rgba(124,58,237,0.2); }
+        .logo-img { height: 44px; width: auto; object-fit: contain; }
         .nav-links { display: flex; gap: 16px; align-items: center; }
         .nav-links a { color: var(--gris); text-decoration: none; font-size: 14px; transition: color 0.3s; }
         .nav-links a:hover { color: var(--texto); }
@@ -46,23 +46,38 @@
         .camino-btn { display: block; padding: 12px 24px; border-radius: 50px; font-size: 14px; font-weight: 700; transition: opacity 0.3s; }
         .camino-card.principal .camino-btn { background: var(--degradado); color: white; }
         .camino-card .camino-btn { background: rgba(124,58,237,0.15); color: #A78BFA; border: 1px solid rgba(124,58,237,0.3); }
-
         .hero-sub { font-size: 14px; color: var(--gris); margin-top: 8px; }
         .hero-sub a { color: #A78BFA; text-decoration: none; font-weight: 600; }
+
+        /* SHOWCASE ANTES/DESPUÉS */
+        .showcase { padding: 80px 20px; background: var(--oscuro2); border-top: 1px solid rgba(124,58,237,0.1); }
+        .showcase-inner { max-width: 1100px; margin: 0 auto; }
+        .showcase-titulo { text-align: center; font-size: 32px; font-weight: 800; margin-bottom: 12px; }
+        .showcase-sub { text-align: center; color: var(--gris); font-size: 16px; margin-bottom: 48px; }
+        .showcase-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; }
+        .showcase-card { border-radius: 20px; overflow: hidden; border: 1px solid rgba(124,58,237,0.2); transition: transform 0.3s, box-shadow 0.3s; }
+        .showcase-card:hover { transform: translateY(-4px); box-shadow: 0 0 30px rgba(124,58,237,0.2); }
+        .showcase-img { width: 100%; height: 220px; object-fit: cover; display: block; background: var(--oscuro3); }
+        .showcase-label { padding: 16px 20px; background: var(--oscuro); display: flex; align-items: center; justify-content: space-between; }
+        .showcase-label-txt { font-size: 14px; font-weight: 600; color: var(--texto); }
+        .showcase-badge { background: var(--degradado); padding: 4px 12px; border-radius: 50px; font-size: 11px; font-weight: 700; color: white; }
+
+        /* STATS */
+        .stats-bar { background: var(--oscuro); border-top: 1px solid rgba(124,58,237,0.1); border-bottom: 1px solid rgba(124,58,237,0.1); padding: 40px 20px; }
+        .stats-inner { max-width: 900px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 32px; text-align: center; }
+        .stat-num { font-size: 36px; font-weight: 900; background: var(--degradado); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .stat-lbl { font-size: 13px; color: var(--gris); margin-top: 4px; }
 
         /* COMO FUNCIONA */
         .section { padding: 90px 60px; max-width: 1200px; margin: 0 auto; }
         .section-title { text-align: center; font-size: 38px; font-weight: 800; margin-bottom: 12px; }
         .section-sub { text-align: center; color: var(--gris); font-size: 17px; margin-bottom: 60px; }
-
-        /* Tabs como funciona */
         .tabs-funciona { display: flex; gap: 10px; justify-content: center; margin-bottom: 48px; }
         .tab-fn { padding: 11px 28px; border-radius: 50px; font-size: 15px; font-weight: 600; cursor: pointer; border: 1px solid rgba(124,58,237,0.3); background: transparent; color: var(--gris); font-family: 'Segoe UI', sans-serif; transition: all 0.25s; }
         .tab-fn.active { background: var(--degradado); color: white; border-color: transparent; }
         .tab-fn:hover:not(.active) { color: var(--texto); border-color: rgba(124,58,237,0.5); }
         .steps-wrap { display: none; }
         .steps-wrap.active { display: block; }
-
         .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; }
         .step { background: var(--oscuro2); border: 1px solid rgba(124,58,237,0.2); border-radius: 20px; padding: 36px 28px; text-align: center; transition: transform 0.3s, border-color 0.3s; }
         .step:hover { transform: translateY(-4px); border-color: rgba(124,58,237,0.5); }
@@ -77,7 +92,8 @@
         .tiendas-inner h3 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
         .tiendas-inner p { color: var(--gris); font-size: 15px; margin-bottom: 32px; }
         .tiendas-logos { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; }
-        .tienda-logo-card { background: var(--oscuro2); border: 1px solid rgba(124,58,237,0.2); border-radius: 14px; padding: 16px 20px; min-width: 100px; text-align: center; font-size: 13px; color: var(--gris); font-weight: 600; }
+        .tienda-logo-card { background: var(--oscuro2); border: 1px solid rgba(124,58,237,0.2); border-radius: 14px; padding: 16px 20px; min-width: 100px; text-align: center; font-size: 13px; color: var(--gris); font-weight: 600; text-decoration: none; transition: all 0.2s; }
+        .tienda-logo-card:hover { border-color: rgba(124,58,237,0.4); }
         .tienda-logo-card img { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; display: block; margin: 0 auto 8px; }
         .ver-todas { display: inline-block; margin-top: 24px; background: transparent; color: #A78BFA; border: 1px solid rgba(124,58,237,0.4); padding: 12px 28px; border-radius: 50px; font-size: 14px; font-weight: 700; text-decoration: none; transition: all 0.3s; }
         .ver-todas:hover { background: rgba(124,58,237,0.1); }
@@ -110,25 +126,38 @@
         .btn-outline:hover { border-color: var(--morado); }
 
         /* FOOTER */
-        footer { background: var(--oscuro2); padding: 36px 60px; text-align: center; color: var(--gris); border-top: 1px solid rgba(124,58,237,0.2); font-size: 14px; }
-        footer span { background: var(--degradado); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 700; }
+        footer { background: var(--oscuro2); padding: 40px 60px; border-top: 1px solid rgba(124,58,237,0.2); }
+        .footer-inner { max-width: 1100px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; }
+        .footer-logo { height: 36px; width: auto; object-fit: contain; }
+        .footer-txt { color: var(--gris); font-size: 13px; text-align: center; }
+        .footer-txt span { background: var(--degradado); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 700; }
+        .footer-links { display: flex; gap: 20px; }
+        .footer-links a { color: var(--gris); text-decoration: none; font-size: 13px; transition: color 0.2s; }
+        .footer-links a:hover { color: var(--texto); }
 
         .whatsapp-float { position: fixed; bottom: 28px; right: 28px; background: #25D366; width: 62px; height: 62px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; text-decoration: none; box-shadow: 0 5px 25px rgba(37,211,102,0.45); transition: transform 0.3s; z-index: 999; }
         .whatsapp-float:hover { transform: scale(1.1); }
 
         @media (max-width: 768px) {
-            nav { padding: 14px 18px; }
+            nav { padding: 12px 18px; }
             .nav-links a:not(.btn-nav):not(.btn-nav-entrar):not(.btn-nav-tiendas) { display: none; }
             .section { padding: 60px 18px; }
             .dos-caminos { flex-direction: column; align-items: center; }
             .camino-card { max-width: 100%; width: 100%; }
+            .footer-inner { flex-direction: column; text-align: center; }
+            .footer-links { justify-content: center; }
         }
     </style>
 </head>
 <body>
 
 <nav>
-    <div class="logo">DecoIArte</div>
+    <!-- ✅ Logo imagen en lugar de texto -->
+    <a href="/">
+        <img src="https://i.ibb.co/nqpd9cP0/Chat-GPT-Image-24-may-2026-05-53-31-p-m.png"
+             alt="DecoIArte" class="logo-img"
+             onerror="this.outerHTML='<span style=\'font-size:22px;font-weight:800;background:linear-gradient(135deg,#3B82F6,#7C3AED);-webkit-background-clip:text;-webkit-text-fill-color:transparent\'>DecoIArte</span>'">
+    </a>
     <div class="nav-links">
         <a href="#como-funciona">¿Cómo funciona?</a>
         <a href="#planes">Planes</a>
@@ -146,7 +175,6 @@
         <p>Sube una foto de tu espacio, elige los productos que más te gustan y ve cómo quedaría antes de comprar.</p>
 
         <div class="dos-caminos">
-            <!-- ✅ card completa con onclick, sin </a> prematuro -->
             <div class="camino-card principal" onclick="irARemodelar()">
                 <span class="camino-icon">🤖</span>
                 <div class="camino-titulo">Transformar con IA</div>
@@ -168,6 +196,62 @@
     </div>
 </section>
 
+<!-- STATS -->
+<div class="stats-bar">
+    <div class="stats-inner">
+        <div>
+            <div class="stat-num">IA</div>
+            <div class="stat-lbl">Renders hiperrealistas</div>
+        </div>
+        <div>
+            <div class="stat-num">🇨🇴</div>
+            <div class="stat-lbl">Hecho para Colombia</div>
+        </div>
+        <div>
+            <div class="stat-num">30s</div>
+            <div class="stat-lbl">Tiempo de transformación</div>
+        </div>
+        <div>
+            <div class="stat-num">💳</div>
+            <div class="stat-lbl">Pago seguro con Wompi</div>
+        </div>
+    </div>
+</div>
+
+<!-- SHOWCASE -->
+<div class="showcase">
+    <div class="showcase-inner">
+        <h2 class="showcase-titulo">Espacios transformados con IA ✨</h2>
+        <p class="showcase-sub">Así es como DecoIArte transforma espacios reales de clientes colombianos</p>
+        <div class="showcase-grid">
+            <div class="showcase-card">
+                <div style="width:100%;height:220px;background:linear-gradient(135deg,#1A1A2E,#16213E);display:flex;align-items:center;justify-content:center;font-size:60px;">🛋️</div>
+                <div class="showcase-label">
+                    <span class="showcase-label-txt">Sala — Piso porcelanato</span>
+                    <span class="showcase-badge">✨ IA</span>
+                </div>
+            </div>
+            <div class="showcase-card">
+                <div style="width:100%;height:220px;background:linear-gradient(135deg,#16213E,#0F3460);display:flex;align-items:center;justify-content:center;font-size:60px;">🍳</div>
+                <div class="showcase-label">
+                    <span class="showcase-label-txt">Cocina — Enchape moderno</span>
+                    <span class="showcase-badge">✨ IA</span>
+                </div>
+            </div>
+            <div class="showcase-card">
+                <div style="width:100%;height:220px;background:linear-gradient(135deg,#0F3460,#533483);display:flex;align-items:center;justify-content:center;font-size:60px;">🛏️</div>
+                <div class="showcase-label">
+                    <span class="showcase-label-txt">Habitación — Madera premium</span>
+                    <span class="showcase-badge">✨ IA</span>
+                </div>
+            </div>
+        </div>
+        <div style="text-align:center;margin-top:32px;">
+            <button class="btn-primary" onclick="irARemodelar()">🤖 Transforma tu espacio ahora</button>
+        </div>
+    </div>
+</div>
+
 <!-- COMO FUNCIONA -->
 <section id="como-funciona">
     <div class="section">
@@ -179,7 +263,6 @@
             <button class="tab-fn" onclick="mostrarTab('negocio',this)">🏪 Tengo un negocio</button>
         </div>
 
-        <!-- Tab consumidor -->
         <div class="steps-wrap active" id="tab-consumidor">
             <div class="steps">
                 <div class="step">
@@ -200,13 +283,12 @@
                 <div class="step">
                     <div class="step-num">4</div>
                     <h3>Compra y descarga</h3>
-                    <p>Agrega al carrito, paga y recibe tu imagen desbloqueada + coordinas el domicilio con la tienda.</p>
-                    <span class="step-cta" onclick="irARemodelar()">✨ Probar ahora gratis</span>
+                    <p>Agrega al carrito, paga con Wompi y recibe tu imagen desbloqueada + coordinas con la tienda.</p>
+                    <span class="step-cta" onclick="irARemodelar()">✨ Probar ahora</span>
                 </div>
             </div>
         </div>
 
-        <!-- Tab negocio -->
         <div class="steps-wrap" id="tab-negocio">
             <div class="steps">
                 <div class="step">
@@ -324,9 +406,21 @@
     </div>
 </section>
 
+<!-- FOOTER CON LOGO -->
 <footer>
-    <p>© 2026 <span>DecoIArte</span> — Remodelación con Inteligencia Artificial 🏠✨</p>
-    <p style="margin-top:10px;">Colombia · DECO | IA | ARTE</p>
+    <div class="footer-inner">
+        <img src="https://i.ibb.co/nqpd9cP0/Chat-GPT-Image-24-may-2026-05-53-31-p-m.png"
+             alt="DecoIArte" class="footer-logo"
+             onerror="this.outerHTML='<span style=\'font-weight:800;background:linear-gradient(135deg,#3B82F6,#7C3AED);-webkit-background-clip:text;-webkit-text-fill-color:transparent\'>DecoIArte</span>'">
+        <div class="footer-txt">
+            © 2026 <span>DecoIArte</span> — Remodelación con IA 🏠✨ · Colombia
+        </div>
+        <div class="footer-links">
+            <a href="/marketplace">Marketplace</a>
+            <a href="/registro">Registrar tienda</a>
+            <a href="/login">Entrar</a>
+        </div>
+    </div>
 </footer>
 
 <a href="https://wa.me/573159423174" class="whatsapp-float" target="_blank">💬</a>
@@ -366,7 +460,7 @@ async function cargarTiendas() {
             return;
         }
         contenedor.innerHTML = tiendas.map(t => `
-            <a href="/marketplace" class="tienda-logo-card" style="text-decoration:none;color:var(--gris);">
+            <a href="/marketplace" class="tienda-logo-card">
                 ${t.logo_url ? `<img src="${t.logo_url}" alt="${t.nombre}">` : '<div style="font-size:28px;margin-bottom:8px;">🏪</div>'}
                 ${t.nombre}
             </a>`).join('');
