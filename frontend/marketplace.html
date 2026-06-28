@@ -204,32 +204,6 @@
         .carrito-btn-todo:hover { opacity: 0.85; }
         .modal-btn-carrito { background: white; color: var(--morado); border: 2px solid var(--morado); padding: 14px 20px; border-radius: 50px; font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.2s; font-family: 'Segoe UI', sans-serif; display: inline-flex; align-items: center; gap: 8px; }
         .modal-btn-carrito:hover { background: var(--morado); color: white; }
-        /* ✅ FIX WOMPI — widget con scroll en pantallas pequeñas */
-iframe[src*="checkout.wompi"] {
-    max-height: 90vh !important;
-    overflow-y: auto !important;
-}
-
-.widget-checkout-overlay,
-[class*="wompi"],
-[id*="wompi"] {
-    overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-    max-height: 100vh !important;
-}
-/* ✅ FIX WOMPI — scroll en pantallas pequeñas */
-iframe[src*="wompi"] {
-    max-height: 85vh !important;
-    overflow-y: auto !important;
-}
-div[class*="widget-checkout"],
-div[id*="widget-checkout"],
-div[class*="wompi"],
-div[id*="wompi"] {
-    max-height: 90vh !important;
-    overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-}
     </style>
 </head>
 <body>
