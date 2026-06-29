@@ -696,14 +696,7 @@
 <script>
 const SUPABASE_URL      = 'https://cqwbsikyzdtegutyvgfo.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxd2JzaWt5emR0ZWd1dHl2Z2ZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NTk5MjUsImV4cCI6MjA5NDMzNTkyNX0.v9Qmp85POur1zZ3nHVYNRyhqHAi4VawafBsCiXF72Yo';
-const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    auth: {
-        storage: window.sessionStorage,
-        storageKey: 'decoiarte_session',
-        autoRefreshToken: true,
-        persistSession: true,
-    }
-});
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 
 const PRECIOS       = { basico:'$700.000/mes', profesional:'$1.200.000/mes', premium:'$1.500.000/mes', corporativo:'$3.000.000/mes' };
@@ -725,10 +718,22 @@ let notifSubscription = null;
 
 // ── INIT ──────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
-    const { data:{ session } } = await db.auth.getSession();
-    if (!session) { window.location.href='/registro'; return; }
-    await cargarDatos(session.user);
-    document.getElementById('loadingOverlay').style.display = 'none';
+    // Timeout de seguridad — si tarda más de 8 segundos, redirigir al login
+    const timeout = setTimeout(() => {
+        window.location.href = '/login';
+    }, 8000);
+
+    try {
+        const { data:{ session } } = await db.auth.getSession();
+        clearTimeout(timeout);
+        if (!session) { window.location.href='/login'; return; }
+        await cargarDatos(session.user);
+        document.getElementById('loadingOverlay').style.display = 'none';
+    } catch(e) {
+        clearTimeout(timeout);
+        console.error('Error cargando dashboard:', e);
+        window.location.href = '/login';
+    }
 });
 
 async function cargarDatos(user) {
