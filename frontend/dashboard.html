@@ -696,8 +696,15 @@
 <script>
 const SUPABASE_URL      = 'https://cqwbsikyzdtegutyvgfo.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxd2JzaWt5emR0ZWd1dHl2Z2ZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NTk5MjUsImV4cCI6MjA5NDMzNTkyNX0.v9Qmp85POur1zZ3nHVYNRyhqHAi4VawafBsCiXF72Yo';
-const { createClient } = supabase;
-const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+        storage: window.sessionStorage,
+        storageKey: 'decoiarte_session',
+        autoRefreshToken: true,
+        persistSession: true,
+    }
+});
+
 
 const PRECIOS       = { basico:'$700.000/mes', profesional:'$1.200.000/mes', premium:'$1.500.000/mes', corporativo:'$3.000.000/mes' };
 const NOMBRES_PLAN  = { basico:'Básico', profesional:'Profesional', premium:'Premium', corporativo:'Corporativo' };
