@@ -220,27 +220,6 @@
             .stats-grid { grid-template-columns:1fr 1fr; }
             .form-grid-2 { grid-template-columns:1fr; }
         }
-        /* ── NOTIFICACIONES ── */
-        .notif-badge { margin-left:auto; background:var(--rojo); color:white; width:20px; height:20px; border-radius:50%; font-size:11px; font-weight:800; display:none; align-items:center; justify-content:center; }
-        .notif-badge.visible { display:flex; }
-        .notif-overlay { position:fixed; inset:0; z-index:300; display:none; }
-        .notif-overlay.open { display:block; }
-        .notif-panel { position:fixed; top:0; left:240px; width:360px; height:100vh; background:var(--oscuro2); border-right:1px solid rgba(124,58,237,0.2); z-index:400; transform:translateX(-100%); transition:transform 0.3s ease; display:flex; flex-direction:column; box-shadow:8px 0 40px rgba(0,0,0,0.3); }
-        .notif-panel.open { transform:translateX(0); }
-        .notif-header { padding:20px; border-bottom:1px solid rgba(124,58,237,0.15); display:flex; align-items:center; justify-content:space-between; }
-        .notif-header h3 { font-size:18px; font-weight:800; }
-        .btn-marcar-todas { background:none; border:none; color:#A78BFA; font-size:12px; font-weight:600; cursor:pointer; padding:6px 10px; border-radius:8px; }
-        .btn-cerrar-notif { background:none; border:none; color:var(--gris); font-size:20px; cursor:pointer; }
-        .notif-lista { flex:1; overflow-y:auto; padding:8px; }
-        .notif-item { display:flex; gap:12px; padding:14px 12px; border-radius:12px; cursor:pointer; transition:background 0.2s; margin-bottom:4px; border-left:3px solid transparent; }
-        .notif-item:hover { background:rgba(124,58,237,0.08); }
-        .notif-item.no-leida { background:rgba(124,58,237,0.06); border-left-color:var(--morado); }
-        .notif-item-icon { width:40px; height:40px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:18px; background:rgba(16,185,129,0.15); }
-        .notif-item-info { flex:1; min-width:0; }
-        .notif-item-titulo { font-size:13px; font-weight:700; margin-bottom:3px; }
-        .notif-item-msg { font-size:12px; color:var(--gris); line-height:1.5; margin-bottom:4px; }
-        .notif-item-tiempo { font-size:11px; color:var(--morado); font-weight:600; }
-        .notif-empty { text-align:center; padding:60px 20px; color:var(--gris); }
         @media (max-width:480px) {
             .stats-grid { grid-template-columns:1fr; }
             .plan-card-dash { flex-direction:column; }
@@ -341,19 +320,7 @@
         <button class="btn-primario" style="width:100%;margin-top:8px;" onclick="guardarProducto()" id="btnGuardarProducto">💾 Guardar producto</button>
     </div>
 </div>
-<div class="notif-overlay" id="notifOverlay" onclick="cerrarNotificaciones()"></div>
-<div class="notif-panel" id="notifPanel">
-    <div class="notif-header">
-        <h3>🔔 Notificaciones</h3>
-        <div style="display:flex;gap:8px;align-items:center;">
-            <button class="btn-marcar-todas" onclick="marcarTodasLeidas()">Marcar leídas</button>
-            <button class="btn-cerrar-notif" onclick="cerrarNotificaciones()">✕</button>
-        </div>
-    </div>
-    <div class="notif-lista" id="notifLista">
-        <div class="notif-empty">🔔<br><br>Sin notificaciones</div>
-    </div>
-</div>
+
 <button class="hamburger" onclick="toggleSidebar()">☰</button>
 
 <aside class="sidebar" id="sidebar">
@@ -362,7 +329,7 @@
         <button class="nav-item active" onclick="mostrarPagina('inicio',this)"><span class="icon">🏠</span> Inicio</button>
         <button class="nav-item" onclick="mostrarPagina('mitienda',this)"><span class="icon">🏪</span> Mi Tienda <span class="dot-amarillo" id="dotTienda"></span></button>
         <button class="nav-item" onclick="mostrarPagina('whatsapp',this)"><span class="icon">📱</span> WhatsApp <span class="dot-amarillo" id="dotWa"></span></button>
-        <button class="nav-item" onclick="mostrarPagina('historial',this)"><button class="nav-item" onclick="abrirNotificaciones()"><span class="icon">🔔</span> Notificaciones <span class="notif-badge" id="badgeNotif"></span></button><span class="icon">🖼️</span> Historial</button>
+        <button class="nav-item" onclick="mostrarPagina('historial',this)"><span class="icon">🖼️</span> Historial</button>
         <button class="nav-item" onclick="mostrarPagina('plan',this)"><span class="icon">📦</span> Mi Plan</button>
         <button class="nav-item" onclick="mostrarPagina('perfil',this)"><span class="icon">👤</span> Mi Perfil</button>
     </nav>
@@ -637,7 +604,6 @@ window.addEventListener('DOMContentLoaded', async () => {
     const { data:{ session } } = await db.auth.getSession();
     if (!session) { window.location.href='/registro'; return; }
     await cargarDatos(session.user);
-    await cargarNotificaciones();
     document.getElementById('loadingOverlay').style.display = 'none';
 });
 
@@ -1089,27 +1055,6 @@ function mostrarPagina(nombre,btn){document.querySelectorAll('.page').forEach(p=
 function toggleSidebar(){document.getElementById('sidebar').classList.toggle('open');}
 function cerrarModal(id){document.getElementById(id).classList.remove('open');}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.modal-overlay.open').forEach(m=>m.classList.remove('open'));});
-async function cargarNotificaciones() {
-    if (!empresaId) return;
-    const { data } = await db.from('notificaciones')
-        .select('*').eq('empresa_id', empresaId)
-        .order('created_at', { ascending: false }).limit(30);
-    renderNotificaciones(data || []);
-}
-function renderNotificaciones(notifs) {
-    const lista=document.getElementById('notifLista');
-    const badge=document.getElementById('badgeNotif');
-    const noLeidas=notifs.filter(n=>!n.leida).length;
-    if(noLeidas>0){badge.textContent=noLeidas>9?'9+':noLeidas;badge.classList.add('visible');}
-    else{badge.classList.remove('visible');}
-    if(!notifs.length){lista.innerHTML='<div class="notif-empty">🔔<br><br>Sin notificaciones</div>';return;}
-    lista.innerHTML=notifs.map(n=>`<div class="notif-item ${n.leida?'':'no-leida'}" onclick="marcarLeida('${n.id}')"><div class="notif-item-icon">${n.tipo==='pago'?'💰':'🔔'}</div><div class="notif-item-info"><div class="notif-item-titulo">${n.titulo}</div><div class="notif-item-msg">${n.mensaje}</div><div class="notif-item-tiempo">${tiempoRelativo(n.created_at)}</div></div></div>`).join('');
-}
-async function marcarLeida(id){await db.from('notificaciones').update({leida:true}).eq('id',id);await cargarNotificaciones();}
-async function marcarTodasLeidas(){if(!empresaId)return;await db.from('notificaciones').update({leida:true}).eq('empresa_id',empresaId).eq('leida',false);await cargarNotificaciones();}
-function abrirNotificaciones(){document.getElementById('notifPanel').classList.add('open');document.getElementById('notifOverlay').classList.add('open');marcarTodasLeidas();}
-function cerrarNotificaciones(){document.getElementById('notifPanel').classList.remove('open');document.getElementById('notifOverlay').classList.remove('open');}
-function tiempoRelativo(fecha){const diff=Date.now()-new Date(fecha).getTime();const min=Math.floor(diff/60000);const hrs=Math.floor(diff/3600000);const dias=Math.floor(diff/86400000);if(min<1)return'Ahora mismo';if(min<60)return`Hace ${min} min`;if(hrs<24)return`Hace ${hrs} h`;return`Hace ${dias} día${dias>1?'s':''}`;}
 async function cerrarSesion(){await db.auth.signOut();window.location.href='/';}
 </script>
 </body>
