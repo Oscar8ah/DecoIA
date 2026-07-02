@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM — DecoIArte</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        :root {
+            --morado:#7C3AED; --azul:#3B82F6;
+            --degradado:linear-gradient(135deg,#3B82F6 0%,#7C3AED 100%);
+            --oscuro:#0F0F1A; --oscuro2:#1A1A2E; --oscuro3:#16213E;
+            --texto:#F8FAFC; --gris:#94A3B8;
+            --verde:#10B981; --amarillo:#F59E0B; --rojo:#EF4444;
+        }
+        body { font-family:'Segoe UI',sans-serif; background:var(--oscuro); color:var(--texto); min-height:100vh; }
+
+        /* SIDEBAR */
+        .sidebar { position:fixed; left:0; top:0; width:240px; height:100vh; background:var(--oscuro2); border-right:1px solid rgba(124,58,237,0.2); display:flex; flex-direction:column; z-index:100; }
+        .sidebar-logo { padding:20px 24px 16px; border-bottom:1px solid rgba(124,58,237,0.15); font-size:20px; font-weight:800; background:var(--degradado); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+        .sidebar-nav { flex:1; padding:20px 12px; display:flex; flex-direction:column; gap:4px; }
+        .nav-item { display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:12px; color:var(--gris); font-size:14px; font-weight:500; transition:all 0.2s; cursor:pointer; border:none; background:none; width:100%; text-align:left; text-decoration:none; }
+        .nav-item:hover { background:rgba(124,58,237,0.1); color:var(--texto); }
+        .nav-item.active { background:rgba(124,58,237,0.15); color:var(--texto); }
+        .nav-item .icon { font-size:18px; width:22px; text-align:center; }
+        .sidebar-bottom { padding:16px 12px; border-top:1px solid rgba(124,58,237,0.15); }
+        .user-info { display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:12px; background:rgba(124,58,237,0.08); }
+        .user-avatar { width:36px; height:36px; border-radius:50%; background:var(--degradado); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; color:white; flex-shrink:0; }
+        .user-name { font-size:13px; font-weight:600; }
+        .user-email { font-size:11px; color:var(--gris); }
+        .btn-logout { display:flex; align-items:center; gap:8px; padding:10px 14px; margin-top:8px; border-radius:12px; color:var(--gris); font-size:13px; cursor:pointer; border:none; background:none; width:100%; transition:all 0.2s; }
+        .btn-logout:hover { background:rgba(239,68,68,0.1); color:#FCA5A5; }
+
+        /* MAIN */
+        .main { margin-left:240px; padding:40px; min-height:100vh; }
+        .page-header { margin-bottom:32px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; }
+        .page-header h1 { font-size:28px; font-weight:800; }
+        .page-header p { color:var(--gris); font-size:15px; margin-top:4px; }
+
+        /* STATS */
+        .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px; margin-bottom:32px; }
+        .stat-card { background:var(--oscuro2); border:1px solid rgba(124,58,237,0.2); border-radius:16px; padding:20px; }
+        .stat-label { font-size:12px; color:var(--gris); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.05em; }
+        .stat-valor { font-size:30px; font-weight:900; background:var(--degradado); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+        .stat-sub { font-size:12px; color:var(--gris); margin-top:4px; }
+
+        /* FILTROS */
+        .filtros { display:flex; gap:10px; margin-bottom:24px; flex-wrap:wrap; align-items:center; }
+        .filtro-btn { padding:8px 18px; border-radius:50px; background:var(--oscuro2); border:1px solid rgba(124,58,237,0.2); color:var(--gris); font-size:13px; font-weight:500; cursor:pointer; transition:all 0.2s; font-family:'Segoe UI',sans-serif; }
+        .filtro-btn:hover { border-color:rgba(124,58,237,0.4); color:var(--texto); }
+        .filtro-btn.active { background:rgba(124,58,237,0.15); border-color:var(--morado); color:var(--texto); }
+        .buscador { flex:1; min-width:200px; max-width:320px; background:var(--oscuro2); border:1px solid rgba(124,58,237,0.2); border-radius:50px; padding:10px 20px; color:var(--texto); font-size:14px; font-family:'Segoe UI',sans-serif; outline:none; transition:border-color 0.3s; }
+        .buscador:focus { border-color:var(--morado); }
+        .buscador::placeholder { color:rgba(148,163,184,0.4); }
+
+        /* TABLA CLIENTES */
+        .tabla-wrap { background:var(--oscuro2); border:1px solid rgba(124,58,237,0.15); border-radius:20px; overflow:hidden; }
+        .tabla-header { display:grid; grid-template-columns:2fr 1.5fr 1fr 1fr 1fr 1.2fr; gap:16px; padding:16px 24px; background:rgba(124,58,237,0.06); border-bottom:1px solid rgba(124,58,237,0.12); font-size:12px; font-weight:700; color:var(--gris); text-transform:uppercase; letter-spacing:0.05em; }
+        .cliente-row { display:grid; grid-template-columns:2fr 1.5fr 1fr 1fr 1fr 1.2fr; gap:16px; padding:16px 24px; border-bottom:1px solid rgba(124,58,237,0.06); align-items:center; transition:background 0.2s; cursor:pointer; }
+        .cliente-row:hover { background:rgba(124,58,237,0.04); }
+        .cliente-row:last-child { border-bottom:none; }
+        .cliente-avatar { width:36px; height:36px; border-radius:50%; background:var(--degradado); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; color:white; flex-shrink:0; }
+        .cliente-info { display:flex; align-items:center; gap:10px; }
+        .cliente-nombre { font-size:14px; font-weight:600; color:var(--texto); }
+        .cliente-email { font-size:12px; color:var(--gris); }
+        .cliente-tel { font-size:13px; color:var(--gris); }
+        .badge { display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border-radius:50px; font-size:11px; font-weight:700; }
+        .badge-verde { background:rgba(16,185,129,0.1); color:#6EE7B7; border:1px solid rgba(16,185,129,0.3); }
+        .badge-amarillo { background:rgba(245,158,11,0.1); color:#FCD34D; border:1px solid rgba(245,158,11,0.3); }
+        .badge-morado { background:rgba(124,58,237,0.1); color:#A78BFA; border:1px solid rgba(124,58,237,0.3); }
+        .badge-gris { background:rgba(148,163,184,0.1); color:var(--gris); border:1px solid rgba(148,163,184,0.2); }
+        .btn-wa { background:#25D366; color:white; border:none; padding:7px 14px; border-radius:50px; font-size:12px; font-weight:700; cursor:pointer; transition:opacity 0.2s; text-decoration:none; display:inline-block; font-family:'Segoe UI',sans-serif; }
+        .btn-wa:hover { opacity:0.85; }
+        .empty-state { text-align:center; padding:80px 20px; color:var(--gris); }
+        .empty-state .icon { font-size:52px; margin-bottom:16px; }
+        .empty-state h3 { font-size:18px; font-weight:700; color:var(--texto); margin-bottom:8px; }
+        .loading-row { padding:40px; text-align:center; color:var(--gris); }
+        .spinner { display:inline-block; width:20px; height:20px; border:3px solid rgba(124,58,237,0.2); border-top-color:var(--morado); border-radius:50%; animation:spin 0.7s linear infinite; vertical-align:middle; margin-right:8px; }
+        @keyframes spin { to { transform:rotate(360deg); } }
+
+        /* MODAL CLIENTE */
+        .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); backdrop-filter:blur(4px); z-index:500; display:none; align-items:center; justify-content:center; padding:20px; }
+        .modal-overlay.open { display:flex; }
+        .modal { background:var(--oscuro2); border:1px solid rgba(124,58,237,0.3); border-radius:20px; max-width:600px; width:100%; max-height:90vh; overflow-y:auto; position:relative; }
+        .modal-header { padding:24px 28px 20px; border-bottom:1px solid rgba(124,58,237,0.15); display:flex; align-items:center; gap:16px; }
+        .modal-avatar-grande { width:56px; height:56px; border-radius:50%; background:var(--degradado); display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:800; color:white; flex-shrink:0; }
+        .modal-nombre { font-size:20px; font-weight:800; }
+        .modal-sub { font-size:13px; color:var(--gris); margin-top:2px; }
+        .modal-close { position:absolute; top:16px; right:16px; background:none; border:none; color:var(--gris); font-size:22px; cursor:pointer; }
+        .modal-body { padding:24px 28px; }
+        .modal-seccion { margin-bottom:24px; }
+        .modal-seccion h3 { font-size:14px; font-weight:700; color:#A78BFA; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:14px; }
+        .modal-campo { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid rgba(124,58,237,0.06); font-size:14px; }
+        .modal-campo:last-child { border-bottom:none; }
+        .modal-campo-label { color:var(--gris); }
+        .modal-campo-valor { font-weight:600; color:var(--texto); text-align:right; max-width:60%; word-break:break-all; }
+        .renders-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:12px; }
+        .render-thumb { border-radius:12px; overflow:hidden; border:1px solid rgba(124,58,237,0.15); }
+        .render-thumb img { width:100%; height:100px; object-fit:cover; display:block; }
+        .render-thumb-info { padding:8px; background:var(--oscuro); font-size:11px; color:var(--gris); }
+        .modal-acciones { display:flex; gap:12px; flex-wrap:wrap; margin-top:20px; }
+        .btn-primario { background:var(--degradado); color:white; border:none; padding:12px 24px; border-radius:50px; font-size:14px; font-weight:700; cursor:pointer; font-family:'Segoe UI',sans-serif; transition:opacity 0.3s; }
+        .btn-primario:hover { opacity:0.85; }
+        .nota-textarea { width:100%; background:var(--oscuro); border:1px solid rgba(124,58,237,0.2); border-radius:12px; padding:12px 16px; color:var(--texto); font-size:14px; font-family:'Segoe UI',sans-serif; outline:none; resize:vertical; min-height:80px; transition:border-color 0.3s; }
+        .nota-textarea:focus { border-color:var(--morado); }
+        .btn-guardar-nota { background:rgba(124,58,237,0.15); color:#A78BFA; border:1px solid rgba(124,58,237,0.3); padding:8px 18px; border-radius:50px; font-size:13px; font-weight:600; cursor:pointer; font-family:'Segoe UI',sans-serif; margin-top:8px; transition:all 0.2s; }
+        .btn-guardar-nota:hover { background:rgba(124,58,237,0.25); }
+
+        /* HAMBURGER */
+        .hamburger { display:none; position:fixed; top:16px; left:16px; z-index:200; background:var(--oscuro2); border:1px solid rgba(124,58,237,0.3); border-radius:10px; padding:10px; cursor:pointer; font-size:20px; }
+
+        @media (max-width:768px) {
+            .sidebar { transform:translateX(-100%); transition:transform 0.3s; }
+            .sidebar.open { transform:translateX(0); }
+            .main { margin-left:0; padding:80px 16px 40px; }
+            .hamburger { display:block; }
+            .tabla-header { display:none; }
+            .cliente-row { grid-template-columns:1fr; gap:8px; }
+            .stats-grid { grid-template-columns:1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<button class="hamburger" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">DecoIArte</div>
+    <nav class="sidebar-nav">
+        <a href="/dashboard" class="nav-item"><span class="icon">🏠</span> Dashboard</a>
+        <a href="/crm" class="nav-item active"><span class="icon">👥</span> CRM Clientes</a>
+        <a href="/dashboard#mitienda" class="nav-item"><span class="icon">🏪</span> Mi Tienda</a>
+        <a href="/dashboard#whatsapp" class="nav-item"><span class="icon">📱</span> WhatsApp</a>
+        <a href="/dashboard#historial" class="nav-item"><span class="icon">🖼️</span> Historial</a>
+        <a href="/dashboard#plan" class="nav-item"><span class="icon">📦</span> Mi Plan</a>
+    </nav>
+    <div class="sidebar-bottom">
+        <div class="user-info">
+            <div class="user-avatar" id="sidebarAvatar">?</div>
+            <div><div class="user-name" id="sidebarNombre">Cargando...</div><div class="user-email" id="sidebarEmail"></div></div>
+        </div>
+        <button class="btn-logout" onclick="cerrarSesion()">🚪 Cerrar sesión</button>
+    </div>
+</aside>
+
+<!-- MODAL DETALLE CLIENTE -->
+<div class="modal-overlay" id="modalCliente">
+    <div class="modal">
+        <button class="modal-close" onclick="cerrarModal()">✕</button>
+        <div class="modal-header">
+            <div class="modal-avatar-grande" id="modalAvatar">?</div>
+            <div>
+                <div class="modal-nombre" id="modalNombre">—</div>
+                <div class="modal-sub" id="modalSub">—</div>
+            </div>
+        </div>
+        <div class="modal-body">
+            <div class="modal-seccion">
+                <h3>📋 Información del cliente</h3>
+                <div class="modal-campo"><span class="modal-campo-label">Email</span><span class="modal-campo-valor" id="modalEmail">—</span></div>
+                <div class="modal-campo"><span class="modal-campo-label">Teléfono</span><span class="modal-campo-valor" id="modalTel">—</span></div>
+                <div class="modal-campo"><span class="modal-campo-label">Canal</span><span class="modal-campo-valor" id="modalCanal">—</span></div>
+                <div class="modal-campo"><span class="modal-campo-label">Primer contacto</span><span class="modal-campo-valor" id="modalFecha">—</span></div>
+                <div class="modal-campo"><span class="modal-campo-label">Renders generados</span><span class="modal-campo-valor" id="modalRenders">—</span></div>
+            </div>
+            <div class="modal-seccion" id="seccionRenders" style="display:none;">
+                <h3>🖼️ Últimos renders</h3>
+                <div class="renders-grid" id="modalRendersGrid"></div>
+            </div>
+            <div class="modal-seccion">
+                <h3>📝 Notas del asesor</h3>
+                <textarea class="nota-textarea" id="modalNota" placeholder="Agrega notas sobre este cliente..."></textarea>
+                <button class="btn-guardar-nota" onclick="guardarNota()">💾 Guardar nota</button>
+            </div>
+            <div class="modal-acciones">
+                <a class="btn-wa" id="modalBtnWa" href="#" target="_blank">💬 WhatsApp</a>
+                <button class="btn-primario" onclick="cerrarModal()">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<main class="main">
+    <div class="page-header">
+        <div>
+            <h1>👥 CRM de Clientes</h1>
+            <p>Historial de clientes que han interactuado con tu tienda</p>
+        </div>
+        <button class="btn-primario" onclick="exportarCSV()">📥 Exportar CSV</button>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">👥 Total clientes</div><div class="stat-valor" id="statTotal">0</div><div class="stat-sub">registrados</div></div>
+        <div class="stat-card"><div class="stat-label">🤖 Por WhatsApp</div><div class="stat-valor" id="statWa">0</div><div class="stat-sub">clientes bot</div></div>
+        <div class="stat-card"><div class="stat-label">🌐 Por Web</div><div class="stat-valor" id="statWeb">0</div><div class="stat-sub">clientes web</div></div>
+        <div class="stat-card"><div class="stat-label">🖼️ Total renders</div><div class="stat-valor" id="statRenders">0</div><div class="stat-sub">generados</div></div>
+    </div>
+
+    <div class="filtros">
+        <button class="filtro-btn active" onclick="filtrar('todos',this)">🏪 Todos</button>
+        <button class="filtro-btn" onclick="filtrar('whatsapp',this)">💬 WhatsApp</button>
+        <button class="filtro-btn" onclick="filtrar('web',this)">🌐 Web</button>
+        <input type="text" class="buscador" placeholder="🔍 Buscar cliente..." oninput="buscarCliente(this.value)">
+    </div>
+
+    <div class="tabla-wrap">
+        <div class="tabla-header">
+            <span>Cliente</span>
+            <span>Contacto</span>
+            <span>Canal</span>
+            <span>Renders</span>
+            <span>Último contacto</span>
+            <span>Acción</span>
+        </div>
+        <div id="clientesLista">
+            <div class="loading-row"><span class="spinner"></span> Cargando clientes...</div>
+        </div>
+    </div>
+</main>
+
+<script>
+const SUPABASE_URL      = 'https://cqwbsikyzdtegutyvgfo.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxd2JzaWt5emR0ZWd1dHl2Z2ZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NTk5MjUsImV4cCI6MjA5NDMzNTkyNX0.v9Qmp85POur1zZ3nHVYNRyhqHAi4VawafBsCiXF72Yo';
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let todosClientes = [];
+let filtroActual  = 'todos';
+let busquedaActual = '';
+let clienteSeleccionado = null;
+let empresaId = null;
+let tiendaId  = null;
+
+// ── INIT ──────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+    const { data:{ session } } = await db.auth.getSession();
+    if (!session) { window.location.href = '/login'; return; }
+
+    const { data: empresa } = await db.from('empresas').select('id,nombre,email').eq('email', session.user.email).maybeSingle();
+    if (!empresa) { window.location.href = '/dashboard'; return; }
+
+    empresaId = empresa.id;
+    document.getElementById('sidebarAvatar').textContent  = empresa.nombre?.[0]?.toUpperCase() || '?';
+    document.getElementById('sidebarNombre').textContent  = empresa.nombre || 'Mi negocio';
+    document.getElementById('sidebarEmail').textContent   = empresa.email || '';
+
+    // Obtener tienda
+    const { data: tienda } = await db.from('tiendas').select('id').eq('empresa_id', empresaId).maybeSingle();
+    if (tienda) tiendaId = tienda.id;
+
+    await cargarClientes();
+});
+
+// ── CARGAR CLIENTES ───────────────────────────────────────────────────────
+async function cargarClientes() {
+    if (!tiendaId) {
+        document.getElementById('clientesLista').innerHTML = `
+            <div class="empty-state">
+                <div class="icon">🏪</div>
+                <h3>Primero crea tu tienda</h3>
+                <p>Ve al <a href="/dashboard" style="color:#A78BFA;">Dashboard</a> y crea tu tienda para ver los clientes.</p>
+            </div>`;
+        return;
+    }
+
+    // Cargar clientes finales relacionados con la tienda
+    const { data: clientes } = await db.from('clientes_finales')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    // Cargar imágenes generadas por empresa
+    const { data: imagenes } = await db.from('imagenes')
+        .select('*')
+        .eq('empresa_id', empresaId)
+        .order('created_at', { ascending: false });
+
+    // Construir lista combinada
+    const mapaClientes = {};
+
+    // Agregar clientes de WhatsApp
+    (clientes || []).forEach(c => {
+        const key = c.telefono || c.email || c.id;
+        if (!mapaClientes[key]) {
+            mapaClientes[key] = {
+                id:            c.id,
+                nombre:        c.nombre || 'Cliente WhatsApp',
+                email:         c.email || '—',
+                telefono:      c.telefono || '—',
+                canal:         'whatsapp',
+                renders:       0,
+                ultimo:        c.created_at,
+                created_at:    c.created_at,
+                imagenes:      [],
+                nota:          c.nota || '',
+            };
+        }
+    });
+
+    // Agregar renders a los clientes
+    (imagenes || []).forEach(img => {
+        const key = img.telefono_cliente || img.email_cliente;
+        if (key && mapaClientes[key]) {
+            mapaClientes[key].renders++;
+            mapaClientes[key].imagenes.push(img);
+            if (img.created_at > mapaClientes[key].ultimo) {
+                mapaClientes[key].ultimo = img.created_at;
+            }
+        } else if (key) {
+            // Cliente web sin registro previo
+            mapaClientes[key] = {
+                id:         img.id,
+                nombre:     img.nombre_cliente || 'Cliente Web',
+                email:      img.email_cliente || key,
+                telefono:   img.telefono_cliente || '—',
+                canal:      'web',
+                renders:    1,
+                ultimo:     img.created_at,
+                created_at: img.created_at,
+                imagenes:   [img],
+                nota:       '',
+            };
+        }
+    });
+
+    todosClientes = Object.values(mapaClientes).sort((a,b) => new Date(b.ultimo) - new Date(a.ultimo));
+
+    // Stats
+    const totalWa  = todosClientes.filter(c => c.canal === 'whatsapp').length;
+    const totalWeb = todosClientes.filter(c => c.canal === 'web').length;
+    const totalRenders = todosClientes.reduce((s,c) => s + c.renders, 0);
+
+    document.getElementById('statTotal').textContent   = todosClientes.length;
+    document.getElementById('statWa').textContent      = totalWa;
+    document.getElementById('statWeb').textContent     = totalWeb;
+    document.getElementById('statRenders').textContent = totalRenders;
+
+    renderClientes();
+}
+
+// ── RENDER TABLA ──────────────────────────────────────────────────────────
+function renderClientes() {
+    let lista = todosClientes;
+    if (filtroActual !== 'todos') lista = lista.filter(c => c.canal === filtroActual);
+    if (busquedaActual) lista = lista.filter(c =>
+        c.nombre.toLowerCase().includes(busquedaActual) ||
+        c.email.toLowerCase().includes(busquedaActual) ||
+        c.telefono.includes(busquedaActual)
+    );
+
+    const contenedor = document.getElementById('clientesLista');
+
+    if (!lista.length) {
+        contenedor.innerHTML = `
+            <div class="empty-state">
+                <div class="icon">👥</div>
+                <h3>Sin clientes aún</h3>
+                <p>Los clientes aparecerán aquí cuando interactúen con tu bot o tu tienda.</p>
+            </div>`;
+        return;
+    }
+
+    contenedor.innerHTML = lista.map(c => {
+        const inicial = c.nombre?.[0]?.toUpperCase() || '?';
+        const fecha   = formatFecha(c.ultimo);
+        const canalBadge = c.canal === 'whatsapp'
+            ? '<span class="badge badge-verde">💬 WhatsApp</span>'
+            : '<span class="badge badge-morado">🌐 Web</span>';
+        const wa = c.telefono && c.telefono !== '—'
+            ? `<a class="btn-wa" href="https://wa.me/${c.telefono.replace(/\D/g,'')}?text=Hola%20${encodeURIComponent(c.nombre)},%20te%20escribo%20desde%20DecoIArte" target="_blank">💬 WhatsApp</a>`
+            : `<span style="color:var(--gris);font-size:12px;">Sin teléfono</span>`;
+        return `
+        <div class="cliente-row" onclick="abrirCliente('${c.id}')">
+            <div class="cliente-info">
+                <div class="cliente-avatar">${inicial}</div>
+                <div>
+                    <div class="cliente-nombre">${c.nombre}</div>
+                    <div class="cliente-email">${c.email}</div>
+                </div>
+            </div>
+            <div class="cliente-tel">${c.telefono}</div>
+            <div>${canalBadge}</div>
+            <div><span class="badge badge-morado">🖼️ ${c.renders}</span></div>
+            <div style="font-size:13px;color:var(--gris);">${fecha}</div>
+            <div onclick="event.stopPropagation()">${wa}</div>
+        </div>`;
+    }).join('');
+}
+
+// ── MODAL CLIENTE ─────────────────────────────────────────────────────────
+function abrirCliente(clienteId) {
+    const c = todosClientes.find(x => x.id === clienteId || x.id.toString() === clienteId);
+    if (!c) return;
+    clienteSeleccionado = c;
+
+    document.getElementById('modalAvatar').textContent  = c.nombre?.[0]?.toUpperCase() || '?';
+    document.getElementById('modalNombre').textContent  = c.nombre;
+    document.getElementById('modalSub').textContent     = c.canal === 'whatsapp' ? '💬 Cliente WhatsApp' : '🌐 Cliente Web';
+    document.getElementById('modalEmail').textContent   = c.email;
+    document.getElementById('modalTel').textContent     = c.telefono;
+    document.getElementById('modalCanal').textContent   = c.canal === 'whatsapp' ? 'Bot WhatsApp' : 'Marketplace Web';
+    document.getElementById('modalFecha').textContent   = formatFecha(c.created_at);
+    document.getElementById('modalRenders').textContent = `${c.renders} render${c.renders !== 1 ? 's' : ''}`;
+    document.getElementById('modalNota').value          = c.nota || '';
+
+    const waNum = c.telefono?.replace(/\D/g,'');
+    document.getElementById('modalBtnWa').href = waNum
+        ? `https://wa.me/${waNum}?text=Hola%20${encodeURIComponent(c.nombre)},%20te%20escribo%20desde%20DecoIArte%20🏠`
+        : '#';
+
+    // Renders
+    if (c.imagenes && c.imagenes.length > 0) {
+        document.getElementById('seccionRenders').style.display = 'block';
+        document.getElementById('modalRendersGrid').innerHTML = c.imagenes.slice(0,6).map(img => `
+            <div class="render-thumb">
+                ${img.url_generada || img.url_original
+                    ? `<img src="${img.url_generada || img.url_original}" alt="Render" onerror="this.parentElement.innerHTML='<div style=height:100px;display:flex;align-items:center;justify-content:center;font-size:32px>🏠</div>'">`
+                    : '<div style="height:100px;display:flex;align-items:center;justify-content:center;font-size:32px;">🏠</div>'}
+                <div class="render-thumb-info">${formatFecha(img.created_at)}</div>
+            </div>`).join('');
+    } else {
+        document.getElementById('seccionRenders').style.display = 'none';
+    }
+
+    document.getElementById('modalCliente').classList.add('open');
+    document.body.style.overflow = 'hidden';
+}
+
+function cerrarModal() {
+    document.getElementById('modalCliente').classList.remove('open');
+    document.body.style.overflow = '';
+    clienteSeleccionado = null;
+}
+
+async function guardarNota() {
+    if (!clienteSeleccionado) return;
+    const nota = document.getElementById('modalNota').value;
+    try {
+        await db.from('clientes_finales').update({ nota }).eq('id', clienteSeleccionado.id);
+        clienteSeleccionado.nota = nota;
+        const btn = document.querySelector('.btn-guardar-nota');
+        btn.textContent = '✅ Guardado';
+        setTimeout(() => btn.textContent = '💾 Guardar nota', 2000);
+    } catch(e) { console.error('Error guardando nota:', e); }
+}
+
+// ── FILTROS ───────────────────────────────────────────────────────────────
+function filtrar(tipo, btn) {
+    filtroActual = tipo;
+    document.querySelectorAll('.filtro-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderClientes();
+}
+
+function buscarCliente(query) {
+    busquedaActual = query.toLowerCase();
+    renderClientes();
+}
+
+// ── EXPORTAR CSV ──────────────────────────────────────────────────────────
+function exportarCSV() {
+    const headers = ['Nombre','Email','Teléfono','Canal','Renders','Último contacto'];
+    const filas   = todosClientes.map(c => [
+        c.nombre, c.email, c.telefono, c.canal, c.renders, formatFecha(c.ultimo)
+    ]);
+    const csv = [headers, ...filas].map(f => f.join(',')).join('\n');
+    const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = `clientes_decoiarte_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────
+function formatFecha(fecha) {
+    if (!fecha) return '—';
+    return new Date(fecha).toLocaleDateString('es-CO', { day:'numeric', month:'short', year:'numeric' });
+}
+
+async function cerrarSesion() {
+    await db.auth.signOut();
+    window.location.href = '/';
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarModal(); });
+document.getElementById('modalCliente').addEventListener('click', e => {
+    if (e.target === document.getElementById('modalCliente')) cerrarModal();
+});
+</script>
+</body>
+</html>
