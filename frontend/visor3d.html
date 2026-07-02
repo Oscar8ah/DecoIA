@@ -2289,16 +2289,20 @@ const EMOJIS_MODULO = {
 
 function iniciarEditorPlanta() {
     const c = document.getElementById('canvasPlanta');
+    if (!c) return;
     const cont = c.parentElement;
-    c.width  = cont.offsetWidth;
-    c.height = cont.offsetHeight;
-    dibujarPlanta();
-    c.onmousedown = onPlantaMouseDown;
-    c.onmousemove = onPlantaMouseMove;
-    c.onmouseup   = onPlantaMouseUp;
-    c.ontouchstart = e => { e.preventDefault(); onPlantaMouseDown(e.touches[0]); };
-    c.ontouchmove  = e => { e.preventDefault(); onPlantaMouseMove(e.touches[0]); };
-    c.ontouchend   = e => { e.preventDefault(); onPlantaMouseUp(); };
+    // Dar tiempo a que el DOM esté visible antes de medir
+    setTimeout(() => {
+        c.width  = cont.offsetWidth  || window.innerWidth - 280;
+        c.height = cont.offsetHeight || window.innerHeight - 150;
+        dibujarPlanta();
+        c.onmousedown = onPlantaMouseDown;
+        c.onmousemove = onPlantaMouseMove;
+        c.onmouseup   = onPlantaMouseUp;
+        c.ontouchstart = e => { e.preventDefault(); onPlantaMouseDown(e.touches[0]); };
+        c.ontouchmove  = e => { e.preventDefault(); onPlantaMouseMove(e.touches[0]); };
+        c.ontouchend   = e => { e.preventDefault(); onPlantaMouseUp(); };
+    }, 100);
 }
 
 function agregarModulo(tipo) {
