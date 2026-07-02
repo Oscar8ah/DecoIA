@@ -243,7 +243,7 @@
     </button>
 </div>
 <!-- EDITOR PLANTA L T U -->
-<div id="vistaPlanta" style="display:none;flex-direction:column;height:100%;background:var(--oscuro);overflow:hidden;">
+<div id="vistaPlanta" style="display:none;flex-direction:column;flex:1;background:var(--oscuro);overflow:hidden;"></div>
 
     <!-- TOOLBAR -->
     <div style="display:flex;gap:8px;padding:12px 16px;background:var(--oscuro2);border-bottom:1px solid rgba(124,58,237,0.2);flex-wrap:wrap;align-items:center;">
@@ -1880,6 +1880,7 @@ function cambiarVista(vista) {
     canvas.style.display=vista==='3d'?'block':'none';
     document.getElementById('vistaFoto').style.display=vista==='foto'?'flex':'none';
     document.getElementById('vistaPlanta').style.display=vista==='planta'?'flex':'none';
+    document.getElementById('canvasPlanta') && iniciarEditorPlanta();
     if (vista==='foto' && fotoIaUrl) {
         document.getElementById('fotoIaContenido').innerHTML=`<div class="foto-ia-container"><img src="${fotoIaUrl}" alt="Foto generada por IA"></div>`;
         document.getElementById('btnEnviarCliente').style.display='flex';
