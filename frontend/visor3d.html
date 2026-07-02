@@ -212,7 +212,7 @@
     <button class="tab-vista" id="tabPlanta" onclick="cambiarVista('planta')">📐 Editor Planta</button>
 </div>
 <!-- TOOLBAR EDITOR PLANTA — visible solo en pestaña planta -->
-<div id="toolbarPlanta" style="display:none;gap:8px;padding:10px 16px;background:var(--oscuro2);border-bottom:1px solid rgba(124,58,237,0.2);flex-wrap:wrap;align-items:center;">
+<div id="toolbarPlanta" style="display:none;min-height:50px;gap:8px;padding:10px 16px;background:var(--oscuro2);border-bottom:1px solid rgba(124,58,237,0.2);flex-wrap:wrap;align-items:center;"></div>
     <span style="font-size:12px;font-weight:700;color:#A78BFA;margin-right:4px;">➕ Módulo:</span>
     <button onclick="agregarModulo('sala')"       style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#93C5FD;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🛋️ Sala</button>
     <button onclick="agregarModulo('cocina')"     style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:#6EE7B7;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🍳 Cocina</button>
@@ -1880,14 +1880,12 @@ function cambiarVista(vista) {
     canvas.style.display=vista==='3d'?'block':'none';
     document.getElementById('vistaFoto').style.display=vista==='foto'?'flex':'none';
     document.getElementById('vistaPlanta').style.display=vista==='planta'?'flex':'none';
-    document.getElementById('canvasPlanta') && iniciarEditorPlanta();
     if (vista==='foto' && fotoIaUrl) {
         document.getElementById('fotoIaContenido').innerHTML=`<div class="foto-ia-container"><img src="${fotoIaUrl}" alt="Foto generada por IA"></div>`;
         document.getElementById('btnEnviarCliente').style.display='flex';
     }
     if (vista==='planta') iniciarEditorPlanta();
 }
-
 // ── CAPTURAR + IA ─────────────────────────────────────────────────────────
 async function capturarYGenerarIA() {
     const btn = document.getElementById('btnCapturarIA');
