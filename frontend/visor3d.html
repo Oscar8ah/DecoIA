@@ -211,7 +211,20 @@
     <button class="tab-vista" id="tabFoto" onclick="cambiarVista('foto')">📸 Foto IA</button>
     <button class="tab-vista" id="tabPlanta" onclick="cambiarVista('planta')">📐 Editor Planta</button>
 </div>
-
+<!-- TOOLBAR EDITOR PLANTA — visible solo en pestaña planta -->
+<div id="toolbarPlanta" style="display:none;gap:8px;padding:10px 16px;background:var(--oscuro2);border-bottom:1px solid rgba(124,58,237,0.2);flex-wrap:wrap;align-items:center;">
+    <span style="font-size:12px;font-weight:700;color:#A78BFA;margin-right:4px;">➕ Módulo:</span>
+    <button onclick="agregarModulo('sala')"       style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#93C5FD;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🛋️ Sala</button>
+    <button onclick="agregarModulo('cocina')"     style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:#6EE7B7;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🍳 Cocina</button>
+    <button onclick="agregarModulo('habitacion')" style="background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🛏️ Habitación</button>
+    <button onclick="agregarModulo('bano')"       style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.3);color:#FCD34D;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🚿 Baño</button>
+    <button onclick="agregarModulo('pasillo')"    style="background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.2);color:var(--gris);padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🚶 Pasillo</button>
+    <button onclick="agregarModulo('zona')"       style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:#FCA5A5;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">📦 Zona</button>
+    <div style="margin-left:auto;display:flex;gap:8px;">
+        <button onclick="limpiarPlanta()" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#FCA5A5;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🗑️ Limpiar</button>
+        <button onclick="generarDesdePlanta()" style="background:var(--degradado);color:white;border:none;padding:5px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">✨ Generar 3D</button>
+    </div>
+</div>
 <!-- Badge modo arrastrar -->
 <div class="modo-badge" id="modoBadge">🖱️ Haz clic en el mueble y arrástralo · ESC para salir</div>
 
@@ -1863,6 +1876,7 @@ function cambiarVista(vista) {
     document.getElementById('tab3d').classList.toggle('active',    vista==='3d');
     document.getElementById('tabFoto').classList.toggle('active',  vista==='foto');
     document.getElementById('tabPlanta').classList.toggle('active',vista==='planta');
+    document.getElementById('toolbarPlanta').style.display = vista==='planta' ? 'flex' : 'none';
     canvas.style.display=vista==='3d'?'block':'none';
     document.getElementById('vistaFoto').style.display=vista==='foto'?'flex':'none';
     document.getElementById('vistaPlanta').style.display=vista==='planta'?'flex':'none';
