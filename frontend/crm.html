@@ -56,8 +56,8 @@
 
         /* TABLA CLIENTES */
         .tabla-wrap { background:var(--oscuro2); border:1px solid rgba(124,58,237,0.15); border-radius:20px; overflow:hidden; }
-        .tabla-header { display:grid; grid-template-columns:2fr 1.5fr 1fr 1fr 1fr 1.2fr; gap:16px; padding:16px 24px; background:rgba(124,58,237,0.06); border-bottom:1px solid rgba(124,58,237,0.12); font-size:12px; font-weight:700; color:var(--gris); text-transform:uppercase; letter-spacing:0.05em; }
-        .cliente-row { display:grid; grid-template-columns:2fr 1.5fr 1fr 1fr 1fr 1.2fr; gap:16px; padding:16px 24px; border-bottom:1px solid rgba(124,58,237,0.06); align-items:center; transition:background 0.2s; cursor:pointer; }
+        .tabla-header { display:grid; grid-template-columns:2fr 1.5fr 1fr 1fr 1fr 1.2fr 1.4fr; gap:16px; padding:16px 24px; background:rgba(124,58,237,0.06); border-bottom:1px solid rgba(124,58,237,0.12); font-size:12px; font-weight:700; color:var(--gris); text-transform:uppercase; letter-spacing:0.05em; }
+        .cliente-row { display:grid; grid-template-columns:2fr 1.5fr 1fr 1fr 1fr 1.2fr 1.4fr; gap:16px; padding:16px 24px; border-bottom:1px solid rgba(124,58,237,0.06); align-items:center; transition:background 0.2s; cursor:pointer; }
         .cliente-row:hover { background:rgba(124,58,237,0.04); }
         .cliente-row:last-child { border-bottom:none; }
         .cliente-avatar { width:36px; height:36px; border-radius:50%; background:var(--degradado); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; color:white; flex-shrink:0; }
@@ -72,6 +72,18 @@
         .badge-gris { background:rgba(148,163,184,0.1); color:var(--gris); border:1px solid rgba(148,163,184,0.2); }
         .btn-wa { background:#25D366; color:white; border:none; padding:7px 14px; border-radius:50px; font-size:12px; font-weight:700; cursor:pointer; transition:opacity 0.2s; text-decoration:none; display:inline-block; font-family:'Segoe UI',sans-serif; }
         .btn-wa:hover { opacity:0.85; }
+
+        /* ── ESTADOS CRM ── */
+        .estado-select { background:var(--oscuro); border:1px solid rgba(124,58,237,0.25); border-radius:8px; padding:5px 10px; color:var(--texto); font-size:12px; font-family:'Segoe UI',sans-serif; cursor:pointer; outline:none; transition:border-color 0.2s; }
+        .estado-select:focus { border-color:var(--morado); }
+        .estado-nuevo      { border-color:rgba(148,163,184,0.3)!important; color:var(--gris)!important; }
+        .estado-contacto   { border-color:rgba(59,130,246,0.4)!important; color:#93C5FD!important; }
+        .estado-cotizado   { border-color:rgba(245,158,11,0.4)!important; color:#FCD34D!important; }
+        .estado-negociando { border-color:rgba(124,58,237,0.4)!important; color:#A78BFA!important; }
+        .estado-ganado     { border-color:rgba(16,185,129,0.4)!important; color:#6EE7B7!important; }
+        .estado-perdido    { border-color:rgba(239,68,68,0.3)!important; color:#FCA5A5!important; }
+        .col-estado { display:flex; flex-direction:column; gap:6px; }
+
         .empty-state { text-align:center; padding:80px 20px; color:var(--gris); }
         .empty-state .icon { font-size:52px; margin-bottom:16px; }
         .empty-state h3 { font-size:18px; font-weight:700; color:var(--texto); margin-bottom:8px; }
@@ -163,6 +175,17 @@
                 <div class="modal-campo"><span class="modal-campo-label">Canal</span><span class="modal-campo-valor" id="modalCanal">—</span></div>
                 <div class="modal-campo"><span class="modal-campo-label">Primer contacto</span><span class="modal-campo-valor" id="modalFecha">—</span></div>
                 <div class="modal-campo"><span class="modal-campo-label">Renders generados</span><span class="modal-campo-valor" id="modalRenders">—</span></div>
+                <div class="modal-campo">
+                    <span class="modal-campo-label">Estado</span>
+                    <select class="estado-select" id="modalEstado" onchange="cambiarEstadoModal(this.value)">
+                        <option value="nuevo">🔵 Nuevo</option>
+                        <option value="contacto">📞 En contacto</option>
+                        <option value="cotizado">💰 Cotizado</option>
+                        <option value="negociando">🤝 Negociando</option>
+                        <option value="ganado">✅ Ganado</option>
+                        <option value="perdido">❌ Perdido</option>
+                    </select>
+                </div>
             </div>
             <div class="modal-seccion" id="seccionRenders" style="display:none;">
                 <h3>🖼️ Últimos renders</h3>
@@ -211,6 +234,7 @@
             <span>Canal</span>
             <span>Renders</span>
             <span>Último contacto</span>
+            <span>Estado</span>
             <span>Acción</span>
         </div>
         <div id="clientesLista">
@@ -292,6 +316,7 @@ async function cargarClientes() {
                 created_at:    c.created_at,
                 imagenes:      [],
                 nota:          c.nota || '',
+                estado:        c.estado || 'nuevo',
             };
         }
     });
@@ -318,6 +343,7 @@ async function cargarClientes() {
                 created_at: img.created_at,
                 imagenes:   [img],
                 nota:       '',
+                estado:     'nuevo',
             };
         }
     });
@@ -381,6 +407,18 @@ function renderClientes() {
             <div>${canalBadge}</div>
             <div><span class="badge badge-morado">🖼️ ${c.renders}</span></div>
             <div style="font-size:13px;color:var(--gris);">${fecha}</div>
+            <div onclick="event.stopPropagation()">
+                <select class="estado-select estado-${c.estado||'nuevo'}" 
+                    onchange="cambiarEstado('${c.id}', this.value, this)" 
+                    title="Estado del cliente">
+                    <option value="nuevo"      ${(c.estado||'nuevo')==='nuevo'      ?'selected':''}>🔵 Nuevo</option>
+                    <option value="contacto"   ${(c.estado||'nuevo')==='contacto'   ?'selected':''}>📞 En contacto</option>
+                    <option value="cotizado"   ${(c.estado||'nuevo')==='cotizado'   ?'selected':''}>💰 Cotizado</option>
+                    <option value="negociando" ${(c.estado||'nuevo')==='negociando' ?'selected':''}>🤝 Negociando</option>
+                    <option value="ganado"     ${(c.estado||'nuevo')==='ganado'     ?'selected':''}>✅ Ganado</option>
+                    <option value="perdido"    ${(c.estado||'nuevo')==='perdido'    ?'selected':''}>❌ Perdido</option>
+                </select>
+            </div>
             <div onclick="event.stopPropagation()">${wa}</div>
         </div>`;
     }).join('');
@@ -401,6 +439,7 @@ function abrirCliente(clienteId) {
     document.getElementById('modalFecha').textContent   = formatFecha(c.created_at);
     document.getElementById('modalRenders').textContent = `${c.renders} render${c.renders !== 1 ? 's' : ''}`;
     document.getElementById('modalNota').value          = c.nota || '';
+    document.getElementById('modalEstado').value        = c.estado || 'nuevo';
 
     const waNum = c.telefono?.replace(/\D/g,'');
     document.getElementById('modalBtnWa').href = waNum
@@ -474,6 +513,41 @@ function exportarCSV() {
 function formatFecha(fecha) {
     if (!fecha) return '—';
     return new Date(fecha).toLocaleDateString('es-CO', { day:'numeric', month:'short', year:'numeric' });
+}
+
+
+// ── ESTADOS CRM ──────────────────────────────────────────────────────────
+async function cambiarEstado(clienteId, nuevoEstado, selectEl) {
+    // Actualizar color del select
+    selectEl.className = `estado-select estado-${nuevoEstado}`;
+    // Actualizar en memoria
+    const c = todosClientes.find(x => x.id === clienteId || x.id.toString() === clienteId);
+    if (c) c.estado = nuevoEstado;
+    // Guardar en Supabase si tiene ID real de clientes_finales
+    try {
+        await db.from('clientes_finales').update({ estado: nuevoEstado }).eq('id', clienteId);
+        // Toast de confirmación
+        mostrarToast(`✅ Estado actualizado: ${nuevoEstado}`);
+    } catch(e) { console.error('Error actualizando estado:', e); }
+}
+
+async function cambiarEstadoModal(nuevoEstado) {
+    if (!clienteSeleccionado) return;
+    await cambiarEstado(clienteSeleccionado.id, nuevoEstado, document.getElementById('modalEstado'));
+    clienteSeleccionado.estado = nuevoEstado;
+}
+
+function mostrarToast(msg) {
+    let t = document.getElementById('crmToast');
+    if (!t) {
+        t = document.createElement('div');
+        t.id = 'crmToast';
+        t.style.cssText = 'position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#111827;color:white;padding:12px 24px;border-radius:50px;font-size:14px;font-weight:600;z-index:999;opacity:0;transition:opacity 0.3s;pointer-events:none;white-space:nowrap;box-shadow:0 8px 30px rgba(0,0,0,0.3);';
+        document.body.appendChild(t);
+    }
+    t.textContent = msg; t.style.opacity = '1';
+    clearTimeout(window._toastTimer);
+    window._toastTimer = setTimeout(() => { t.style.opacity = '0'; }, 2500);
 }
 
 async function cerrarSesion() {
