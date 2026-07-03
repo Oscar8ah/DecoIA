@@ -1855,6 +1855,9 @@ function animate() {
     renderer.render(scene,camera);
 }
 
+// ── PESTAÑAS ──────────────────────────────────────────────────────────────
+let vistaActual='3d', fotoIaUrl=null, salaConstruida=false;
+
 configurarLuces();
 requestAnimationFrame(()=>{ centrarCamara(); animate(); });
 cargarPortafolio();
@@ -1868,9 +1871,6 @@ cargarPortafolio();
         mostrarToast('📐 Empieza por tu Editor de Planta');
     }
 }
-
-// ── PESTAÑAS ──────────────────────────────────────────────────────────────
-let vistaActual='3d', fotoIaUrl=null, salaConstruida=false;
 
 function cambiarVista(vista) {
     vistaActual=vista;
