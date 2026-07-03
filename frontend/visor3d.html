@@ -244,7 +244,20 @@
     </button>
 </div>
 <!-- EDITOR PLANTA L T U -->
-<div id="vistaPlanta" style="display:none;flex-direction:column;flex:1;background:var(--oscuro);overflow:hidden;"></div>
+<div id="vistaPlanta" style="display:none;flex-direction:column;flex:1;background:var(--oscuro);overflow:hidden;">
+    <div style="flex:1;position:relative;overflow:hidden;background:#0a0a14;">
+        <canvas id="canvasPlanta" style="position:absolute;top:0;left:0;"></canvas>
+        <div id="plantaInstruccion" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;color:var(--gris);pointer-events:none;">
+            <div style="font-size:48px;margin-bottom:12px;">📐</div>
+            <div style="font-size:16px;font-weight:700;color:var(--texto);margin-bottom:8px;">Editor de Planta</div>
+            <div style="font-size:13px;line-height:1.7;">Agrega módulos con los botones de arriba<br>Arrástralos para formar L, T, U ✨</div>
+        </div>
+    </div>
+    <div style="padding:10px 16px;background:var(--oscuro2);border-top:1px solid rgba(124,58,237,0.15);display:flex;gap:8px;overflow-x:auto;min-height:44px;align-items:center;">
+        <span style="font-size:12px;color:var(--gris);white-space:nowrap;">Módulos:</span>
+        <div id="listaModulos" style="display:flex;gap:6px;flex-wrap:nowrap;"></div>
+    </div>
+</div>
 
     <!-- TOOLBAR -->
     <div style="display:flex;gap:8px;padding:12px 16px;background:var(--oscuro2);border-bottom:1px solid rgba(124,58,237,0.2);flex-wrap:wrap;align-items:center;">
