@@ -362,38 +362,19 @@
         <div id="portafolioContenido"><div class="loading-port"><div class="spinner-small"></div>Cargando portafolio...</div></div>
     </div>
 
-    <div class="panel-section">
-        <div class="panel-titulo">🏠 Habitación</div>
-        <div class="hab-btn activo" onclick="cargarHabitacion('sala', this)"><span>🛋️</span> Sala</div>
-        <div class="hab-btn" onclick="cargarHabitacion('cocina', this)"><span>🍳</span> Cocina</div>
-        <div class="hab-btn" onclick="cargarHabitacion('habitacion', this)"><span>🛏️</span> Habitación</div>
-        <div class="hab-btn" onclick="cargarHabitacion('bano', this)"><span>🚿</span> Baño</div>
-        <div class="hab-btn" onclick="cargarHabitacion('oficina', this)"><span>💼</span> Oficina</div>
+    <div class="panel-section" id="panelSinPlano" style="display:block;">
+        <div class="panel-titulo">📐 Sin plano generado</div>
+        <div style="font-size:12.5px;color:var(--gris);line-height:1.6;">Ve a <b style="color:var(--texto);">Editor Planta</b>, arma tu distribución y dale <b style="color:var(--texto);">"Generar 3D"</b>.</div>
     </div>
 
-    <div class="panel-section">
-        <div class="panel-titulo">📐 Dimensiones</div>
-        <div class="control-grupo">
-            <div class="control-label">Ancho <span class="control-valor" id="valAncho">5.0m</span></div>
-            <input type="range" min="3" max="12" value="5" step="0.5" oninput="cambiarDimension('ancho',this.value)">
-        </div>
-        <div class="control-grupo">
-            <div class="control-label">Largo <span class="control-valor" id="valLargo">6.0m</span></div>
-            <input type="range" min="3" max="15" value="6" step="0.5" oninput="cambiarDimension('largo',this.value)">
-        </div>
-        <div class="control-grupo">
-            <div class="control-label">Alto <span class="control-valor" id="valAlto">2.8m</span></div>
-            <input type="range" min="2.2" max="4.5" value="2.8" step="0.1" oninput="cambiarDimension('alto',this.value)">
-        </div>
-    </div>
-
-    <div class="panel-section">
-        <div class="panel-titulo">📊 Cálculos</div>
+    <div class="panel-section" id="panelPlanoInfo" style="display:none;">
+        <div class="panel-titulo">📊 Tu plano</div>
         <div class="stats-row">
-            <div class="stat-item"><div class="stat-num" id="statArea">30</div><div class="stat-lbl">m² piso</div></div>
-            <div class="stat-item"><div class="stat-num" id="statParedes">78</div><div class="stat-lbl">m² paredes</div></div>
-            <div class="stat-item"><div class="stat-num" id="statPerimetro">22</div><div class="stat-lbl">m lineal</div></div>
+            <div class="stat-item"><div class="stat-num" id="statArea">0</div><div class="stat-lbl">m² piso</div></div>
+            <div class="stat-item"><div class="stat-num" id="statParedes">0</div><div class="stat-lbl">m² paredes</div></div>
+            <div class="stat-item"><div class="stat-num" id="statPerimetro">0</div><div class="stat-lbl">m lineal</div></div>
         </div>
+        <div style="font-size:12px;color:var(--gris);margin-top:8px;" id="statModulos"></div>
     </div>
 
     <!-- SELECTOR SUPERFICIE — solo visible en modo interior -->
@@ -1605,7 +1586,7 @@ function crearMaterialPared(color) {
 function construirHabitacion() {
     salaConstruida = true;
     const aEliminar = [];
-    scene.traverse(obj => { if (obj.isMesh || obj.isGroup) aEliminar.push(obj); });
+    scene.traverse(obj => { if (obj.isMesh || obj.isGroup || obj.isSprite) aEliminar.push(obj); });
     aEliminar.forEach(obj => scene.remove(obj));
     meshes = {};
     // Limpiar luces de techo
@@ -2674,7 +2655,7 @@ function cargarDesdePlano(modelo3d) {
 
     // Limpiar escena actual
     const aEliminar = [];
-    scene.traverse(obj => { if (obj.isMesh || obj.isGroup) aEliminar.push(obj); });
+    scene.traverse(obj => { if (obj.isMesh || obj.isGroup || obj.isSprite) aEliminar.push(obj); });
     aEliminar.forEach(obj => scene.remove(obj));
     meshes = {};
     mobiliarioMeshes = {};
@@ -2761,11 +2742,36 @@ function cargarDesdePlano(modelo3d) {
         scene.add(sprite);
     });
 
-    // Actualizar estado con dimensiones del plano completo
+    // Actualizar estado con dimensiones del plano completo (para cámara)
     estado.ancho = maxX;
     estado.largo = maxZ;
     estado.alto  = altoPiso;
-    actualizarStats();
+
+    // Estadísticas reales: suma de áreas de módulos + paredes efectivamente construidas
+    const areaPiso = modulos.reduce((sum, m) => sum + m.ancho * m.largo, 0);
+    let areaParedes = 0, perimetro = 0;
+    modulos.forEach(mod => {
+        const sinPared = new Set();
+        paredes_compartidas.forEach(pc => {
+            if (pc.modulo_a === mod.id || pc.modulo_b === mod.id) {
+                sinPared.add(pc.lado);
+                const opuesto = { norte:'sur', sur:'norte', este:'oeste', oeste:'este' };
+                if (pc.modulo_b === mod.id) sinPared.add(opuesto[pc.lado]);
+            }
+        });
+        const alto = mod.alto || altoPiso;
+        [['norte',mod.ancho],['sur',mod.ancho],['oeste',mod.largo],['este',mod.largo]].forEach(([lado,largoPared]) => {
+            if (sinPared.has(lado)) return;
+            areaParedes += largoPared * alto;
+            perimetro += largoPared;
+        });
+    });
+    document.getElementById('statArea').textContent = areaPiso.toFixed(1);
+    document.getElementById('statParedes').textContent = areaParedes.toFixed(1);
+    document.getElementById('statPerimetro').textContent = perimetro.toFixed(1);
+    document.getElementById('statModulos').textContent = `${modulos.length} módulo${modulos.length===1?'':'s'}: ${modulos.map(m=>m.nombre).join(', ')}`;
+    document.getElementById('panelSinPlano').style.display = 'none';
+    document.getElementById('panelPlanoInfo').style.display = 'block';
 
     // Centrar cámara sobre el plano completo
     const distCam = Math.max(maxX, maxZ) * 1.5;
