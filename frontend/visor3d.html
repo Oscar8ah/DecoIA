@@ -207,9 +207,9 @@
 </div>
 
 <div class="tabs-principales">
-    <button class="tab-vista active" id="tab3d" onclick="cambiarVista('3d')">🏗️ Entorno 3D</button>
+    <button class="tab-vista active" id="tabPlanta" onclick="cambiarVista('planta')">📐 Editor Planta</button>
+    <button class="tab-vista" id="tab3d" onclick="cambiarVista('3d')">🏗️ Entorno 3D</button>
     <button class="tab-vista" id="tabFoto" onclick="cambiarVista('foto')">📸 Foto IA</button>
-    <button class="tab-vista" id="tabPlanta" onclick="cambiarVista('planta')">📐 Editor Planta</button>
 </div>
 <!-- TOOLBAR EDITOR PLANTA — visible solo en pestaña planta -->
 <div id="toolbarPlanta" style="display:none;position:fixed;top:100px;left:0;width:200px;height:auto;flex-direction:column;z-index:500;background:var(--oscuro2);border-right:1px solid rgba(124,58,237,0.2);padding:12px;gap:8px;gap:8px;padding:10px 16px;background:var(--oscuro2);border-bottom:1px solid rgba(124,58,237,0.2);flex-wrap:wrap;align-items:center;">
@@ -230,6 +230,13 @@
 <div class="modo-badge" id="modoBadge">🖱️ Haz clic en el mueble y arrástralo · ESC para salir</div>
 
 <canvas id="canvas3d"></canvas>
+<div id="entorno3dVacio" style="position:fixed;top:96px;left:0;right:300px;bottom:0;display:flex;align-items:center;justify-content:center;pointer-events:none;text-align:center;color:var(--gris);z-index:10;">
+    <div>
+        <div style="font-size:48px;margin-bottom:12px;">🏗️</div>
+        <div style="font-size:16px;font-weight:700;color:var(--texto);margin-bottom:8px;">Aún no hay nada que visualizar</div>
+        <div style="font-size:13px;line-height:1.7;">Crea tu distribución en 📐 Editor Planta y dale "Generar 3D"<br>o ajusta ancho/largo/alto en el panel derecho para una sala rápida</div>
+    </div>
+</div>
 
 <div id="vistaFoto">
     <div id="fotoIaContenido">
@@ -1596,6 +1603,7 @@ function crearMaterialPared(color) {
 
 // ── CONSTRUIR HABITACIÓN ──────────────────────────────────────────────────
 function construirHabitacion() {
+    salaConstruida = true;
     const aEliminar = [];
     scene.traverse(obj => { if (obj.isMesh || obj.isGroup) aEliminar.push(obj); });
     aEliminar.forEach(obj => scene.remove(obj));
@@ -1847,14 +1855,22 @@ function animate() {
     renderer.render(scene,camera);
 }
 
-construirHabitacion();
 configurarLuces();
 requestAnimationFrame(()=>{ centrarCamara(); animate(); });
 cargarPortafolio();
-mostrarToast('🏗️ Visor 3D listo — arrastra para rotar');
+{
+    const paramsInicio = new URLSearchParams(window.location.search);
+    if (paramsInicio.get('plano')) {
+        cambiarVista('3d');
+        mostrarToast('🏠 Cargando tu plano...');
+    } else {
+        cambiarVista('planta');
+        mostrarToast('📐 Empieza por tu Editor de Planta');
+    }
+}
 
 // ── PESTAÑAS ──────────────────────────────────────────────────────────────
-let vistaActual='3d', fotoIaUrl=null;
+let vistaActual='3d', fotoIaUrl=null, salaConstruida=false;
 
 function cambiarVista(vista) {
     vistaActual=vista;
@@ -1866,6 +1882,7 @@ function cambiarVista(vista) {
     canvas.style.display=vista==='3d'?'block':'none';
     document.getElementById('vistaFoto').style.display=vista==='foto'?'flex':'none';
     document.getElementById('vistaPlanta').style.display=vista==='planta'?'flex':'none';
+    document.getElementById('entorno3dVacio').style.display=(vista==='3d' && !salaConstruida)?'flex':'none';
     if (vista==='foto' && fotoIaUrl) {
         document.getElementById('fotoIaContenido').innerHTML=`<div class="foto-ia-container"><img src="${fotoIaUrl}" alt="Foto generada por IA"></div>`;
         document.getElementById('btnEnviarCliente').style.display='flex';
@@ -2652,6 +2669,8 @@ function cargarDesdePlano(modelo3d) {
         mostrarToast('⚠️ El plano no tiene módulos válidos');
         return;
     }
+
+    salaConstruida = true;
 
     // Limpiar escena actual
     const aEliminar = [];
