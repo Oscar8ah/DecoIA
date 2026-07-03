@@ -213,7 +213,7 @@
 </div>
 <!-- TOOLBAR EDITOR PLANTA — visible solo en pestaña planta -->
 <div id="toolbarPlanta" style="display:none;position:fixed;top:100px;left:0;width:200px;height:auto;flex-direction:column;z-index:500;background:var(--oscuro2);border-right:1px solid rgba(124,58,237,0.2);padding:12px;gap:8px;gap:8px;padding:10px 16px;background:var(--oscuro2);border-bottom:1px solid rgba(124,58,237,0.2);flex-wrap:wrap;align-items:center;">
-    <span style="font-size:12px;font-weight:700;color:#A78BFA;margin-right:4px;">➕ Módulo:</span>
+    <div style="font-size:11px;font-weight:700;color:#A78BFA;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;padding-bottom:8px;border-bottom:1px solid rgba(124,58,237,0.2);">➕ Módulos</div>
     <button onclick="rotarModulo()" style="background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🔄 Rotar</button>
     <button onclick="agregarModulo('sala')"       style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#93C5FD;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🛋️ Sala</button>
     <button onclick="agregarModulo('cocina')"     style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:#6EE7B7;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🍳 Cocina</button>
@@ -221,7 +221,7 @@
     <button onclick="agregarModulo('bano')"       style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.3);color:#FCD34D;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🚿 Baño</button>
     <button onclick="agregarModulo('pasillo')"    style="background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.2);color:var(--gris);padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🚶 Pasillo</button>
     <button onclick="agregarModulo('zona')"       style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:#FCA5A5;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">📦 Zona</button>
-    <div style="margin-left:auto;display:flex;gap:8px;">
+    <div style="border-top:1px solid rgba(124,58,237,0.2);margin-top:4px;padding-top:8px;display:flex;flex-direction:column;gap:6px;">
         <button onclick="limpiarPlanta()" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#FCA5A5;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🗑️ Limpiar</button>
         <button onclick="generarDesdePlanta()" style="background:var(--degradado);color:white;border:none;padding:5px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">✨ Generar 3D</button>
     </div>
