@@ -212,8 +212,9 @@
     <button class="tab-vista" id="tabPlanta" onclick="cambiarVista('planta')">📐 Editor Planta</button>
 </div>
 <!-- TOOLBAR EDITOR PLANTA — visible solo en pestaña planta -->
-<div id="toolbarPlanta" style="display:none;min-height:50px;gap:8px;padding:10px 16px;background:var(--oscuro2);border-bottom:1px solid rgba(124,58,237,0.2);flex-wrap:wrap;align-items:center;"></div>
+<div id="toolbarPlanta" style="display:none;min-height:50px;gap:8px;padding:10px 16px;background:var(--oscuro2);border-bottom:1px solid rgba(124,58,237,0.2);flex-wrap:wrap;align-items:center;">
     <span style="font-size:12px;font-weight:700;color:#A78BFA;margin-right:4px;">➕ Módulo:</span>
+    <button onclick="rotarModulo()" style="background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🔄 Rotar</button>
     <button onclick="agregarModulo('sala')"       style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#93C5FD;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🛋️ Sala</button>
     <button onclick="agregarModulo('cocina')"     style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:#6EE7B7;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🍳 Cocina</button>
     <button onclick="agregarModulo('habitacion')" style="background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🛏️ Habitación</button>
@@ -2303,6 +2304,20 @@ function iniciarEditorPlanta() {
         c.ontouchmove  = e => { e.preventDefault(); onPlantaMouseMove(e.touches[0]); };
         c.ontouchend   = e => { e.preventDefault(); onPlantaMouseUp(); };
     }, 100);
+    // Zoom con scroll del mouse
+        c.onwheel = (e) => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? 0.9 : 1.1;
+            zoomPlanta  = Math.max(0.3, Math.min(3, zoomPlanta * delta));
+            dibujarPlanta();
+        };
+
+        // Tecla Delete para eliminar módulo seleccionado
+        document.onkeydown = (e) => {
+            if ((e.key === 'Delete' || e.key === 'Backspace') && moduloSeleccionado) {
+                eliminarModuloSeleccionado();
+            }
+        };
 }
 
 function agregarModulo(tipo) {
@@ -2333,14 +2348,20 @@ function dibujarPlanta() {
     const ctx = c.getContext('2d');
     ctx.clearRect(0, 0, c.width, c.height);
 
+    ctx.save();
+    ctx.translate(panX, panY);
+    ctx.scale(zoomPlanta, zoomPlanta);
+
     // Grid de fondo
     ctx.strokeStyle = 'rgba(124,58,237,0.08)';
     ctx.lineWidth   = 1;
-    for (let x = 0; x < c.width; x += ESCALA) {
-        ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,c.height); ctx.stroke();
+    const w = c.width  / zoomPlanta;
+    const h = c.height / zoomPlanta;
+    for (let x = 0; x < w; x += ESCALA) {
+        ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke();
     }
-    for (let y = 0; y < c.height; y += ESCALA) {
-        ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(c.width,y); ctx.stroke();
+    for (let y = 0; y < h; y += ESCALA) {
+        ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();
     }
 
     // Módulos
@@ -2351,8 +2372,8 @@ function dibujarPlanta() {
         const color = COLORES_MODULO[m.tipo] || '#7C3AED';
 
         // Sombra
-        ctx.shadowColor   = color;
-        ctx.shadowBlur    = selec ? 16 : 6;
+        ctx.shadowColor = color;
+        ctx.shadowBlur  = selec ? 16 : 6;
 
         // Fondo
         ctx.fillStyle = color + (selec ? '40' : '25');
@@ -2368,44 +2389,86 @@ function dibujarPlanta() {
         ctx.shadowBlur = 0;
 
         // Etiqueta
-        ctx.fillStyle  = 'white';
-        ctx.font       = `bold ${Math.min(13, pw/6)}px Segoe UI`;
-        ctx.textAlign  = 'center';
+        ctx.fillStyle    = 'white';
+        ctx.font         = `bold ${Math.min(13, pw/6)}px Segoe UI`;
+        ctx.textAlign    = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(m.nombre, m.px + pw/2, m.pz + ph/2 - 8);
 
         // Dimensiones
-        ctx.fillStyle  = 'rgba(255,255,255,0.6)';
-        ctx.font       = `${Math.min(11, pw/7)}px Segoe UI`;
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.font      = `${Math.min(11, pw/7)}px Segoe UI`;
         ctx.fillText(`${m.ancho}m × ${m.largo}m`, m.px + pw/2, m.pz + ph/2 + 10);
 
-        // Handle de resize (esquina inf-der)
+        // Handle de resize (esquina inf-der) — más grande para facilitar click
         ctx.fillStyle = color;
         ctx.beginPath();
-        ctx.arc(m.px + pw, m.pz + ph, 5, 0, Math.PI*2);
+        ctx.arc(m.px + pw, m.pz + ph, 7, 0, Math.PI*2);
         ctx.fill();
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth   = 1.5;
+        ctx.stroke();
     });
+
+    ctx.restore();
+
+    // Indicador de zoom
+    if (zoomPlanta !== 1) {
+        ctx.fillStyle = 'rgba(124,58,237,0.7)';
+        ctx.fillRect(8, 8, 70, 24);
+        ctx.fillStyle = 'white';
+        ctx.font      = 'bold 12px Segoe UI';
+        ctx.textAlign = 'left';
+        ctx.fillText(`🔍 ${Math.round(zoomPlanta*100)}%`, 14, 24);
+    }
+}
+// ── VARIABLES ZOOM Y RESIZE ───────────────────────────────────────────────
+let zoomPlanta   = 1;
+let panX = 0, panY = 0;
+let resizing     = false;
+let resizeModulo = null;
+
+function coordsCanvas(e) {
+    const c    = document.getElementById('canvasPlanta');
+    const rect = c.getBoundingClientRect();
+    return {
+        mx: (e.clientX - rect.left - panX) / zoomPlanta,
+        my: (e.clientY - rect.top  - panY) / zoomPlanta
+    };
 }
 
 function onPlantaMouseDown(e) {
-    const c    = document.getElementById('canvasPlanta');
-    const rect = c.getBoundingClientRect();
-    const mx   = e.clientX - rect.left;
-    const my   = e.clientY - rect.top;
+    const { mx, my } = coordsCanvas(e);
 
-    // Buscar módulo clickeado (de arriba a abajo)
+    // Verificar si clickeó el handle de resize (esquina inf-der)
+    for (let i = modulosPlanta.length - 1; i >= 0; i--) {
+        const m  = modulosPlanta[i];
+        const pw = m.ancho * ESCALA;
+        const ph = m.largo * ESCALA;
+        const hx = m.px + pw;
+        const hy = m.pz + ph;
+        if (Math.abs(mx - hx) < 12 && Math.abs(my - hy) < 12) {
+            seleccionarModulo(m.id);
+            resizing     = true;
+            resizeModulo = m;
+            return;
+        }
+    }
+
+    // Buscar módulo clickeado
     for (let i = modulosPlanta.length - 1; i >= 0; i--) {
         const m  = modulosPlanta[i];
         const pw = m.ancho * ESCALA;
         const ph = m.largo * ESCALA;
         if (mx >= m.px && mx <= m.px + pw && my >= m.pz && my <= m.pz + ph) {
             seleccionarModulo(m.id);
-            dragging     = true;
-            dragOffsetX  = mx - m.px;
-            dragOffsetZ  = my - m.pz;
+            dragging    = true;
+            dragOffsetX = mx - m.px;
+            dragOffsetZ = my - m.pz;
             return;
         }
     }
+
     // Click en vacío — deseleccionar
     moduloSeleccionado = null;
     document.getElementById('panelPropiedades').style.display = 'none';
@@ -2413,22 +2476,49 @@ function onPlantaMouseDown(e) {
 }
 
 function onPlantaMouseMove(e) {
-    if (!dragging || !moduloSeleccionado) return;
-    const c    = document.getElementById('canvasPlanta');
-    const rect = c.getBoundingClientRect();
-    const mx   = e.clientX - rect.left;
-    const my   = e.clientY - rect.top;
-    // Snap a la grilla (cada 0.5m)
-    const snap = ESCALA * 0.5;
-    moduloSeleccionado.px = Math.round((mx - dragOffsetX) / snap) * snap;
-    moduloSeleccionado.pz = Math.round((my - dragOffsetZ) / snap) * snap;
-    // Actualizar posición en metros
-    moduloSeleccionado.x = moduloSeleccionado.px / ESCALA;
-    moduloSeleccionado.z = moduloSeleccionado.pz / ESCALA;
-    dibujarPlanta();
+    const { mx, my } = coordsCanvas(e);
+
+    if (resizing && resizeModulo) {
+        const snap  = ESCALA * 0.5;
+        const newPw = Math.round((mx - resizeModulo.px) / snap) * snap;
+        const newPh = Math.round((my - resizeModulo.pz) / snap) * snap;
+        resizeModulo.ancho = Math.max(1, newPw / ESCALA);
+        resizeModulo.largo = Math.max(1, newPh / ESCALA);
+        if (moduloSeleccionado?.id === resizeModulo.id) {
+            document.getElementById('propAncho').value = resizeModulo.ancho.toFixed(1);
+            document.getElementById('propLargo').value = resizeModulo.largo.toFixed(1);
+        }
+        dibujarPlanta();
+        return;
+    }
+
+    if (dragging && moduloSeleccionado) {
+        const snap = ESCALA * 0.5;
+        moduloSeleccionado.px = Math.round((mx - dragOffsetX) / snap) * snap;
+        moduloSeleccionado.pz = Math.round((my - dragOffsetZ) / snap) * snap;
+        moduloSeleccionado.x  = moduloSeleccionado.px / ESCALA;
+        moduloSeleccionado.z  = moduloSeleccionado.pz / ESCALA;
+        dibujarPlanta();
+    }
+
+    // Cambiar cursor cerca del handle de resize
+    const c = document.getElementById('canvasPlanta');
+    let nearHandle = false;
+    for (const m of modulosPlanta) {
+        const hx = m.px + m.ancho * ESCALA;
+        const hy = m.pz + m.largo * ESCALA;
+        if (Math.abs(mx - hx) < 12 && Math.abs(my - hy) < 12) {
+            nearHandle = true; break;
+        }
+    }
+    c.style.cursor = nearHandle ? 'se-resize' : (dragging ? 'grabbing' : 'crosshair');
 }
 
-function onPlantaMouseUp() { dragging = false; }
+function onPlantaMouseUp() {
+    dragging  = false;
+    resizing  = false;
+    resizeModulo = null;
+}
 
 function seleccionarModulo(id) {
     moduloSeleccionado = modulosPlanta.find(m => m.id === id);
