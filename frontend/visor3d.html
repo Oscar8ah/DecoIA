@@ -1876,9 +1876,7 @@ function cambiarVista(vista) {
     document.getElementById('tab3d').classList.toggle('active',    vista==='3d');
     document.getElementById('tabFoto').classList.toggle('active',  vista==='foto');
     document.getElementById('tabPlanta').classList.toggle('active',vista==='planta');
-    const tp = document.getElementById('toolbarPlanta');
-    if(tp) tp.style.display = vista==='planta' ? 'flex' : 'none';
-    document.getElementById('toolbarPlanta').style.display = vista==='planta' ? 'flex' : 'none';
+    document.getElementById('toolbarPlanta').style.display = vista==='planta' ? 'flex' : 'none';lanta' ? 'flex' : 'none';
     canvas.style.display=vista==='3d'?'block':'none';
     document.getElementById('vistaFoto').style.display=vista==='foto'?'flex':'none';
     document.getElementById('vistaPlanta').style.display=vista==='planta'?'flex':'none';
