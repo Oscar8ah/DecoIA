@@ -332,6 +332,11 @@
     </div>
     <!-- Cuerpo colapsable -->
     <div class="cp-body" id="cpBody">
+        <div id="cpSelectorCuarto" style="margin-bottom:8px;display:none;">
+            <label style="font-size:10px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;">Cuarto</label>
+            <select id="cpCuartoSelect" onchange="cambiarCuartoCamaraPivote(this.value)"
+                style="width:100%;background:var(--oscuro);border:1px solid rgba(124,58,237,0.25);border-radius:8px;padding:6px 8px;color:var(--texto);font-size:12px;margin-top:3px;outline:none;"></select>
+        </div>
         <div class="cp-grid">
             <div class="cp-campo"><label>Posición X</label><input type="range" id="cpX" min="-4" max="4" value="0" step="0.1" oninput="moverCamaraPivote()"></div>
             <div class="cp-campo"><label>Posición Z</label><input type="range" id="cpZ" min="-4" max="4" value="0" step="0.1" oninput="moverCamaraPivote()"></div>
@@ -517,6 +522,19 @@ const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ── VENTANA CORREDIZA ALUMINIO ────────────────────────────────────────────
+function construirGeometriaPuerta(g, W, H) {
+    while (g.children.length > 0) g.remove(g.children[0]);
+    const marcoMatP = new THREE.MeshStandardMaterial({ color:0x8B6914, roughness:0.5 });
+    const hojaMatP  = new THREE.MeshStandardMaterial({ color:0x6B4423, roughness:0.6 });
+    const hoja = new THREE.Mesh(new THREE.BoxGeometry(W*0.92, H*0.96, 0.05), hojaMatP);
+    g.add(hoja);
+    const manija = new THREE.Mesh(new THREE.SphereGeometry(0.03,8,8), new THREE.MeshStandardMaterial({color:0xD4AF37, metalness:0.7, roughness:0.3}));
+    manija.position.set(W*0.32, 0, 0.05);
+    g.add(manija);
+    [{geo:new THREE.BoxGeometry(0.06,H,0.08),pos:[-W/2,0,0]},{geo:new THREE.BoxGeometry(0.06,H,0.08),pos:[W/2,0,0]},{geo:new THREE.BoxGeometry(W+0.06,0.06,0.08),pos:[0,H/2,0]}]
+        .forEach(m => { const marco=new THREE.Mesh(m.geo,marcoMatP); marco.position.set(...m.pos); g.add(marco); });
+}
+
 function construirGeometriaVentana(g, id, W, H) {
     while (g.children.length > 0) g.remove(g.children[0]);
     const colorAlum   = id === 'ventana_blanca' ? 0xDDDDDD : 0x252525;
@@ -561,18 +579,19 @@ function abrirPanelVentana(id) {
     const nombres = {
         ventana_blanca: '🪟 Ventana blanca',
         ventana_negra:  '🖤 Ventana negra',
-        ventana_balcon: '🏙️ Ventana balcón'
+        ventana_balcon: '🏙️ Ventana balcón',
+        puerta:         '🚪 Puerta'
     };
     const tituloEl = document.getElementById('vdpTitulo');
     if (tituloEl) tituloEl.textContent = nombres[id] || '🪟 Ventana';
     window._ventanaPanelId = id;
-    // Cargar dims actuales de esa ventana
+    // Cargar dims actuales de esa ventana/puerta
     const g = mobiliarioMeshes[id];
     if (g) {
         const inputA = document.getElementById('vdpAncho');
         const inputH = document.getElementById('vdpAlto');
-        if (inputA) inputA.value = g.userData.ventanaAncho || (id==='ventana_balcon' ? 2.4 : 1.2);
-        if (inputH) inputH.value = g.userData.ventanaAlto  || (id==='ventana_balcon' ? 2.2 : 0.9);
+        if (inputA) inputA.value = g.userData.ventanaAncho || (id==='ventana_balcon' ? 2.4 : id==='puerta' ? 0.9 : 1.2);
+        if (inputH) inputH.value = g.userData.ventanaAlto  || (id==='ventana_balcon' ? 2.2 : id==='puerta' ? 2.1 : 0.9);
     }
     document.getElementById('ventanaDimPanel').style.display = 'block';
 }
@@ -650,15 +669,18 @@ function aplicarDimensionesVentana() {
     const h   = parseFloat(document.getElementById('vdpAlto').value)||0.9;
     const wCl = Math.max(0.4, Math.min(4.0, w));
     const hCl = Math.max(0.3, Math.min(3.0, h));
-    // Aplicar solo a la ventana activa del panel
+    // Aplicar solo a la ventana/puerta activa del panel
     const id = window._ventanaPanelId || muebleSeleccionado;
-    if (!id || !id.startsWith('ventana')) { mostrarToast('⚠️ Selecciona una ventana primero'); return; }
+    if (!esPegableAPared(id)) { mostrarToast('⚠️ Selecciona una ventana o puerta primero'); return; }
     const g = mobiliarioMeshes[id];
     if (!g) return;
     window._ventanaAncho = wCl;
     window._ventanaAlto  = hCl;
     if (id === 'ventana_balcon') {
         construirGeometriaVentanaBalcon(g, wCl, hCl);
+        g.position.y = hCl / 2;
+    } else if (id === 'puerta') {
+        construirGeometriaPuerta(g, wCl, hCl);
         g.position.y = hCl / 2;
     } else {
         construirGeometriaVentana(g, id, wCl, hCl);
@@ -715,21 +737,43 @@ function limpiarHuecosVentana() {
 // pared donde está anclada la ventana mientras se arrastra
 let paredVentanaActual = null;
 
+function nudgeVentana(dir) {
+    const id = ['ventana_blanca','ventana_negra','ventana_balcon','puerta'].find(v => mobiliarioMeshes[v] && muebleSeleccionado === v)
+             || window._ventanaPanelId
+             || ['ventana_blanca','ventana_negra','ventana_balcon','puerta'].find(v => mobiliarioMeshes[v]);
+    const g = id && mobiliarioMeshes[id];
+    if (!g || !paredVentanaActual) { mostrarToast('⚠️ Primero elige una pared'); return; }
+    const { ancho, largo } = estado;
+    const hw = ancho/2, hl = largo/2;
+    const vW = g.userData.ventanaAncho || 1.2;
+    const PASO = 0.15;
+    if (paredVentanaActual === 'trasera' || paredVentanaActual === 'frontal') {
+        const xMax = hw - vW/2 - 0.05;
+        g.position.x = Math.max(-xMax, Math.min(xMax, g.position.x + dir * PASO));
+    } else {
+        const zMax = hl - vW/2 - 0.05;
+        g.position.z = Math.max(-zMax, Math.min(zMax, g.position.z + dir * PASO));
+    }
+    if (huecosVentana[id]) crearHuecoVentana(id, g.position, g.rotation.y);
+}
+
 function seleccionarParedVentana(pared) {
     paredVentanaActual = pared;
-    const id = ['ventana_blanca','ventana_negra','ventana_balcon'].find(v => mobiliarioMeshes[v] && muebleSeleccionado === v)
-             || ['ventana_blanca','ventana_negra','ventana_balcon'].find(v => mobiliarioMeshes[v]);
+    const id = ['ventana_blanca','ventana_negra','ventana_balcon','puerta'].find(v => mobiliarioMeshes[v] && muebleSeleccionado === v)
+             || ['ventana_blanca','ventana_negra','ventana_balcon','puerta'].find(v => mobiliarioMeshes[v]);
     if (!id) return;
     const g = mobiliarioMeshes[id];
     const { ancho, largo, alto } = estado;
     const hw = ancho/2, hl = largo/2;
     const vH = g.userData.ventanaAlto || 0.9;
-    const y  = Math.min(alto * 0.55, alto - vH/2 - 0.15);
+    const yPiso = (id === 'puerta' || id === 'ventana_balcon');
+    const y  = yPiso ? vH/2 : Math.min(alto * 0.55, alto - vH/2 - 0.15);
     if (pared==='trasera')  { g.position.set(0, y, -hl+0.06); g.rotation.y=0; }
     if (pared==='frontal')  { g.position.set(0, y,  hl-0.06); g.rotation.y=0; }
     if (pared==='izq')      { g.position.set(-hw+0.06, y, 0); g.rotation.y=Math.PI/2; }
     if (pared==='der')      { g.position.set( hw-0.06, y, 0); g.rotation.y=Math.PI/2; }
-    mostrarToast('🪟 Ventana en pared ' + pared + ' — usa ↔ para ajustar posición');
+    crearHuecoVentana(id, g.position, g.rotation.y);
+    mostrarToast((id==='puerta' ? '🚪 Puerta' : '🪟 Ventana') + ' en pared ' + pared + ' — usa ◀▶ para ajustar posición');
 }
 
 function pegarVentanaAPared(ventanaGrupo, ndc) {
@@ -738,7 +782,7 @@ function pegarVentanaAPared(ventanaGrupo, ndc) {
     const vW = ventanaGrupo.userData.ventanaAncho || 1.2;
     const vH = ventanaGrupo.userData.ventanaAlto  || 0.9;
     // Balcón va desde el piso — y fijo en vH/2
-    const esBalcon = (muebleSeleccionado === 'ventana_balcon');
+    const esBalcon = (muebleSeleccionado === 'ventana_balcon' || muebleSeleccionado === 'puerta');
     const yFijo    = esBalcon ? vH/2 : null;
     const yMin     = esBalcon ? vH/2 : vH/2 + 0.25;
     const yMax     = esBalcon ? vH/2 : alto - vH/2 - 0.15;
@@ -855,10 +899,16 @@ const CATALOGO_MUEBLES = [
     { id:'ventana_blanca',  nombre:'Ventana blanca',  icon:'🪟', hint:'Pared — marco blanco' },
     { id:'ventana_negra',   nombre:'Ventana negra',   icon:'🖼️', hint:'Pared — marco negro' },
     { id:'ventana_balcon',  nombre:'Ventana balcón',  icon:'🏙️', hint:'Piso a techo — 3 hojas' },
+    { id:'puerta',          nombre:'Puerta',          icon:'🚪', hint:'Pared — usa ◀ ▶ para cambiar de lado' },
 ];
+
+function esPegableAPared(id) {
+    return !!id && (id.startsWith('ventana') || id === 'puerta');
+}
 
 let meshes            = {};
 let luces             = {};
+let modulosActuales3D = []; // {id,nombre,cx,cz,ancho,largo,alto} de cada módulo del plano cargado
 let mobiliarioMeshes  = {};
 let todosProductos    = [];
 let productoActivo    = null;
@@ -893,7 +943,7 @@ function renderListaMuebles() {
                 ${enEscena ? `
                 <button class="btn-mueble btn-mover ${muebleSeleccionado===m.id ? 'activo' : ''}"
                     onclick="activarMoverMueble('${m.id}')" title="Mover a pared">↔</button>
-                ${m.id.startsWith('ventana')
+                ${esPegableAPared(m.id)
                     ? `<button class="btn-mueble btn-rotar" onclick="rotarVentana('${m.id}')" title="Cambiar pared (H/V)">⟂</button>`
                     : `<button class="btn-mueble btn-rotar" onclick="rotarMueble('${m.id}')" title="Rotar 45°">↻</button>`
                 }
@@ -916,9 +966,9 @@ function toggleMueble(id) {
         if (grupo) {
             mobiliarioMeshes[id] = grupo;
             scene.add(grupo);
-            if (id.startsWith('ventana')) {
+            if (esPegableAPared(id)) {
                 abrirPanelVentana(id);
-                mostrarToast('🪟 Ventana agregada — elige pared y ajusta dimensiones');
+                mostrarToast(id === 'puerta' ? '🚪 Puerta agregada — elige pared y ajusta dimensiones' : '🪟 Ventana agregada — elige pared y ajusta dimensiones');
             } else {
                 mostrarToast(`${CATALOGO_MUEBLES.find(m=>m.id===id)?.icon} Mueble agregado — usa ↔ para mover`);
             }
@@ -1107,6 +1157,16 @@ function crearMueble(id, posX=0, posZ=0) {
             break;
         }
 
+        case 'puerta': {
+            const vW = window._ventanaAncho || 0.9;
+            const vH = window._ventanaAlto  || 2.1;
+            construirGeometriaPuerta(g, vW, vH);
+            g.position.set(posX, vH/2, posZ);
+            g.userData.ventanaAncho = vW;
+            g.userData.ventanaAlto  = vH;
+            break;
+        }
+
         default:
             return null;
     }
@@ -1157,7 +1217,7 @@ function rotarVentana(id) {
     if (huecosVentana[id]) {
         huecosVentana[id].rotation.y = g.rotation.y;
     }
-    mostrarToast('⟂ Ventana girada — arrastra para pegar a nueva pared');
+    mostrarToast('⟂ Girada — arrastra para pegar a nueva pared');
 }
 function rotarMueble(id) {
     const g = mobiliarioMeshes[id];
@@ -1184,8 +1244,8 @@ canvas.addEventListener('mousedown', (e) => {
     const grupo = mobiliarioMeshes[muebleSeleccionado];
     if (!grupo) return;
 
-    // Para ventanas: activar drag directamente (renderOrder interfiere con raycast)
-    if (muebleSeleccionado.startsWith('ventana')) {
+    // Para ventanas y puertas: activar drag directamente (renderOrder interfiere con raycast)
+    if (esPegableAPared(muebleSeleccionado)) {
         muebleArrastrando = grupo;
         controls.enabled  = false;
         e.stopPropagation();
@@ -1210,10 +1270,10 @@ canvas.addEventListener('mousemove', (e) => {
     raycaster.setFromCamera(mouse, camera);
 
     const id = muebleArrastrando.userData.muebleId || '';
-    const esVentana = id.startsWith('ventana');
+    const esVentana = esPegableAPared(id);
 
     if (esVentana) {
-        // Ventanas se pegan a la pared más cercana
+        // Ventanas y puertas se pegan a la pared más cercana
         pegarVentanaAPared(muebleArrastrando, ndc);
     } else {
         // Muebles normales — plano Y=0
@@ -1228,13 +1288,13 @@ canvas.addEventListener('mousemove', (e) => {
 canvas.addEventListener('mouseup', () => {
     if (muebleArrastrando) {
         const id = muebleArrastrando.userData.muebleId || '';
-        if (id.startsWith('ventana')) {
+        if (esPegableAPared(id)) {
             const pos = muebleArrastrando.position.clone();
-            // Solo crear hueco si la ventana llegó a una pared (pos no es 0,0,0)
+            // Solo crear hueco si llegó a una pared (pos no es 0,0,0)
             const enPared = Math.abs(pos.x) > 0.5 || Math.abs(pos.z) > 0.5;
             if (enPared) {
                 crearHuecoVentana(id, pos, muebleArrastrando.rotation.y);
-                mostrarToast('🪟 Ventana incrustada ✅');
+                mostrarToast(id === 'puerta' ? '🚪 Puerta incrustada ✅' : '🪟 Ventana incrustada ✅');
             } else {
                 mostrarToast('↔ Arrastra hasta una pared para incrustar');
             }
@@ -1624,6 +1684,7 @@ function construirHabitacion() {
 
     const {ancho,largo,alto} = estado;
     const hw=ancho/2, hl=largo/2;
+    modulosActuales3D = [{ id:'unico', nombre:'Sala', cx:0, cz:0, ancho, largo, alto }];
     const matPared = crearMaterialPared(estado.colorPared);
     const matPiso  = crearMaterialPiso(estado.materialPiso);
 
@@ -1907,8 +1968,8 @@ async function capturarYGenerarIA() {
         const base64Canvas = canvas.toDataURL('image/png', 1.0).split(',')[1];
         const { ancho, largo, alto } = estado;
 
-        // Describir muebles con posición
-        const mueblesList = Object.entries(mobiliarioMeshes).map(([id, g]) => {
+        // Describir muebles con posición (excluye ventanas/puerta, que tienen descripción propia más abajo)
+        const mueblesList = Object.entries(mobiliarioMeshes).filter(([id]) => !esPegableAPared(id)).map(([id, g]) => {
             const p = g.position;
             let pos = '';
             if (Math.abs(p.z + largo/2) < 0.8)      pos = 'contra pared del fondo';
@@ -1919,8 +1980,8 @@ async function capturarYGenerarIA() {
             return id.replace(/_/g,' ') + ' ' + pos;
         });
 
-        // Ventanas — incluyendo balcón
-        const ventanaDesc = ['ventana_blanca','ventana_negra','ventana_balcon'].filter(v => mobiliarioMeshes[v]).map(v => {
+        // Ventanas y puerta — incluyendo balcón
+        const ventanaDesc = ['ventana_blanca','ventana_negra','ventana_balcon','puerta'].filter(v => mobiliarioMeshes[v]).map(v => {
             const g  = mobiliarioMeshes[v];
             const vw = (g.userData.ventanaAncho || 1.2).toFixed(2);
             const vh = (g.userData.ventanaAlto  || 0.9).toFixed(2);
@@ -1932,6 +1993,8 @@ async function capturarYGenerarIA() {
             else if (Math.abs(p.x - ancho/2) < 0.5) paredV = 'pared derecha';
             const tipo = v === 'ventana_balcon'
                 ? `ventana balcón piso-a-techo ${vw}×${vh}m de aluminio, 3 hojas verticales`
+                : v === 'puerta'
+                ? `puerta de madera ${vw}×${vh}m`
                 : `ventana corrediza aluminio marco ${v==='ventana_blanca'?'blanco':'negro'} ${vw}×${vh}m`;
             const pctAncho = ((parseFloat(vw)/ancho)*100).toFixed(0);
             const pctAlto  = ((parseFloat(vh)/alto)*100).toFixed(0);
@@ -2039,6 +2102,8 @@ function toggleCamaraInterior() {
         activarCamaraPivote();
     }
 }
+let cuartoPivoteActual = null; // id del módulo donde está la cámara interior ahora
+
 function activarCamaraPivote() {
     if(modoMover) desactivarMoverMueble();
     modoPivote=true;
@@ -2052,19 +2117,56 @@ function activarCamaraPivote() {
     if (panelSup) panelSup.classList.add('visible');
     if (supHintEl) supHintEl.textContent = 'Haz click en un botón para seleccionar la superficie a decorar';
     document.getElementById('camaraPivote').classList.add('activa');
-    const {ancho,largo,alto}=estado;
-    document.getElementById('cpX').min=-(ancho/2-0.5); document.getElementById('cpX').max=(ancho/2-0.5);
-    document.getElementById('cpZ').min=-(largo/2-0.5); document.getElementById('cpZ').max=(largo/2-0.5);
-    document.getElementById('cpY').max=alto-0.3;
-    document.getElementById('cpX').value=0; document.getElementById('cpZ').value=0; document.getElementById('cpY').value=1.6;
-    controls.enabled=false; moverCamaraPivote();
+
+    // Elegir el cuarto más cercano al punto donde estaba mirando la cámara orbital
+    const selector = document.getElementById('cpSelectorCuarto');
+    const select   = document.getElementById('cpCuartoSelect');
+    if (modulosActuales3D.length > 1) {
+        selector.style.display = 'block';
+        select.innerHTML = modulosActuales3D.map(m => `<option value="${m.id}">${m.nombre}</option>`).join('');
+        const t = controls.target;
+        let masCercano = modulosActuales3D[0], mejorDist = Infinity;
+        modulosActuales3D.forEach(m => {
+            const d = Math.hypot(m.cx - t.x, m.cz - t.z);
+            if (d < mejorDist) { mejorDist = d; masCercano = m; }
+        });
+        select.value = masCercano.id;
+        cuartoPivoteActual = masCercano.id;
+    } else {
+        selector.style.display = 'none';
+        cuartoPivoteActual = modulosActuales3D[0]?.id ?? null;
+    }
+
+    controls.enabled=false;
+    aplicarLimitesCuartoPivote();
     mostrarToast('📷 Modo cámara interior — arrastra para mirar');
 }
 
-function moverCamaraPivote() {
-    const x=parseFloat(document.getElementById('cpX').value);
+function aplicarLimitesCuartoPivote() {
+    const cuarto = modulosActuales3D.find(m => m.id === cuartoPivoteActual) || modulosActuales3D[0];
+    if (!cuarto) return;
+    const { cx, cz, ancho, largo, alto } = cuarto;
+    document.getElementById('cpX').min=-(ancho/2-0.4); document.getElementById('cpX').max=(ancho/2-0.4);
+    document.getElementById('cpZ').min=-(largo/2-0.4); document.getElementById('cpZ').max=(largo/2-0.4);
+    document.getElementById('cpY').max=Math.max(0.6, alto-0.3);
+    document.getElementById('cpX').value=0; document.getElementById('cpZ').value=0; document.getElementById('cpY').value=1.6;
+    moverCamaraPivote(cx, cz);
+}
+
+function cambiarCuartoCamaraPivote(id) {
+    cuartoPivoteActual = id;
+    aplicarLimitesCuartoPivote();
+    const cuarto = modulosActuales3D.find(m => m.id === id);
+    mostrarToast(`📷 Entraste a ${cuarto?.nombre || 'otro cuarto'}`);
+}
+
+function moverCamaraPivote(offsetX=null, offsetZ=null) {
+    const cuarto = modulosActuales3D.find(m => m.id === cuartoPivoteActual) || { cx:0, cz:0 };
+    const baseX = offsetX !== null ? offsetX : cuarto.cx;
+    const baseZ = offsetZ !== null ? offsetZ : cuarto.cz;
+    const x=parseFloat(document.getElementById('cpX').value)+baseX;
     const y=parseFloat(document.getElementById('cpY').value);
-    const z=parseFloat(document.getElementById('cpZ').value);
+    const z=parseFloat(document.getElementById('cpZ').value)+baseZ;
     const fov=parseFloat(document.getElementById('cpFov').value);
     camera.position.set(x,y,z); camera.fov=fov; camera.updateProjectionMatrix();
     controls.enabled=true; controls.target.set(x,y,z-2);
@@ -2761,6 +2863,7 @@ function cargarDesdePlano(modelo3d) {
     });
     const offsetX = maxX / 2;
     const offsetZ = maxZ / 2;
+    modulosActuales3D = [];
 
     // Construir cada módulo
     modulos.forEach(mod => {
@@ -2771,6 +2874,9 @@ function cargarDesdePlano(modelo3d) {
         const alto   = mod.alto || altoPiso;
         const color  = mod.color_pared || '#F5F5F5';
         const mat    = mod.material_piso || 'ceramica';
+        if (mod.tipo !== 'pared') {
+            modulosActuales3D.push({ id: mod.id, nombre: mod.nombre, cx: x, cz: z, ancho, largo, alto });
+        }
 
         const matPared = new THREE.MeshStandardMaterial({
             color: new THREE.Color(color), roughness: 0.85, metalness: 0.0
@@ -2956,7 +3062,12 @@ function cargarDesdePlano(modelo3d) {
             <button onclick="seleccionarParedVentana('izq')" style="padding:7px 4px;border-radius:7px;background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;font-size:11px;font-weight:700;cursor:pointer;font-family:'Segoe UI',sans-serif;">◀ Izquierda</button>
             <button onclick="seleccionarParedVentana('der')" style="padding:7px 4px;border-radius:7px;background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;font-size:11px;font-weight:700;cursor:pointer;font-family:'Segoe UI',sans-serif;">▶ Derecha</button>
         </div>
-        <div style="font-size:10px;color:var(--gris);margin-top:6px;line-height:1.5;">1. Elige la pared 2. Usa ↔ para ajustar posición exacta.</div>
+        <div style="font-size:10px;color:var(--gris);margin:8px 0 4px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;">↔️ Ajuste fino en la pared</div>
+        <div style="display:flex;gap:6px;">
+            <button onclick="nudgeVentana(-1)" style="flex:1;padding:8px;border-radius:7px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:var(--texto);font-size:14px;font-weight:700;cursor:pointer;">◀</button>
+            <button onclick="nudgeVentana(1)" style="flex:1;padding:8px;border-radius:7px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:var(--texto);font-size:14px;font-weight:700;cursor:pointer;">▶</button>
+        </div>
+        <div style="font-size:10px;color:var(--gris);margin-top:6px;line-height:1.5;">1. Elige la pared 2. Usa estas flechas para deslizarla sin cambiar de pared.</div>
     </div>
 </div>
 </body>
