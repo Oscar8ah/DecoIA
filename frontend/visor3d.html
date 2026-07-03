@@ -1829,8 +1829,43 @@ function crearMaterialPared(color) {
 }
 
 // ── CONSTRUIR HABITACIÓN ──────────────────────────────────────────────────
+function capturarEstadoMobiliario() {
+    return Object.entries(mobiliarioMeshes).map(([id, g]) => ({
+        id,
+        pos: g.position.clone(),
+        rotY: g.rotation.y,
+        ventanaAncho: g.userData.ventanaAncho,
+        ventanaAlto: g.userData.ventanaAlto,
+        teniaHueco: !!huecosVentana[id],
+    }));
+}
+
+function restaurarMobiliario(estadoGuardado) {
+    mobiliarioMeshes = {};
+    Object.keys(huecosVentana).forEach(k => delete huecosVentana[k]);
+    estadoGuardado.forEach(item => {
+        window._ventanaAncho = item.ventanaAncho;
+        window._ventanaAlto  = item.ventanaAlto;
+        const grupo = crearMueble(item.id, item.pos.x, item.pos.z);
+        if (!grupo) return;
+        grupo.position.copy(item.pos);
+        grupo.rotation.y = item.rotY;
+        if (item.ventanaAncho !== undefined) grupo.userData.ventanaAncho = item.ventanaAncho;
+        if (item.ventanaAlto  !== undefined) grupo.userData.ventanaAlto  = item.ventanaAlto;
+        mobiliarioMeshes[item.id] = grupo;
+        scene.add(grupo);
+        if (item.teniaHueco) crearHuecoVentana(item.id, grupo.position, grupo.rotation.y);
+    });
+    window._ventanaAncho = undefined;
+    window._ventanaAlto  = undefined;
+    renderListaMuebles();
+}
+
 function construirHabitacion() {
     salaConstruida = true;
+    const _vacioEl = document.getElementById('entorno3dVacio');
+    if (_vacioEl) _vacioEl.style.display = 'none';
+    const _mobiliarioGuardado = capturarEstadoMobiliario();
     const aEliminar = [];
     scene.traverse(obj => { if (obj.isMesh || obj.isGroup || obj.isSprite) aEliminar.push(obj); });
     aEliminar.forEach(obj => scene.remove(obj));
@@ -1907,17 +1942,10 @@ function construirHabitacion() {
     if (productoActivo) setTimeout(() => aplicarProductoPortafolio(productoActivo.id), 50);
     else if (meshes.piso) meshes.piso.material = crearMaterialPiso(estado.materialPiso);
 
-    // Re-agregar muebles que estaban en escena
-    const idsActivos = Object.keys(mobiliarioMeshes);
-    mobiliarioMeshes = {};
-    idsActivos.forEach(id => {
-        // Recuperar posición guardada si había
-        const grupo = crearMueble(id);
-        if (grupo) { mobiliarioMeshes[id]=grupo; scene.add(grupo); }
-    });
+    // Re-agregar muebles/ventanas que estaban en escena, con su posición y huecos originales
+    restaurarMobiliario(_mobiliarioGuardado);
 
     actualizarStats();
-    renderListaMuebles();
 }
 
 // ── LUCES ─────────────────────────────────────────────────────────────────
@@ -3001,9 +3029,11 @@ function cargarDesdePlano(modelo3d) {
     }
 
     salaConstruida = true;
+    const _vacioEl = document.getElementById('entorno3dVacio');
+    if (_vacioEl) _vacioEl.style.display = 'none';
 
-    // Guardar qué mobiliario/ventanas estaban activos para restaurarlos después
-    const mobiliarioActivoAntes = Object.keys(mobiliarioMeshes);
+    // Guardar qué mobiliario/ventanas estaban activos para restaurarlos después (con posición y huecos)
+    const mobiliarioActivoAntes = capturarEstadoMobiliario();
 
     // Limpiar escena actual
     const aEliminar = [];
@@ -3179,12 +3209,8 @@ function cargarDesdePlano(modelo3d) {
 
     configurarLuces();
 
-    // Re-agregar mobiliario/ventanas que estaban en escena antes de regenerar
-    mobiliarioActivoAntes.forEach(id => {
-        const grupo = crearMueble(id);
-        if (grupo) { mobiliarioMeshes[id] = grupo; scene.add(grupo); }
-    });
-    renderListaMuebles();
+    // Re-agregar mobiliario/ventanas que estaban en escena antes de regenerar, con su posición y huecos
+    restaurarMobiliario(mobiliarioActivoAntes);
 
     mostrarToast(`🏠 Plano cargado — ${modulos.length} espacios`);
 }
