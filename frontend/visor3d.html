@@ -2946,33 +2946,37 @@ function generarDesdePlanta() {
         m.x = +(m.px / ESCALA).toFixed(3);
         m.z = +(m.pz / ESCALA).toFixed(3);
     });
-    // Detectar paredes compartidas
+    // Detectar paredes compartidas — por TRAMO exacto de solape, no por lado completo.
+    // Esto evita que un solape parcial (ej: un pasillo angosto tocando apenas una esquina
+    // de otro cuarto) borre la pared entera; solo se quita el tramo que realmente se toca.
     const paredes_compartidas = [];
+    const TOL_CONTACTO = 0.15; // tolerancia de alineación física entre paredes (15cm)
+    const MIN_SOLAPE   = 0.05; // ignorar contactos de menos de 5cm (ruido de arrastre)
     for (let i = 0; i < modulosPlanta.length; i++) {
         for (let j = i+1; j < modulosPlanta.length; j++) {
             const a = modulosPlanta[i];
             const b = modulosPlanta[j];
             if (a.tipo === 'pared' || b.tipo === 'pared' || a.tipo === 'vidrio' || b.tipo === 'vidrio') continue; // columna/pared/vidrio nunca abre un hueco en el cuarto vecino
-            const tol = 0.6; // tolerancia en metros
-            // Pared norte de A = sur de B
-            if (Math.abs(a.z - (b.z + b.largo)) < tol &&
-                !(a.x + a.ancho <= b.x || b.x + b.ancho <= a.x)) {
-                paredes_compartidas.push({ modulo_a: a.id, modulo_b: b.id, lado:'norte' });
+
+            // Pared norte de A = sur de B (contacto en Z, tramo compartido en X)
+            if (Math.abs(a.z - (b.z + b.largo)) < TOL_CONTACTO) {
+                const ini = Math.max(a.x, b.x), fin = Math.min(a.x+a.ancho, b.x+b.ancho);
+                if (fin - ini > MIN_SOLAPE) paredes_compartidas.push({ modulo_a: a.id, modulo_b: b.id, lado:'norte', ini, fin });
             }
             // Pared sur de A = norte de B
-            if (Math.abs((a.z + a.largo) - b.z) < tol &&
-                !(a.x + a.ancho <= b.x || b.x + b.ancho <= a.x)) {
-                paredes_compartidas.push({ modulo_a: a.id, modulo_b: b.id, lado:'sur' });
+            if (Math.abs((a.z + a.largo) - b.z) < TOL_CONTACTO) {
+                const ini = Math.max(a.x, b.x), fin = Math.min(a.x+a.ancho, b.x+b.ancho);
+                if (fin - ini > MIN_SOLAPE) paredes_compartidas.push({ modulo_a: a.id, modulo_b: b.id, lado:'sur', ini, fin });
             }
-            // Pared oeste de A = este de B
-            if (Math.abs(a.x - (b.x + b.ancho)) < tol &&
-                !(a.z + a.largo <= b.z || b.z + b.largo <= a.z)) {
-                paredes_compartidas.push({ modulo_a: a.id, modulo_b: b.id, lado:'oeste' });
+            // Pared oeste de A = este de B (contacto en X, tramo compartido en Z)
+            if (Math.abs(a.x - (b.x + b.ancho)) < TOL_CONTACTO) {
+                const ini = Math.max(a.z, b.z), fin = Math.min(a.z+a.largo, b.z+b.largo);
+                if (fin - ini > MIN_SOLAPE) paredes_compartidas.push({ modulo_a: a.id, modulo_b: b.id, lado:'oeste', ini, fin });
             }
             // Pared este de A = oeste de B
-            if (Math.abs((a.x + a.ancho) - b.x) < tol &&
-                !(a.z + a.largo <= b.z || b.z + b.largo <= a.z)) {
-                paredes_compartidas.push({ modulo_a: a.id, modulo_b: b.id, lado:'este' });
+            if (Math.abs((a.x + a.ancho) - b.x) < TOL_CONTACTO) {
+                const ini = Math.max(a.z, b.z), fin = Math.min(a.z+a.largo, b.z+b.largo);
+                if (fin - ini > MIN_SOLAPE) paredes_compartidas.push({ modulo_a: a.id, modulo_b: b.id, lado:'este', ini, fin });
             }
         }
     }
@@ -3020,6 +3024,20 @@ async function cargarPlanoDesdeBD(planoId) {
         console.error('Error cargando plano:', e);
         mostrarToast('❌ Error cargando el plano');
     }
+}
+
+function restarIntervalos(ini, fin, huecos) {
+    let segmentos = [[ini, fin]];
+    huecos.forEach(([hIni, hFin]) => {
+        const nuevos = [];
+        segmentos.forEach(([sIni, sFin]) => {
+            if (hFin <= sIni || hIni >= sFin) { nuevos.push([sIni, sFin]); return; }
+            if (hIni > sIni) nuevos.push([sIni, Math.min(hIni, sFin)]);
+            if (hFin < sFin) nuevos.push([Math.max(hFin, sIni), sFin]);
+        });
+        segmentos = nuevos;
+    });
+    return segmentos.filter(([a,b]) => (b - a) > 0.05);
 }
 
 function cargarDesdePlano(modelo3d) {
@@ -3123,32 +3141,39 @@ function cargarDesdePlano(modelo3d) {
             });
         }
 
-        // Identificar qué lados tienen pared compartida
-        const sinPared = new Set();
+        // Recolectar huecos (tramos de contacto real con otros módulos) para cada lado
+        const huecosPorLado = { norte:[], sur:[], oeste:[], este:[] };
+        const opuestoLado = { norte:'sur', sur:'norte', este:'oeste', oeste:'este' };
         paredes_compartidas.forEach(pc => {
-            if (pc.modulo_a === mod.id || pc.modulo_b === mod.id) {
-                sinPared.add(pc.lado);
-                // El lado opuesto también se elimina en el módulo vecino
-                const opuesto = { norte:'sur', sur:'norte', este:'oeste', oeste:'este' };
-                if (pc.modulo_b === mod.id) sinPared.add(opuesto[pc.lado]);
-            }
+            if (pc.modulo_a === mod.id) huecosPorLado[pc.lado].push([pc.ini - offsetX_o_offsetZ(pc.lado), pc.fin - offsetX_o_offsetZ(pc.lado)]);
+            else if (pc.modulo_b === mod.id) huecosPorLado[opuestoLado[pc.lado]].push([pc.ini - offsetX_o_offsetZ(pc.lado), pc.fin - offsetX_o_offsetZ(pc.lado)]);
         });
+        function offsetX_o_offsetZ(lado) { return (lado==='norte'||lado==='sur') ? offsetX : offsetZ; }
 
-        // Paredes — solo las que NO son compartidas
+        // Paredes — cada lado se construye en segmentos, restando solo el tramo que se toca
+        const gruesoPared = 0.1;
         const paredesConfig = [
-            { id:'norte', geo: new THREE.BoxGeometry(ancho, alto, 0.1), pos: [x, alto/2, z - largo/2] },
-            { id:'sur',   geo: new THREE.BoxGeometry(ancho, alto, 0.1), pos: [x, alto/2, z + largo/2] },
-            { id:'oeste', geo: new THREE.BoxGeometry(0.1, alto, largo),  pos: [x - ancho/2, alto/2, z] },
-            { id:'este',  geo: new THREE.BoxGeometry(0.1, alto, largo),  pos: [x + ancho/2, alto/2, z] },
+            { id:'norte', horizontal:true,  ini: x-ancho/2, fin: x+ancho/2, posPerp: z-largo/2 },
+            { id:'sur',   horizontal:true,  ini: x-ancho/2, fin: x+ancho/2, posPerp: z+largo/2 },
+            { id:'oeste', horizontal:false, ini: z-largo/2, fin: z+largo/2, posPerp: x-ancho/2 },
+            { id:'este',  horizontal:false, ini: z-largo/2, fin: z+largo/2, posPerp: x+ancho/2 },
         ];
 
         paredesConfig.forEach(p => {
-            if (sinPared.has(p.id)) return; // pared compartida — no dibujar
-            const pared = new THREE.Mesh(p.geo, matPared.clone());
-            pared.position.set(...p.pos);
-            pared.castShadow = true;
-            pared.receiveShadow = true;
-            scene.add(pared);
+            const segmentos = restarIntervalos(p.ini, p.fin, huecosPorLado[p.id]);
+            segmentos.forEach(([sIni, sFin]) => {
+                const largoSeg = sFin - sIni;
+                const centro   = (sIni + sFin) / 2;
+                const geo = p.horizontal
+                    ? new THREE.BoxGeometry(largoSeg, alto, gruesoPared)
+                    : new THREE.BoxGeometry(gruesoPared, alto, largoSeg);
+                const pared = new THREE.Mesh(geo, matPared.clone());
+                if (p.horizontal) pared.position.set(centro, alto/2, p.posPerp);
+                else               pared.position.set(p.posPerp, alto/2, centro);
+                pared.castShadow = true;
+                pared.receiveShadow = true;
+                scene.add(pared);
+            });
         });
 
         // Etiqueta flotante del nombre del módulo
@@ -3175,23 +3200,29 @@ function cargarDesdePlano(modelo3d) {
     estado.largo = maxZ;
     estado.alto  = altoPiso;
 
-    // Estadísticas reales: suma de áreas de módulos + paredes efectivamente construidas
+    // Estadísticas reales: suma de áreas de módulos + paredes efectivamente construidas (por segmento real)
     const areaPiso = modulos.reduce((sum, m) => sum + m.ancho * m.largo, 0);
     let areaParedes = 0, perimetro = 0;
     modulos.forEach(mod => {
-        const sinPared = new Set();
+        if (mod.tipo === 'pared' || mod.tipo === 'vidrio') return;
+        const huecosPorLado = { norte:[], sur:[], oeste:[], este:[] };
+        const opuesto = { norte:'sur', sur:'norte', este:'oeste', oeste:'este' };
         paredes_compartidas.forEach(pc => {
-            if (pc.modulo_a === mod.id || pc.modulo_b === mod.id) {
-                sinPared.add(pc.lado);
-                const opuesto = { norte:'sur', sur:'norte', este:'oeste', oeste:'este' };
-                if (pc.modulo_b === mod.id) sinPared.add(opuesto[pc.lado]);
-            }
+            if (pc.modulo_a === mod.id) huecosPorLado[pc.lado].push([pc.ini, pc.fin]);
+            else if (pc.modulo_b === mod.id) huecosPorLado[opuesto[pc.lado]].push([pc.ini, pc.fin]);
         });
         const alto = mod.alto || altoPiso;
-        [['norte',mod.ancho],['sur',mod.ancho],['oeste',mod.largo],['este',mod.largo]].forEach(([lado,largoPared]) => {
-            if (sinPared.has(lado)) return;
-            areaParedes += largoPared * alto;
-            perimetro += largoPared;
+        [
+            ['norte', mod.x, mod.x+mod.ancho],
+            ['sur',   mod.x, mod.x+mod.ancho],
+            ['oeste', mod.z, mod.z+mod.largo],
+            ['este',  mod.z, mod.z+mod.largo],
+        ].forEach(([lado, ini, fin]) => {
+            restarIntervalos(ini, fin, huecosPorLado[lado]).forEach(([sIni, sFin]) => {
+                const largoSeg = sFin - sIni;
+                areaParedes += largoSeg * alto;
+                perimetro   += largoSeg;
+            });
         });
     });
     document.getElementById('statArea').textContent = areaPiso.toFixed(1);
