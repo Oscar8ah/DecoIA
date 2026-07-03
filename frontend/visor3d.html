@@ -2307,18 +2307,16 @@ function agregarModulo(tipo) {
     document.getElementById('plantaInstruccion').style.display = 'none';
     const id = Date.now();
     const c  = document.getElementById('canvasPlanta');
-    // Calcular posición que no se superponga
-    const x = 20 + (modulosPlanta.length % 4) * 5;
-    const z = 20 + Math.floor(modulosPlanta.length / 4) * 5;
+    const px = 100 + (modulosPlanta.length % 3) * (4 * ESCALA + 10);
+    const pz = 80  + Math.floor(modulosPlanta.length / 3) * (4 * ESCALA + 10);
     modulosPlanta.push({
         id, tipo,
         nombre: EMOJIS_MODULO[tipo] + ' ' + tipo.charAt(0).toUpperCase() + tipo.slice(1),
-        x, z,        // posición en metros
+        x: px / ESCALA, z: pz / ESCALA,   // posición en metros — derivada de px/pz, misma fuente que el dibujo
         ancho: tipo === 'pasillo' ? 1.5 : 4,
         largo: tipo === 'pasillo' ? 6   : 4,
         alto:  2.6,
-        px: 100 + (modulosPlanta.length % 3) * (4 * ESCALA + 10),
-        pz: 80  + Math.floor(modulosPlanta.length / 3) * (4 * ESCALA + 10),
+        px, pz,
     });
     seleccionarModulo(id);
     dibujarPlanta();
@@ -2517,6 +2515,18 @@ function seleccionarModulo(id) {
     actualizarListaModulos();
 }
 
+function rotarModulo() {
+    if (!moduloSeleccionado) { mostrarToast('⚠️ Selecciona un módulo primero'); return; }
+    const anchoViejo = moduloSeleccionado.ancho;
+    moduloSeleccionado.ancho = moduloSeleccionado.largo;
+    moduloSeleccionado.largo = anchoViejo;
+    document.getElementById('propAncho').value = moduloSeleccionado.ancho;
+    document.getElementById('propLargo').value = moduloSeleccionado.largo;
+    dibujarPlanta();
+    actualizarListaModulos();
+    mostrarToast('🔄 Módulo rotado 90°');
+}
+
 function actualizarPropModulo() {
     if (!moduloSeleccionado) return;
     moduloSeleccionado.ancho = parseFloat(document.getElementById('propAncho').value) || 4;
@@ -2571,6 +2581,13 @@ function generarDesdePlanta() {
         mostrarToast('⚠️ Agrega al menos un módulo');
         return;
     }
+    // Sincronizar x/z desde px/pz — px/pz es la posición real que se ve dibujada
+    // en el canvas; si un módulo nunca se arrastró, su x/z queda con el valor
+    // arbitrario de creación y desconectado del resto del plano.
+    modulosPlanta.forEach(m => {
+        m.x = +(m.px / ESCALA).toFixed(3);
+        m.z = +(m.pz / ESCALA).toFixed(3);
+    });
     // Detectar paredes compartidas
     const paredes_compartidas = [];
     for (let i = 0; i < modulosPlanta.length; i++) {
