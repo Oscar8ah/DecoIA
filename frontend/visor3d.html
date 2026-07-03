@@ -222,6 +222,7 @@
     <button onclick="agregarModulo('pasillo')"    style="background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.2);color:var(--gris);padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🚶 Pasillo</button>
     <button onclick="agregarModulo('zona')"       style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:#FCA5A5;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">📦 Zona</button>
     <button onclick="agregarModulo('pared')"      style="background:rgba(120,113,108,0.15);border:1px solid rgba(120,113,108,0.3);color:#D6D3D1;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🧱 Pared</button>
+    <button onclick="agregarModulo('vidrio')"     style="background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.3);color:#7DD3FC;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🪟 Vidrio</button>
     <div style="border-top:1px solid rgba(124,58,237,0.2);margin-top:4px;padding-top:8px;display:flex;flex-direction:column;gap:6px;">
         <button onclick="limpiarPlanta()" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#FCA5A5;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🗑️ Limpiar</button>
         <button onclick="generarDesdePlanta()" style="background:var(--degradado);color:white;border:none;padding:5px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">✨ Generar 3D</button>
@@ -522,6 +523,14 @@ const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ── VENTANA CORREDIZA ALUMINIO ────────────────────────────────────────────
+function construirGeometriaHueco(g, W, H) {
+    while (g.children.length > 0) g.remove(g.children[0]);
+    const matMarco = new THREE.MeshStandardMaterial({ color:0xAAAAAA, roughness:0.6, transparent:true, opacity:0.55 });
+    // Solo un marco delgado — no hay hoja, es una abertura
+    [{geo:new THREE.BoxGeometry(0.04,H,0.06),pos:[-W/2,0,0]},{geo:new THREE.BoxGeometry(0.04,H,0.06),pos:[W/2,0,0]},{geo:new THREE.BoxGeometry(W+0.04,0.04,0.06),pos:[0,H/2,0]}]
+        .forEach(m => { const marco=new THREE.Mesh(m.geo,matMarco); marco.position.set(...m.pos); g.add(marco); });
+}
+
 function construirGeometriaPuerta(g, W, H) {
     while (g.children.length > 0) g.remove(g.children[0]);
     const marcoMatP = new THREE.MeshStandardMaterial({ color:0x8B6914, roughness:0.5 });
@@ -698,7 +707,7 @@ function construirGeometriaVentanaBalcon(g, W, H) {
 function aplicarDimensionesVentana() {
     const w   = parseFloat(document.getElementById('vdpAncho').value)||1.2;
     const h   = parseFloat(document.getElementById('vdpAlto').value)||0.9;
-    const wCl = Math.max(0.4, Math.min(4.0, w));
+    const wCl = Math.max(0.4, Math.min(8.0, w));
     const hCl = Math.max(0.3, Math.min(3.0, h));
     // Aplicar solo a la ventana/puerta activa del panel
     const id = window._ventanaPanelId || muebleSeleccionado;
@@ -713,6 +722,11 @@ function aplicarDimensionesVentana() {
     } else if (id === 'puerta') {
         construirGeometriaPuerta(g, wCl, hCl);
         g.position.y = hCl / 2;
+    } else if (id === 'hueco') {
+        construirGeometriaHueco(g, wCl, hCl);
+        g.position.y = hCl / 2;
+    } else if (id === 'toallero') {
+        // Tamaño fijo — no se reconstruye geometría, solo se guarda para el hueco/posicionamiento
     } else {
         construirGeometriaVentana(g, id, wCl, hCl);
     }
@@ -769,9 +783,9 @@ function limpiarHuecosVentana() {
 let paredVentanaActual = null;
 
 function nudgeVentana(dir) {
-    const id = ['ventana_blanca','ventana_negra','ventana_balcon','puerta'].find(v => mobiliarioMeshes[v] && muebleSeleccionado === v)
+    const id = ['ventana_blanca','ventana_negra','ventana_balcon','puerta','hueco','toallero'].find(v => mobiliarioMeshes[v] && muebleSeleccionado === v)
              || window._ventanaPanelId
-             || ['ventana_blanca','ventana_negra','ventana_balcon','puerta'].find(v => mobiliarioMeshes[v]);
+             || ['ventana_blanca','ventana_negra','ventana_balcon','puerta','hueco','toallero'].find(v => mobiliarioMeshes[v]);
     const g = id && mobiliarioMeshes[id];
     if (!g || !paredVentanaActual) { mostrarToast('⚠️ Primero elige una pared'); return; }
     const cuarto = modulosActuales3D.find(m => m.id === cuartoVentanaActual) || modulosActuales3D[0];
@@ -792,9 +806,9 @@ function nudgeVentana(dir) {
 
 function seleccionarParedVentana(pared) {
     paredVentanaActual = pared;
-    const id = ['ventana_blanca','ventana_negra','ventana_balcon','puerta'].find(v => mobiliarioMeshes[v] && muebleSeleccionado === v)
+    const id = ['ventana_blanca','ventana_negra','ventana_balcon','puerta','hueco','toallero'].find(v => mobiliarioMeshes[v] && muebleSeleccionado === v)
              || window._ventanaPanelId
-             || ['ventana_blanca','ventana_negra','ventana_balcon','puerta'].find(v => mobiliarioMeshes[v]);
+             || ['ventana_blanca','ventana_negra','ventana_balcon','puerta','hueco','toallero'].find(v => mobiliarioMeshes[v]);
     if (!id) return;
     const g = mobiliarioMeshes[id];
     const cuarto = modulosActuales3D.find(m => m.id === cuartoVentanaActual) || modulosActuales3D[0];
@@ -802,8 +816,9 @@ function seleccionarParedVentana(pared) {
     const { cx, cz, ancho, largo, alto } = cuarto;
     const hw = ancho/2, hl = largo/2;
     const vH = g.userData.ventanaAlto || 0.9;
-    const yPiso = (id === 'puerta' || id === 'ventana_balcon');
-    const y  = yPiso ? vH/2 : Math.min(alto * 0.55, alto - vH/2 - 0.15);
+    const yPiso = (id === 'puerta' || id === 'ventana_balcon' || id === 'hueco');
+    const yToallero = (id === 'toallero') ? 1.1 : null;
+    const y  = yToallero !== null ? yToallero : yPiso ? vH/2 : Math.min(alto * 0.55, alto - vH/2 - 0.15);
     if (pared==='trasera')  { g.position.set(cx, y, cz-hl+0.06); g.rotation.y=0; }
     if (pared==='frontal')  { g.position.set(cx, y, cz+hl-0.06); g.rotation.y=0; }
     if (pared==='izq')      { g.position.set(cx-hw+0.06, y, cz); g.rotation.y=Math.PI/2; }
@@ -820,8 +835,9 @@ function pegarVentanaAPared(ventanaGrupo, ndc) {
     const vW = ventanaGrupo.userData.ventanaAncho || 1.2;
     const vH = ventanaGrupo.userData.ventanaAlto  || 0.9;
     // Balcón/puerta van desde el piso — y fijo en vH/2
-    const esBalcon = (muebleSeleccionado === 'ventana_balcon' || muebleSeleccionado === 'puerta');
-    const yFijo    = esBalcon ? vH/2 : null;
+    const esBalcon = (muebleSeleccionado === 'ventana_balcon' || muebleSeleccionado === 'puerta' || muebleSeleccionado === 'hueco');
+    const esToallero = (muebleSeleccionado === 'toallero');
+    const yFijo    = esToallero ? 1.1 : esBalcon ? vH/2 : null;
     const yMin     = esBalcon ? vH/2 : vH/2 + 0.25;
     const yMax     = esBalcon ? vH/2 : alto - vH/2 - 0.15;
 
@@ -938,10 +954,19 @@ const CATALOGO_MUEBLES = [
     { id:'ventana_negra',   nombre:'Ventana negra',   icon:'🖼️', hint:'Pared — marco negro' },
     { id:'ventana_balcon',  nombre:'Ventana balcón',  icon:'🏙️', hint:'Piso a techo — 3 hojas' },
     { id:'puerta',          nombre:'Puerta',          icon:'🚪', hint:'Pared — usa ◀ ▶ para cambiar de lado' },
+    { id:'hueco',           nombre:'Hueco / vano',    icon:'⬜', hint:'Pared — abertura sin hoja, medidas ajustables' },
+    // ── COCINA ──
+    { id:'estufa',          nombre:'Estufa',          icon:'🔥', hint:'Cocina' },
+    { id:'cocina_integral', nombre:'Cocina integral', icon:'🗄️', hint:'Cocina — mesón y cajones' },
+    // ── BAÑO ──
+    { id:'inodoro',         nombre:'Inodoro',         icon:'🚽', hint:'Baño' },
+    { id:'ducha',           nombre:'Ducha',           icon:'🚿', hint:'Baño' },
+    { id:'lavamanos',       nombre:'Lavamanos',       icon:'🧼', hint:'Baño' },
+    { id:'toallero',        nombre:'Toallero',        icon:'🏳️', hint:'Baño — pegado a pared' },
 ];
 
 function esPegableAPared(id) {
-    return !!id && (id.startsWith('ventana') || id === 'puerta');
+    return !!id && (id.startsWith('ventana') || id === 'puerta' || id === 'hueco' || id === 'toallero');
 }
 
 let meshes            = {};
@@ -1203,6 +1228,103 @@ function crearMueble(id, posX=0, posZ=0) {
             g.position.set(posX, vH/2, posZ);
             g.userData.ventanaAncho = vW;
             g.userData.ventanaAlto  = vH;
+            break;
+        }
+
+        case 'hueco': {
+            // Abertura sin hoja — solo un marco delgado que marca el vano, para que sea seleccionable
+            const vW = window._ventanaAncho || 0.9;
+            const vH = window._ventanaAlto  || 2.1;
+            construirGeometriaHueco(g, vW, vH);
+            g.position.set(posX, vH/2, posZ);
+            g.userData.ventanaAncho = vW;
+            g.userData.ventanaAlto  = vH;
+            break;
+        }
+
+        case 'toallero': {
+            const matTo = mat(0xC0C0C0, 0.3, 0.8);
+            const barra = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.55,10), matTo);
+            barra.rotation.z = Math.PI/2;
+            g.add(barra);
+            [[-0.26,0],[0.26,0]].forEach(([x])=>{
+                const soporte = new THREE.Mesh(new THREE.BoxGeometry(0.03,0.06,0.03), matTo);
+                soporte.position.set(x, 0, -0.03); g.add(soporte);
+            });
+            g.userData.ventanaAncho = 0.55;
+            g.userData.ventanaAlto  = 0.06;
+            g.position.set(posX, 1.1, posZ);
+            break;
+        }
+
+        case 'estufa': {
+            const cuerpo = new THREE.Mesh(new THREE.BoxGeometry(0.6,0.85,0.6), mat(0xE5E5E5, 0.3, 0.5));
+            cuerpo.position.set(0,0.425,0); g.add(cuerpo);
+            const tapa = new THREE.Mesh(new THREE.BoxGeometry(0.62,0.03,0.62), mat(0x1A1A1A, 0.2, 0.6));
+            tapa.position.set(0,0.865,0); g.add(tapa);
+            [[-0.15,-0.15],[0.15,-0.15],[-0.15,0.15],[0.15,0.15]].forEach(([x,z])=>{
+                const hornilla = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.015,16), mat(0x0D0D0D,0.4,0.3));
+                hornilla.position.set(x,0.885,z); g.add(hornilla);
+            });
+            const perilla = new THREE.Mesh(new THREE.BoxGeometry(0.55,0.15,0.03), mat(0xCCCCCC,0.3,0.6));
+            perilla.position.set(0,0.55,0.31); g.add(perilla);
+            g.position.set(posX, 0, posZ);
+            break;
+        }
+
+        case 'cocina_integral': {
+            const base = new THREE.Mesh(new THREE.BoxGeometry(2.0,0.85,0.6), mat(0xD8CFC0, 0.5));
+            base.position.set(0,0.425,0); g.add(base);
+            const meson = new THREE.Mesh(new THREE.BoxGeometry(2.05,0.04,0.63), mat(0xF5F0E8, 0.15, 0.1));
+            meson.position.set(0,0.87,0); g.add(meson);
+            // Líneas de cajones
+            for (let i=-2;i<=2;i++) {
+                const cajon = new THREE.Mesh(new THREE.BoxGeometry(0.36,0.7,0.02), mat(0xC4B8A4,0.5));
+                cajon.position.set(i*0.38,0.4,0.31); g.add(cajon);
+                const manija = new THREE.Mesh(new THREE.BoxGeometry(0.14,0.02,0.02), mat(0x8A8A8A,0.3,0.7));
+                manija.position.set(i*0.38,0.55,0.33); g.add(manija);
+            }
+            g.position.set(posX, 0, posZ);
+            break;
+        }
+
+        case 'inodoro': {
+            const matI = mat(0xF5F5F5, 0.2, 0.05);
+            const tanque = new THREE.Mesh(new THREE.BoxGeometry(0.38,0.35,0.18), matI);
+            tanque.position.set(0,0.62,-0.18); g.add(tanque);
+            const base = new THREE.Mesh(new THREE.CylinderGeometry(0.19,0.16,0.4,16), matI);
+            base.position.set(0,0.2,0); g.add(base);
+            const asiento = new THREE.Mesh(new THREE.CylinderGeometry(0.21,0.21,0.04,16), mat(0xFFFFFF,0.3));
+            asiento.position.set(0,0.4,0.02); g.add(asiento);
+            g.position.set(posX, 0, posZ);
+            break;
+        }
+
+        case 'ducha': {
+            const base = new THREE.Mesh(new THREE.BoxGeometry(0.9,0.05,0.9), mat(0xE8E8E8, 0.3));
+            base.position.set(0,0.025,0); g.add(base);
+            const vidrio = new THREE.MeshStandardMaterial({ color:0xCFE8F0, transparent:true, opacity:0.18, roughness:0.05, metalness:0.9, side:THREE.DoubleSide });
+            const p1 = new THREE.Mesh(new THREE.BoxGeometry(0.9,2.0,0.02), vidrio); p1.position.set(0,1.0,-0.44); g.add(p1);
+            const p2 = new THREE.Mesh(new THREE.BoxGeometry(0.02,2.0,0.9), vidrio); p2.position.set(-0.44,1.0,0); g.add(p2);
+            const ducharCabezal = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,0.02,16), mat(0xB0B0B0,0.3,0.7));
+            ducharCabezal.position.set(0.2,2.05,-0.35); g.add(ducharCabezal);
+            const brazo = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.3,8), mat(0xB0B0B0,0.3,0.7));
+            brazo.rotation.z = Math.PI/2.3; brazo.position.set(0.1,2.05,-0.42); g.add(brazo);
+            g.position.set(posX, 0, posZ);
+            break;
+        }
+
+        case 'lavamanos': {
+            const matL = mat(0xF5F5F5, 0.2, 0.05);
+            const mueble = new THREE.Mesh(new THREE.BoxGeometry(0.6,0.75,0.45), mat(0xD8CFC0,0.5));
+            mueble.position.set(0,0.375,0); g.add(mueble);
+            const meson = new THREE.Mesh(new THREE.BoxGeometry(0.64,0.04,0.48), matL);
+            meson.position.set(0,0.77,0); g.add(meson);
+            const cubeta = new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.13,0.1,16), mat(0xEAEAEA,0.2));
+            cubeta.position.set(0,0.75,0); g.add(cubeta);
+            const grifo = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.2,8), mat(0xB0B0B0,0.3,0.8));
+            grifo.position.set(0,0.9,-0.15); g.add(grifo);
+            g.position.set(posX, 0, posZ);
             break;
         }
 
@@ -2020,7 +2142,7 @@ async function capturarYGenerarIA() {
         });
 
         // Ventanas y puerta — incluyendo balcón
-        const ventanaDesc = ['ventana_blanca','ventana_negra','ventana_balcon','puerta'].filter(v => mobiliarioMeshes[v]).map(v => {
+        const ventanaDesc = ['ventana_blanca','ventana_negra','ventana_balcon','puerta','hueco','toallero'].filter(v => mobiliarioMeshes[v]).map(v => {
             const g  = mobiliarioMeshes[v];
             const vw = (g.userData.ventanaAncho || 1.2).toFixed(2);
             const vh = (g.userData.ventanaAlto  || 0.9).toFixed(2);
@@ -2430,11 +2552,11 @@ let dragOffsetX = 0, dragOffsetZ = 0;
 const ESCALA = 40; // píxeles por metro
 const COLORES_MODULO = {
     sala:'#3B82F6', cocina:'#10B981', habitacion:'#7C3AED',
-    bano:'#F59E0B', pasillo:'#94A3B8', zona:'#EF4444', pared:'#78716C'
+    bano:'#F59E0B', pasillo:'#94A3B8', zona:'#EF4444', pared:'#78716C', vidrio:'#38BDF8'
 };
 const EMOJIS_MODULO = {
     sala:'🛋️', cocina:'🍳', habitacion:'🛏️',
-    bano:'🚿', pasillo:'🚶', zona:'📦', pared:'🧱'
+    bano:'🚿', pasillo:'🚶', zona:'📦', pared:'🧱', vidrio:'🪟'
 };
 
 function iniciarEditorPlanta() {
@@ -2479,8 +2601,8 @@ function agregarModulo(tipo) {
         id, tipo,
         nombre: EMOJIS_MODULO[tipo] + ' ' + tipo.charAt(0).toUpperCase() + tipo.slice(1),
         x: px / ESCALA, z: pz / ESCALA,   // posición en metros — derivada de px/pz, misma fuente que el dibujo
-        ancho: tipo === 'pasillo' ? 1.5 : tipo === 'pared' ? 0.3 : 4,
-        largo: tipo === 'pasillo' ? 6   : tipo === 'pared' ? 2.0 : 4,
+        ancho: tipo === 'pasillo' ? 1.5 : (tipo === 'pared' || tipo === 'vidrio') ? 0.15 : 4,
+        largo: tipo === 'pasillo' ? 6   : (tipo === 'pared' || tipo === 'vidrio') ? 2.0 : 4,
         alto:  2.6,
         px, pz,
     });
@@ -2802,6 +2924,7 @@ function generarDesdePlanta() {
         for (let j = i+1; j < modulosPlanta.length; j++) {
             const a = modulosPlanta[i];
             const b = modulosPlanta[j];
+            if (a.tipo === 'pared' || b.tipo === 'pared' || a.tipo === 'vidrio' || b.tipo === 'vidrio') continue; // columna/pared/vidrio nunca abre un hueco en el cuarto vecino
             const tol = 0.6; // tolerancia en metros
             // Pared norte de A = sur de B
             if (Math.abs(a.z - (b.z + b.largo)) < tol &&
@@ -2913,7 +3036,7 @@ function cargarDesdePlano(modelo3d) {
         const alto   = mod.alto || altoPiso;
         const color  = mod.color_pared || '#F5F5F5';
         const mat    = mod.material_piso || 'ceramica';
-        if (mod.tipo !== 'pared') {
+        if (mod.tipo !== 'pared' && mod.tipo !== 'vidrio') {
             modulosActuales3D.push({ id: mod.id, nombre: mod.nombre, cx: x, cz: z, ancho, largo, alto });
         }
 
@@ -2921,18 +3044,22 @@ function cargarDesdePlano(modelo3d) {
             color: new THREE.Color(color), roughness: 0.85, metalness: 0.0
         });
 
-        // ── Módulo tipo "pared" — bloque sólido (columna, muro fijo, etc.), no un cuarto ──
-        if (mod.tipo === 'pared') {
-            const bloque = new THREE.Mesh(new THREE.BoxGeometry(ancho, alto, largo), matPared);
+        // ── Módulo tipo "pared" o "vidrio" — bloque sólido (columna, muro fijo, divisor de vidrio), no un cuarto ──
+        if (mod.tipo === 'pared' || mod.tipo === 'vidrio') {
+            const esVidrio = mod.tipo === 'vidrio';
+            const matBloque = esVidrio
+                ? new THREE.MeshStandardMaterial({ color:0xCFE8F0, transparent:true, opacity:0.2, roughness:0.05, metalness:0.9, side:THREE.DoubleSide })
+                : matPared;
+            const bloque = new THREE.Mesh(new THREE.BoxGeometry(ancho, alto, largo), matBloque);
             bloque.position.set(x, alto/2, z);
-            bloque.castShadow = true;
+            bloque.castShadow = !esVidrio;
             bloque.receiveShadow = true;
             scene.add(bloque);
 
             const canvas2dP = document.createElement('canvas');
             canvas2dP.width = 256; canvas2dP.height = 64;
             const ctxP = canvas2dP.getContext('2d');
-            ctxP.fillStyle = 'rgba(120,113,108,0.85)';
+            ctxP.fillStyle = esVidrio ? 'rgba(56,189,248,0.85)' : 'rgba(120,113,108,0.85)';
             ctxP.roundRect(4, 4, 248, 56, 12);
             ctxP.fill();
             ctxP.fillStyle = 'white';
@@ -3089,7 +3216,7 @@ function cargarDesdePlano(modelo3d) {
     </div>
     <div class="vdp-row">
         <span class="vdp-label">Ancho</span>
-        <input class="vdp-input" id="vdpAncho" type="number" value="1.2" min="0.4" max="3.0" step="0.1">
+        <input class="vdp-input" id="vdpAncho" type="number" value="1.2" min="0.4" max="8.0" step="0.1">
         <span class="vdp-unit">m</span>
     </div>
     <div class="vdp-row">
