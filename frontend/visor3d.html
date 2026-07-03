@@ -575,6 +575,8 @@ function cerrarPanelVentana() {
     window._ventanaPanelId = null;
 }
 
+let cuartoVentanaActual = null; // id del módulo contra el que se calculan las paredes de la ventana/puerta seleccionada
+
 function abrirPanelVentana(id) {
     const nombres = {
         ventana_blanca: '🪟 Ventana blanca',
@@ -585,6 +587,29 @@ function abrirPanelVentana(id) {
     const tituloEl = document.getElementById('vdpTitulo');
     if (tituloEl) tituloEl.textContent = nombres[id] || '🪟 Ventana';
     window._ventanaPanelId = id;
+    paredVentanaActual = null;
+
+    // Selector de cuarto — solo si hay más de un módulo en el plano
+    const wrap = document.getElementById('vdpCuartoWrap');
+    const sel  = document.getElementById('vdpCuartoSelect');
+    if (modulosActuales3D.length > 1) {
+        wrap.style.display = 'block';
+        sel.innerHTML = modulosActuales3D.map(m => `<option value="${m.id}">${m.nombre}</option>`).join('');
+        const g = mobiliarioMeshes[id];
+        // Preseleccionar el cuarto más cercano a donde esté ahora mismo el mueble
+        let masCercano = modulosActuales3D[0], mejorDist = Infinity;
+        const px = g ? g.position.x : 0, pz = g ? g.position.z : 0;
+        modulosActuales3D.forEach(m => {
+            const d = Math.hypot(m.cx - px, m.cz - pz);
+            if (d < mejorDist) { mejorDist = d; masCercano = m; }
+        });
+        sel.value = masCercano.id;
+        cuartoVentanaActual = masCercano.id;
+    } else {
+        wrap.style.display = 'none';
+        cuartoVentanaActual = modulosActuales3D[0]?.id ?? null;
+    }
+
     // Cargar dims actuales de esa ventana/puerta
     const g = mobiliarioMeshes[id];
     if (g) {
@@ -594,6 +619,12 @@ function abrirPanelVentana(id) {
         if (inputH) inputH.value = g.userData.ventanaAlto  || (id==='ventana_balcon' ? 2.2 : id==='puerta' ? 2.1 : 0.9);
     }
     document.getElementById('ventanaDimPanel').style.display = 'block';
+}
+
+function cambiarCuartoVentana(id) {
+    cuartoVentanaActual = id;
+    paredVentanaActual = null;
+    mostrarToast('📐 Ahora se colocará contra ' + (modulosActuales3D.find(m=>m.id===id)?.nombre || 'ese cuarto'));
 }
 
 function togglePanelVentana() {
@@ -743,16 +774,18 @@ function nudgeVentana(dir) {
              || ['ventana_blanca','ventana_negra','ventana_balcon','puerta'].find(v => mobiliarioMeshes[v]);
     const g = id && mobiliarioMeshes[id];
     if (!g || !paredVentanaActual) { mostrarToast('⚠️ Primero elige una pared'); return; }
-    const { ancho, largo } = estado;
+    const cuarto = modulosActuales3D.find(m => m.id === cuartoVentanaActual) || modulosActuales3D[0];
+    if (!cuarto) return;
+    const { cx, cz, ancho, largo } = cuarto;
     const hw = ancho/2, hl = largo/2;
     const vW = g.userData.ventanaAncho || 1.2;
     const PASO = 0.15;
     if (paredVentanaActual === 'trasera' || paredVentanaActual === 'frontal') {
-        const xMax = hw - vW/2 - 0.05;
-        g.position.x = Math.max(-xMax, Math.min(xMax, g.position.x + dir * PASO));
+        const xMin = cx - hw + vW/2 + 0.05, xMax = cx + hw - vW/2 - 0.05;
+        g.position.x = Math.max(xMin, Math.min(xMax, g.position.x + dir * PASO));
     } else {
-        const zMax = hl - vW/2 - 0.05;
-        g.position.z = Math.max(-zMax, Math.min(zMax, g.position.z + dir * PASO));
+        const zMin = cz - hl + vW/2 + 0.05, zMax = cz + hl - vW/2 - 0.05;
+        g.position.z = Math.max(zMin, Math.min(zMax, g.position.z + dir * PASO));
     }
     if (huecosVentana[id]) crearHuecoVentana(id, g.position, g.rotation.y);
 }
@@ -760,41 +793,46 @@ function nudgeVentana(dir) {
 function seleccionarParedVentana(pared) {
     paredVentanaActual = pared;
     const id = ['ventana_blanca','ventana_negra','ventana_balcon','puerta'].find(v => mobiliarioMeshes[v] && muebleSeleccionado === v)
+             || window._ventanaPanelId
              || ['ventana_blanca','ventana_negra','ventana_balcon','puerta'].find(v => mobiliarioMeshes[v]);
     if (!id) return;
     const g = mobiliarioMeshes[id];
-    const { ancho, largo, alto } = estado;
+    const cuarto = modulosActuales3D.find(m => m.id === cuartoVentanaActual) || modulosActuales3D[0];
+    if (!cuarto) { mostrarToast('⚠️ Genera tu plano primero'); return; }
+    const { cx, cz, ancho, largo, alto } = cuarto;
     const hw = ancho/2, hl = largo/2;
     const vH = g.userData.ventanaAlto || 0.9;
     const yPiso = (id === 'puerta' || id === 'ventana_balcon');
     const y  = yPiso ? vH/2 : Math.min(alto * 0.55, alto - vH/2 - 0.15);
-    if (pared==='trasera')  { g.position.set(0, y, -hl+0.06); g.rotation.y=0; }
-    if (pared==='frontal')  { g.position.set(0, y,  hl-0.06); g.rotation.y=0; }
-    if (pared==='izq')      { g.position.set(-hw+0.06, y, 0); g.rotation.y=Math.PI/2; }
-    if (pared==='der')      { g.position.set( hw-0.06, y, 0); g.rotation.y=Math.PI/2; }
+    if (pared==='trasera')  { g.position.set(cx, y, cz-hl+0.06); g.rotation.y=0; }
+    if (pared==='frontal')  { g.position.set(cx, y, cz+hl-0.06); g.rotation.y=0; }
+    if (pared==='izq')      { g.position.set(cx-hw+0.06, y, cz); g.rotation.y=Math.PI/2; }
+    if (pared==='der')      { g.position.set(cx+hw-0.06, y, cz); g.rotation.y=Math.PI/2; }
     crearHuecoVentana(id, g.position, g.rotation.y);
-    mostrarToast((id==='puerta' ? '🚪 Puerta' : '🪟 Ventana') + ' en pared ' + pared + ' — usa ◀▶ para ajustar posición');
+    mostrarToast((id==='puerta' ? '🚪 Puerta' : '🪟 Ventana') + ' en pared ' + pared + ' de ' + cuarto.nombre + ' — usa ◀▶ para ajustar posición');
 }
 
 function pegarVentanaAPared(ventanaGrupo, ndc) {
-    const { ancho, largo, alto } = estado;
+    const cuarto = modulosActuales3D.find(m => m.id === cuartoVentanaActual) || modulosActuales3D[0];
+    if (!cuarto) return;
+    const { cx, cz, ancho, largo, alto } = cuarto;
     const hw = ancho/2, hl = largo/2;
     const vW = ventanaGrupo.userData.ventanaAncho || 1.2;
     const vH = ventanaGrupo.userData.ventanaAlto  || 0.9;
-    // Balcón va desde el piso — y fijo en vH/2
+    // Balcón/puerta van desde el piso — y fijo en vH/2
     const esBalcon = (muebleSeleccionado === 'ventana_balcon' || muebleSeleccionado === 'puerta');
     const yFijo    = esBalcon ? vH/2 : null;
     const yMin     = esBalcon ? vH/2 : vH/2 + 0.25;
     const yMax     = esBalcon ? vH/2 : alto - vH/2 - 0.15;
 
-    // Si no hay pared elegida, detectar la más cercana a la posición actual
+    // Si no hay pared elegida, detectar la más cercana a la posición actual (relativa al cuarto)
     if (!paredVentanaActual) {
         const p = ventanaGrupo.position;
         const dists = [
-            { n:'trasera', d: Math.abs(p.z + hl) },
-            { n:'frontal', d: Math.abs(p.z - hl) },
-            { n:'izq',     d: Math.abs(p.x + hw) },
-            { n:'der',     d: Math.abs(p.x - hw) },
+            { n:'trasera', d: Math.abs((p.z-cz) + hl) },
+            { n:'frontal', d: Math.abs((p.z-cz) - hl) },
+            { n:'izq',     d: Math.abs((p.x-cx) + hw) },
+            { n:'der',     d: Math.abs((p.x-cx) - hw) },
         ];
         paredVentanaActual = dists.sort((a,b)=>a.d-b.d)[0].n;
     }
@@ -803,29 +841,29 @@ function pegarVentanaAPared(ventanaGrupo, ndc) {
     raycaster.setFromCamera(mouse, camera);
 
     if (paredVentanaActual === 'trasera' || paredVentanaActual === 'frontal') {
-        const zFijo = paredVentanaActual === 'trasera' ? -hl+0.06 : hl-0.06;
+        const zFijo = paredVentanaActual === 'trasera' ? cz-hl+0.06 : cz+hl-0.06;
         const signo = paredVentanaActual === 'trasera' ? 1 : -1;
-        const plano = new THREE.Plane(new THREE.Vector3(0,0,signo), hl);
+        const plano = new THREE.Plane(new THREE.Vector3(0,0,signo), signo>0 ? -(cz-hl) : (cz+hl));
         const pt    = new THREE.Vector3();
         if (!raycaster.ray.intersectPlane(plano, pt)) return;
-        const xMax = hw - vW/2 - 0.05;
+        const xMin = cx - hw + vW/2 + 0.05, xMax = cx + hw - vW/2 - 0.05;
         ventanaGrupo.position.set(
-            Math.max(-xMax, Math.min(xMax, pt.x)),
+            Math.max(xMin, Math.min(xMax, pt.x)),
             yFijo !== null ? yFijo : Math.max(yMin, Math.min(yMax, pt.y)),
             zFijo
         );
         ventanaGrupo.rotation.y = 0;
     } else {
-        const xFijo  = paredVentanaActual === 'izq' ? -hw+0.06 : hw-0.06;
+        const xFijo  = paredVentanaActual === 'izq' ? cx-hw+0.06 : cx+hw-0.06;
         const signo  = paredVentanaActual === 'izq' ? 1 : -1;
-        const plano  = new THREE.Plane(new THREE.Vector3(signo,0,0), hw);
+        const plano  = new THREE.Plane(new THREE.Vector3(signo,0,0), signo>0 ? -(cx-hw) : (cx+hw));
         const pt     = new THREE.Vector3();
         if (!raycaster.ray.intersectPlane(plano, pt)) return;
-        const zMax   = hl - vW/2 - 0.05;
+        const zMin = cz - hl + vW/2 + 0.05, zMax = cz + hl - vW/2 - 0.05;
         ventanaGrupo.position.set(
             xFijo,
             yFijo !== null ? yFijo : Math.max(yMin, Math.min(yMax, pt.y)),
-            Math.max(-zMax, Math.min(zMax, pt.z))
+            Math.max(zMin, Math.min(zMax, pt.z))
         );
         ventanaGrupo.rotation.y = Math.PI/2;
     }
@@ -943,6 +981,7 @@ function renderListaMuebles() {
                 ${enEscena ? `
                 <button class="btn-mueble btn-mover ${muebleSeleccionado===m.id ? 'activo' : ''}"
                     onclick="activarMoverMueble('${m.id}')" title="Mover a pared">↔</button>
+                ${esPegableAPared(m.id) ? `<button class="btn-mueble btn-rotar" onclick="abrirPanelVentana('${m.id}')" title="Editar medidas y pared">⚙️</button>` : ''}
                 ${esPegableAPared(m.id)
                     ? `<button class="btn-mueble btn-rotar" onclick="rotarVentana('${m.id}')" title="Cambiar pared (H/V)">⟂</button>`
                     : `<button class="btn-mueble btn-rotar" onclick="rotarMueble('${m.id}')" title="Rotar 45°">↻</button>`
@@ -3043,6 +3082,11 @@ function cargarDesdePlano(modelo3d) {
         </div>
     </div>
     <div id="vdpContenido">
+    <div id="vdpCuartoWrap" style="display:none;margin-bottom:8px;">
+        <span class="vdp-label" style="display:block;margin-bottom:3px;">Cuarto</span>
+        <select id="vdpCuartoSelect" onchange="cambiarCuartoVentana(this.value)"
+            style="width:100%;background:var(--oscuro);border:1px solid rgba(124,58,237,0.25);border-radius:8px;padding:6px 8px;color:var(--texto);font-size:12px;outline:none;"></select>
+    </div>
     <div class="vdp-row">
         <span class="vdp-label">Ancho</span>
         <input class="vdp-input" id="vdpAncho" type="number" value="1.2" min="0.4" max="3.0" step="0.1">
