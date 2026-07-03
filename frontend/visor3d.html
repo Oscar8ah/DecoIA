@@ -212,7 +212,7 @@
     <button class="tab-vista" id="tabPlanta" onclick="cambiarVista('planta')">📐 Editor Planta</button>
 </div>
 <!-- TOOLBAR EDITOR PLANTA — visible solo en pestaña planta -->
-<div id="toolbarPlanta" style="display:none;min-height:50px;gap:8px;padding:10px 16px;background:var(--oscuro2);border-bottom:1px solid rgba(124,58,237,0.2);flex-wrap:wrap;align-items:center;">
+<div id="toolbarPlanta" style="display:none;min-height:50px;position:relative;z-index:10;gap:8px;padding:10px 16px;background:var(--oscuro2);border-bottom:1px solid rgba(124,58,237,0.2);flex-wrap:wrap;align-items:center;">
     <span style="font-size:12px;font-weight:700;color:#A78BFA;margin-right:4px;">➕ Módulo:</span>
     <button onclick="rotarModulo()" style="background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🔄 Rotar</button>
     <button onclick="agregarModulo('sala')"       style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#93C5FD;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🛋️ Sala</button>
