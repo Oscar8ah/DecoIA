@@ -308,6 +308,7 @@
                     <option value="electricos">💡 Eléctricos</option>
                     <option value="pintura">🎨 Pintura</option>
                     <option value="puertas">🚪 Puertas</option>
+                    <option value="muebles">🛋️ Muebles</option>
                 </select>
             </div>
             <div class="form-campo">
@@ -345,18 +346,29 @@
     <label>Tipo de modelo 3D</label>
     <select id="prodModelo3D">
         <option value="ninguno">🎨 Ninguno — solo textura (pisos, enchapes, pintura)</option>
-        <option value="ducha">🚿 Ducha</option>
-        <option value="banera">🛁 Bañera</option>
-        <option value="sanitario">🚽 Sanitario</option>
-        <option value="lavamanos">🪣 Lavamanos</option>
         <option value="sofa">🛋️ Sofá</option>
+        <option value="sofa2">🛋️ Sofá 2 plazas</option>
         <option value="cama">🛏️ Cama</option>
-        <option value="mesa">🪑 Mesa / Comedor</option>
-        <option value="cocina">🍳 Módulo de cocina</option>
+        <option value="mesita">🗄️ Mesa de noche</option>
+        <option value="escritorio">💻 Escritorio</option>
+        <option value="mesa">🪑 Mesa comedor</option>
+        <option value="mesa_cafe">☕ Mesa de café</option>
+        <option value="armario">🚪 Armario</option>
+        <option value="planta">🌿 Planta (decoración)</option>
+        <option value="lampara_pie">💡 Lámpara de pie</option>
         <option value="puerta">🚪 Puerta</option>
-        <option value="ventana">🪟 Ventana</option>
+        <option value="hueco">⬜ Hueco / vano</option>
+        <option value="ventana_blanca">🪟 Ventana blanca</option>
+        <option value="ventana_negra">🖼️ Ventana negra</option>
+        <option value="ventana_balcon">🏙️ Ventana balcón</option>
+        <option value="estufa">🔥 Estufa</option>
+        <option value="cocina_integral">🗄️ Cocina integral</option>
+        <option value="inodoro">🚽 Inodoro</option>
+        <option value="ducha">🚿 Ducha</option>
+        <option value="lavamanos">🧼 Lavamanos</option>
+        <option value="toallero">🏳️ Toallero</option>
     </select>
-    <div class="campo-hint">Esto permite ubicar el producto en el visor 3D del plano</div>
+    <div class="campo-hint">Debe coincidir exactamente con los modelos del Visor 3D (frontend/visor3d.html → CATALOGO_MUEBLES)</div>
 </div>
 <div class="form-campo" id="campoDimensiones" style="display:none;">
     <label>Dimensiones (metros)</label>
@@ -1081,28 +1093,35 @@ async function procesarArchivo(input) {
     const file=input.files[0];
     if (!file) return;
     if (!tiendaId) { mostrarAlerta('importarAlerta','⚠️ Primero crea tu tienda.','error'); return; }
-    mostrarAlerta('importarAlerta','🤖 La IA está analizando tu archivo...','info');
+    mostrarAlerta('importarAlerta','🤖 La IA está analizando tu archivo (puede tardar hasta 1 minuto si tiene fotos)...','info');
     document.getElementById('previewProductos').style.display='none';
     try {
-        const texto=await leerArchivo(file);
-        const response=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:2000,messages:[{role:'user',content:`Extrae productos de este catálogo de materiales de construcción. Responde SOLO con JSON válido:\n{"productos":[{"nombre":"","precio":0,"descripcion":"","categoria":"pisos|enchapes|cocinas|baños|materiales|electricos|pintura|puertas","unidad":"m2|unidad|kg|litro|caja"}]}\n\nTexto:\n${texto.substring(0,3000)}`}]})});
-        const data=await response.json();
-        const textoResp=data.content?.[0]?.text||'{}';
-        let parsed; try{parsed=JSON.parse(textoResp);}catch{const m=textoResp.match(/\{[\s\S]*\}/);parsed=m?JSON.parse(m[0]):{productos:[]};}
+        const formData = new FormData();
+        formData.append('archivo', file);
+        formData.append('tienda_id', tiendaId);
+        const response = await fetch('https://decoia.onrender.com/procesar-catalogo', {
+            method: 'POST',
+            body: formData
+        });
+        if (!response.ok) {
+            const err = await response.json().catch(()=>({detail:'Error procesando el archivo.'}));
+            throw new Error(err.detail || 'Error procesando el archivo.');
+        }
+        const parsed = await response.json();
         productosIA=(parsed.productos||[]).map((p,i)=>({...p,_id:i,_aceptado:true}));
         if(productosIA.length===0){mostrarAlerta('importarAlerta','⚠️ No se encontraron productos.','error');return;}
         mostrarAlerta('importarAlerta',`✅ ¡La IA detectó ${productosIA.length} productos!`,'exito');
         renderPreviewIA();
-    }catch(e){console.error(e);mostrarAlerta('importarAlerta','❌ Error procesando el archivo.','error');}
+    }catch(e){console.error(e);mostrarAlerta('importarAlerta',`❌ ${e.message||'Error procesando el archivo.'}`,'error');}
     input.value='';
 }
 
-function leerArchivo(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsText(file,'UTF-8');});}
-function renderPreviewIA(){const lista=document.getElementById('previewLista');document.getElementById('previewTitulo').textContent=`🤖 ${productosIA.length} productos detectados`;document.getElementById('previewProductos').style.display='block';lista.innerHTML=productosIA.map(p=>`<div class="preview-item ${p._aceptado?'aceptado':'rechazado'}" id="preview-${p._id}"><div class="preview-item-info"><div class="preview-item-nombre">${p.nombre}</div><div class="preview-item-precio">$${Number(p.precio||0).toLocaleString('es-CO')} / ${p.unidad||'m²'}</div><div class="preview-item-desc">${p.descripcion||''}</div><div style="margin-top:6px;font-size:12px;color:#A78BFA;">📂 ${p.categoria||'Sin categoría'}</div></div><div class="preview-item-acciones"><button class="btn-exito" onclick="togglePreviewItem(${p._id},true)">✅</button><button class="btn-peligro" onclick="togglePreviewItem(${p._id},false)">❌</button></div></div>`).join('');}
+
+function renderPreviewIA(){const lista=document.getElementById('previewLista');document.getElementById('previewTitulo').textContent=`🤖 ${productosIA.length} productos detectados`;document.getElementById('previewProductos').style.display='block';lista.innerHTML=productosIA.map(p=>`<div class="preview-item ${p._aceptado?'aceptado':'rechazado'}" id="preview-${p._id}">${p.imagen_url?`<img src="${p.imagen_url}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;margin-right:10px;flex-shrink:0;">`:''}<div class="preview-item-info"><div class="preview-item-nombre">${p.nombre}${p.referencia?` <span style="color:#888;font-weight:400;">(Ref: ${p.referencia})</span>`:''}</div><div class="preview-item-precio">$${Number(p.precio||0).toLocaleString('es-CO')} / ${p.unidad||'m²'}</div><div class="preview-item-desc">${p.descripcion||''}</div><div style="margin-top:6px;font-size:12px;color:#A78BFA;">📂 ${p.categoria||'Sin categoría'}${p.modelo_3d_tipo?` · 🧊 Modelo 3D: ${p.modelo_3d_tipo}`:''}</div></div><div class="preview-item-acciones"><button class="btn-exito" onclick="togglePreviewItem(${p._id},true)">✅</button><button class="btn-peligro" onclick="togglePreviewItem(${p._id},false)">❌</button></div></div>`).join('');}
 function togglePreviewItem(id,a){const p=productosIA.find(x=>x._id===id);if(p){p._aceptado=a;document.getElementById(`preview-${id}`).className=`preview-item ${a?'aceptado':'rechazado'}`;}}
 function aceptarTodos(){productosIA.forEach(p=>{p._aceptado=true;document.getElementById(`preview-${p._id}`).className='preview-item aceptado';});}
 function rechazarTodos(){productosIA.forEach(p=>{p._aceptado=false;document.getElementById(`preview-${p._id}`).className='preview-item rechazado';});}
-async function publicarAceptados(){const a=productosIA.filter(p=>p._aceptado);if(a.length===0){mostrarAlerta('importarAlerta','⚠️ No hay productos aceptados.','error');return;}const btn=document.getElementById('btnPublicar');btn.disabled=true;btn.innerHTML='<span class="spinner-btn"></span>Publicando...';const{error}=await db.from('productos').insert(a.map(p=>({tienda_id:tiendaId,nombre:p.nombre,descripcion:p.descripcion||'',precio:p.precio||0,categoria:p.categoria||'materiales',unidad:p.unidad||'m2',stock:0,activo:true})));if(error){mostrarAlerta('importarAlerta','❌ Error publicando.','error');}else{mostrarAlerta('importarAlerta',`🎉 ¡${a.length} productos publicados!`,'exito');document.getElementById('previewProductos').style.display='none';productosIA=[];await cargarProductosTienda();mostrarTab('tab-productos',document.querySelectorAll('.tab-btn')[2]);}btn.disabled=false;btn.innerHTML='🚀 Publicar aceptados';}
+async function publicarAceptados(){const a=productosIA.filter(p=>p._aceptado);if(a.length===0){mostrarAlerta('importarAlerta','⚠️ No hay productos aceptados.','error');return;}const btn=document.getElementById('btnPublicar');btn.disabled=true;btn.innerHTML='<span class="spinner-btn"></span>Publicando...';const{error}=await db.from('productos').insert(a.map(p=>({tienda_id:tiendaId,nombre:p.nombre,referencia:p.referencia||null,descripcion:p.descripcion||'',precio:p.precio||0,categoria:p.categoria||'materiales',unidad:p.unidad||'m2',stock:0,activo:true,imagen_url:p.imagen_url||null,modelo_3d_tipo:p.modelo_3d_tipo||'ninguno'})));if(error){mostrarAlerta('importarAlerta','❌ Error publicando.','error');}else{mostrarAlerta('importarAlerta',`🎉 ¡${a.length} productos publicados!`,'exito');document.getElementById('previewProductos').style.display='none';productosIA=[];await cargarProductosTienda();mostrarTab('tab-productos',document.querySelectorAll('.tab-btn')[2]);}btn.disabled=false;btn.innerHTML='🚀 Publicar aceptados';}
 function cancelarImportacion(){productosIA=[];document.getElementById('previewProductos').style.display='none';mostrarAlerta('importarAlerta','','');}
 
 // ── WHATSAPP ──────────────────────────────────────────────────────────────

@@ -470,6 +470,19 @@ async function cargarTiendas() {
 }
 
 cargarTiendas();
+// Verificar sesión y ajustar navbar
+(async () => {
+    const { data:{ session } } = await db.auth.getSession();
+    if (session) {
+        document.querySelector('.btn-nav-entrar').style.display = 'none';
+        document.querySelector('.btn-nav').style.display = 'none';
+        // Agregar botón Mi cuenta
+        const nav = document.querySelector('.nav-links');
+        nav.insertAdjacentHTML('beforeend', 
+            '<a href="/dashboard" style="color:#A78BFA;font-weight:600;">👤 Mi cuenta</a>'
+        );
+    }
+})();
 </script>
 </body>
 </html>
