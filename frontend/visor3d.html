@@ -125,6 +125,7 @@
             transition:all 0.2s;
         }
         .mueble-card.activo { border-color:rgba(124,58,237,0.4); background:rgba(124,58,237,0.08); }
+        #btnEliminarPared.activo-eliminar { background:rgba(239,68,68,0.3) !important; border-color:rgba(239,68,68,0.6) !important; }
         .mueble-icon { font-size:22px; flex-shrink:0; }
         .mueble-info { flex:1; }
         .mueble-nombre { font-size:12px; font-weight:700; color:var(--texto); }
@@ -503,6 +504,14 @@
         </button>
     </div>
 
+    <!-- ── MUROS ── -->
+    <div class="panel-section">
+        <div class="panel-titulo">🧱 Muros</div>
+        <button id="btnEliminarPared" onclick="modoEliminarPared ? salirModosPared() : activarEliminarPared()"
+            style="width:100%;padding:9px;border-radius:8px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#FCA5A5;font-size:12px;font-weight:700;cursor:pointer;font-family:'Segoe UI',sans-serif;">🗑️ Eliminar un muro (tocar para elegir)</button>
+        <div style="font-size:10.5px;color:var(--gris);margin-top:6px;line-height:1.5;">Los muros que se toquen al pasar el mouse se iluminan en rojo; haz click para eliminarlo.</div>
+    </div>
+
     <!-- ── MOBILIARIO con controles de movimiento ── -->
     <div class="panel-section">
         <div class="panel-titulo">🛋️ Mobiliario</div>
@@ -804,6 +813,84 @@ function nudgeVentana(dir) {
     if (huecosVentana[id]) crearHuecoVentana(id, g.position, g.rotation.y);
 }
 
+const LADO_A_PARED = { norte:'trasera', sur:'frontal', oeste:'izq', este:'der' };
+
+function activarElegirPared() {
+    modoElegirPared   = true;
+    modoEliminarPared = false;
+    controls.enabled  = false;
+    canvas.style.cursor = 'crosshair';
+    mostrarToast('👆 Pasa el mouse por los muros y haz click (Esc para cancelar)');
+}
+
+function activarEliminarPared() {
+    modoEliminarPared = true;
+    modoElegirPared   = false;
+    controls.enabled  = false;
+    canvas.style.cursor = 'crosshair';
+    document.getElementById('btnEliminarPared').textContent = '❌ Cancelar — tocando muro para eliminar';
+    document.getElementById('btnEliminarPared').classList.add('activo-eliminar');
+    mostrarToast('👆 Pasa el mouse por los muros y haz click en el que quieras eliminar');
+}
+
+function salirModosPared() {
+    modoElegirPared = false;
+    modoEliminarPared = false;
+    controls.enabled = true;
+    canvas.style.cursor = 'default';
+    if (paredHovered) { paredHovered.material.emissive.setHex(0x000000); paredHovered = null; }
+    const btn = document.getElementById('btnEliminarPared');
+    if (btn) { btn.textContent = '🗑️ Eliminar un muro (tocar para elegir)'; btn.classList.remove('activo-eliminar'); }
+}
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && (modoElegirPared || modoEliminarPared)) salirModosPared();
+});
+
+function actualizarHoverParedes(ndc) {
+    mouse.set(ndc.x, ndc.y);
+    raycaster.setFromCamera(mouse, camera);
+    const hits = raycaster.intersectObjects(paredesInteractivas, false);
+    const nuevoHover = hits.length ? hits[0].object : null;
+    if (paredHovered && paredHovered !== nuevoHover) paredHovered.material.emissive.setHex(0x000000);
+    if (nuevoHover) {
+        nuevoHover.material.emissive.setHex(modoEliminarPared ? 0xEF4444 : 0x7C3AED);
+        nuevoHover.material.emissiveIntensity = 0.6;
+    }
+    paredHovered = nuevoHover;
+}
+
+function clickEnPared() {
+    if (!paredHovered) { mostrarToast('⚠️ Apunta a un muro primero'); return; }
+    const { moduloId, lado } = paredHovered.userData;
+
+    if (modoEliminarPared) {
+        // Eliminar visualmente y marcar para que no se reconstruya al regenerar
+        scene.remove(paredHovered);
+        paredesInteractivas = paredesInteractivas.filter(p => p !== paredHovered);
+        const modOriginal = modulosPlanta.find(m => m.id === moduloId);
+        if (modOriginal) {
+            if (!modOriginal.paredesEliminadas) modOriginal.paredesEliminadas = [];
+            if (!modOriginal.paredesEliminadas.includes(lado)) modOriginal.paredesEliminadas.push(lado);
+        }
+        mostrarToast('🗑️ Muro eliminado');
+        paredHovered = null;
+        salirModosPared();
+        return;
+    }
+
+    if (modoElegirPared) {
+        const id = window._ventanaPanelId || muebleSeleccionado;
+        if (!id) { mostrarToast('⚠️ Selecciona primero la ventana/puerta'); salirModosPared(); return; }
+        cuartoVentanaActual = moduloId;
+        const sel = document.getElementById('vdpCuartoSelect');
+        if (sel) sel.value = moduloId;
+        seleccionarParedVentana(LADO_A_PARED[lado]);
+        salirModosPared();
+        return;
+    }
+}
+
 function seleccionarParedVentana(pared) {
     paredVentanaActual = pared;
     const id = ['ventana_blanca','ventana_negra','ventana_balcon','puerta','hueco','toallero'].find(v => mobiliarioMeshes[v] && muebleSeleccionado === v)
@@ -972,6 +1059,10 @@ function esPegableAPared(id) {
 let meshes            = {};
 let luces             = {};
 let modulosActuales3D = []; // {id,nombre,cx,cz,ancho,largo,alto} de cada módulo del plano cargado
+let paredesInteractivas = []; // meshes de pared tocables, con userData {moduloId, lado}
+let paredHovered        = null;
+let modoElegirPared     = false; // true mientras se está eligiendo pared para pegar ventana/puerta
+let modoEliminarPared   = false; // true mientras se está eligiendo pared para eliminarla
 let mobiliarioMeshes  = {};
 let todosProductos    = [];
 let productoActivo    = null;
@@ -1397,6 +1488,11 @@ function getMouseNDC(event) {
 }
 
 canvas.addEventListener('mousedown', (e) => {
+    if (modoElegirPared || modoEliminarPared) {
+        clickEnPared();
+        e.stopPropagation();
+        return;
+    }
     if (!modoMover || !muebleSeleccionado) return;
     const ndc = getMouseNDC(e);
     mouse.set(ndc.x, ndc.y);
@@ -1425,6 +1521,10 @@ canvas.addEventListener('mousedown', (e) => {
 });
 
 canvas.addEventListener('mousemove', (e) => {
+    if (modoElegirPared || modoEliminarPared) {
+        actualizarHoverParedes(getMouseNDC(e));
+        return;
+    }
     if (!modoMover || !muebleArrastrando) return;
     const ndc = getMouseNDC(e);
     mouse.set(ndc.x, ndc.y);
@@ -2995,6 +3095,7 @@ function generarDesdePlanta() {
             color_pared:    m.colorPared   || '#F5F5F5',
             material_piso:  m.materialPiso || (m.tipo === 'bano' ? 'ceramica' : 'ceramica'),
             imagen_piso:    m.imagenPisoUrl || null,
+            paredes_eliminadas: m.paredesEliminadas || [],
         })),
         paredes_compartidas
     };
@@ -3074,6 +3175,7 @@ function cargarDesdePlano(modelo3d) {
     const offsetX = maxX / 2;
     const offsetZ = maxZ / 2;
     modulosActuales3D = [];
+    paredesInteractivas = [];
 
     // Construir cada módulo
     modulos.forEach(mod => {
@@ -3160,6 +3262,7 @@ function cargarDesdePlano(modelo3d) {
         ];
 
         paredesConfig.forEach(p => {
+            if ((mod.paredes_eliminadas || []).includes(p.id)) return; // eliminada manualmente por el usuario
             const segmentos = restarIntervalos(p.ini, p.fin, huecosPorLado[p.id]);
             segmentos.forEach(([sIni, sFin]) => {
                 const largoSeg = sFin - sIni;
@@ -3172,7 +3275,10 @@ function cargarDesdePlano(modelo3d) {
                 else               pared.position.set(p.posPerp, alto/2, centro);
                 pared.castShadow = true;
                 pared.receiveShadow = true;
+                pared.userData = { esPared: true, moduloId: mod.id, lado: p.id };
+                pared.material.emissive = new THREE.Color(0x000000);
                 scene.add(pared);
+                paredesInteractivas.push(pared);
             });
         });
 
@@ -3282,6 +3388,7 @@ function cargarDesdePlano(modelo3d) {
         <span class="vdp-unit">m</span>
     </div>
     <button class="vdp-btn" onclick="aplicarDimensionesVentana()">↺ Aplicar dimensiones</button>
+    <button onclick="activarElegirPared()" style="width:100%;margin-top:8px;padding:9px;border-radius:8px;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.35);color:#7DD3FC;font-size:12px;font-weight:700;cursor:pointer;font-family:'Segoe UI',sans-serif;">🎯 Elegir pared tocando el muro</button>
     <div style="margin-top:10px;">
         <div style="font-size:10px;color:var(--gris);margin-bottom:6px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;">📌 Colocar en pared</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;">
