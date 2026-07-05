@@ -1051,6 +1051,13 @@ const CATALOGO_MUEBLES = [
     { id:'ducha',           nombre:'Ducha',           icon:'🚿', hint:'Baño' },
     { id:'lavamanos',       nombre:'Lavamanos',       icon:'🧼', hint:'Baño' },
     { id:'toallero',        nombre:'Toallero',        icon:'🏳️', hint:'Baño — pegado a pared' },
+    // ── ELECTRODOMÉSTICOS Y DECORACIÓN ──
+    { id:'tv',              nombre:'Televisor',       icon:'📺', hint:'Sala/Dormitorio' },
+    { id:'nevera',          nombre:'Nevera',          icon:'🧊', hint:'Cocina' },
+    { id:'lavadora',        nombre:'Lavadora',        icon:'🧺', hint:'Zona de ropas' },
+    { id:'microondas',      nombre:'Horno microondas',icon:'🍿', hint:'Cocina — sobre mesón' },
+    { id:'tapete',          nombre:'Tapete',          icon:'🟫', hint:'Decoración — sobre el piso' },
+    { id:'luz_techo',       nombre:'Luz de techo',    icon:'💡', hint:'Iluminación' },
 ];
 
 function esPegableAPared(id) {
@@ -1417,6 +1424,70 @@ function crearMueble(id, posX=0, posZ=0) {
             const grifo = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.2,8), mat(0xB0B0B0,0.3,0.8));
             grifo.position.set(0,0.9,-0.15); g.add(grifo);
             g.position.set(posX, 0, posZ);
+            break;
+        }
+
+        case 'tv': {
+            const pantalla = new THREE.Mesh(new THREE.BoxGeometry(1.1,0.65,0.04), mat(0x0A0A0A,0.2,0.3));
+            pantalla.position.set(0,0.9,0); g.add(pantalla);
+            const marco = new THREE.Mesh(new THREE.BoxGeometry(1.14,0.69,0.02), mat(0x1A1A1A,0.3,0.3));
+            marco.position.set(0,0.9,-0.021); g.add(marco);
+            const base = new THREE.Mesh(new THREE.BoxGeometry(0.3,0.05,0.15), mat(0x2A2A2A,0.4));
+            base.position.set(0,0.55,0.05); g.add(base);
+            const soporte = new THREE.Mesh(new THREE.BoxGeometry(0.05,0.25,0.05), mat(0x2A2A2A,0.4));
+            soporte.position.set(0,0.68,0.05); g.add(soporte);
+            g.position.set(posX, 0, posZ);
+            break;
+        }
+
+        case 'nevera': {
+            const cuerpo = new THREE.Mesh(new THREE.BoxGeometry(0.7,1.75,0.68), mat(0xE8E8E8,0.25,0.4));
+            cuerpo.position.set(0,0.875,0); g.add(cuerpo);
+            const linea = new THREE.Mesh(new THREE.BoxGeometry(0.72,0.03,0.02), mat(0xB0B0B0,0.3,0.5));
+            linea.position.set(0,1.15,0.35); g.add(linea);
+            const manija1 = new THREE.Mesh(new THREE.BoxGeometry(0.03,0.4,0.04), mat(0xC0C0C0,0.2,0.7));
+            manija1.position.set(0.32,1.35,0.36); g.add(manija1);
+            const manija2 = new THREE.Mesh(new THREE.BoxGeometry(0.03,0.55,0.04), mat(0xC0C0C0,0.2,0.7));
+            manija2.position.set(0.32,0.75,0.36); g.add(manija2);
+            g.position.set(posX, 0, posZ);
+            break;
+        }
+
+        case 'lavadora': {
+            const cuerpo = new THREE.Mesh(new THREE.BoxGeometry(0.6,0.85,0.6), mat(0xF0F0F0,0.3,0.3));
+            cuerpo.position.set(0,0.425,0); g.add(cuerpo);
+            const tambor = new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,0.05,24), mat(0x1A1A1A,0.1,0.6));
+            tambor.rotation.x = Math.PI/2; tambor.position.set(0,0.45,0.31); g.add(tambor);
+            const anillo = new THREE.Mesh(new THREE.TorusGeometry(0.22,0.02,8,24), mat(0xB0B0B0,0.2,0.6));
+            anillo.rotation.x = Math.PI/2; anillo.position.set(0,0.45,0.31); g.add(anillo);
+            const panel = new THREE.Mesh(new THREE.BoxGeometry(0.55,0.08,0.02), mat(0xD8D8D8,0.3));
+            panel.position.set(0,0.83,0.3); g.add(panel);
+            g.position.set(posX, 0, posZ);
+            break;
+        }
+
+        case 'microondas': {
+            const cuerpo = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.3,0.4), mat(0x2A2A2A,0.3,0.4));
+            cuerpo.position.set(0,0.15,0); g.add(cuerpo);
+            const puerta = new THREE.Mesh(new THREE.BoxGeometry(0.32,0.24,0.02), mat(0x111111,0.2,0.5));
+            puerta.position.set(0.05,0.15,0.21); g.add(puerta);
+            g.position.set(posX, 0.75, posZ); // sobre un mesón típico
+            break;
+        }
+
+        case 'tapete': {
+            const tela = new THREE.Mesh(new THREE.CylinderGeometry(0.9,0.9,0.02,32), mat(0x8B7355,0.9));
+            tela.position.set(0,0.01,0); g.add(tela);
+            g.position.set(posX, 0, posZ);
+            break;
+        }
+
+        case 'luz_techo': {
+            const base = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,0.04,16), mat(0xD4AF37,0.3,0.6));
+            g.add(base);
+            const pantalla = new THREE.Mesh(new THREE.SphereGeometry(0.15,16,16), new THREE.MeshStandardMaterial({color:0xFFF8E7,transparent:true,opacity:0.85,emissive:0xFFF3C4,emissiveIntensity:0.4}));
+            pantalla.position.set(0,-0.15,0); g.add(pantalla);
+            g.position.set(posX, (estado.alto || 2.6) - 0.1, posZ); // pegado al techo
             break;
         }
 

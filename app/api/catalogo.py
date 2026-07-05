@@ -28,6 +28,7 @@ MODELOS_3D_DISPONIBLES = [
     "armario", "planta", "lampara_pie", "ventana_blanca", "ventana_negra",
     "ventana_balcon", "puerta", "hueco", "estufa", "cocina_integral",
     "inodoro", "ducha", "lavamanos", "toallero",
+    "tv", "nevera", "lavadora", "microondas", "tapete", "luz_techo",
 ]
 
 CATEGORIAS_VALIDAS = [
@@ -115,7 +116,7 @@ Para cada producto que encuentres, extrae:
 - categoria: EXACTAMENTE una de estas opciones: {', '.join(CATEGORIAS_VALIDAS)}
 - unidad: m2, unidad, kg, litro o caja
 - rendimiento_m2: si el catálogo menciona cuántos m² cubre una caja/unidad (ej: "1.44 m²/caja"), pon ese número. Si no aparece esa información, usa null — NO inventes un número.
-- modelo_3d_tipo: a cuál de estos modelos 3D predeterminados corresponde este producto (para que se pueda dibujar en el visor 3D): {', '.join(MODELOS_3D_DISPONIBLES)}. Si el producto es un piso, enchape o pintura (no un mueble/objeto 3D), usa null. Si es un mueble/objeto pero ninguno de la lista se parece razonablemente, usa null — NUNCA inventes un id que no esté en la lista.
+- modelo_3d_tipo: SOLO si el producto tiene sentido VERLO ubicado dentro de un cuarto en un render 3D (muebles, electrodomésticos grandes como nevera/lavadora/tv/microondas, ventanas, puertas, tapetes, luces). Si aplica, usa exactamente uno de estos IDs: {', '.join(MODELOS_3D_DISPONIBLES)}. Para TODO lo demás (tornillos, cables, herramientas, materiales sueltos, pisos, enchapes, pintura, perfiles metálicos, varillas, accesorios pequeños) usa null — la mayoría de productos de un catálogo de ferretería NO necesitan modelo 3D, solo se venden con su foto real en el marketplace. Si es un mueble/objeto pero ninguno de la lista se parece razonablemente, usa null — NUNCA inventes un id que no esté en la lista.
 - imagen_index: {instrucciones_imagen}
 
 Responde SOLO con JSON válido, sin texto antes ni después, con esta forma exacta:
