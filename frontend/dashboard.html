@@ -341,7 +341,19 @@
                 </select>
             </div>
         </div>
-        <div class="form-campo"><label>Stock</label><input type="number" id="prodStock" placeholder="100" value="0"></div>
+        <div class="form-grid-2">
+            <div class="form-campo"><label>Stock</label><input type="number" id="prodStock" placeholder="100" value="0"></div>
+            <div class="form-campo">
+                <label>Rendimiento (m² por unidad)</label>
+                <input type="number" id="prodRendimiento" placeholder="Ej: 1.44" step="0.01" min="0">
+                <div class="campo-hint">Cuántos m² cubre 1 caja/unidad — necesario para calcular cuánto material comprar. Déjalo vacío si vendes directo por m².</div>
+            </div>
+        </div>
+        <div class="form-campo">
+            <label>Desperdicio recomendado (%)</label>
+            <input type="number" id="prodDesperdicio" placeholder="10" step="1" min="0" max="100" value="10">
+            <div class="campo-hint">Porcentaje extra que se suma al cálculo por cortes y roturas</div>
+        </div>
         <div class="form-campo">
     <label>Tipo de modelo 3D</label>
     <select id="prodModelo3D">
@@ -1021,6 +1033,8 @@ function abrirModalProducto() {
     document.getElementById('prodCategoria').value='';
     document.getElementById('prodUnidad').value='m2';
     document.getElementById('prodStock').value='0';
+    document.getElementById('prodRendimiento').value='';
+    document.getElementById('prodDesperdicio').value='10';
     document.getElementById('prodId').value='';
     document.getElementById('prodModelo3D').value='ninguno';
 document.getElementById('campoDimensiones').style.display='none';
@@ -1044,6 +1058,8 @@ function editarProducto(p) {
     document.getElementById('prodCategoria').value   = p.categoria||'';
     document.getElementById('prodUnidad').value      = p.unidad||'m2';
     document.getElementById('prodStock').value       = p.stock||'0';
+    document.getElementById('prodRendimiento').value = p.rendimiento_m2||'';
+    document.getElementById('prodDesperdicio').value = p.desperdicio_pct??10;
     document.getElementById('prodId').value          = p.id||'';
     document.getElementById('prodModelo3D').value=p.modelo_3d_tipo||'ninguno';
 const dims=p.dimensiones||{};
@@ -1072,6 +1088,8 @@ const datos={
     categoria,
     unidad: document.getElementById('prodUnidad').value,
     stock: parseInt(document.getElementById('prodStock').value) || 0,
+    rendimiento_m2: parseFloat(document.getElementById('prodRendimiento').value) || null,
+    desperdicio_pct: parseInt(document.getElementById('prodDesperdicio').value) || 10,
     imagen_url: document.getElementById('prodImagenUrl').value || null,
 
     modelo_3d_tipo: document.getElementById('prodModelo3D').value,
@@ -1121,7 +1139,7 @@ function renderPreviewIA(){const lista=document.getElementById('previewLista');d
 function togglePreviewItem(id,a){const p=productosIA.find(x=>x._id===id);if(p){p._aceptado=a;document.getElementById(`preview-${id}`).className=`preview-item ${a?'aceptado':'rechazado'}`;}}
 function aceptarTodos(){productosIA.forEach(p=>{p._aceptado=true;document.getElementById(`preview-${p._id}`).className='preview-item aceptado';});}
 function rechazarTodos(){productosIA.forEach(p=>{p._aceptado=false;document.getElementById(`preview-${p._id}`).className='preview-item rechazado';});}
-async function publicarAceptados(){const a=productosIA.filter(p=>p._aceptado);if(a.length===0){mostrarAlerta('importarAlerta','⚠️ No hay productos aceptados.','error');return;}const btn=document.getElementById('btnPublicar');btn.disabled=true;btn.innerHTML='<span class="spinner-btn"></span>Publicando...';const{error}=await db.from('productos').insert(a.map(p=>({tienda_id:tiendaId,nombre:p.nombre,referencia:p.referencia||null,descripcion:p.descripcion||'',precio:p.precio||0,categoria:p.categoria||'materiales',unidad:p.unidad||'m2',stock:0,activo:true,imagen_url:p.imagen_url||null,modelo_3d_tipo:p.modelo_3d_tipo||'ninguno'})));if(error){mostrarAlerta('importarAlerta','❌ Error publicando.','error');}else{mostrarAlerta('importarAlerta',`🎉 ¡${a.length} productos publicados!`,'exito');document.getElementById('previewProductos').style.display='none';productosIA=[];await cargarProductosTienda();mostrarTab('tab-productos',document.querySelectorAll('.tab-btn')[2]);}btn.disabled=false;btn.innerHTML='🚀 Publicar aceptados';}
+async function publicarAceptados(){const a=productosIA.filter(p=>p._aceptado);if(a.length===0){mostrarAlerta('importarAlerta','⚠️ No hay productos aceptados.','error');return;}const btn=document.getElementById('btnPublicar');btn.disabled=true;btn.innerHTML='<span class="spinner-btn"></span>Publicando...';const{error}=await db.from('productos').insert(a.map(p=>({tienda_id:tiendaId,nombre:p.nombre,referencia:p.referencia||null,descripcion:p.descripcion||'',precio:p.precio||0,categoria:p.categoria||'materiales',unidad:p.unidad||'m2',stock:0,activo:true,imagen_url:p.imagen_url||null,modelo_3d_tipo:p.modelo_3d_tipo||'ninguno',rendimiento_m2:p.rendimiento_m2||null,desperdicio_pct:10})));if(error){mostrarAlerta('importarAlerta','❌ Error publicando.','error');}else{mostrarAlerta('importarAlerta',`🎉 ¡${a.length} productos publicados!`,'exito');document.getElementById('previewProductos').style.display='none';productosIA=[];await cargarProductosTienda();mostrarTab('tab-productos',document.querySelectorAll('.tab-btn')[2]);}btn.disabled=false;btn.innerHTML='🚀 Publicar aceptados';}
 function cancelarImportacion(){productosIA=[];document.getElementById('previewProductos').style.display='none';mostrarAlerta('importarAlerta','','');}
 
 // ── WHATSAPP ──────────────────────────────────────────────────────────────

@@ -113,11 +113,12 @@ Para cada producto que encuentres, extrae:
 - descripcion: 1-2 frases describiendo material, color, acabado, medidas si las hay
 - categoria: EXACTAMENTE una de estas opciones: {', '.join(CATEGORIAS_VALIDAS)}
 - unidad: m2, unidad, kg, litro o caja
+- rendimiento_m2: si el catálogo menciona cuántos m² cubre una caja/unidad (ej: "1.44 m²/caja"), pon ese número. Si no aparece esa información, usa null — NO inventes un número.
 - modelo_3d_tipo: a cuál de estos modelos 3D predeterminados corresponde este producto (para que se pueda dibujar en el visor 3D): {', '.join(MODELOS_3D_DISPONIBLES)}. Si el producto es un piso, enchape o pintura (no un mueble/objeto 3D), usa null. Si es un mueble/objeto pero ninguno de la lista se parece razonablemente, usa null — NUNCA inventes un id que no esté en la lista.
 - imagen_index: {instrucciones_imagen}
 
 Responde SOLO con JSON válido, sin texto antes ni después, con esta forma exacta:
-{{"productos": [{{"nombre":"", "referencia":"", "precio":0, "descripcion":"", "categoria":"", "unidad":"", "modelo_3d_tipo": null, "imagen_index": null}}]}}
+{{"productos": [{{"nombre":"", "referencia":"", "precio":0, "descripcion":"", "categoria":"", "unidad":"", "rendimiento_m2": null, "modelo_3d_tipo": null, "imagen_index": null}}]}}
 
 Catálogo a analizar:
 {texto[:MAX_CHARS_TEXTO]}"""
