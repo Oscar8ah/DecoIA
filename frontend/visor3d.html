@@ -1693,13 +1693,15 @@ const VEL_CAM = 0.04; // metros por frame
 // ── VERIFICAR ROL DEL USUARIO ─────────────────────────────────
 let rolUsuario = null;
 
+let planEmpresaVisor = null;
+
 async function verificarRolYAcceso() {
     try {
         const { data:{ session } } = await db.auth.getSession();
         if (!session) { rolUsuario = null; return; }
         const email = session.user.email;
-        const { data:empresa } = await db.from('empresas').select('id').eq('email', email).maybeSingle();
-        if (empresa) { rolUsuario = 'empresa'; return; }
+        const { data:empresa } = await db.from('empresas').select('id, planes(nombre)').eq('email', email).maybeSingle();
+        if (empresa) { rolUsuario = 'empresa'; planEmpresaVisor = empresa.planes?.nombre || 'basico'; return; }
         const { data:consumidor } = await db.from('consumidores').select('id').eq('email', email).maybeSingle();
         if (consumidor) { rolUsuario = 'consumidor'; return; }
         rolUsuario = null;
@@ -2424,7 +2426,7 @@ async function capturarYGenerarIA() {
         });
         if (!response.ok) throw new Error('Error del servidor: ' + response.status);
         const data = await response.json();
-        if (data.status === 'error') throw new Error(data.error || 'Error desconocido');
+        if (data.status === 'error') throw new Error(data.mensaje || data.error || 'Error desconocido');
         if (!data.url_imagen) throw new Error('No se recibió URL de imagen');
         fotoIaUrl = data.url_imagen;
         document.getElementById('tabFoto').textContent = '📸 Render IA ✅';
@@ -2757,9 +2759,26 @@ function aplicarProductoASuperficie(prod, superficie) {
 
 document.addEventListener('DOMContentLoaded', async () => {
     await verificarRolYAcceso();
+    if (rolUsuario === 'empresa' && planEmpresaVisor === 'basico') {
+        mostrarBloqueoPlanVisor();
+        return;
+    }
     cargarFotoIA();
 });
 cargarFotoIA();
+
+function mostrarBloqueoPlanVisor() {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(10,10,20,0.97);display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;';
+    overlay.innerHTML = `
+        <div style="max-width:420px;">
+            <div style="font-size:56px;margin-bottom:16px;">🏗️</div>
+            <div style="font-size:20px;font-weight:800;color:white;margin-bottom:10px;">El Visor 3D es de plan Profesional en adelante</div>
+            <div style="font-size:14px;color:#9CA3AF;margin-bottom:24px;line-height:1.6;">Tu plan actual es Básico. Con Profesional desbloqueas el Editor de Planta, el Entorno 3D completo y el render con IA desde aquí.</div>
+            <a href="/dashboard#plan" style="display:inline-block;background:linear-gradient(135deg,#7C3AED,#3B82F6);color:white;padding:12px 28px;border-radius:50px;font-weight:700;text-decoration:none;font-size:14px;">Ver planes y actualizar →</a>
+        </div>`;
+    document.body.appendChild(overlay);
+}
 // ── EDITOR PLANTA L T U ───────────────────────────────────────────────────
 let modulosPlanta = [];
 let moduloSeleccionado = null;

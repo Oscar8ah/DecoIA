@@ -9,6 +9,7 @@
     { "source": "/remodelar",   "destination": "/remodelar.html" },
     { "source": "/terminos",    "destination": "/terminos.html" },
     { "source": "/",            "destination": "/index.html" },
-    { "source": "/crm", "destination": "/crm.html" }
+    { "source": "/crm", "destination": "/crm.html" },
+    { "source": "/admin", "destination": "/admin.html" }
   ]
 }

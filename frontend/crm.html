@@ -142,7 +142,7 @@
     <nav class="sidebar-nav">
         <a href="/dashboard" class="nav-item"><span class="icon">🏠</span> Inicio</a>
         <a href="/dashboard#mitienda" class="nav-item"><span class="icon">🏪</span> Mi Tienda</a>
-        <button class="nav-item" onclick="window.open('/visor3d','_blank')"><span class="icon">🏗️</span> Visor 3D</button>
+        <button class="nav-item" id="navVisor3D" onclick="window.open('/visor3d','_blank')"><span class="icon">🏗️</span> Visor 3D</button>
         <a href="/dashboard#whatsapp" class="nav-item"><span class="icon">📱</span> WhatsApp</a>
         <a href="/crm" class="nav-item active"><span class="icon">👥</span> CRM Clientes</a>
         <a href="/dashboard#historial" class="nav-item"><span class="icon">🖼️</span> Historial</a>
@@ -215,6 +215,14 @@
         <button class="btn-primario" onclick="exportarCSV()">📥 Exportar CSV</button>
     </div>
 
+    <div id="crmBloqueado" style="display:none;">
+        <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:12px;padding:20px 24px;font-size:14px;color:#FCD34D;">
+            ⚠️ El CRM de Clientes está disponible desde el plan <strong>Profesional</strong>.
+            <a href="/#planes" style="color:#FCD34D;margin-left:8px;text-decoration:underline;">Ver planes →</a>
+        </div>
+    </div>
+
+    <div id="crmContenido">
     <div class="stats-grid">
         <div class="stat-card"><div class="stat-label">👥 Total clientes</div><div class="stat-valor" id="statTotal">0</div><div class="stat-sub">registrados</div></div>
         <div class="stat-card"><div class="stat-label">🤖 Por WhatsApp</div><div class="stat-valor" id="statWa">0</div><div class="stat-sub">clientes bot</div></div>
@@ -243,6 +251,7 @@
             <div class="loading-row"><span class="spinner"></span> Cargando clientes...</div>
         </div>
     </div>
+    </div>
 </main>
 
 <script>
@@ -262,8 +271,21 @@ window.addEventListener('DOMContentLoaded', async () => {
     const { data:{ session } } = await db.auth.getSession();
     if (!session) { window.location.href = '/login'; return; }
 
-    const { data: empresa } = await db.from('empresas').select('id,nombre,email').eq('email', session.user.email).maybeSingle();
+    const { data: empresa } = await db.from('empresas').select('id,nombre,email,planes(nombre)').eq('email', session.user.email).maybeSingle();
     if (!empresa) { window.location.href = '/dashboard'; return; }
+
+    const planNombre = empresa.planes?.nombre || 'basico';
+    if (planNombre === 'basico') {
+        document.getElementById('crmBloqueado').style.display  = 'block';
+        document.getElementById('crmContenido').style.display  = 'none';
+        document.getElementById('sidebarAvatar').textContent  = empresa.nombre?.[0]?.toUpperCase() || '?';
+        document.getElementById('sidebarNombre').textContent  = empresa.nombre || 'Mi negocio';
+        document.getElementById('sidebarEmail').textContent   = empresa.email || '';
+        const btnVisor = document.getElementById('navVisor3D');
+        btnVisor.onclick = () => alert('⚠️ El Visor 3D está disponible desde el plan Profesional. Ve a "Mi Plan" para actualizar.');
+        btnVisor.style.opacity = '0.5';
+        return;
+    }
 
     empresaId = empresa.id;
     document.getElementById('sidebarAvatar').textContent  = empresa.nombre?.[0]?.toUpperCase() || '?';

@@ -471,7 +471,7 @@
     <nav class="sidebar-nav">
         <button class="nav-item active" onclick="mostrarPagina('inicio',this)"><span class="icon">🏠</span> Inicio</button>
         <button class="nav-item" onclick="mostrarPagina('mitienda',this)"><span class="icon">🏪</span> Mi Tienda <span class="dot-amarillo" id="dotTienda"></span></button>
-        <button class="nav-item" onclick="window.open('/visor3d','_blank')"><span class="icon">🏗️</span> Visor 3D</button>
+        <button class="nav-item" id="navVisor3D" onclick="window.open('/visor3d','_blank')"><span class="icon">🏗️</span> Visor 3D</button>
         <button class="nav-item" onclick="mostrarPagina('whatsapp',this)"><span class="icon">📱</span> WhatsApp <span class="dot-amarillo" id="dotWa"></span></button>
         <a href="/crm" class="nav-item"><span class="icon">👥</span> CRM Clientes</a>
         <button class="nav-item" onclick="mostrarPagina('historial',this)"><span class="icon">🖼️</span> Historial</button>
@@ -830,6 +830,15 @@ function renderDashboard(empresa, plan, imagenes) {
     document.getElementById('planNombrePag').textContent = NOMBRES_PLAN[planNombre]||planNombre;
     document.getElementById('planPrecioPag').textContent = PRECIOS[planNombre]||'';
     document.getElementById('planFeatures').innerHTML    = (FEATURES_PLAN[planNombre]||[]).map(f=>`<span class="feature-tag">✓ ${f}</span>`).join('');
+
+    // Visor 3D — desde plan Profesional en adelante
+    if (planNombre === 'basico') {
+        document.querySelectorAll('.btn-visor3d, #navVisor3D').forEach(el => {
+            el.onclick = () => alert('⚠️ El Visor 3D está disponible desde el plan Profesional. Ve a "Mi Plan" para actualizar.');
+            el.style.opacity = '0.5';
+            el.title = 'Disponible desde el plan Profesional';
+        });
+    }
     const pa = document.getElementById('perfilAvatar');
     pa.textContent = nombre[0].toUpperCase();
     document.getElementById('perfilNombre').textContent   = nombre;

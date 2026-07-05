@@ -8,6 +8,7 @@ from typing import Optional
 from openai import OpenAI
 from app.utils.config import get_settings
 from app.utils.supabase_client import get_supabase
+from app.services.limites_service import tiene_fotos_disponibles, descontar_foto
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["render3d"])
@@ -27,6 +28,14 @@ async def generar_render_3d(data: RenderRequest):
     Guarda en Supabase Storage y retorna URL pública.
     """
     settings = get_settings()
+
+    # ── Revisar cupo de fotos del plan ANTES de gastar en la IA ───────────
+    if data.empresa_id:
+        if not await tiene_fotos_disponibles(data.empresa_id):
+            logger.warning(f"Empresa {data.empresa_id} sin fotos disponibles — render bloqueado")
+            return {"status": "error", "error": "sin_fotos_disponibles",
+                    "mensaje": "Ya usaste todas las fotos incluidas en tu plan este mes. Actualiza tu plan para seguir generando renders."}
+
     try:
         client = OpenAI(api_key=settings.openai_api_key)
 
@@ -74,6 +83,7 @@ async def generar_render_3d(data: RenderRequest):
                 "tipo_espacio": "visor_3d",
                 "estilo":       "render_ia",
             }).execute()
+            await descontar_foto(data.empresa_id)
 
         logger.info(f"Render generado: {url_publica}")
         return {"url_imagen": url_publica, "status": "ok"}
