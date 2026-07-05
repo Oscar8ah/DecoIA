@@ -685,27 +685,25 @@
 
     <!-- WHATSAPP -->
     <div class="page" id="pagina-whatsapp">
-        <div class="page-header"><h1>📱 Conectar WhatsApp</h1><p>Conecta tu número de WhatsApp Business para activar el bot con IA</p></div>
+        <div class="page-header"><h1>📱 Conectar WhatsApp</h1><p>Activa el bot con IA en el número de WhatsApp de tu negocio</p></div>
         <div class="wa-status-card pendiente" id="waStatusCard">
             <div class="wa-status-icon">⚠️</div>
-            <div class="wa-status-info"><div class="wa-status-titulo">WhatsApp no conectado</div><div class="wa-status-sub">Completa el formulario para activar tu bot</div></div>
-            <span class="wa-status-badge amarillo">● Sin conectar</span>
+            <div class="wa-status-info"><div class="wa-status-titulo" id="waStatusTitulo">WhatsApp no conectado</div><div class="wa-status-sub" id="waStatusSub">Solicita la activación de tu número</div></div>
+            <span class="wa-status-badge amarillo" id="waStatusBadge">● Sin conectar</span>
         </div>
         <div class="wa-pasos">
-            <h3>📋 ¿Cómo obtener tus tokens de WhatsApp?</h3>
-            <div class="paso"><div class="paso-num">1</div><div class="paso-info"><h4>Crea tu cuenta en Meta for Developers</h4><p>Ve a <a href="https://developers.facebook.com" target="_blank">developers.facebook.com</a></p></div></div>
-            <div class="paso"><div class="paso-num">2</div><div class="paso-info"><h4>Crea una app tipo "Business"</h4><p>Mis apps → Crear app → Business</p></div></div>
-            <div class="paso"><div class="paso-num">3</div><div class="paso-info"><h4>Agrega WhatsApp a tu app</h4><p>WhatsApp → Configuración → <code>Phone Number ID</code> y <code>Token de acceso</code></p></div></div>
-            <div class="paso"><div class="paso-num">4</div><div class="paso-info"><h4>Crea tu Verify Token</h4><p>Inventa un texto seguro: <code>decoiarte_tunegocio_2026</code></p></div></div>
-            <div class="paso"><div class="paso-num">5</div><div class="paso-info"><h4>Pega los datos abajo y guarda</h4><p>Te contactamos en menos de 24 horas 🚀</p></div></div>
+            <h3>📋 ¿Cómo funciona?</h3>
+            <div class="paso"><div class="paso-num">1</div><div class="paso-info"><h4>Nos das el número de WhatsApp de tu negocio</h4><p>El mismo que ya usas o quieras usar para atender a tus clientes</p></div></div>
+            <div class="paso"><div class="paso-num">2</div><div class="paso-info"><h4>Nosotros lo conectamos a nuestra plataforma de IA</h4><p>Tú no necesitas crear ninguna cuenta técnica en Meta ni manejar tokens — nosotros nos encargamos de esa parte</p></div></div>
+            <div class="paso"><div class="paso-num">3</div><div class="paso-info"><h4>Te contactamos en menos de 24 horas para verificar el número</h4><p>Te llegará un código de confirmación al número que nos diste</p></div></div>
+            <div class="paso"><div class="paso-num">4</div><div class="paso-info"><h4>Tu bot queda activo</h4><p>Tu WhatsApp normal sigue funcionando igual — el bot responde encima, no lo reemplaza</p></div></div>
         </div>
         <div class="wa-form">
-            <h3>🔑 Credenciales WhatsApp Business</h3>
+            <h3>📱 Solicitar activación</h3>
             <div class="alerta" id="waAlerta"></div>
-            <div class="form-campo"><label>Phone Number ID</label><input type="text" id="waPhoneId" placeholder="123456789012345" oninput="checkCampo(this)"></div>
-            <div class="form-campo"><label>Token de acceso permanente</label><input type="password" id="waToken" placeholder="EAAxxxxxxxxxxxxxxxx..." oninput="checkCampo(this)"></div>
-            <div class="form-campo"><label>Verify Token</label><input type="text" id="waVerifyToken" placeholder="decoiarte_minegocio_2026" oninput="checkCampo(this)"></div>
-            <button class="btn-primario" style="width:100%" id="btnGuardarWa" onclick="guardarTokensWa()">💾 Guardar y activar mi bot</button>
+            <div class="form-campo"><label>Número de WhatsApp de tu negocio</label><input type="text" id="waNumeroSolicitado" placeholder="+57 300 1234567" oninput="checkCampo(this)"></div>
+            <div class="form-campo"><label>Nombre de contacto (quien confirma el código)</label><input type="text" id="waNombreContacto" placeholder="Ej: Juan Pérez"></div>
+            <button class="btn-primario" style="width:100%" id="btnGuardarWa" onclick="solicitarActivacionWa()">📨 Solicitar activación de mi bot</button>
         </div>
     </div>
 
@@ -1351,28 +1349,55 @@ function cancelarImportacion(){productosIA=[];document.getElementById('previewPr
 
 // ── WHATSAPP ──────────────────────────────────────────────────────────────
 function renderWhatsApp(empresa) {
-    if (empresa.whatsapp_phone_number_id && empresa.whatsapp_token) {
-        document.getElementById('dotWa').className='dot-verde';
-        document.getElementById('waStatusCard').className='wa-status-card conectado';
-        document.getElementById('waStatusCard').innerHTML=`<div class="wa-status-icon">✅</div><div class="wa-status-info"><div class="wa-status-titulo">WhatsApp conectado</div><div class="wa-status-sub">Phone ID: <strong>${empresa.whatsapp_phone_number_id}</strong></div></div><span class="wa-status-badge verde">● Conectado</span>`;
-        document.getElementById('waPhoneId').value     = empresa.whatsapp_phone_number_id||'';
-        document.getElementById('waToken').value       = '••••••••••••••••';
-        document.getElementById('waVerifyToken').value = empresa.whatsapp_verify_token||'';
+    const card  = document.getElementById('waStatusCard');
+    const badge = document.getElementById('waStatusBadge');
+    const titulo= document.getElementById('waStatusTitulo');
+    const sub   = document.getElementById('waStatusSub');
+
+    if (empresa.whatsapp_phone_number_id) {
+        // Oscar ya lo configuró en Meta — bot activo de verdad
+        document.getElementById('dotWa').className = 'dot-verde';
+        card.className = 'wa-status-card conectado';
+        titulo.textContent = 'Bot de WhatsApp activo ✅';
+        sub.textContent    = `Número conectado: ${empresa.whatsapp_numero_solicitado || ''}`;
+        badge.textContent  = '● Conectado';
+        badge.className    = 'wa-status-badge verde';
+    } else if (empresa.whatsapp_estado === 'pendiente') {
+        // Ya pidió activación, falta que Oscar lo configure manualmente en Meta
+        card.className = 'wa-status-card pendiente';
+        titulo.textContent = 'Solicitud en revisión ⏳';
+        sub.textContent    = `Te contactaremos pronto para verificar ${empresa.whatsapp_numero_solicitado || 'tu número'}`;
+        badge.textContent  = '● Pendiente de activación';
+        badge.className    = 'wa-status-badge amarillo';
+    } else {
+        titulo.textContent = 'WhatsApp no conectado';
+        sub.textContent    = 'Solicita la activación de tu número';
+        badge.textContent  = '● Sin conectar';
+        badge.className    = 'wa-status-badge amarillo';
     }
+
+    if (empresa.whatsapp_numero_solicitado) document.getElementById('waNumeroSolicitado').value = empresa.whatsapp_numero_solicitado;
+    if (empresa.whatsapp_nombre_contacto)    document.getElementById('waNombreContacto').value  = empresa.whatsapp_nombre_contacto;
 }
 
-async function guardarTokensWa() {
-    const phoneId=document.getElementById('waPhoneId').value.trim();
-    const token  =document.getElementById('waToken').value.trim();
-    const verify =document.getElementById('waVerifyToken').value.trim();
-    if(!phoneId||!token||!verify){mostrarAlerta('waAlerta','⚠️ Completa los 3 campos.','error');return;}
-    if(token==='••••••••••••••••'){mostrarAlerta('waAlerta','⚠️ Escribe el nuevo token completo.','error');return;}
-    const btn=document.getElementById('btnGuardarWa');
-    btn.disabled=true;btn.innerHTML='<span class="spinner-btn"></span>Guardando...';
-    const{error}=await db.from('empresas').update({whatsapp_phone_number_id:phoneId,whatsapp_token:token,whatsapp_verify_token:verify}).eq('id',empresaId);
-    if(error){mostrarAlerta('waAlerta','❌ Error guardando.','error');}
-    else{mostrarAlerta('waAlerta','✅ ¡Datos guardados! 🚀','exito');document.getElementById('dotWa').className='dot-verde';}
-    btn.disabled=false;btn.innerHTML='💾 Guardar y activar mi bot';
+async function solicitarActivacionWa() {
+    const numero  = document.getElementById('waNumeroSolicitado').value.trim();
+    const nombre  = document.getElementById('waNombreContacto').value.trim();
+    if (!numero) { mostrarAlerta('waAlerta','⚠️ Escribe el número de WhatsApp de tu negocio.','error'); return; }
+    const btn = document.getElementById('btnGuardarWa');
+    btn.disabled = true; btn.innerHTML = '<span class="spinner-btn"></span>Enviando...';
+    const { error } = await db.from('empresas').update({
+        whatsapp_numero_solicitado: numero,
+        whatsapp_nombre_contacto:   nombre || null,
+        whatsapp_estado:            'pendiente',
+    }).eq('id', empresaId);
+    if (error) { mostrarAlerta('waAlerta','❌ Error enviando la solicitud.','error'); }
+    else {
+        mostrarAlerta('waAlerta','✅ ¡Solicitud enviada! Te contactaremos en menos de 24 horas.','exito');
+        document.getElementById('dotWa').className = 'dot-verde';
+        renderWhatsApp({ whatsapp_numero_solicitado: numero, whatsapp_nombre_contacto: nombre, whatsapp_estado: 'pendiente' });
+    }
+    btn.disabled = false; btn.innerHTML = '📨 Solicitar activación de mi bot';
 }
 
 // ── HELPERS ───────────────────────────────────────────────────────────────

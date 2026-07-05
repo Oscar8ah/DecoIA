@@ -198,6 +198,7 @@
             <span class="nav-badge" id="badgePendientes" style="display:none;">0</span>
         </button>
         <button class="nav-item" onclick="mostrarPagina('pagos', this)"><span class="icon">💰</span> Pagos</button>
+        <button class="nav-item" onclick="mostrarPagina('whatsapp', this)"><span class="icon">📱</span> WhatsApp <span id="badgeWaPendientes" style="display:none;background:#EF4444;color:white;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;margin-left:auto;"></span></button>
         <button class="nav-item" onclick="mostrarPagina('imagenes', this)"><span class="icon">🖼️</span> Imágenes</button>
     </nav>
     <div class="sidebar-bottom">
@@ -238,6 +239,16 @@
             </div>
             <table><thead><tr><th>Empresa</th><th>Email</th><th>Plan</th><th>Fotos usadas</th><th>Estado</th><th>Acciones</th></tr></thead>
             <tbody id="tablaEmpresas"></tbody></table>
+        </div>
+    </div>
+
+    <!-- WHATSAPP MULTIASESOR -->
+    <div class="page" id="pagina-whatsapp">
+        <div class="page-header"><h1>📱 WhatsApp Multiasesor</h1><p>Solicitudes de tiendas para conectar su propio número de bot</p></div>
+        <div class="tabla-container">
+            <div class="tabla-header"><span class="tabla-titulo">Solicitudes</span></div>
+            <table><thead><tr><th>Empresa</th><th>Número solicitado</th><th>Contacto</th><th>Estado</th><th>Phone Number ID (Meta)</th><th>Acción</th></tr></thead>
+            <tbody id="tablaWhatsapp"></tbody></table>
         </div>
     </div>
 
@@ -331,6 +342,7 @@ async function cargarTodo() {
     renderTiendas(todasTiendas);
     renderPagos(pagosRes.data||[]);
     renderImagenes(imagenesRes.data||[], todasEmpresas);
+    renderWhatsappSolicitudes(todasEmpresas);
 
     // Badge pendientes
     const pendientes = todasTiendas.filter(t => t.estado_verificacion === 'pendiente' || !t.estado_verificacion).length;
@@ -356,6 +368,40 @@ function renderResumen(empresas, imagenes, tiendas) {
             <td style="color:var(--gris)">${formatFecha(e.created_at)}</td>
         </tr>`).join('');
 }
+
+// ── WHATSAPP MULTIASESOR ──────────────────────────────────────────────────
+function renderWhatsappSolicitudes(empresas) {
+    const tbody = document.getElementById('tablaWhatsapp');
+    const solicitudes = empresas.filter(e => e.whatsapp_estado === 'pendiente' || e.whatsapp_phone_number_id);
+    const pendientes  = empresas.filter(e => e.whatsapp_estado === 'pendiente' && !e.whatsapp_phone_number_id).length;
+    const badge = document.getElementById('badgeWaPendientes');
+    if (pendientes > 0) { badge.textContent = pendientes; badge.style.display = 'inline-block'; }
+
+    if (solicitudes.length === 0) { tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="icon">📱</div><p>No hay solicitudes aún</p></div></td></tr>`; return; }
+    tbody.innerHTML = solicitudes.map(e => `
+        <tr>
+            <td><strong>${e.nombre}</strong><br><span style="font-size:12px;color:var(--gris)">${e.email}</span></td>
+            <td>${e.whatsapp_numero_solicitado || '—'}</td>
+            <td>${e.whatsapp_nombre_contacto || '—'}</td>
+            <td>${e.whatsapp_phone_number_id
+                ? '<span class="badge badge-activo">✅ Activo</span>'
+                : '<span class="badge badge-pendiente">⏳ Pendiente</span>'}</td>
+            <td><input type="text" id="phoneId-${e.id}" value="${e.whatsapp_phone_number_id||''}" placeholder="Pégalo aquí tras configurar en Meta" style="width:220px;background:var(--oscuro);border:1px solid rgba(124,58,237,0.25);border-radius:8px;padding:6px 10px;color:var(--texto);font-size:13px;"></td>
+            <td><button class="btn-accion btn-activar" onclick="guardarPhoneNumberId('${e.id}')">💾 Guardar</button></td>
+        </tr>`).join('');
+}
+
+async function guardarPhoneNumberId(empresaId) {
+    const input = document.getElementById(`phoneId-${empresaId}`);
+    const valor = input.value.trim();
+    const { error } = await db.from('empresas').update({
+        whatsapp_phone_number_id: valor || null,
+        whatsapp_estado: valor ? 'activo' : 'pendiente',
+    }).eq('id', empresaId);
+    if (error) { alert('❌ Error guardando el Phone Number ID.'); return; }
+    await cargarTodo();
+}
+
 
 // ── EMPRESAS ──────────────────────────────────────────────────────────────
 function renderEmpresas(empresas) {
