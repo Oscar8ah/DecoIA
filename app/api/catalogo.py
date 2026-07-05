@@ -3,11 +3,14 @@ import logging
 import base64
 import io
 import csv as csv_module
+from urllib.parse import urljoin, urlparse
 
 import fitz  # PyMuPDF
 import httpx
 import openpyxl
+from bs4 import BeautifulSoup
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from pydantic import BaseModel
 
 from app.utils.config import get_settings
 from app.services.imagen_service import subir_imagen_a_imgbb
@@ -90,6 +93,65 @@ def _extraer_csv(contenido: bytes) -> str:
     return "\n".join(" | ".join(fila) for fila in lector)
 
 
+MAX_IMAGENES_URL   = 20
+TAMANO_MIN_IMAGEN_URL = 150  # px — filtra iconos/logos chiquitos declarados en el HTML
+
+async def _extraer_url(url: str):
+    """
+    Extrae texto e imágenes de una página de tienda existente (ej: su web en
+    Shopify, WooCommerce, o una página armada a mano), en el mismo formato
+    que usa el PDF: texto con marcadores [IMG_n] cerca de cada imagen, en el
+    orden en que aparecen en la página.
+    """
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"}
+    async with httpx.AsyncClient(timeout=30.0, headers=headers, follow_redirects=True) as client:
+        resp = await client.get(url)
+        if resp.status_code != 200:
+            raise HTTPException(status_code=400, detail=f"No se pudo abrir ese link (código {resp.status_code}). ¿Es público?")
+        html = resp.text
+
+    soup = BeautifulSoup(html, "lxml")
+    for tag in soup(["script", "style", "noscript", "nav", "footer", "header", "svg"]):
+        tag.decompose()
+
+    imagenes_bytes = []
+    partes_texto = []
+
+    async with httpx.AsyncClient(timeout=15.0, headers=headers, follow_redirects=True) as client:
+        for el in soup.body.find_all(True) if soup.body else []:
+            if el.name == "img":
+                if len(imagenes_bytes) >= MAX_IMAGENES_URL:
+                    continue
+                src = el.get("src") or el.get("data-src") or (el.get("srcset") or "").split(" ")[0]
+                if not src:
+                    continue
+                try:
+                    ancho = int(el.get("width", 0) or 0)
+                    alto  = int(el.get("height", 0) or 0)
+                    if 0 < ancho < TAMANO_MIN_IMAGEN_URL or 0 < alto < TAMANO_MIN_IMAGEN_URL:
+                        continue  # probablemente un ícono/logo, no foto de producto
+                except ValueError:
+                    pass
+                url_img = urljoin(url, src)
+                if urlparse(url_img).scheme not in ("http", "https"):
+                    continue
+                try:
+                    r = await client.get(url_img)
+                    if r.status_code == 200 and len(r.content) > 2000:  # descarta pixeles de tracking
+                        imagenes_bytes.append(r.content)
+                        alt = (el.get("alt") or "").strip()
+                        partes_texto.append(f"[IMG_{len(imagenes_bytes) - 1}{': ' + alt if alt else ''}]")
+                except Exception as e:
+                    logger.warning(f"No se pudo descargar imagen {url_img}: {e}")
+            else:
+                texto_el = el.get_text(" ", strip=True) if el.name in ("p","span","div","h1","h2","h3","h4","li","td","a","strong","b") else ""
+                if texto_el and (not el.find(True)):  # solo nodos "hoja" para no repetir texto anidado
+                    partes_texto.append(texto_el)
+
+    texto_final = "\n".join(partes_texto)
+    return texto_final, imagenes_bytes
+
+
 async def _llamar_ia_extraccion(texto: str, tiene_imagenes: bool, settings) -> dict:
     if not settings.anthropic_api_key:
         raise HTTPException(
@@ -154,6 +216,28 @@ Catálogo a analizar:
     return parsed
 
 
+async def _post_procesar_productos(productos: list, imagenes: list, settings) -> dict:
+    """Sube a imgbb solo las fotos que la IA sí asoció a un producto, y valida categoría/modelo_3d_tipo."""
+    indices_usados = {p.get("imagen_index") for p in productos if p.get("imagen_index") is not None}
+    urls_por_indice = {}
+    for idx in indices_usados:
+        if isinstance(idx, int) and 0 <= idx < len(imagenes):
+            try:
+                urls_por_indice[idx] = await subir_imagen_a_imgbb(imagenes[idx], settings.imgbb_api_key)
+            except Exception as e:
+                logger.warning(f"No se pudo subir imagen {idx} a imgbb: {e}")
+
+    for p in productos:
+        idx = p.get("imagen_index")
+        p["imagen_url"] = urls_por_indice.get(idx) if isinstance(idx, int) else None
+        if p.get("modelo_3d_tipo") not in MODELOS_3D_DISPONIBLES:
+            p["modelo_3d_tipo"] = None
+        if p.get("categoria") not in CATEGORIAS_VALIDAS:
+            p["categoria"] = "otros"
+
+    return {"productos": productos, "total_imagenes_detectadas": len(imagenes)}
+
+
 @router.post("/procesar-catalogo")
 async def procesar_catalogo(archivo: UploadFile = File(...), tienda_id: str = Form(...)):
     """
@@ -187,23 +271,35 @@ async def procesar_catalogo(archivo: UploadFile = File(...), tienda_id: str = Fo
 
     parsed = await _llamar_ia_extraccion(texto, tiene_imagenes=bool(imagenes), settings=settings)
     productos = parsed.get("productos", [])
+    return await _post_procesar_productos(productos, imagenes, settings)
 
-    # Subir a imgbb solo las imágenes que la IA sí asoció a un producto (ahorra llamadas)
-    indices_usados = {p.get("imagen_index") for p in productos if p.get("imagen_index") is not None}
-    urls_por_indice = {}
-    for idx in indices_usados:
-        if isinstance(idx, int) and 0 <= idx < len(imagenes):
-            try:
-                urls_por_indice[idx] = await subir_imagen_a_imgbb(imagenes[idx], settings.imgbb_api_key)
-            except Exception as e:
-                logger.warning(f"No se pudo subir imagen {idx} a imgbb: {e}")
 
-    for p in productos:
-        idx = p.get("imagen_index")
-        p["imagen_url"] = urls_por_indice.get(idx) if isinstance(idx, int) else None
-        if p.get("modelo_3d_tipo") not in MODELOS_3D_DISPONIBLES:
-            p["modelo_3d_tipo"] = None
-        if p.get("categoria") not in CATEGORIAS_VALIDAS:
-            p["categoria"] = "otros"
+class CatalogoUrlRequest(BaseModel):
+    url: str
+    tienda_id: str
 
-    return {"productos": productos, "total_imagenes_detectadas": len(imagenes)}
+
+@router.post("/procesar-catalogo-url")
+async def procesar_catalogo_url(data: CatalogoUrlRequest):
+    """
+    Recibe el link de una tienda existente (Shopify, WooCommerce, página propia),
+    lee su contenido público y extrae productos con IA, igual que con un PDF.
+    """
+    settings = get_settings()
+    if not data.url.startswith(("http://", "https://")):
+        raise HTTPException(status_code=400, detail="El link debe empezar con http:// o https://")
+
+    try:
+        texto, imagenes = await _extraer_url(data.url)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error leyendo la URL {data.url}: {e}")
+        raise HTTPException(status_code=400, detail="No se pudo leer esa página. Verifica que el link sea público y correcto.")
+
+    if not texto.strip():
+        raise HTTPException(status_code=400, detail="No se encontró texto de productos en esa página.")
+
+    parsed = await _llamar_ia_extraccion(texto, tiene_imagenes=bool(imagenes), settings=settings)
+    productos = parsed.get("productos", [])
+    return await _post_procesar_productos(productos, imagenes, settings)

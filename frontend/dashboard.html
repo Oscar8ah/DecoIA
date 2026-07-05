@@ -626,7 +626,7 @@
         <div class="tab-content" id="tab-importar">
             <div id="importarBloqueado" style="display:none;"><div class="plan-requerido">⚠️ Esta función está disponible desde el plan <strong>Profesional</strong>. <a href="/#planes" style="color:#FCD34D;margin-left:8px;">Ver planes →</a></div></div>
             <div id="importarDisponible">
-                <div class="form-card"><h3>🤖 Importar productos con IA</h3><p>Sube tu catálogo en PDF, Excel o CSV. La IA extraerá automáticamente nombres, precios y descripciones.</p></div>
+                <div class="form-card"><h3>🤖 Importar productos con IA</h3><p>Sube tu catálogo en PDF, Excel o CSV, o pega el link de tu tienda si ya vendes en otro lado. La IA extraerá automáticamente nombres, precios, fotos y descripciones.</p></div>
                 <div class="alerta" id="importarAlerta"></div>
                 <label class="upload-zone" for="inputArchivo">
                     <div class="upload-icon">📄</div>
@@ -635,6 +635,17 @@
                     <input type="file" id="inputArchivo" accept=".pdf,.xlsx,.csv,.xls" onchange="procesarArchivo(this)">
                     <div style="margin-top:16px;"><span style="background:var(--degradado);color:white;padding:10px 24px;border-radius:50px;font-size:14px;font-weight:700;">Seleccionar archivo</span></div>
                 </label>
+                <div style="display:flex;align-items:center;gap:12px;margin:20px 0;color:var(--gris);font-size:13px;">
+                    <div style="flex:1;height:1px;background:rgba(124,58,237,0.2);"></div>o<div style="flex:1;height:1px;background:rgba(124,58,237,0.2);"></div>
+                </div>
+                <div class="form-card">
+                    <h3>🔗 ¿Ya tienes tienda en otro lado?</h3>
+                    <p>Pega el link de tu tienda (Shopify, WooCommerce, tu página propia) y la IA la lee igual que un catálogo.</p>
+                    <div class="form-grid-2" style="margin-top:12px;">
+                        <input type="url" id="inputUrlTienda" placeholder="https://mitienda.com/productos" style="flex:1;">
+                        <button class="btn-primario" onclick="procesarUrlTienda()" id="btnProcesarUrl">🤖 Analizar link</button>
+                    </div>
+                </div>
                 <div id="previewProductos" style="display:none;margin-top:24px;">
                     <div class="preview-header">
                         <h3 id="previewTitulo">Productos detectados</h3>
@@ -1204,6 +1215,33 @@ async function procesarArchivo(input) {
         renderPreviewIA();
     }catch(e){console.error(e);mostrarAlerta('importarAlerta',`❌ ${e.message||'Error procesando el archivo.'}`,'error');}
     input.value='';
+}
+
+async function procesarUrlTienda() {
+    const url = document.getElementById('inputUrlTienda').value.trim();
+    if (!url) { mostrarAlerta('importarAlerta','⚠️ Pega el link de tu tienda primero.','error'); return; }
+    if (!tiendaId) { mostrarAlerta('importarAlerta','⚠️ Primero crea tu tienda.','error'); return; }
+    const btn = document.getElementById('btnProcesarUrl');
+    btn.disabled = true; btn.textContent = 'Analizando...';
+    mostrarAlerta('importarAlerta','🤖 La IA está leyendo tu tienda (puede tardar hasta 1 minuto)...','info');
+    document.getElementById('previewProductos').style.display='none';
+    try {
+        const response = await fetch('https://decoia.onrender.com/procesar-catalogo-url', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ url, tienda_id: tiendaId })
+        });
+        if (!response.ok) {
+            const err = await response.json().catch(()=>({detail:'Error leyendo esa tienda.'}));
+            throw new Error(err.detail || 'Error leyendo esa tienda.');
+        }
+        const parsed = await response.json();
+        productosIA=(parsed.productos||[]).map((p,i)=>({...p,_id:i,_aceptado:true}));
+        if(productosIA.length===0){mostrarAlerta('importarAlerta','⚠️ No se encontraron productos en esa página.','error');return;}
+        mostrarAlerta('importarAlerta',`✅ ¡La IA detectó ${productosIA.length} productos!`,'exito');
+        renderPreviewIA();
+    }catch(e){console.error(e);mostrarAlerta('importarAlerta',`❌ ${e.message||'Error leyendo esa tienda.'}`,'error');}
+    btn.disabled = false; btn.textContent = '🤖 Analizar link';
 }
 
 
