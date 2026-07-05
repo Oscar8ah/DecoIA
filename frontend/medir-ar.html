@@ -147,7 +147,13 @@ async function iniciarAR() {
         renderer.setAnimationLoop(render);
     } catch (e) {
         console.error('Error iniciando sesión AR:', e);
-        alert('No se pudo iniciar la cámara AR. Verifica los permisos de cámara del navegador.');
+        let mensaje = `No se pudo iniciar la cámara AR.\n\nError técnico: ${e.name || 'desconocido'} — ${e.message || ''}`;
+        if (e.name === 'NotSupportedError') {
+            mensaje += '\n\n📱 Verifica que tengas instalada y actualizada la app "Google Play Services para RA" (ARCore) desde Play Store.';
+        } else if (e.name === 'SecurityError' || e.name === 'NotAllowedError') {
+            mensaje += '\n\n🔒 Verifica el permiso de cámara para este SITIO específico en Chrome (icono de candado junto a la URL → Permisos), no solo el permiso general de la app.';
+        }
+        alert(mensaje);
         salirDeAR();
     }
 
