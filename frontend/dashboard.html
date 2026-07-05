@@ -519,6 +519,7 @@
             <button class="tab-btn" onclick="mostrarTab('tab-legal',this)">📄 Documentos legales</button>
             <button class="tab-btn" onclick="mostrarTab('tab-productos',this)">📦 Mis productos</button>
             <button class="tab-btn" onclick="mostrarTab('tab-importar',this)">🤖 Importar con IA</button>
+            <button class="tab-btn" onclick="mostrarTab('tab-planos',this)">🏗️ Planos con IA</button>
         </div>
 
         <!-- TAB INFO -->
@@ -663,6 +664,23 @@
                 </div>
             </div>
         </div>
+
+        <!-- TAB PLANOS ARQUITECTÓNICOS CON IA — solo Corporativo -->
+        <div class="tab-content" id="tab-planos">
+            <div id="planosBloqueado" style="display:none;"><div class="plan-requerido">⚠️ Esta función está disponible en el plan <strong>Corporativo</strong>. <a href="/#planes" style="color:#FCD34D;margin-left:8px;">Ver planes →</a></div></div>
+            <div id="planosDisponible" style="display:none;">
+                <div class="form-card"><h3>🏗️ Planos arquitectónicos con IA</h3><p>Sube una foto de un plano arquitectónico real (impreso, escaneado o boceto) y la IA lo interpreta con normas técnicas colombianas, generando el modelo 3D listo para el Visor.</p></div>
+                <div class="alerta" id="planosAlerta"></div>
+                <label class="upload-zone" for="inputPlano">
+                    <div class="upload-icon">📐</div>
+                    <h3>Arrastra la foto del plano aquí</h3>
+                    <p>JPG o PNG · Máximo 10MB</p>
+                    <input type="file" id="inputPlano" accept="image/*" onchange="procesarPlanoArquitectonico(this)">
+                    <div style="margin-top:16px;"><span style="background:var(--degradado);color:white;padding:10px 24px;border-radius:50px;font-size:14px;font-weight:700;">Seleccionar foto del plano</span></div>
+                </label>
+                <div id="planoResultado" style="display:none;margin-top:24px;"></div>
+            </div>
+        </div>
     </div>
 
     <!-- WHATSAPP -->
@@ -795,6 +813,11 @@ async function cargarDatos(user) {
     if (!PLANES_CON_IA.includes(planActual)) {
         document.getElementById('importarBloqueado').style.display  = 'block';
         document.getElementById('importarDisponible').style.display = 'none';
+    }
+    if (planActual === 'corporativo') {
+        document.getElementById('planosDisponible').style.display = 'block';
+    } else {
+        document.getElementById('planosBloqueado').style.display  = 'block';
     }
 }
 
@@ -1278,6 +1301,44 @@ async function procesarUrlTienda() {
         renderPreviewIA();
     }catch(e){console.error(e);mostrarAlerta('importarAlerta',`❌ ${e.message||'Error leyendo esa tienda.'}`,'error');}
     btn.disabled = false; btn.textContent = '🤖 Analizar link';
+}
+
+async function procesarPlanoArquitectonico(input) {
+    const file = input.files[0];
+    if (!file) return;
+    if (!empresaId) { mostrarAlerta('planosAlerta','⚠️ No se encontró tu empresa.','error'); return; }
+    mostrarAlerta('planosAlerta','🏗️ La IA está interpretando tu plano con normas técnicas colombianas (puede tardar hasta 1 minuto)...','info');
+    document.getElementById('planoResultado').style.display = 'none';
+    try {
+        const formData = new FormData();
+        formData.append('archivo', file);
+        formData.append('empresa_id', empresaId);
+        const response = await fetch('https://decoia.onrender.com/analizar-plano-arquitectonico', {
+            method: 'POST',
+            body: formData
+        });
+        if (!response.ok) {
+            const err = await response.json().catch(()=>({detail:'Error interpretando el plano.'}));
+            throw new Error(err.detail || 'Error interpretando el plano.');
+        }
+        const data = await response.json();
+        mostrarAlerta('planosAlerta','✅ ¡Plano interpretado! Revisa el resultado abajo.','exito');
+        const info = data.info || {};
+        const cont = document.getElementById('planoResultado');
+        cont.style.display = 'block';
+        cont.innerHTML = `
+            <div class="form-card">
+                <h3>📐 Plano analizado</h3>
+                <p><b>Tipo:</b> ${info.tipo_plano || 'Espacio'}</p>
+                <p><b>Habitaciones:</b> ${info.habitaciones || '—'}</p>
+                <p><b>Área estimada:</b> ${info.area_estimada || 'Por determinar'}</p>
+                ${data.url_visor3d ? `<a href="${data.url_visor3d}" target="_blank" class="btn-primario" style="display:inline-block;margin-top:12px;text-decoration:none;">🏗️ Ver y editar en el Visor 3D →</a>` : ''}
+            </div>`;
+    } catch(e) {
+        console.error(e);
+        mostrarAlerta('planosAlerta', `❌ ${e.message||'Error interpretando el plano.'}`, 'error');
+    }
+    input.value = '';
 }
 
 

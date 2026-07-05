@@ -10,6 +10,7 @@ from app.api.render3d import router as render3d_router
 from app.api.fondo import router as fondo_router
 from app.api.wompi import router as wompi_router   # ✅ NUEVO
 from app.api.catalogo import router as catalogo_router
+from app.api.planos import router as planos_router
 
 load_dotenv()
 
@@ -48,3 +49,4 @@ app.include_router(render3d_router)
 app.include_router(fondo_router)
 app.include_router(wompi_router)   # ✅ NUEVO
 app.include_router(catalogo_router)
+app.include_router(planos_router)
