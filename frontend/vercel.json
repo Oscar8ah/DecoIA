@@ -10,6 +10,7 @@
     { "source": "/terminos",    "destination": "/terminos.html" },
     { "source": "/",            "destination": "/index.html" },
     { "source": "/crm", "destination": "/crm.html" },
-    { "source": "/admin", "destination": "/admin.html" }
+    { "source": "/admin", "destination": "/admin.html" },
+    { "source": "/medir-ar", "destination": "/medir-ar.html" }
   ]
 }

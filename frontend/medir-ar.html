@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Medición AR — DecolArte</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<style>
+    * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI',sans-serif; }
+    html, body { height:100%; background:#0A0A14; color:#E5E7EB; overflow:hidden; }
+    #loadingOverlay { position:fixed; inset:0; background:#0A0A14; display:flex; align-items:center; justify-content:center; z-index:200; }
+    .spinner { width:36px; height:36px; border:3px solid rgba(124,58,237,0.2); border-top-color:#7C3AED; border-radius:50%; animation:spin 0.8s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    #pantallaInicio { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:24px; z-index:50; }
+    #pantallaInicio h1 { font-size:22px; margin-bottom:10px; background:linear-gradient(135deg,#7C3AED,#3B82F6); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+    #pantallaInicio p { color:#9CA3AF; font-size:14px; line-height:1.6; max-width:360px; margin-bottom:24px; }
+    .btn-ar { background:linear-gradient(135deg,#7C3AED,#3B82F6); color:white; border:none; padding:14px 32px; border-radius:50px; font-size:15px; font-weight:700; cursor:pointer; }
+    .btn-ar:disabled { opacity:0.4; cursor:not-allowed; }
+    .aviso-caja { background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); border-radius:12px; padding:14px 18px; font-size:13px; color:#FCD34D; max-width:360px; margin-bottom:20px; text-align:left; line-height:1.5; }
+
+    #hudMedicion { position:fixed; top:0; left:0; right:0; padding:16px; z-index:40; display:none; pointer-events:none; }
+    #hudMedicion .instruccion { background:rgba(10,10,20,0.75); backdrop-filter:blur(6px); border-radius:12px; padding:10px 16px; font-size:13px; text-align:center; }
+    #listaMediciones { position:fixed; bottom:0; left:0; right:0; max-height:35%; overflow-y:auto; background:rgba(10,10,20,0.85); backdrop-filter:blur(8px); z-index:40; display:none; padding:12px 16px 90px; }
+    #listaMediciones .medicion-item { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.08); font-size:14px; }
+    #btnSalirAR { position:fixed; top:16px; right:16px; z-index:41; background:rgba(239,68,68,0.85); color:white; border:none; padding:10px 16px; border-radius:50px; font-size:13px; font-weight:700; display:none; }
+    #btnNuevaMedicion { position:fixed; bottom:16px; left:50%; transform:translateX(-50%); z-index:41; background:linear-gradient(135deg,#7C3AED,#3B82F6); color:white; border:none; padding:12px 28px; border-radius:50px; font-size:14px; font-weight:700; display:none; }
+</style>
+</head>
+<body>
+
+<div id="loadingOverlay"><div class="spinner"></div></div>
+
+<div id="pantallaInicio" style="display:none;">
+    <div style="font-size:48px;margin-bottom:12px;">📐</div>
+    <h1>Medición AR de espacios</h1>
+    <p id="descripcionAR">Apunta la cámara de tu celular a una superficie, toca dos puntos, y obtén la distancia real en metros — directo sobre lo que ves.</p>
+    <div id="avisoNoSoportado" class="aviso-caja" style="display:none;"></div>
+    <button class="btn-ar" id="btnEmpezarAR" onclick="iniciarAR()">🎯 Empezar a medir</button>
+</div>
+
+<div id="hudMedicion"><div class="instruccion" id="textoInstruccion">Mueve el celular para detectar una superficie</div></div>
+<div id="listaMediciones"><div style="font-size:13px;font-weight:700;color:#A78BFA;margin-bottom:6px;">📏 Mediciones de esta sesión</div><div id="itemsLista"></div></div>
+<button id="btnNuevaMedicion" onclick="reiniciarPuntoActual()">➕ Nueva medición</button>
+<button id="btnSalirAR" onclick="salirDeAR()">✕ Salir</button>
+
+<script>
+const SUPABASE_URL      = 'https://cqwbsikyzdtegutyvgfo.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxd2JzaWt5emR0ZWd1dHl2Z2ZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NTk5MjUsImV4cCI6MjA5NDMzNTkyNX0.v9Qmp85POur1zZ3nHVYNRyhqHAi4VawafBsCiXF72Yo';
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let renderer, scene, camera, reticle;
+let hitTestSource = null, hitTestSourceRequested = false;
+let controller;
+let puntosMedicion = [];  // puntos ya confirmados de la medición actual (máx 2)
+let mediciones = [];      // historial de mediciones completadas [{a,b,distancia}]
+let sesionActiva = false;
+
+// ── VALIDAR PLAN CORPORATIVO ────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+    const { data:{ session } } = await db.auth.getSession();
+    if (!session) { window.location.href = '/login'; return; }
+
+    const { data: empresa } = await db.from('empresas').select('planes(nombre)').eq('email', session.user.email).maybeSingle();
+    const planNombre = empresa?.planes?.nombre;
+
+    document.getElementById('loadingOverlay').style.display = 'none';
+
+    if (planNombre !== 'corporativo') {
+        document.getElementById('pantallaInicio').style.display = 'flex';
+        document.getElementById('descripcionAR').style.display = 'none';
+        document.getElementById('btnEmpezarAR').style.display = 'none';
+        document.getElementById('avisoNoSoportado').style.display = 'block';
+        document.getElementById('avisoNoSoportado').innerHTML = '⚠️ La Medición AR está disponible desde el plan <strong>Corporativo</strong>. <a href="/dashboard#plan" style="color:#FCD34D;">Ver planes →</a>';
+        return;
+    }
+
+    document.getElementById('pantallaInicio').style.display = 'flex';
+    verificarSoporteAR();
+});
+
+async function verificarSoporteAR() {
+    const btn = document.getElementById('btnEmpezarAR');
+    const aviso = document.getElementById('avisoNoSoportado');
+
+    if (!navigator.xr) {
+        mostrarNoSoportado();
+        return;
+    }
+    try {
+        const soportado = await navigator.xr.isSessionSupported('immersive-ar');
+        if (!soportado) mostrarNoSoportado();
+    } catch (e) {
+        mostrarNoSoportado();
+    }
+
+    function mostrarNoSoportado() {
+        btn.disabled = true;
+        aviso.style.display = 'block';
+        aviso.innerHTML = '📱 La Medición AR solo funciona hoy en <strong>Android con Chrome</strong> (tecnología WebXR). El soporte para iPhone llegará más adelante, cuando saquemos la app móvil. Prueba desde un celular Android.';
+    }
+}
+
+// ── INICIAR SESIÓN AR ────────────────────────────────────────────────────
+async function iniciarAR() {
+    document.getElementById('pantallaInicio').style.display = 'none';
+    document.getElementById('hudMedicion').style.display = 'block';
+    document.getElementById('listaMediciones').style.display = 'block';
+    document.getElementById('btnSalirAR').style.display = 'block';
+    document.getElementById('btnNuevaMedicion').style.display = 'block';
+
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+
+    const luz = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 3);
+    luz.position.set(0.5, 1, 0.25);
+    scene.add(luz);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.xr.enabled = true;
+    document.body.appendChild(renderer.domElement);
+
+    // Reticle — el aro que marca dónde se detectó la superficie
+    const geoReticle = new THREE.RingGeometry(0.06, 0.08, 32).rotateX(-Math.PI / 2);
+    const matReticle = new THREE.MeshBasicMaterial({ color: 0x7C3AED });
+    reticle = new THREE.Mesh(geoReticle, matReticle);
+    reticle.matrixAutoUpdate = false;
+    reticle.visible = false;
+    scene.add(reticle);
+
+    controller = renderer.xr.getController(0);
+    controller.addEventListener('select', onSelect);
+    scene.add(controller);
+
+    try {
+        const session = await navigator.xr.requestSession('immersive-ar', {
+            requiredFeatures: ['hit-test'],
+        });
+        sesionActiva = true;
+        session.addEventListener('end', onSessionEnd);
+        await renderer.xr.setSession(session);
+        renderer.setAnimationLoop(render);
+    } catch (e) {
+        console.error('Error iniciando sesión AR:', e);
+        alert('No se pudo iniciar la cámara AR. Verifica los permisos de cámara del navegador.');
+        salirDeAR();
+    }
+
+    window.addEventListener('resize', () => {
+        if (!camera || !renderer) return;
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+}
+
+function onSessionEnd() {
+    sesionActiva = false;
+    hitTestSource = null;
+    hitTestSourceRequested = false;
+    document.getElementById('pantallaInicio').style.display = 'flex';
+    document.getElementById('hudMedicion').style.display = 'none';
+    document.getElementById('listaMediciones').style.display = 'none';
+    document.getElementById('btnSalirAR').style.display = 'none';
+    document.getElementById('btnNuevaMedicion').style.display = 'none';
+    if (renderer && renderer.domElement) renderer.domElement.remove();
+}
+
+function salirDeAR() {
+    const session = renderer?.xr?.getSession?.();
+    if (session) session.end();
+}
+
+// ── TOCAR PANTALLA PARA MARCAR UN PUNTO ──────────────────────────────────
+function onSelect() {
+    if (!reticle.visible) return;
+    const punto = new THREE.Vector3();
+    punto.setFromMatrixPosition(reticle.matrix);
+
+    // Marcador visual en el punto tocado
+    const esfera = new THREE.Mesh(new THREE.SphereGeometry(0.012, 12, 12), new THREE.MeshBasicMaterial({ color: 0x22C55E }));
+    esfera.position.copy(punto);
+    scene.add(esfera);
+
+    puntosMedicion.push(punto);
+
+    if (puntosMedicion.length === 1) {
+        document.getElementById('textoInstruccion').textContent = 'Toca el segundo punto para medir la distancia';
+    } else if (puntosMedicion.length === 2) {
+        const distancia = puntosMedicion[0].distanceTo(puntosMedicion[1]);
+
+        // Línea entre los dos puntos
+        const geoLinea = new THREE.BufferGeometry().setFromPoints(puntosMedicion);
+        const linea = new THREE.Line(geoLinea, new THREE.LineBasicMaterial({ color: 0x7C3AED, linewidth: 3 }));
+        scene.add(linea);
+
+        mediciones.push({ distancia });
+        actualizarListaMediciones();
+
+        document.getElementById('textoInstruccion').textContent = `📏 ${distancia.toFixed(2)} m — toca "Nueva medición" para seguir`;
+        puntosMedicion = [];
+    }
+}
+
+function reiniciarPuntoActual() {
+    puntosMedicion = [];
+    document.getElementById('textoInstruccion').textContent = 'Mueve el celular para detectar una superficie';
+}
+
+function actualizarListaMediciones() {
+    const cont = document.getElementById('itemsLista');
+    cont.innerHTML = mediciones.map((m, i) => `
+        <div class="medicion-item">
+            <span>Medición ${i + 1}</span>
+            <strong>${m.distancia.toFixed(2)} m</strong>
+        </div>`).join('');
+}
+
+// ── LOOP DE RENDER + HIT TEST ─────────────────────────────────────────────
+function render(timestamp, frame) {
+    if (frame) {
+        const referenceSpace = renderer.xr.getReferenceSpace();
+        const session = renderer.xr.getSession();
+
+        if (!hitTestSourceRequested) {
+            session.requestReferenceSpace('viewer').then((refSpace) => {
+                session.requestHitTestSource({ space: refSpace }).then((source) => {
+                    hitTestSource = source;
+                });
+            });
+            session.addEventListener('end', () => {
+                hitTestSourceRequested = false;
+                hitTestSource = null;
+            });
+            hitTestSourceRequested = true;
+        }
+
+        if (hitTestSource) {
+            const hitTestResults = frame.getHitTestResults(hitTestSource);
+            if (hitTestResults.length > 0) {
+                const hit = hitTestResults[0];
+                reticle.visible = true;
+                reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
+            } else {
+                reticle.visible = false;
+            }
+        }
+    }
+    renderer.render(scene, camera);
+}
+</script>
+</body>
+</html>

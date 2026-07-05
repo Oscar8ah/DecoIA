@@ -472,6 +472,7 @@
         <button class="nav-item active" onclick="mostrarPagina('inicio',this)"><span class="icon">🏠</span> Inicio</button>
         <button class="nav-item" onclick="mostrarPagina('mitienda',this)"><span class="icon">🏪</span> Mi Tienda <span class="dot-amarillo" id="dotTienda"></span></button>
         <button class="nav-item" id="navVisor3D" onclick="window.open('/visor3d','_blank')"><span class="icon">🏗️</span> Visor 3D</button>
+        <button class="nav-item" id="navMedirAR" onclick="window.open('/medir-ar','_blank')"><span class="icon">📐</span> Medición AR</button>
         <button class="nav-item" onclick="mostrarPagina('whatsapp',this)"><span class="icon">📱</span> WhatsApp <span class="dot-amarillo" id="dotWa"></span></button>
         <a href="/crm" class="nav-item"><span class="icon">👥</span> CRM Clientes</a>
         <button class="nav-item" onclick="mostrarPagina('historial',this)"><span class="icon">🖼️</span> Historial</button>
@@ -859,6 +860,14 @@ function renderDashboard(empresa, plan, imagenes) {
             el.style.opacity = '0.5';
             el.title = 'Disponible desde el plan Profesional';
         });
+    }
+
+    // Medición AR — exclusiva de Corporativo
+    if (planNombre !== 'corporativo') {
+        const btnAR = document.getElementById('navMedirAR');
+        btnAR.onclick = () => alert('⚠️ La Medición AR está disponible en el plan Corporativo. Ve a "Mi Plan" para actualizar.');
+        btnAR.style.opacity = '0.5';
+        btnAR.title = 'Disponible en el plan Corporativo';
     }
     const pa = document.getElementById('perfilAvatar');
     pa.textContent = nombre[0].toUpperCase();

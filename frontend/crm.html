@@ -143,6 +143,7 @@
         <a href="/dashboard" class="nav-item"><span class="icon">🏠</span> Inicio</a>
         <a href="/dashboard#mitienda" class="nav-item"><span class="icon">🏪</span> Mi Tienda</a>
         <button class="nav-item" id="navVisor3D" onclick="window.open('/visor3d','_blank')"><span class="icon">🏗️</span> Visor 3D</button>
+        <button class="nav-item" id="navMedirAR" onclick="window.open('/medir-ar','_blank')"><span class="icon">📐</span> Medición AR</button>
         <a href="/dashboard#whatsapp" class="nav-item"><span class="icon">📱</span> WhatsApp</a>
         <a href="/crm" class="nav-item active"><span class="icon">👥</span> CRM Clientes</a>
         <a href="/dashboard#historial" class="nav-item"><span class="icon">🖼️</span> Historial</a>
@@ -284,7 +285,16 @@ window.addEventListener('DOMContentLoaded', async () => {
         const btnVisor = document.getElementById('navVisor3D');
         btnVisor.onclick = () => alert('⚠️ El Visor 3D está disponible desde el plan Profesional. Ve a "Mi Plan" para actualizar.');
         btnVisor.style.opacity = '0.5';
+        const btnAR = document.getElementById('navMedirAR');
+        btnAR.onclick = () => alert('⚠️ La Medición AR está disponible en el plan Corporativo. Ve a "Mi Plan" para actualizar.');
+        btnAR.style.opacity = '0.5';
         return;
+    }
+
+    if (planNombre !== 'corporativo') {
+        const btnAR = document.getElementById('navMedirAR');
+        btnAR.onclick = () => alert('⚠️ La Medición AR está disponible en el plan Corporativo. Ve a "Mi Plan" para actualizar.');
+        btnAR.style.opacity = '0.5';
     }
 
     empresaId = empresa.id;
