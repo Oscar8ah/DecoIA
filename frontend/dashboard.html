@@ -980,9 +980,25 @@ async function subirDocumento(input, tipo) {
     const statusId = tipo==='rut' ? 'rutStatus' : 'camaraStatus';
     const hiddenId = tipo==='rut' ? 'legalUrlRut' : 'legalUrlCamara';
     const status   = document.getElementById(statusId);
+
+    // Validar tipo real del archivo (el atributo accept del input es solo una
+    // sugerencia del navegador, no impide subir cualquier otra cosa)
+    const tiposPermitidos = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    if (!tiposPermitidos.includes(archivo.type)) {
+        status.innerHTML = '<span style="color:#FCA5A5;">❌ Solo se aceptan imágenes (JPG/PNG) o PDF.</span>';
+        input.value = '';
+        return;
+    }
+    if (archivo.size > 8 * 1024 * 1024) {
+        status.innerHTML = '<span style="color:#FCA5A5;">❌ El archivo supera el máximo de 8MB.</span>';
+        input.value = '';
+        return;
+    }
+
     status.innerHTML = '<span class="spinner-small"></span> Subiendo documento...';
     try {
-        const ext    = archivo.name.split('.').pop().toLowerCase();
+        const extPorTipo = { 'image/jpeg':'jpg', 'image/png':'png', 'image/webp':'webp', 'application/pdf':'pdf' };
+        const ext    = extPorTipo[archivo.type];
         const nombre = `${empresaId}/${tipo}_${Date.now()}.${ext}`;
         const { error } = await db.storage.from('portafolio').upload(nombre, archivo, { upsert:true });
         if (error) throw error;
