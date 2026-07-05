@@ -85,19 +85,36 @@ async def webhook_wompi(
         body = await request.json()
         logger.info(f"Webhook Wompi recibido: {body.get('event', 'unknown')}")
 
-        # ── Verificar firma del evento ────────────────────────────────────
-        # Wompi firma: SHA256(id_evento + timestamp + secreto_eventos)
-        evento_id  = body.get("id", "")
-        timestamp  = body.get("sent_at", "")
-        checksum   = body.get("signature", {}).get("checksum", "")
+        # ── Verificar firma del evento (algoritmo real de Wompi) ──────────
+        # Wompi firma: SHA256( concat(valores de signature.properties) + timestamp + secreto_de_EVENTOS )
+        # Ojo: signature.properties son RUTAS dentro de "data" (ej: "transaction.id",
+        # "transaction.status"), no un id de evento fijo — y el secreto de eventos
+        # es DIFERENTE al secreto de integridad que se usa para firmar pagos.
+        firma_info   = body.get("signature", {}) or {}
+        propiedades  = firma_info.get("properties", []) or []
+        checksum     = (firma_info.get("checksum") or "").lower()
+        timestamp    = body.get("timestamp", "")
+        data_evento  = body.get("data", {}) or {}
 
-        cadena_verificacion = f"{evento_id}{timestamp}{settings.wompi_secreto_integridad}"
-        firma_esperada = hashlib.sha256(cadena_verificacion.encode()).hexdigest()
+        def _valor_por_ruta(data: dict, ruta: str):
+            actual = data
+            for parte in ruta.split("."):
+                if not isinstance(actual, dict) or parte not in actual:
+                    return ""
+                actual = actual[parte]
+            return actual
 
-        if checksum and checksum != firma_esperada:
-            logger.warning(f"Firma Wompi inválida — posible intento de fraude")
-            # En sandbox a veces la firma no coincide, lo logueamos pero no bloqueamos
-            logger.warning(f"Esperada: {firma_esperada}, Recibida: {checksum}")
+        valores_concatenados = "".join(str(_valor_por_ruta(data_evento, p)) for p in propiedades)
+        cadena_verificacion = f"{valores_concatenados}{timestamp}{settings.wompi_secreto_eventos}"
+        firma_esperada = hashlib.sha256(cadena_verificacion.encode()).hexdigest().lower()
+
+        if not settings.wompi_secreto_eventos:
+            logger.error("WOMPI_SECRETO_EVENTOS no está configurado — rechazando webhook por seguridad")
+            raise HTTPException(status_code=500, detail="Webhook mal configurado")
+
+        if not checksum or checksum != firma_esperada:
+            logger.warning("Firma Wompi inválida — posible intento de fraude. Webhook rechazado.")
+            raise HTTPException(status_code=401, detail="Firma inválida")
 
         # ── Procesar solo eventos de transacción ──────────────────────────
         evento = body.get("event", "")
@@ -169,7 +186,10 @@ async def webhook_wompi(
 
         return {"status": "ok", "mensaje": "pago procesado correctamente"}
 
+    except HTTPException:
+        raise  # firma inválida u otro error de seguridad — debe rechazarse de verdad
+
     except Exception as e:
         logger.error(f"Error en webhook Wompi: {e}")
-        # Siempre devolver 200 a Wompi para que no reintente
+        # Siempre devolver 200 a Wompi para que no reintente (errores no relacionados con seguridad)
         return {"status": "ok", "error": str(e)}

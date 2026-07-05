@@ -3,13 +3,15 @@ import logging
 import base64
 import io
 import csv as csv_module
+import time
+from collections import defaultdict, deque
 from urllib.parse import urljoin, urlparse
 
 import fitz  # PyMuPDF
 import httpx
 import openpyxl
 from bs4 import BeautifulSoup
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request
 from pydantic import BaseModel
 
 from app.utils.config import get_settings
@@ -17,6 +19,28 @@ from app.services.imagen_service import subir_imagen_a_imgbb
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["catalogo"])
+
+# ── Límite básico de uso por IP ──────────────────────────────────────────
+# Estos endpoints llaman a la IA (Anthropic) e imgbb, que cuestan dinero real
+# por uso. Sin este límite, cualquiera en internet podría llamarlos
+# directamente (sin pasar por el dashboard) y agotar el saldo de la cuenta.
+# Nota: es un límite en memoria — se reinicia si el servidor se reinicia, y
+# no se comparte entre varias instancias. Suficiente para el volumen actual.
+_peticiones_por_ip: dict = defaultdict(deque)
+LIMITE_PETICIONES = 8
+VENTANA_SEGUNDOS = 3600  # 8 catálogos por hora por IP
+
+
+def _verificar_limite_ip(request: Request):
+    ip = request.client.host if request.client else "desconocido"
+    ahora = time.time()
+    historial = _peticiones_por_ip[ip]
+    while historial and ahora - historial[0] > VENTANA_SEGUNDOS:
+        historial.popleft()
+    if len(historial) >= LIMITE_PETICIONES:
+        raise HTTPException(status_code=429, detail="Demasiadas solicitudes desde esta conexión. Intenta de nuevo más tarde.")
+    historial.append(ahora)
+
 
 # Modelo 3D que se usa por defecto para llamadas de extracción de catálogo.
 # Se pasa explícitamente (no hardcodeado dentro del prompt) para poder
@@ -95,6 +119,39 @@ def _extraer_csv(contenido: bytes) -> str:
 
 MAX_IMAGENES_URL   = 20
 TAMANO_MIN_IMAGEN_URL = 150  # px — filtra iconos/logos chiquitos declarados en el HTML
+MAX_REDIRECTS_URL  = 5
+TAMANO_MAX_PAGINA  = 5 * 1024 * 1024  # 5MB tope para el HTML de la página
+
+def _host_es_privado(host: str) -> bool:
+    """True si el host resuelve a una IP interna/privada/loopback — bloquea SSRF."""
+    import socket
+    import ipaddress
+    if host.lower() in ("localhost", "127.0.0.1", "::1"):
+        return True
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        return True  # si no resuelve, mejor bloquear que arriesgar
+    for info in infos:
+        ip_str = info[4][0]
+        try:
+            ip = ipaddress.ip_address(ip_str)
+        except ValueError:
+            return True
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+            return True
+    return False
+
+
+def _validar_url_publica(url: str):
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(status_code=400, detail="El link debe empezar con http:// o https://")
+    if not parsed.hostname:
+        raise HTTPException(status_code=400, detail="Ese link no parece válido.")
+    if _host_es_privado(parsed.hostname):
+        raise HTTPException(status_code=400, detail="Ese link no es una dirección pública válida.")
+
 
 async def _extraer_url(url: str):
     """
@@ -103,12 +160,30 @@ async def _extraer_url(url: str):
     que usa el PDF: texto con marcadores [IMG_n] cerca de cada imagen, en el
     orden en que aparecen en la página.
     """
+    _validar_url_publica(url)
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"}
-    async with httpx.AsyncClient(timeout=30.0, headers=headers, follow_redirects=True) as client:
-        resp = await client.get(url)
-        if resp.status_code != 200:
-            raise HTTPException(status_code=400, detail=f"No se pudo abrir ese link (código {resp.status_code}). ¿Es público?")
-        html = resp.text
+
+    # Seguimos redirects manualmente, validando cada salto — un sitio malicioso
+    # no puede redirigirnos hacia una IP interna después de pasar la primera validación
+    url_actual = url
+    html = None
+    async with httpx.AsyncClient(timeout=30.0, headers=headers, follow_redirects=False) as client:
+        for _ in range(MAX_REDIRECTS_URL):
+            resp = await client.get(url_actual)
+            if resp.status_code in (301, 302, 303, 307, 308):
+                nueva_url = urljoin(url_actual, resp.headers.get("location", ""))
+                _validar_url_publica(nueva_url)
+                url_actual = nueva_url
+                continue
+            if resp.status_code != 200:
+                raise HTTPException(status_code=400, detail=f"No se pudo abrir ese link (código {resp.status_code}). ¿Es público?")
+            if len(resp.content) > TAMANO_MAX_PAGINA:
+                raise HTTPException(status_code=400, detail="Esa página es demasiado grande para analizarla.")
+            html = resp.text
+            url = url_actual  # para resolver imágenes relativas correctamente
+            break
+        else:
+            raise HTTPException(status_code=400, detail="Ese link tiene demasiadas redirecciones.")
 
     soup = BeautifulSoup(html, "lxml")
     for tag in soup(["script", "style", "noscript", "nav", "footer", "header", "svg"]):
@@ -117,7 +192,7 @@ async def _extraer_url(url: str):
     imagenes_bytes = []
     partes_texto = []
 
-    async with httpx.AsyncClient(timeout=15.0, headers=headers, follow_redirects=True) as client:
+    async with httpx.AsyncClient(timeout=15.0, headers=headers, follow_redirects=False) as client:
         for el in soup.body.find_all(True) if soup.body else []:
             if el.name == "img":
                 if len(imagenes_bytes) >= MAX_IMAGENES_URL:
@@ -133,7 +208,10 @@ async def _extraer_url(url: str):
                 except ValueError:
                     pass
                 url_img = urljoin(url, src)
-                if urlparse(url_img).scheme not in ("http", "https"):
+                parsed_img = urlparse(url_img)
+                if parsed_img.scheme not in ("http", "https"):
+                    continue
+                if not parsed_img.hostname or _host_es_privado(parsed_img.hostname):
                     continue
                 try:
                     r = await client.get(url_img)
@@ -239,15 +317,18 @@ async def _post_procesar_productos(productos: list, imagenes: list, settings) ->
 
 
 @router.post("/procesar-catalogo")
-async def procesar_catalogo(archivo: UploadFile = File(...), tienda_id: str = Form(...)):
+async def procesar_catalogo(request: Request, archivo: UploadFile = File(...), tienda_id: str = Form(...)):
     """
     Recibe un catálogo (PDF, XLSX o CSV), extrae productos con IA (texto + fotos
     reales si es PDF), sube las fotos detectadas a imgbb, y mapea cada producto
     a un modelo 3D predeterminado del Visor 3D cuando aplica.
     Devuelve la lista de productos para previsualización — no los publica todavía.
     """
+    _verificar_limite_ip(request)
     settings = get_settings()
     contenido = await archivo.read()
+    if len(contenido) > 15 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="El archivo supera el máximo de 10MB.")
     nombre_archivo = (archivo.filename or "").lower()
 
     try:
@@ -280,11 +361,12 @@ class CatalogoUrlRequest(BaseModel):
 
 
 @router.post("/procesar-catalogo-url")
-async def procesar_catalogo_url(data: CatalogoUrlRequest):
+async def procesar_catalogo_url(data: CatalogoUrlRequest, request: Request):
     """
     Recibe el link de una tienda existente (Shopify, WooCommerce, página propia),
     lee su contenido público y extrae productos con IA, igual que con un PDF.
     """
+    _verificar_limite_ip(request)
     settings = get_settings()
     if not data.url.startswith(("http://", "https://")):
         raise HTTPException(status_code=400, detail="El link debe empezar con http:// o https://")

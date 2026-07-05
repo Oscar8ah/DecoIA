@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     wompi_llave_publica: str = ""
     wompi_llave_privada: str = ""
     wompi_secreto_integridad: str = ""
+    wompi_secreto_eventos: str = ""
 
     class Config:
         env_file = ".env"

@@ -364,6 +364,18 @@
 
 <script>
 // ── SUPABASE ──────────────────────────────────────────────────────
+// Escapa HTML para evitar XSS al insertar nombres/descripciones de tiendas y productos
+// que vienen de la base de datos (cualquier tienda podría escribir ahí)
+function esc(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 const SUPABASE_URL      = 'https://cqwbsikyzdtegutyvgfo.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxd2JzaWt5emR0ZWd1dHl2Z2ZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NTk5MjUsImV4cCI6MjA5NDMzNTkyNX0.v9Qmp85POur1zZ3nHVYNRyhqHAi4VawafBsCiXF72Yo';
 const { createClient } = supabase;
@@ -407,19 +419,19 @@ function renderTiendas(tiendas) {
         const emoji = EMOJIS_CAT[t.categoria_principal] || '🏪';
         const color = COLORES_CAT[t.categoria_principal] || 'linear-gradient(135deg,#3B82F6,#7C3AED)';
         const bannerContenido = t.logo_url
-            ? `<div style="background:${color};width:100%;height:100%;display:flex;align-items:center;justify-content:center;"><img src="${t.logo_url}" class="logo-sobre-banner" alt="${t.nombre}" onerror="this.style.display='none'"></div>`
+            ? `<div style="background:${color};width:100%;height:100%;display:flex;align-items:center;justify-content:center;"><img src="${esc(t.logo_url)}" class="logo-sobre-banner" alt="${esc(t.nombre)}" onerror="this.style.display='none'"></div>`
             : `<span>${emoji}</span>`;
         return `
         <div class="tienda-card" onclick="verTienda('${t.id}')">
             <div class="tienda-banner" style="background:${color}">
                 ${bannerContenido}
-                <span class="tienda-cat-badge">${t.categoria_principal || 'General'}</span>
+                <span class="tienda-cat-badge">${esc(t.categoria_principal) || 'General'}</span>
             </div>
             <div class="tienda-body">
-                <div class="tienda-nombre">${t.nombre}</div>
-                <div class="tienda-desc">${t.descripcion || 'Tienda de materiales para remodelación.'}</div>
+                <div class="tienda-nombre">${esc(t.nombre)}</div>
+                <div class="tienda-desc">${esc(t.descripcion) || 'Tienda de materiales para remodelación.'}</div>
                 <div class="tienda-meta">
-                    <span class="tienda-ciudad">📍 ${t.ciudad || 'Colombia'}</span>
+                    <span class="tienda-ciudad">📍 ${esc(t.ciudad) || 'Colombia'}</span>
                     <button class="btn-ver-tienda">Ver tienda →</button>
                 </div>
             </div>
@@ -436,14 +448,14 @@ async function verTienda(tiendaId) {
     const emoji = EMOJIS_CAT[tienda.categoria_principal] || '🏪';
     const color = COLORES_CAT[tienda.categoria_principal] || 'linear-gradient(135deg,#3B82F6,#7C3AED)';
     const waLink = tienda.whatsapp_contacto ? `https://wa.me/${tienda.whatsapp_contacto}?text=Hola,%20vi%20tu%20tienda%20en%20DecoIArte` : '#';
-    const logoGrande = tienda.logo_url ? `<img src="${tienda.logo_url}" class="logo-grande" alt="${tienda.nombre}" onerror="this.style.display='none'">` : '';
+    const logoGrande = tienda.logo_url ? `<img src="${esc(tienda.logo_url)}" class="logo-grande" alt="${esc(tienda.nombre)}" onerror="this.style.display='none'">` : '';
     document.getElementById('tiendaHeader').innerHTML = `
         <div class="tienda-banner-grande" style="background:${color}"><span>${emoji}</span>${logoGrande}</div>
         <div class="tienda-info-grande">
             <div>
-                <div class="tienda-nombre-grande">${tienda.nombre}</div>
-                <div class="tienda-desc-grande">${tienda.descripcion || ''}</div>
-                <div style="margin-top:10px;font-size:13px;color:var(--gris)">📍 ${tienda.ciudad || 'Colombia'}</div>
+                <div class="tienda-nombre-grande">${esc(tienda.nombre)}</div>
+                <div class="tienda-desc-grande">${esc(tienda.descripcion) || ''}</div>
+                <div style="margin-top:10px;font-size:13px;color:var(--gris)">📍 ${esc(tienda.ciudad) || 'Colombia'}</div>
             </div>
             ${tienda.whatsapp_contacto ? `<a href="${waLink}" target="_blank" class="btn-contactar">💬 Contactar por WhatsApp</a>` : ''}
         </div>`;
@@ -465,15 +477,15 @@ function renderProductos(productos, tienda) {
     const waBase = tienda.whatsapp_contacto ? `https://wa.me/${tienda.whatsapp_contacto}?text=Hola,%20quiero%20comprar:` : '#';
     grid.innerHTML = productos.map(p => `
         <div class="producto-card" onclick="abrirModalPorId('${p.id}')" style="cursor:pointer;">
-            <div class="producto-img">${p.imagen_url ? `<img src="${p.imagen_url}" alt="${p.nombre}" loading="lazy" onerror="this.parentElement.innerHTML='📦'">` : '📦'}</div>
+            <div class="producto-img">${p.imagen_url ? `<img src="${esc(p.imagen_url)}" alt="${esc(p.nombre)}" loading="lazy" onerror="this.parentElement.innerHTML='📦'">` : '📦'}</div>
             <div class="producto-body">
-                <div class="producto-cat">${p.categoria || 'General'}</div>
-                <div class="producto-nombre">${p.nombre}</div>
-                <div class="producto-desc">${p.descripcion || ''}</div>
+                <div class="producto-cat">${esc(p.categoria) || 'General'}</div>
+                <div class="producto-nombre">${esc(p.nombre)}</div>
+                <div class="producto-desc">${esc(p.descripcion) || ''}</div>
                 <div class="producto-precio-wrap">
                     <span class="producto-precio">$${Number(p.precio).toLocaleString('es-CO')}</span>
                     ${p.precio_antes ? `<span class="producto-precio-antes">$${Number(p.precio_antes).toLocaleString('es-CO')}</span>` : ''}
-                    <span class="producto-unidad">/${p.unidad || 'm²'}</span>
+                    <span class="producto-unidad">/${esc(p.unidad) || 'm²'}</span>
                 </div>
                 <div class="producto-footer">
                     ${p.stock > 0 ? `<span class="stock-ok">✓ Disponible</span>` : `<span class="stock-no">✗ Agotado</span>`}
@@ -526,7 +538,7 @@ function abrirModalPorId(prodId) {
 
 function abrirModalProducto(p, tienda) {
     document.getElementById('modalProdImg').innerHTML = p.imagen_url
-        ? `<img src="${p.imagen_url}" alt="${p.nombre}" onerror="this.parentElement.innerHTML='📦'">` : '📦';
+        ? `<img src="${esc(p.imagen_url)}" alt="${esc(p.nombre)}" onerror="this.parentElement.innerHTML='📦'">` : '📦';
     document.getElementById('modalProdCat').textContent    = p.categoria || 'General';
     document.getElementById('modalProdNombre').textContent = p.nombre;
     document.getElementById('modalProdDesc').textContent   = p.descripcion || 'Sin descripción disponible.';
@@ -536,7 +548,7 @@ function abrirModalProducto(p, tienda) {
     const stockEl = document.getElementById('modalProdStock');
     if (p.stock > 0) { stockEl.textContent = '✓ Disponible'; stockEl.className = 'modal-prod-stock ok'; }
     else             { stockEl.textContent = '✗ Agotado';    stockEl.className = 'modal-prod-stock no'; }
-    document.getElementById('modalProdTienda').innerHTML = `🏪 <strong>${tienda.nombre}</strong> · 📍 ${tienda.ciudad || 'Colombia'}`;
+    document.getElementById('modalProdTienda').innerHTML = `🏪 <strong>${esc(tienda.nombre)}</strong> · 📍 ${esc(tienda.ciudad) || 'Colombia'}`;
     document.getElementById('modalBtnPedir').href = tienda.whatsapp_contacto
         ? `https://wa.me/${tienda.whatsapp_contacto}?text=Hola,%20quiero%20consultar%20sobre:%20${encodeURIComponent(p.nombre)}` : '#';
     window._modalProd   = p;
@@ -633,16 +645,16 @@ function carritoRenderPanel() {
         return `
         <div class="carrito-grupo">
             <div class="carrito-grupo-header">
-                <span class="carrito-tienda-nombre">🏪 ${grupo.tienda.nombre}</span>
-                <span class="carrito-tienda-ciudad">📍 ${grupo.tienda.ciudad}</span>
+                <span class="carrito-tienda-nombre">🏪 ${esc(grupo.tienda.nombre)}</span>
+                <span class="carrito-tienda-ciudad">📍 ${esc(grupo.tienda.ciudad)}</span>
             </div>
             ${grupo.items.map(item => `
             <div class="carrito-item ${item.seleccionado ? '' : 'deseleccionado'}">
                 <input type="checkbox" class="carrito-check" ${item.seleccionado ? 'checked' : ''} onchange="carritoToggleItem('${tid}','${item.prod.id}')">
-                <div class="carrito-item-img">${item.prod.imagen_url ? `<img src="${item.prod.imagen_url}" alt="${item.prod.nombre}" onerror="this.parentElement.innerHTML='📦'">` : '📦'}</div>
+                <div class="carrito-item-img">${item.prod.imagen_url ? `<img src="${esc(item.prod.imagen_url)}" alt="${esc(item.prod.nombre)}" onerror="this.parentElement.innerHTML='📦'">` : '📦'}</div>
                 <div class="carrito-item-info">
-                    <div class="carrito-item-nombre">${item.prod.nombre}</div>
-                    <div class="carrito-item-precio">${carritoFormatPrecio(item.prod.precio)}/${item.prod.unidad||'m²'}</div>
+                    <div class="carrito-item-nombre">${esc(item.prod.nombre)}</div>
+                    <div class="carrito-item-precio">${carritoFormatPrecio(item.prod.precio)}/${esc(item.prod.unidad)||'m²'}</div>
                     <div class="carrito-qty">
                         <button onclick="carritoAjustarQty('${tid}','${item.prod.id}',-1)">−</button>
                         <span>${item.qty}</span>
