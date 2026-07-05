@@ -827,6 +827,11 @@ window.addEventListener('DOMContentLoaded', async () => {
     await verificarRol();
     await restaurarCache();
     await cargarTiendas();
+
+    // Si el cliente llegó desde el bot de una tienda específica (Multiasesor),
+    // preseleccionar esa tienda en vez de mostrarle el listado genérico
+    const tiendaParam = new URLSearchParams(window.location.search).get('tienda');
+    if (tiendaParam) await selTienda(tiendaParam);
 });
 </script>
 </body>

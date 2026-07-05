@@ -65,8 +65,9 @@ async def marcar_mensaje_procesado(message_id: str):
 
 
 # ── ENVÍOS WHATSAPP ───────────────────────────────────────────────────────
-async def enviar_mensaje_whatsapp(telefono: str, mensaje: str, settings: Settings):
-    url = f"https://graph.facebook.com/v25.0/{settings.whatsapp_phone_number_id}/messages"
+async def enviar_mensaje_whatsapp(telefono: str, mensaje: str, settings: Settings, phone_number_id: str = None):
+    pid = phone_number_id or settings.whatsapp_phone_number_id
+    url = f"https://graph.facebook.com/v25.0/{pid}/messages"
     headers = {"Authorization": f"Bearer {settings.whatsapp_token}", "Content-Type": "application/json"}
     data = {"messaging_product": "whatsapp", "to": telefono, "type": "text", "text": {"body": mensaje}}
     async with httpx.AsyncClient() as client:
@@ -74,8 +75,9 @@ async def enviar_mensaje_whatsapp(telefono: str, mensaje: str, settings: Setting
         logger.info(f"Texto enviado a {telefono}: {r.status_code}")
 
 
-async def enviar_botones_whatsapp(telefono: str, mensaje: str, botones: list, settings: Settings):
-    url = f"https://graph.facebook.com/v25.0/{settings.whatsapp_phone_number_id}/messages"
+async def enviar_botones_whatsapp(telefono: str, mensaje: str, botones: list, settings: Settings, phone_number_id: str = None):
+    pid = phone_number_id or settings.whatsapp_phone_number_id
+    url = f"https://graph.facebook.com/v25.0/{pid}/messages"
     headers = {"Authorization": f"Bearer {settings.whatsapp_token}", "Content-Type": "application/json"}
     data = {
         "messaging_product": "whatsapp", "to": telefono, "type": "interactive",
@@ -91,8 +93,9 @@ async def enviar_botones_whatsapp(telefono: str, mensaje: str, botones: list, se
             logger.error(f"Error botones: {r.text}")
 
 
-async def enviar_imagen_whatsapp(telefono: str, url_imagen: str, caption: str, settings: Settings):
-    url = f"https://graph.facebook.com/v25.0/{settings.whatsapp_phone_number_id}/messages"
+async def enviar_imagen_whatsapp(telefono: str, url_imagen: str, caption: str, settings: Settings, phone_number_id: str = None):
+    pid = phone_number_id or settings.whatsapp_phone_number_id
+    url = f"https://graph.facebook.com/v25.0/{pid}/messages"
     headers = {"Authorization": f"Bearer {settings.whatsapp_token}", "Content-Type": "application/json"}
     data = {
         "messaging_product": "whatsapp", "to": telefono, "type": "image",
@@ -104,7 +107,7 @@ async def enviar_imagen_whatsapp(telefono: str, url_imagen: str, caption: str, s
 
 
 # ── MENÚ PRINCIPAL ────────────────────────────────────────────────────────
-async def enviar_menu_principal(telefono: str, settings: Settings):
+async def enviar_menu_principal(telefono: str, settings: Settings, phone_number_id: str = None):
     saludo = get_saludo()
     await enviar_botones_whatsapp(
         telefono,
@@ -116,7 +119,8 @@ async def enviar_menu_principal(telefono: str, settings: Settings):
             {"id": "btn_plano",    "title": "📐 Mi plano"},
             {"id": "btn_asesor",   "title": "👨‍💼 Asesor"},
         ],
-        settings
+        settings,
+        phone_number_id,
     )
 
 
@@ -131,13 +135,36 @@ async def obtener_slug_tienda(empresa_id: str = None) -> str:
         return TIENDA_DEMO_SLUG
 
 
+# ── MULTIASESOR ───────────────────────────────────────────────────────────
+async def resolver_empresa_por_phone_id(phone_number_id: str):
+    """
+    Busca a qué empresa pertenece el número de WhatsApp que recibió el mensaje
+    (metadata.phone_number_id del webhook). Si no coincide con ninguna empresa
+    registrada (ej: es el número demo/de pruebas), devuelve None y todo el
+    flujo sigue funcionando igual que hoy, con el comportamiento genérico.
+    """
+    if not phone_number_id:
+        return None
+    try:
+        supabase = get_supabase()
+        r = supabase.table("empresas") \
+            .select("id, nombre, whatsapp_phone_number_id, whatsapp_numero_solicitado, tiendas(id, slug, nombre)") \
+            .eq("whatsapp_phone_number_id", phone_number_id).maybeSingle().execute()
+        return r.data
+    except Exception as e:
+        logger.error(f"Error resolviendo empresa por phone_number_id {phone_number_id}: {e}")
+        return None
+
+
 # ── NOTIFICAR ASESOR ──────────────────────────────────────────────────────
 async def notificar_asesor(
     cliente_tel: str, tipo_trabajo: str,
     producto_nombre: str, producto_precio: int,
     producto_categoria: str, url_foto_original: str,
-    url_foto_generada: str, settings: Settings
+    url_foto_generada: str, settings: Settings,
+    asesor_numero: str = None, phone_number_id: str = None,
 ):
+    destino = asesor_numero or ASESOR_NUMERO
     precio_fmt = f"${producto_precio:,}".replace(",", ".")
     mensaje = (
         f"🔔 *Nueva selección de cliente — DecoIArte*\n\n"
@@ -151,15 +178,17 @@ async def notificar_asesor(
         f"✨ *Foto remodelada:* {url_foto_generada}\n\n"
         f"⚡ El cliente ya recibió el resultado por WhatsApp."
     )
-    await enviar_mensaje_whatsapp(ASESOR_NUMERO, mensaje, settings)
-    logger.info(f"Asesor notificado sobre selección de {cliente_tel}")
+    await enviar_mensaje_whatsapp(destino, mensaje, settings, phone_number_id)
+    logger.info(f"Asesor {destino} notificado sobre selección de {cliente_tel}")
 
 
 # ── POLLING SELECCIÓN ─────────────────────────────────────────────────────
 async def esperar_seleccion_y_procesar(
     sender: str, session_id: str,
     url_foto_original: str, url_foto_generada: str,
-    tipo_trabajo: str, settings: Settings, timeout_seg: int = 300
+    tipo_trabajo: str, settings: Settings,
+    pid_envio: str = None, asesor_numero: str = None,
+    timeout_seg: int = 300
 ):
     supabase  = get_supabase()
     intervalo = 5
@@ -188,7 +217,7 @@ async def esperar_seleccion_y_procesar(
                 sender,
                 f"✅ ¡Perfecto! Elegiste *{seleccion['nombre']}*\n\n"
                 f"🤖 Aplicando el producto a tu foto...\nEsto toma unos segundos ⏳",
-                settings
+                settings, pid_envio
             )
 
             url_resultado = url_foto_generada
@@ -213,7 +242,7 @@ async def esperar_seleccion_y_procesar(
                 f"✨ ¡Así quedaría tu espacio con *{seleccion['nombre']}*!\n\n"
                 f"💰 Precio: ${seleccion.get('precio', '')} / m²\n"
                 f"👨‍💼 Nuestro asesor te contactará pronto 🏠",
-                settings
+                settings, pid_envio
             )
 
             await enviar_botones_whatsapp(
@@ -222,7 +251,7 @@ async def esperar_seleccion_y_procesar(
                     {"id": "btn_remodelar", "title": "🔄 Nuevo espacio"},
                     {"id": "btn_asesor",    "title": "👨‍💼 Hablar asesor"},
                 ],
-                settings
+                settings, pid_envio
             )
 
             await notificar_asesor(
@@ -233,6 +262,8 @@ async def esperar_seleccion_y_procesar(
                 url_foto_original=url_foto_original,
                 url_foto_generada=url_resultado,
                 settings=settings,
+                asesor_numero=asesor_numero,
+                phone_number_id=pid_envio,
             )
 
             if sender in estado_usuarios:
@@ -252,12 +283,16 @@ async def esperar_seleccion_y_procesar(
         "⏰ El tiempo para elegir el producto expiró.\n\n"
         "Puedes volver a enviar una foto cuando quieras 🏠\n"
         "o escribe *menú* para ver las opciones.",
-        settings
+        settings, pid_envio
     )
 
 
 # ── PROCESAR IMAGEN (background task) ────────────────────────────────────
-async def procesar_imagen_background(sender: str, image_id: str, settings: Settings):
+async def procesar_imagen_background(
+    sender: str, image_id: str, settings: Settings,
+    pid_envio: str = None, asesor_numero: str = None, url_selector_base: str = None,
+    empresa_id: str = None,
+):
     try:
         imagen_bytes = await descargar_imagen_whatsapp(image_id, settings.whatsapp_token)
         modo         = estado_usuarios.get(sender, {}).get("modo", "remodelar")
@@ -268,7 +303,7 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
                 sender,
                 "📐 ¡Recibí tu plano! Analizando distribución con IA\n"
                 "y normas NTC colombianas... ⏳🤖",
-                settings
+                settings, pid_envio
             )
 
             resultado_completo = analizar_plano_completo(imagen_bytes)
@@ -283,11 +318,11 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
                     "• Foto del plano impreso 📄\n"
                     "• Foto de tu boceto ✏️\n"
                     "• Captura de pantalla del plano 📱",
-                    settings
+                    settings, pid_envio
                 )
                 if sender in estado_usuarios:
                     del estado_usuarios[sender]
-                await enviar_menu_principal(sender, settings)
+                await enviar_menu_principal(sender, settings, pid_envio)
                 return
 
             habitaciones = resultado.get("habitaciones", "")
@@ -302,7 +337,7 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
                 f"📋 *Habitaciones:* {habitaciones}\n"
                 f"📏 *Área estimada:* {area}\n"
                 f"🗺️ *Distribución:* {distribucion}",
-                settings
+                settings, pid_envio
             )
 
             if modelo_3d and modelo_3d.get("modulos"):
@@ -313,13 +348,13 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
                     f"🏗️ *Modelo 3D generado:* {num_modulos} espacios\n"
                     f"📦 {nombres_modulos}\n\n"
                     f"Generando vista isométrica... ✨",
-                    settings
+                    settings, pid_envio
                 )
             else:
                 await enviar_mensaje_whatsapp(
                     sender,
                     "🎨 Generando vista 3D isométrica...\nEsto toma unos segundos ⏳✨",
-                    settings
+                    settings, pid_envio
                 )
 
             url_isometrica = await generar_vista_isometrica(imagen_bytes, resultado)
@@ -328,7 +363,7 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
                 sender, url_isometrica,
                 f"🏠 *Vista 3D de tu {tipo}* ✨\n"
                 f"📏 Área: {area} · Acabados modernos aplicados",
-                settings
+                settings, pid_envio
             )
 
             session_id = f"{sender}_{int(datetime.now().timestamp())}"
@@ -340,6 +375,8 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
                 "tipo_trabajo":      f"análisis de plano — {tipo}",
                 "plano_info":        resultado,
                 "modelo_3d":         modelo_3d,
+                "pid_envio":         pid_envio,
+                "asesor":            asesor_numero,
             }
 
             # Guardar modelo en Supabase y generar link al visor
@@ -347,13 +384,16 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
             if modelo_3d:
                 try:
                     supabase  = get_supabase()
-                    r = supabase.table("modelos_3d_plano").insert({
+                    datos_modelo = {
                         "session_id":  session_id,
                         "telefono":    sender,
                         "modelo_json": json.dumps(modelo_3d),
                         "plano_info":  json.dumps(resultado),
                         "created_at":  datetime.now().isoformat(),
-                    }).execute()
+                    }
+                    if empresa_id:
+                        datos_modelo["empresa_id"] = empresa_id
+                    r = supabase.table("modelos_3d_plano").insert(datos_modelo).execute()
                     if r.data:
                         modelo_id    = r.data[0]["id"]
                         url_visor_3d = f"{BASE_URL}/visor3d?plano={modelo_id}"
@@ -361,7 +401,7 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
                 except Exception as e:
                     logger.error(f"Error guardando modelo 3D: {e}")
 
-            estado_usuarios[sender]["url_selector"] = f"{BASE_URL}/remodelar"
+            estado_usuarios[sender]["url_selector"] = url_selector_base or f"{BASE_URL}/remodelar"
 
             if url_visor_3d:
                 await enviar_mensaje_whatsapp(
@@ -372,7 +412,7 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
                     f"• Rotar y explorar tu plano en 3D 🔄\n"
                     f"• Cambiar materiales y colores 🎨\n"
                     f"• Generar render con IA 🤖",
-                    settings
+                    settings, pid_envio
                 )
 
             await enviar_botones_whatsapp(
@@ -382,7 +422,7 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
                     {"id": "btn_ver_productos", "title": "🛍️ Ver productos"},
                     {"id": "btn_asesor",        "title": "👨‍💼 Hablar asesor"},
                 ],
-                settings
+                settings, pid_envio
             )
 
         # ── MODO REMODELAR ────────────────────────────────────────────────
@@ -391,7 +431,7 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
                 sender,
                 "📸 ¡Recibí tu foto! Analizando tu espacio con IA...\n"
                 "Esto toma unos segundos ⏳🤖",
-                settings
+                settings, pid_envio
             )
 
             analisis     = analizar_espacio_foto(imagen_bytes)
@@ -401,7 +441,7 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
                 sender,
                 f"🔍 *Espacio detectado:* {tipo_espacio}\n\n"
                 f"✨ Generando remodelación con IA...",
-                settings
+                settings, pid_envio
             )
 
             url_generada = await generar_imagen_remodelada(imagen_bytes, "moderno")
@@ -414,11 +454,11 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
                 sender, url_generada,
                 f"✨ ¡Así podría quedar tu {tipo_espacio}!\n"
                 f"Diseño moderno con acabados premium 🏠",
-                settings
+                settings, pid_envio
             )
 
             session_id   = f"{sender}_{int(datetime.now().timestamp())}"
-            url_selector = f"{BASE_URL}/remodelar"
+            url_selector = url_selector_base or f"{BASE_URL}/remodelar"
 
             estado_usuarios[sender] = {
                 "modo":              "remodelado",
@@ -427,6 +467,8 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
                 "url_foto_generada": url_generada,
                 "tipo_trabajo":      f"remodelación de {tipo_espacio}",
                 "url_selector":      url_selector,
+                "pid_envio":         pid_envio,
+                "asesor":            asesor_numero,
             }
 
             await enviar_botones_whatsapp(
@@ -439,7 +481,7 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
                     {"id": "btn_ver_productos", "title": "🛍️ Ver productos"},
                     {"id": "btn_asesor",        "title": "👨‍💼 Hablar asesor"},
                 ],
-                settings
+                settings, pid_envio
             )
 
     except Exception as e:
@@ -450,7 +492,7 @@ async def procesar_imagen_background(sender: str, image_id: str, settings: Setti
             sender,
             "😅 Hubo un error procesando tu imagen.\n"
             "Por favor intenta de nuevo 🙏",
-            settings
+            settings, pid_envio
         )
 
 
@@ -496,6 +538,22 @@ async def receive_message(
         sender   = message["from"]
         msg_type = message["type"]
 
+        # ── MULTIASESOR: resolver a qué tienda pertenece este número ───────
+        phone_number_id_recibido = value.get("metadata", {}).get("phone_number_id")
+        empresa_ctx = await resolver_empresa_por_phone_id(phone_number_id_recibido)
+
+        if empresa_ctx:
+            tiendas_ctx  = empresa_ctx.get("tiendas")
+            tienda_ctx   = (tiendas_ctx[0] if isinstance(tiendas_ctx, list) and tiendas_ctx else tiendas_ctx) or None
+            pid_envio    = empresa_ctx.get("whatsapp_phone_number_id") or None
+            asesor_ctx   = empresa_ctx.get("whatsapp_numero_solicitado") or ASESOR_NUMERO
+            url_selector_base = f"{BASE_URL}/remodelar?tienda={tienda_ctx['id']}" if tienda_ctx else f"{BASE_URL}/remodelar"
+            logger.info(f"Mensaje de {sender} identificado como cliente de la empresa '{empresa_ctx.get('nombre')}'")
+        else:
+            pid_envio    = None  # usa el número global/demo de settings
+            asesor_ctx   = ASESOR_NUMERO
+            url_selector_base = f"{BASE_URL}/remodelar"
+
         # ── BOTONES INTERACTIVOS ──────────────────────────────────────────
         if msg_type == "interactive":
             interactive = message["interactive"]
@@ -504,18 +562,18 @@ async def receive_message(
                 logger.info(f"Botón: {button_id} de {sender}")
 
                 if button_id == "btn_remodelar":
-                    estado_usuarios[sender] = {"modo": "remodelar"}
+                    estado_usuarios[sender] = {"modo": "remodelar", "pid_envio": pid_envio, "asesor": asesor_ctx, "url_selector_base": url_selector_base}
                     await enviar_mensaje_whatsapp(
                         sender,
                         "🏠 ¡Perfecto! Estoy listo para transformar tu espacio.\n\n"
                         "📸 *Envíame una foto* del espacio que deseas remodelar\n"
                         "(sala, habitación, cocina, baño, etc.)\n\n"
                         "La IA analizará tu espacio y te mostrará cómo podría quedar ✨",
-                        settings
+                        settings, pid_envio
                     )
 
                 elif button_id == "btn_plano":
-                    estado_usuarios[sender] = {"modo": "plano"}
+                    estado_usuarios[sender] = {"modo": "plano", "pid_envio": pid_envio, "asesor": asesor_ctx, "url_selector_base": url_selector_base}
                     await enviar_mensaje_whatsapp(
                         sender,
                         "📐 ¡Perfecto! Voy a analizar tu plano con IA.\n\n"
@@ -526,20 +584,21 @@ async def receive_message(
                         "La IA detectará habitaciones, áreas y distribución\n"
                         "con normas NTC colombianas 🇨🇴\n"
                         "y generará un *modelo 3D automático* ✨",
-                        settings
+                        settings, pid_envio
                     )
 
                 elif button_id == "btn_ver_productos":
                     user_state   = estado_usuarios.get(sender, {})
                     url_selector = user_state.get("url_selector")
                     session_id   = user_state.get("session_id")
+                    pid_conv     = user_state.get("pid_envio", pid_envio)
 
                     if not url_selector:
                         await enviar_mensaje_whatsapp(
                             sender,
                             "📸 Primero envíame una foto de tu espacio\n"
                             "para poder mostrarte los productos aplicados 🏠",
-                            settings
+                            settings, pid_conv
                         )
                         return {"status": "ok"}
 
@@ -549,7 +608,7 @@ async def receive_message(
                         f"Toca el link para ver el catálogo completo:\n\n"
                         f"👉 {url_selector}\n\n"
                         f"_Una vez elijas, la IA lo aplicará automáticamente_ ✨",
-                        settings
+                        settings, pid_conv
                     )
 
                     background_tasks.add_task(
@@ -559,10 +618,14 @@ async def receive_message(
                         user_state.get("url_foto_generada", ""),
                         user_state.get("tipo_trabajo", "remodelación"),
                         settings,
+                        pid_conv,
+                        user_state.get("asesor", asesor_ctx),
                     )
 
                 elif button_id == "btn_asesor":
                     user_state = estado_usuarios.get(sender, {})
+                    pid_conv   = user_state.get("pid_envio", pid_envio)
+                    asesor_conv = user_state.get("asesor", asesor_ctx)
                     if user_state.get("url_foto_generada"):
                         await notificar_asesor(
                             cliente_tel=sender,
@@ -573,6 +636,8 @@ async def receive_message(
                             url_foto_original=user_state.get("url_foto_original", ""),
                             url_foto_generada=user_state.get("url_foto_generada", ""),
                             settings=settings,
+                            asesor_numero=asesor_conv,
+                            phone_number_id=pid_conv,
                         )
 
                     # Limpiar estado al ir con asesor
@@ -583,11 +648,11 @@ async def receive_message(
                         sender,
                         f"👨‍💼 ¡Con gusto! Nuestro asesor te atenderá personalmente.\n\n"
                         f"📱 *Escríbele directamente:*\n"
-                        f"https://wa.me/{ASESOR_NUMERO}\n\n"
+                        f"https://wa.me/{asesor_conv}\n\n"
                         f"⏰ Respuesta en menos de 24 horas 🕐\n\n"
                         f"_También puedes enviarnos fotos de tu espacio\n"
                         f"para que prepare tu propuesta_ 🏠",
-                        settings
+                        settings, pid_conv
                     )
 
         # ── MENSAJES DE TEXTO ─────────────────────────────────────────────
@@ -602,7 +667,7 @@ async def receive_message(
                 await enviar_mensaje_whatsapp(
                     sender,
                     analisis_seguridad.get("respuesta_segura", "Por favor envíame una foto de tu espacio 🏠"),
-                    settings
+                    settings, pid_envio
                 )
                 return {"status": "ok"}
 
@@ -616,27 +681,34 @@ async def receive_message(
                 # Limpiar estado al saludar de nuevo
                 if sender in estado_usuarios:
                     del estado_usuarios[sender]
-                await enviar_menu_principal(sender, settings)
+                await enviar_menu_principal(sender, settings, pid_envio)
 
             else:
                 # ✅ FIX: solo mostrar menú si NO hay sesión activa
+                user_state = estado_usuarios.get(sender, {})
+                pid_conv   = user_state.get("pid_envio", pid_envio)
                 if sender not in estado_usuarios:
-                    await enviar_menu_principal(sender, settings)
+                    await enviar_menu_principal(sender, settings, pid_envio)
                 else:
                     await enviar_mensaje_whatsapp(
                         sender,
                         "¿En qué más te puedo ayudar? 😊\n"
                         "Envíame una foto o elige una opción.",
-                        settings
+                        settings, pid_conv
                     )
 
         # ── IMÁGENES ──────────────────────────────────────────────────────
         elif msg_type == "image":
             image_id = message["image"]["id"]
             logger.info(f"Imagen de {sender}")
+            user_state = estado_usuarios.get(sender, {})
             background_tasks.add_task(
                 procesar_imagen_background,
-                sender, image_id, settings
+                sender, image_id, settings,
+                user_state.get("pid_envio", pid_envio),
+                user_state.get("asesor", asesor_ctx),
+                user_state.get("url_selector_base", url_selector_base),
+                empresa_ctx.get("id") if empresa_ctx else None,
             )
 
     except Exception as e:
