@@ -330,31 +330,33 @@ async function manejarCallback() {
     document.getElementById('loadingScreen').style.display = 'block';
 
     try {
-        // ── 1. ¿Es empresa existente? ──────────────────────────────────
-        const { data: empresa } = await db
-            .from('empresas').select('id,nombre,plan_id')
-            .eq('email', user.email).maybeSingle();
+        // ── 1. ¿Ya existe con el tipo de cuenta que está eligiendo AHORA? ──
+        // Se revisa primero según la intención de este registro (tipo),
+        // no según lo que ese correo haya sido antes en otras pruebas —
+        // así un correo que ya era consumidor sí puede crear una empresa.
+        if (tipo === 'empresa') {
+            const { data: empresa } = await db
+                .from('empresas').select('id,nombre,plan_id')
+                .eq('email', user.email).maybeSingle();
 
-        if (empresa) {
-            limpiarStorage();
-            // ✅ Respeta redirect_after_login — si vino de /remodelar, vuelve ahí
-            redirigirSegunRol('/dashboard');
-            return;
+            if (empresa) {
+                limpiarStorage();
+                redirigirSegunRol('/dashboard');
+                return;
+            }
+        } else {
+            const { data: consumidor } = await db
+                .from('consumidores').select('id,nombre')
+                .eq('email', user.email).maybeSingle();
+
+            if (consumidor) {
+                limpiarStorage();
+                redirigirSegunRol('/marketplace');
+                return;
+            }
         }
 
-        // ── 2. ¿Es consumidor existente? ───────────────────────────────
-        const { data: consumidor } = await db
-            .from('consumidores').select('id,nombre')
-            .eq('email', user.email).maybeSingle();
-
-        if (consumidor) {
-            limpiarStorage();
-            // ✅ Respeta redirect_after_login — si vino de /remodelar, vuelve ahí
-            redirigirSegunRol('/marketplace');
-            return;
-        }
-
-        // ── 3. Usuario nuevo ────────────────────────────────────────────
+        // ── 2. Usuario nuevo ────────────────────────────────────────────
         const nombre = user.user_metadata?.full_name || user.user_metadata?.name || user.email.split('@')[0];
 
         if (tipo === 'consumidor') {
