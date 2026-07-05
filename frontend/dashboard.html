@@ -471,6 +471,7 @@
     <nav class="sidebar-nav">
         <button class="nav-item active" onclick="mostrarPagina('inicio',this)"><span class="icon">🏠</span> Inicio</button>
         <button class="nav-item" onclick="mostrarPagina('mitienda',this)"><span class="icon">🏪</span> Mi Tienda <span class="dot-amarillo" id="dotTienda"></span></button>
+        <button class="nav-item" onclick="window.open('/visor3d','_blank')"><span class="icon">🏗️</span> Visor 3D</button>
         <button class="nav-item" onclick="mostrarPagina('whatsapp',this)"><span class="icon">📱</span> WhatsApp <span class="dot-amarillo" id="dotWa"></span></button>
         <a href="/crm" class="nav-item"><span class="icon">👥</span> CRM Clientes</a>
         <button class="nav-item" onclick="mostrarPagina('historial',this)"><span class="icon">🖼️</span> Historial</button>
@@ -761,7 +762,17 @@ window.addEventListener('DOMContentLoaded', async () => {
     await cargarDatos(session.user);
     document.getElementById('loadingOverlay').style.display = 'none';
     await cargarNotificaciones();
+    abrirPaginaDesdeHash();
 });
+
+function abrirPaginaDesdeHash() {
+    const nombre = (window.location.hash || '').replace('#', '');
+    if (!nombre) return;
+    const paginaEl = document.getElementById('pagina-' + nombre);
+    if (!paginaEl) return; // hash inválido — se queda en Inicio
+    const btn = document.querySelector(`.nav-item[onclick*="'${nombre}'"]`);
+    mostrarPagina(nombre, btn);
+}
 
 async function cargarDatos(user) {
     const { data:empresa } = await db.from('empresas').select('*, planes(*)').eq('email',user.email).maybeSingle();

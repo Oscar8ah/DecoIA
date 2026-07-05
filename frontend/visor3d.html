@@ -1842,6 +1842,21 @@ function procesarMovimientoWASD() {
 // ── PORTAFOLIO ────────────────────────────────────────────────────────────
 const TIENDA_DEMO_SLUG = 'pisos-demo';
 
+const NOMBRES_PLAN_BADGE = { basico:'🌱 Básico', profesional:'🚀 Profesional', premium:'⭐ Premium', corporativo:'🏆 Corporativo' };
+
+async function cargarPlanBadge() {
+    try {
+        const { data: { session } } = await db.auth.getSession();
+        if (!session) return; // visitante sin cuenta — deja el badge por defecto
+        const { data: empresa } = await db.from('empresas').select('*, planes(*)').eq('email', session.user.email).maybeSingle();
+        const planNombre = empresa?.planes?.nombre || 'basico';
+        const badgeEl = document.querySelector('.plan-badge');
+        if (badgeEl) badgeEl.textContent = NOMBRES_PLAN_BADGE[planNombre] || planNombre;
+    } catch (e) {
+        console.warn('No se pudo cargar el plan real para el badge:', e);
+    }
+}
+
 async function cargarPortafolio() {
     try {
         let tiendaId     = null;
@@ -2289,6 +2304,7 @@ let vistaActual='3d', fotoIaUrl=null, salaConstruida=false;
 configurarLuces();
 requestAnimationFrame(()=>{ centrarCamara(); animate(); });
 cargarPortafolio();
+cargarPlanBadge();
 {
     const paramsInicio = new URLSearchParams(window.location.search);
     if (paramsInicio.get('plano')) {
