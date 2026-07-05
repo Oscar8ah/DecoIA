@@ -281,7 +281,7 @@
         <div class="page-header"><h1>💰 Pagos</h1><p>Historial de transacciones</p></div>
         <div class="tabla-container">
             <div class="tabla-header"><span class="tabla-titulo">Todos los pagos</span></div>
-            <table><thead><tr><th>Empresa</th><th>Monto</th><th>Tipo</th><th>Método</th><th>Estado</th><th>Fecha</th></tr></thead>
+            <table><thead><tr><th>Empresa</th><th>Monto</th><th>Tipo</th><th>Método</th><th>Estado</th><th>Fecha</th><th>Recibo</th></tr></thead>
             <tbody id="tablaPagos"></tbody></table>
         </div>
     </div>
@@ -573,7 +573,7 @@ function verTienda(tiendaId) {
 // ── PAGOS ─────────────────────────────────────────────────────────────────
 function renderPagos(pagos) {
     const tbody = document.getElementById('tablaPagos');
-    if (pagos.length === 0) { tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="icon">💰</div><p>No hay pagos aún</p></div></td></tr>`; return; }
+    if (pagos.length === 0) { tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="icon">💰</div><p>No hay pagos aún</p></div></td></tr>`; return; }
     tbody.innerHTML = pagos.map(p => `
         <tr>
             <td><strong>${p.empresas?.nombre||'—'}</strong></td>
@@ -582,6 +582,7 @@ function renderPagos(pagos) {
             <td style="color:var(--gris)">${p.metodo||'—'}</td>
             <td>${estadoBadge(p.estado)}</td>
             <td style="color:var(--gris)">${formatFecha(p.created_at)}</td>
+            <td>${p.url_recibo ? `<a href="${p.url_recibo}" target="_blank" class="btn-accion btn-ver">📄 Recibo</a>` : '—'}</td>
         </tr>`).join('');
 }
 

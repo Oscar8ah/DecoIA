@@ -2,10 +2,12 @@ import hashlib
 import logging
 import json
 import httpx
+from datetime import datetime
 from fastapi import APIRouter, Depends, Request, HTTPException
 from pydantic import BaseModel
 from app.utils.config import get_settings, Settings
 from app.utils.supabase_client import get_supabase
+from app.services.recibo_service import generar_pdf_recibo, guardar_recibo
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/wompi", tags=["wompi"])
@@ -160,10 +162,34 @@ async def webhook_wompi(
         except Exception as e:
             logger.error(f"Error buscando tienda: {e}")
 
+        # ── Generar y guardar el recibo/comprobante de pago ───────────────
+        url_recibo = None
+        try:
+            pdf_bytes  = generar_pdf_recibo(
+                referencia=referencia, monto_cop=monto_cop, metodo=metodo,
+                tienda_nombre=tienda_nombre, cliente_email=cliente_email,
+            )
+            url_recibo = await guardar_recibo(pdf_bytes, referencia)
+        except Exception as e:
+            logger.error(f"Error generando recibo para {referencia}: {e}")
+
         # ── Insertar notificación en Supabase ─────────────────────────────
         if empresa_id:
             try:
                 supabase = get_supabase()
+
+                # Registro real del pago (antes nada escribía en esta tabla)
+                supabase.table("pagos").insert({
+                    "empresa_id":  empresa_id,
+                    "monto":       monto_cop,
+                    "tipo":        "venta_marketplace",
+                    "metodo":      metodo,
+                    "estado":      "aprobado",
+                    "referencia":  referencia,
+                    "url_recibo":  url_recibo,
+                    "created_at":  datetime.now().isoformat(),
+                }).execute()
+
                 supabase.table("notificaciones").insert({
                     "empresa_id": empresa_id,
                     "tipo":       "pago",
@@ -177,12 +203,13 @@ async def webhook_wompi(
                         "tx_id":            tx_id,
                         "cliente_email":    cliente_email,
                         "tienda_nombre":    tienda_nombre,
+                        "url_recibo":       url_recibo,
                     }
                 }).execute()
-                logger.info(f"Notificación insertada para empresa {empresa_id}")
+                logger.info(f"Pago y notificación registrados para empresa {empresa_id}")
 
             except Exception as e:
-                logger.error(f"Error insertando notificación: {e}")
+                logger.error(f"Error insertando pago/notificación: {e}")
 
         return {"status": "ok", "mensaje": "pago procesado correctamente"}
 

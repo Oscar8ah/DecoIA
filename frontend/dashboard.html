@@ -1441,13 +1441,16 @@ async function cargarNotificaciones() {
     else{badge.classList.remove('show');}
     if(!notifs.length){lista.innerHTML='<div class="nd-empty">Sin notificaciones por ahora 🔔</div>';return;}
     lista.innerHTML=notifs.map(n=>`
-        <div class="nd-item ${n.leida?'':'nueva'}" onclick="ndMarcarLeida('${n.id}')">
-            <div class="nd-icon">${n.tipo==='pago'?'💰':'🔔'}</div>
-            <div class="nd-info">
-                <div class="nd-titulo">${n.titulo}</div>
-                <div class="nd-msg">${n.mensaje}</div>
-                <div class="nd-tiempo">${ndTiempo(n.created_at)}</div>
+        <div class="nd-item ${n.leida?'':'nueva'}">
+            <div onclick="ndMarcarLeida('${n.id}')" style="cursor:pointer;display:flex;gap:10px;">
+                <div class="nd-icon">${n.tipo==='pago'?'💰':'🔔'}</div>
+                <div class="nd-info">
+                    <div class="nd-titulo">${n.titulo}</div>
+                    <div class="nd-msg">${n.mensaje}</div>
+                    <div class="nd-tiempo">${ndTiempo(n.created_at)}</div>
+                </div>
             </div>
+            ${n.datos?.url_recibo ? `<a href="${n.datos.url_recibo}" target="_blank" style="display:inline-block;margin-top:6px;margin-left:42px;font-size:12px;color:#A78BFA;text-decoration:underline;">📄 Descargar recibo</a>` : ''}
         </div>`).join('');
 }
 async function ndMarcarLeida(id){
