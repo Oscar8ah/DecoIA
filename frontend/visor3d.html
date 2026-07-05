@@ -3086,6 +3086,16 @@ function calcularMaterialModulo() {
     const prod = (todosProductos || []).find(p => p.id === prodId);
     if (!prod) { cont.innerHTML = ''; return; }
 
+    // El cálculo de materiales es exclusivo de Premium/Corporativo
+    if (rolUsuario === 'empresa' && !['premium','corporativo'].includes(planEmpresaVisor)) {
+        cont.innerHTML = `
+            <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:12px;font-size:12px;color:#FCD34D;">
+                🔒 El <b>Cálculo de materiales</b> (cajas necesarias, cemento y arena) está disponible desde el plan <b>Premium</b>.
+                <a href="/dashboard#plan" target="_blank" style="color:#FCD34D;text-decoration:underline;">Ver planes →</a>
+            </div>`;
+        return;
+    }
+
     const areaModulo = moduloSeleccionado.ancho * moduloSeleccionado.largo;
     const desperdicio = (prod.desperdicio_pct ?? 10) / 100;
     const areaConDesperdicio = areaModulo * (1 + desperdicio);
