@@ -31,8 +31,9 @@ MODELOS_3D_DISPONIBLES = [
 ]
 
 CATEGORIAS_VALIDAS = [
-    "pisos", "enchapes", "cocinas", "baños", "materiales",
-    "electricos", "pintura", "puertas", "muebles",
+    "pisos", "enchapes", "cocinas", "baños", "materiales", "estructuras",
+    "ferreteria", "electricos", "cables", "plomeria", "pintura", "puertas",
+    "muebles", "electrodomesticos", "electronica", "jardineria", "seguridad", "otros",
 ]
 
 MAX_PAGINAS_PDF   = 20   # límite de páginas a leer de un PDF (catálogos muy largos se truncan)
@@ -202,6 +203,6 @@ async def procesar_catalogo(archivo: UploadFile = File(...), tienda_id: str = Fo
         if p.get("modelo_3d_tipo") not in MODELOS_3D_DISPONIBLES:
             p["modelo_3d_tipo"] = None
         if p.get("categoria") not in CATEGORIAS_VALIDAS:
-            p["categoria"] = "materiales"
+            p["categoria"] = "otros"
 
     return {"productos": productos, "total_imagenes_detectadas": len(imagenes)}

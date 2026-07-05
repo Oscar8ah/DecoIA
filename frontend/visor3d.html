@@ -2955,6 +2955,23 @@ function renderPortafolioPisoModulo() {
     `).join('');
 }
 
+function calcularCementoArena(areaM2, espesorCm, proporcion) {
+    // Fórmula estándar de dosificación de mortero por volumen (obra civil):
+    // 1) volumen de mortero compactado = área × espesor
+    // 2) factor de contracción ~1.33 — el material suelto (antes de mezclar) ocupa más volumen
+    //    que el mortero ya compactado, por los vacíos entre partículas
+    // 3) se reparte ese volumen suelto entre cemento y arena según la proporción 1:P
+    // 4) 1 bulto de cemento de 50kg ≈ 0.04 m³ suelto (densidad aparente ~1250 kg/m³)
+    const volumenMortero = areaM2 * (espesorCm / 100);
+    const FACTOR_CONTRACCION = 1.33;
+    const volumenSecoTotal = volumenMortero * FACTOR_CONTRACCION;
+    const partesTotal = 1 + proporcion;
+    const volumenCemento = volumenSecoTotal * (1 / partesTotal);
+    const volumenArena   = volumenSecoTotal * (proporcion / partesTotal);
+    const bultosCemento = Math.ceil(volumenCemento / 0.04);
+    return { bultosCemento, arenaM3: volumenArena };
+}
+
 function calcularMaterialModulo() {
     const cont = document.getElementById('calculoMaterialPiso');
     if (!cont || !moduloSeleccionado) return;
@@ -2977,6 +2994,26 @@ function calcularMaterialModulo() {
         costoTotal = areaConDesperdicio * (prod.precio || 0);
     }
 
+    // Cemento y arena para instalar este piso — busca en el portafolio de la tienda
+    // productos marcados como tipo_calculo='cemento_arena' con uso='piso'
+    const prodCemento = (todosProductos || []).find(p => p.tipo_calculo === 'cemento_arena' && p.datos_mortero?.material === 'cemento' && p.datos_mortero?.uso === 'piso');
+    const prodArena   = (todosProductos || []).find(p => p.tipo_calculo === 'cemento_arena' && p.datos_mortero?.material === 'arena'   && p.datos_mortero?.uso === 'piso');
+    let bloqueMortero = '';
+    if (prodCemento || prodArena) {
+        const espesor    = (prodCemento || prodArena).datos_mortero.espesor_cm || 2.5;
+        const proporcion = (prodCemento || prodArena).datos_mortero.proporcion || 4;
+        const { bultosCemento, arenaM3 } = calcularCementoArena(areaModulo, espesor, proporcion);
+        const costoCemento = prodCemento ? bultosCemento * (prodCemento.precio || 0) : null;
+        const costoArena   = prodArena   ? Math.ceil(arenaM3) * (prodArena.precio || 0) : null;
+        bloqueMortero = `
+            <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08);">
+                <div style="font-weight:700;color:#FCD34D;margin-bottom:4px;">🧱 Para instalarlo (mortero 1:${proporcion}, ${espesor}cm)</div>
+                <div style="color:var(--texto);">Cemento: <b>${bultosCemento} bulto${bultosCemento===1?'':'s'} de 50kg</b>${costoCemento!==null?` — $${Math.round(costoCemento).toLocaleString('es-CO')}`:' (agrega el producto cemento en tu catálogo para ver el costo)'}</div>
+                <div style="color:var(--texto);">Arena: <b>${arenaM3.toFixed(3)} m³</b>${costoArena!==null?` — $${Math.round(costoArena).toLocaleString('es-CO')}`:' (agrega el producto arena en tu catálogo para ver el costo)'}</div>
+                <div style="color:var(--gris);font-size:10px;margin-top:4px;">Estimado según tabla estándar de dosificación de obra — para instalaciones grandes, confirma con tu maestro de obra.</div>
+            </div>`;
+    }
+
     cont.innerHTML = `
         <div style="background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.25);border-radius:10px;padding:10px;font-size:12px;">
             <div style="font-weight:700;color:#A78BFA;margin-bottom:4px;">📐 Material necesario</div>
@@ -2984,6 +3021,7 @@ function calcularMaterialModulo() {
             <div style="color:var(--texto);">Necesitas: <b>${cantidadTexto}</b></div>
             <div style="color:#6EE7B7;font-weight:700;margin-top:4px;">Costo estimado: $${Math.round(costoTotal).toLocaleString('es-CO')}</div>
             ${!prod.rendimiento_m2 ? '<div style="color:var(--gris);font-size:10.5px;margin-top:4px;">Este producto no tiene rendimiento por caja configurado — se calculó directo por m².</div>' : ''}
+            ${bloqueMortero}
         </div>`;
 }
 
