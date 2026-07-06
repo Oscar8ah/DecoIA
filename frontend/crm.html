@@ -278,7 +278,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (!empresa) { window.location.href = '/dashboard'; return; }
 
     const planNombre = empresa.planes?.nombre || 'basico';
-    if (planNombre === 'basico') {
+    if (!['profesional','premium','corporativo'].includes(planNombre)) {
         document.getElementById('crmBloqueado').style.display  = 'block';
         document.getElementById('crmContenido').style.display  = 'none';
         document.getElementById('sidebarAvatar').textContent  = empresa.nombre?.[0]?.toUpperCase() || '?';

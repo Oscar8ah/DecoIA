@@ -546,7 +546,7 @@ function selSup(nombre, btn) {
 
 // ── TIENDAS ─────────────────────────────────────────────────────────────
 async function cargarTiendas() {
-    const { data:tiendas } = await db.from('tiendas').select('id,nombre,logo_url,categoria_principal').eq('activa',true).limit(10);
+    const { data:tiendas } = await db.from('tiendas').select('id,nombre,logo_url,categoria_principal,plan_nombre').eq('activa',true).neq('plan_nombre','gratis').limit(10);
     const sel = document.getElementById('tiendaSelector');
     if (!tiendas?.length) { sel.innerHTML = '<div style="text-align:center;color:var(--gris);font-size:13px;padding:12px;">No hay tiendas disponibles aún</div>'; return; }
     const opts = [{ id:'todas', nombre:'Todas las tiendas', logo_url:null, categoria_principal:'todo' }, ...tiendas];
@@ -566,7 +566,7 @@ async function selTienda(id) {
     document.querySelectorAll('.tienda-opt').forEach(o => o.classList.remove('activo'));
     document.getElementById('tienda-'+id)?.classList.add('activo');
     if (id === 'todas') {
-        const { data:tiendas } = await db.from('tiendas').select('id').eq('activa',true);
+        const { data:tiendas } = await db.from('tiendas').select('id').eq('activa',true).neq('plan_nombre','gratis');
         const ids = tiendas?.map(t=>t.id)||[];
         const { data:prods } = await db.from('productos').select('*').in('tienda_id',ids).eq('activo',true).limit(60);
         todosProds = prods||[];

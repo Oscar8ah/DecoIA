@@ -757,15 +757,18 @@ const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { flowType: 'pkce', persistSession: true, detectSessionInUrl: true, autoRefreshToken: true }
 });
 
-const PRECIOS       = { basico:'$700.000/mes', profesional:'$1.200.000/mes', premium:'$1.500.000/mes', corporativo:'$3.000.000/mes' };
-const NOMBRES_PLAN  = { basico:'Básico', profesional:'Profesional', premium:'Premium', corporativo:'Corporativo' };
+const PRECIOS       = { gratis:'$0/mes', basico:'$700.000/mes', profesional:'$1.200.000/mes', premium:'$1.500.000/mes', corporativo:'$3.000.000/mes' };
+const NOMBRES_PLAN  = { gratis:'Gratis', basico:'Básico', profesional:'Profesional', premium:'Premium', corporativo:'Corporativo' };
 const FEATURES_PLAN = {
+    gratis:      ['Tienda en el marketplace','Subir tu catálogo'],
     basico:      ['Bot WhatsApp IA','Detección automática','Soporte WhatsApp'],
     profesional: ['Bot WhatsApp IA','CRM clientes','Catálogo PDF con IA'],
     premium:     ['Bot WhatsApp IA','CRM clientes','Facturación automática','Cálculo materiales','Multiasesor'],
     corporativo: ['Bot WhatsApp IA','Medición AR','Planos IA','Gerente dedicado']
 };
-const PLANES_CON_IA = ['profesional','premium','corporativo'];
+const PLANES_CON_IA      = ['profesional','premium','corporativo'];
+const PLANES_CON_CRM_VISOR = ['profesional','premium','corporativo'];   // Visor 3D y CRM
+const PLANES_CON_WHATSAPP  = ['basico','profesional','premium','corporativo']; // todo menos gratis
 
 let empresaId   = null;
 let tiendaId    = null;
@@ -855,13 +858,26 @@ function renderDashboard(empresa, plan, imagenes) {
     document.getElementById('planPrecioPag').textContent = PRECIOS[planNombre]||'';
     document.getElementById('planFeatures').innerHTML    = (FEATURES_PLAN[planNombre]||[]).map(f=>`<span class="feature-tag">✓ ${f}</span>`).join('');
 
-    // Visor 3D — desde plan Profesional en adelante
-    if (planNombre === 'basico') {
+    // Visor 3D y CRM — desde plan Profesional en adelante (lista blanca: cualquier
+    // plan nuevo que agreguemos abajo de Profesional queda bloqueado por defecto)
+    if (!PLANES_CON_CRM_VISOR.includes(planNombre)) {
         document.querySelectorAll('.btn-visor3d, #navVisor3D').forEach(el => {
             el.onclick = () => alert('⚠️ El Visor 3D está disponible desde el plan Profesional. Ve a "Mi Plan" para actualizar.');
             el.style.opacity = '0.5';
             el.title = 'Disponible desde el plan Profesional';
         });
+    }
+
+    // WhatsApp con IA — no incluido en el plan Gratis
+    if (!PLANES_CON_WHATSAPP.includes(planNombre)) {
+        const tabWa = document.getElementById('pagina-whatsapp');
+        if (tabWa) {
+            tabWa.innerHTML = `<div class="page-header"><h1>📱 Conectar WhatsApp</h1></div>
+                <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:12px;padding:20px 24px;font-size:14px;color:#FCD34D;">
+                    ⚠️ El bot de WhatsApp con IA está disponible desde el plan <strong>Básico</strong>.
+                    <a href="#" onclick="mostrarPagina('plan')" style="color:#FCD34D;margin-left:8px;text-decoration:underline;">Ver planes →</a>
+                </div>`;
+        }
     }
 
     // Medición AR — exclusiva de Corporativo

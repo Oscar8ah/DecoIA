@@ -202,7 +202,7 @@
 <div class="not-found" id="notFound">
     <div style="font-size:64px;">🏪</div>
     <h2 style="font-size:24px;font-weight:800;">Tienda no encontrada</h2>
-    <p style="color:var(--gris);font-size:15px;">El link no es válido o la tienda no está disponible.</p>
+    <p style="color:var(--gris);font-size:15px;" id="notFoundMsg">El link no es válido o la tienda no está disponible.</p>
     <a href="/marketplace" style="color:#A78BFA;font-size:14px;">← Ver marketplace</a>
 </div>
 
@@ -284,6 +284,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         .maybeSingle();
 
     if (!tienda) { mostrarNotFound(); return; }
+    if (tienda.plan_nombre === 'gratis') { mostrarNotFound('Esta tienda aún no tiene activa la transformación con IA.'); return; }
     tiendaData = tienda;
 
     // Cargar productos
@@ -447,7 +448,8 @@ function filtrarCat(cat, btn) {
     renderProductos(filtrados);
 }
 
-function mostrarNotFound() {
+function mostrarNotFound(mensaje) {
+    if (mensaje) document.getElementById('notFoundMsg').textContent = mensaje;
     document.getElementById('notFound').classList.add('show');
 }
 </script>

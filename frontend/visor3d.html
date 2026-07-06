@@ -2761,7 +2761,7 @@ function aplicarProductoASuperficie(prod, superficie) {
 
 document.addEventListener('DOMContentLoaded', async () => {
     await verificarRolYAcceso();
-    if (rolUsuario === 'empresa' && planEmpresaVisor === 'basico') {
+    if (rolUsuario === 'empresa' && !['profesional','premium','corporativo'].includes(planEmpresaVisor)) {
         mostrarBloqueoPlanVisor();
         return;
     }

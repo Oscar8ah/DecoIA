@@ -153,6 +153,14 @@
                     <label class="label-titulo">Elige tu plan</label>
                     <div class="planes-grid">
                         <label class="plan-option">
+                            <input type="radio" name="plan" value="gratis" checked>
+                            <span class="plan-card">
+                                <div class="plan-card-nombre">Gratis</div>
+                                <div class="plan-card-precio">$0</div>
+                                <div class="plan-card-fotos">Muestra tu inventario ya mismo</div>
+                            </span>
+                        </label>
+                        <label class="plan-option">
                             <input type="radio" name="plan" value="basico">
                             <span class="plan-card">
                                 <div class="plan-card-nombre">Básico</div>
@@ -161,7 +169,7 @@
                             </span>
                         </label>
                         <label class="plan-option">
-                            <input type="radio" name="plan" value="profesional" checked>
+                            <input type="radio" name="plan" value="profesional">
                             <span class="plan-card">
                                 <div class="plan-popular-badge">⭐ Popular</div>
                                 <div class="plan-card-nombre">Profesional</div>
@@ -185,6 +193,9 @@
                                 <div class="plan-card-fotos">500 fotos/mes</div>
                             </span>
                         </label>
+                    </div>
+                    <div id="avisoGratis" style="margin-top:14px;font-size:12.5px;color:var(--gris);line-height:1.5;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:10px;padding:12px 16px;">
+                        ℹ️ Con el plan <b>Gratis</b> tu tienda aparece en el marketplace y puedes subir tu catálogo, pero el bot de WhatsApp con IA, el CRM y el Visor 3D quedan disponibles al actualizar a un plan pagado.
                     </div>
                 </div>
 
@@ -261,8 +272,8 @@ const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { flowType: 'pkce', persistSession: true, detectSessionInUrl: true, autoRefreshToken: true }
 });
 
-const PRECIOS_PLAN = { basico:'$700.000/mes', profesional:'$1.200.000/mes', premium:'$1.500.000/mes', corporativo:'$3.000.000/mes' };
-const NOMBRES_PLAN = { basico:'Básico', profesional:'Profesional', premium:'Premium', corporativo:'Corporativo' };
+const PRECIOS_PLAN = { gratis:'$0/mes', basico:'$700.000/mes', profesional:'$1.200.000/mes', premium:'$1.500.000/mes', corporativo:'$3.000.000/mes' };
+const NOMBRES_PLAN = { gratis:'Gratis', basico:'Básico', profesional:'Profesional', premium:'Premium', corporativo:'Corporativo' };
 
 let tipoActual = 'empresa';
 
@@ -384,8 +395,8 @@ async function manejarCallback() {
                 plan_id:           planData.id,
                 fotos_disponibles: planData.fotos_incluidas,
                 fotos_usadas:      0,
-                estado:            'pendiente_pago',
-                pago_metodo:       'pendiente'
+                estado:            plan === 'gratis' ? 'activo' : 'pendiente_pago',
+                pago_metodo:       plan === 'gratis' ? 'no_aplica' : 'pendiente'
             });
             if (errE && errE.code !== '23505') throw errE;
 
@@ -406,12 +417,15 @@ async function manejarCallback() {
 }
 
 function mostrarExitoEmpresa(nombre, email, plan, fotos) {
+    const mensajeFinal = plan === 'gratis'
+        ? '✅ Ya puedes entrar a tu dashboard y subir tu catálogo. Actualiza cuando quieras para desbloquear el bot de WhatsApp, CRM y Visor 3D.'
+        : '✅ Te contactaremos para activar tu bot de WhatsApp.';
     document.getElementById('exitoDatosEmpresa').innerHTML = `
         <p>👤 <strong>${nombre}</strong></p>
         <p>📧 <strong>${email}</strong></p>
         <p>📦 Plan: <strong>${NOMBRES_PLAN[plan] || plan}</strong></p>
         <p>📸 <strong>${fotos} imágenes/mes</strong></p>
-        <p style="margin-top:10px;font-size:12px;color:#A78BFA;">✅ Te contactaremos para activar tu bot de WhatsApp.</p>`;
+        <p style="margin-top:10px;font-size:12px;color:#A78BFA;">${mensajeFinal}</p>`;
     document.getElementById('exitoEmpresa').style.display = 'block';
 }
 
