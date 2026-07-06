@@ -530,6 +530,18 @@
 const SUPABASE_URL      = 'https://cqwbsikyzdtegutyvgfo.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxd2JzaWt5emR0ZWd1dHl2Z2ZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NTk5MjUsImV4cCI6MjA5NDMzNTkyNX0.v9Qmp85POur1zZ3nHVYNRyhqHAi4VawafBsCiXF72Yo';
 const { createClient } = supabase;
+// Escapa HTML para evitar XSS al insertar nombres de productos/módulos que
+// pueden venir de otra tienda (cualquier visitante puede abrir este visor)
+function esc(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { flowType: 'pkce', persistSession: true, detectSessionInUrl: true, autoRefreshToken: true }
 });
@@ -615,7 +627,7 @@ function abrirPanelVentana(id) {
     const sel  = document.getElementById('vdpCuartoSelect');
     if (modulosActuales3D.length > 1) {
         wrap.style.display = 'block';
-        sel.innerHTML = modulosActuales3D.map(m => `<option value="${m.id}">${m.nombre}</option>`).join('');
+        sel.innerHTML = modulosActuales3D.map(m => `<option value="${m.id}">${esc(m.nombre)}</option>`).join('');
         const g = mobiliarioMeshes[id];
         // Preseleccionar el cuarto más cercano a donde esté ahora mismo el mueble
         let masCercano = modulosActuales3D[0], mejorDist = Infinity;
@@ -1902,19 +1914,19 @@ async function cargarPortafolio() {
 }
 
 function mostrarEmptyPort(msg) {
-    document.getElementById('portafolioContenido').innerHTML = `<div class="empty-port"><div style="font-size:32px;margin-bottom:8px;">🏪</div><p>${msg}</p></div>`;
+    document.getElementById('portafolioContenido').innerHTML = `<div class="empty-port"><div style="font-size:32px;margin-bottom:8px;">🏪</div><p>${esc(msg)}</p></div>`;
 }
 
 function renderPortafolio(productos) {
     const c = document.getElementById('portafolioContenido');
     if (!productos.length) { c.innerHTML = `<div class="empty-port"><p>No hay productos en esta categoría</p></div>`; return; }
     c.innerHTML = `<div class="productos-portafolio">${productos.map(p => {
-        const img = p.imagen_url ? `<img src="${p.imagen_url}" alt="${p.nombre}" onerror="this.parentElement.innerHTML='📦'">` : '📦';
+        const img = p.imagen_url ? `<img src="${esc(p.imagen_url)}" alt="${esc(p.nombre)}" onerror="this.parentElement.innerHTML='📦'">` : '📦';
         return `<div class="prod-port-card" id="prodcard-${p.id}" onclick="aplicarProductoPortafolio('${p.id}')">
             <div class="prod-port-img">${img}</div>
             <div class="prod-port-info">
-                <div class="prod-port-nombre">${p.nombre}</div>
-                <div class="prod-port-precio">$${Number(p.precio).toLocaleString('es-CO')}/${p.unidad||'m²'}</div>
+                <div class="prod-port-nombre">${esc(p.nombre)}</div>
+                <div class="prod-port-precio">$${Number(p.precio).toLocaleString('es-CO')}/${esc(p.unidad)||'m²'}</div>
             </div></div>`;
     }).join('')}</div>`;
 }
@@ -1928,7 +1940,7 @@ function filtrarPortafolio(cat, btn) {
 function mostrarProductoCliente(prod) {
     document.getElementById('clienteSeleccion').style.display = 'block';
     const imgEl = document.getElementById('clienteSelImg');
-    imgEl.innerHTML = prod.imagen_url ? `<img src="${prod.imagen_url}" alt="${prod.nombre}" style="width:100%;height:100%;object-fit:cover;">` : '📦';
+    imgEl.innerHTML = prod.imagen_url ? `<img src="${esc(prod.imagen_url)}" alt="${esc(prod.nombre)}" style="width:100%;height:100%;object-fit:cover;">` : '📦';
     document.getElementById('clienteSelNombre').textContent = prod.nombre;
     document.getElementById('clienteSelPrecio').textContent = `$${Number(prod.precio).toLocaleString('es-CO')}/${prod.unidad||'m²'}`;
     aplicarProductoPortafolio(prod.id);
@@ -2332,7 +2344,7 @@ function cambiarVista(vista) {
     document.getElementById('vistaPlanta').style.display=vista==='planta'?'flex':'none';
     document.getElementById('entorno3dVacio').style.display=(vista==='3d' && !salaConstruida)?'flex':'none';
     if (vista==='foto' && fotoIaUrl) {
-        document.getElementById('fotoIaContenido').innerHTML=`<div class="foto-ia-container"><img src="${fotoIaUrl}" alt="Foto generada por IA"></div>`;
+        document.getElementById('fotoIaContenido').innerHTML=`<div class="foto-ia-container"><img src="${esc(fotoIaUrl)}" alt="Foto generada por IA"></div>`;
         document.getElementById('btnEnviarCliente').style.display='flex';
     }
     if (vista==='planta') iniciarEditorPlanta();
@@ -2504,7 +2516,7 @@ function activarCamaraPivote() {
     const select   = document.getElementById('cpCuartoSelect');
     if (modulosActuales3D.length > 1) {
         selector.style.display = 'block';
-        select.innerHTML = modulosActuales3D.map(m => `<option value="${m.id}">${m.nombre}</option>`).join('');
+        select.innerHTML = modulosActuales3D.map(m => `<option value="${m.id}">${esc(m.nombre)}</option>`).join('');
         const t = controls.target;
         let masCercano = modulosActuales3D[0], mejorDist = Infinity;
         modulosActuales3D.forEach(m => {
@@ -3057,8 +3069,8 @@ function renderPortafolioPisoModulo() {
             style="display:flex;align-items:center;gap:8px;padding:6px;border-radius:8px;cursor:pointer;
             background:${moduloSeleccionado.imagenPisoId===p.id?'rgba(124,58,237,0.25)':'rgba(255,255,255,0.03)'};
             border:1px solid ${moduloSeleccionado.imagenPisoId===p.id?'rgba(124,58,237,0.5)':'transparent'};">
-            <img src="${p.imagen_url}" style="width:32px;height:32px;border-radius:6px;object-fit:cover;flex-shrink:0;">
-            <span style="font-size:11px;color:var(--texto);line-height:1.3;">${p.nombre}</span>
+            <img src="${esc(p.imagen_url)}" style="width:32px;height:32px;border-radius:6px;object-fit:cover;flex-shrink:0;">
+            <span style="font-size:11px;color:var(--texto);line-height:1.3;">${esc(p.nombre)}</span>
         </div>
     `).join('');
 }
@@ -3211,7 +3223,7 @@ function actualizarListaModulos() {
             border:1px solid rgba(124,58,237,${moduloSeleccionado?.id===m.id?'0.6':'0.25'});
             color:var(--texto);padding:4px 12px;border-radius:50px;font-size:12px;
             font-weight:600;cursor:pointer;white-space:nowrap;">
-            ${m.nombre}
+            ${esc(m.nombre)}
         </button>`).join('');
 }
 

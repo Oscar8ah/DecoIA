@@ -753,6 +753,18 @@
 const SUPABASE_URL      = 'https://cqwbsikyzdtegutyvgfo.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxd2JzaWt5emR0ZWd1dHl2Z2ZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NTk5MjUsImV4cCI6MjA5NDMzNTkyNX0.v9Qmp85POur1zZ3nHVYNRyhqHAi4VawafBsCiXF72Yo';
 const { createClient } = supabase;
+// Escapa HTML para evitar XSS al insertar nombres/textos que vienen de la
+// base de datos (clientes por WhatsApp, otras tiendas, productos, etc.)
+function esc(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { flowType: 'pkce', persistSession: true, detectSessionInUrl: true, autoRefreshToken: true }
 });
@@ -835,7 +847,7 @@ function renderDashboard(empresa, plan, imagenes) {
     const planNombre  = plan?.nombre || 'basico';
 
     const avatarEl = document.getElementById('sidebarAvatar');
-    if (empresa.foto_perfil) { avatarEl.innerHTML = `<img src="${empresa.foto_perfil}" alt="${nombre}">`; }
+    if (empresa.foto_perfil) { avatarEl.innerHTML = `<img src="${esc(empresa.foto_perfil)}" alt="${esc(nombre)}">`; }
     else { avatarEl.textContent = nombre[0].toUpperCase(); }
     document.getElementById('sidebarNombre').textContent = nombre;
     document.getElementById('sidebarEmail').textContent  = empresa.email||'';
@@ -918,12 +930,12 @@ async function subirLogo(input) {
         const { data:{ publicUrl } } = db.storage.from('logos-tiendas').getPublicUrl(nombre);
         const urlConCache = `${publicUrl}?t=${Date.now()}`;
         document.getElementById('tiendaLogoUrl').value = publicUrl;
-        document.getElementById('logoPreviewBox').innerHTML = `<img src="${urlConCache}" alt="Logo" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`;
+        document.getElementById('logoPreviewBox').innerHTML = `<img src="${esc(urlConCache)}" alt="Logo" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`;
         status.innerHTML = `<span style="color:#6EE7B7;">✅ Logo subido correctamente</span>
             <button onclick="eliminarLogo()" style="margin-left:12px;background:rgba(239,68,68,0.1);color:#FCA5A5;border:1px solid rgba(239,68,68,0.3);padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Segoe UI',sans-serif;">🗑️ Eliminar logo</button>`;
     } catch(e) {
         console.error(e);
-        status.innerHTML = `<span style="color:#FCA5A5;">❌ Error subiendo logo: ${e.message||'Intenta de nuevo'}.</span>`;
+        status.innerHTML = `<span style="color:#FCA5A5;">❌ Error subiendo logo: ${esc(e.message)||'Intenta de nuevo'}.</span>`;
     }
 }
 
@@ -1073,14 +1085,14 @@ function renderMiTienda(tienda) {
     if (!tienda) return;
     const statusCard = document.getElementById('tiendaStatusCard');
     statusCard.className = 'tienda-status-card activa';
-    const logoHtml = tienda.logo_url ? `<img src="${tienda.logo_url}" style="width:48px;height:48px;border-radius:10px;object-fit:cover;">` : '✅';
+    const logoHtml = tienda.logo_url ? `<img src="${esc(tienda.logo_url)}" style="width:48px;height:48px;border-radius:10px;object-fit:cover;">` : '✅';
     statusCard.innerHTML = `
         <div class="tienda-status-icon">${logoHtml}</div>
-        <div class="tienda-status-info"><div class="tienda-status-titulo">${tienda.nombre}</div><div class="tienda-status-sub">Activa en la marketplace · ${verificacionTexto(tienda.estado_verificacion)}</div></div>
+        <div class="tienda-status-info"><div class="tienda-status-titulo">${esc(tienda.nombre)}</div><div class="tienda-status-sub">Activa en la marketplace · ${verificacionTexto(tienda.estado_verificacion)}</div></div>
         <a href="/marketplace" target="_blank" style="background:var(--degradado);color:white;padding:10px 20px;border-radius:50px;font-size:13px;font-weight:700;text-decoration:none;">Ver tienda →</a>`;
     document.getElementById('dotTienda').className = 'dot-verde';
     if (tienda.logo_url) {
-        document.getElementById('logoPreviewBox').innerHTML=`<img src="${tienda.logo_url}" alt="Logo">`;
+        document.getElementById('logoPreviewBox').innerHTML=`<img src="${esc(tienda.logo_url)}" alt="Logo">`;
         document.getElementById('tiendaLogoUrl').value=tienda.logo_url;
         document.getElementById('logoUploadStatus').innerHTML=`<span style="color:#6EE7B7;">✅ Logo cargado</span> <button onclick="eliminarLogo()" style="margin-left:12px;background:rgba(239,68,68,0.1);color:#FCA5A5;border:1px solid rgba(239,68,68,0.3);padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Segoe UI',sans-serif;">🗑️ Eliminar logo</button>`;
     }
@@ -1145,10 +1157,13 @@ async function guardarLegal() {
 }
 
 // ── PRODUCTOS ─────────────────────────────────────────────────────────────
+let productosDashActuales = [];
+
 async function cargarProductosTienda() {
     if (!tiendaId) { document.getElementById('tiendaSinCrear').style.display='block'; return; }
     const{data:productos}=await db.from('productos').select('*').eq('tienda_id',tiendaId).order('created_at',{ascending:false});
-    renderProductosDash(productos||[]);
+    productosDashActuales = productos || [];
+    renderProductosDash(productosDashActuales);
 }
 
 function renderProductosDash(productos) {
@@ -1159,18 +1174,23 @@ function renderProductosDash(productos) {
     grid.innerHTML=productos.map(p=>`
         <div class="producto-dash-card">
             <div class="producto-dash-img">
-                ${p.imagen_url?`<img src="${p.imagen_url}" alt="${p.nombre}" loading="lazy" onerror="this.parentElement.innerHTML='📦'">`:'📦'}
+                ${p.imagen_url?`<img src="${esc(p.imagen_url)}" alt="${esc(p.nombre)}" loading="lazy" onerror="this.parentElement.innerHTML='📦'">`:'📦'}
                 <span class="producto-dash-badge ${p.activo?'badge-activo':'badge-inactivo'}">${p.activo?'Activo':'Inactivo'}</span>
             </div>
             <div class="producto-dash-body">
-                <div class="producto-dash-nombre">${p.nombre}</div>
-                <div class="producto-dash-precio">$${Number(p.precio).toLocaleString('es-CO')}/${p.unidad||'m²'}</div>
+                <div class="producto-dash-nombre">${esc(p.nombre)}</div>
+                <div class="producto-dash-precio">$${Number(p.precio).toLocaleString('es-CO')}/${esc(p.unidad)||'m²'}</div>
                 <div class="producto-dash-acciones">
-                    <button class="btn-secundario" style="padding:7px 14px;font-size:12px;" onclick='editarProducto(${JSON.stringify(p)})'>✏️ Editar</button>
+                    <button class="btn-secundario" style="padding:7px 14px;font-size:12px;" onclick="editarProductoPorId('${p.id}')">✏️ Editar</button>
                     <button class="btn-peligro" onclick="toggleProducto('${p.id}',${p.activo})">${p.activo?'⏸ Pausar':'▶ Activar'}</button>
                 </div>
             </div>
         </div>`).join('');
+}
+
+function editarProductoPorId(id) {
+    const p = productosDashActuales.find(x => String(x.id) === String(id));
+    if (p) editarProducto(p);
 }
 
 function abrirModalProducto() {
@@ -1231,7 +1251,7 @@ document.getElementById('campoDimensiones').style.display=(p.modelo_3d_tipo&&p.m
     imagenActualBytes = null;
     document.getElementById('btnRembg').disabled = !p.imagen_url;
     if (p.imagen_url) {
-        document.getElementById('uploadAreaContenido').innerHTML=`<img src="${p.imagen_url}" class="upload-img-preview" alt="Preview"><div class="upload-img-texto" style="color:#6EE7B7;">✅ Imagen actual — toca para cambiar</div>`;
+        document.getElementById('uploadAreaContenido').innerHTML=`<img src="${esc(p.imagen_url)}" class="upload-img-preview" alt="Preview"><div class="upload-img-texto" style="color:#6EE7B7;">✅ Imagen actual — toca para cambiar</div>`;
     } else {
         document.getElementById('uploadAreaContenido').innerHTML=`<div class="upload-img-placeholder">📸</div><div class="upload-img-texto"><strong>Toca para subir foto</strong><br>JPG o PNG — máx 5MB</div>`;
     }
@@ -1354,10 +1374,10 @@ async function procesarPlanoArquitectonico(input) {
         cont.innerHTML = `
             <div class="form-card">
                 <h3>📐 Plano analizado</h3>
-                <p><b>Tipo:</b> ${info.tipo_plano || 'Espacio'}</p>
-                <p><b>Habitaciones:</b> ${info.habitaciones || '—'}</p>
-                <p><b>Área estimada:</b> ${info.area_estimada || 'Por determinar'}</p>
-                ${data.url_visor3d ? `<a href="${data.url_visor3d}" target="_blank" class="btn-primario" style="display:inline-block;margin-top:12px;text-decoration:none;">🏗️ Ver y editar en el Visor 3D →</a>` : ''}
+                <p><b>Tipo:</b> ${esc(info.tipo_plano) || 'Espacio'}</p>
+                <p><b>Habitaciones:</b> ${esc(info.habitaciones) || '—'}</p>
+                <p><b>Área estimada:</b> ${esc(info.area_estimada) || 'Por determinar'}</p>
+                ${data.url_visor3d ? `<a href="${esc(data.url_visor3d)}" target="_blank" class="btn-primario" style="display:inline-block;margin-top:12px;text-decoration:none;">🏗️ Ver y editar en el Visor 3D →</a>` : ''}
             </div>`;
     } catch(e) {
         console.error(e);
@@ -1367,7 +1387,7 @@ async function procesarPlanoArquitectonico(input) {
 }
 
 
-function renderPreviewIA(){const lista=document.getElementById('previewLista');document.getElementById('previewTitulo').textContent=`🤖 ${productosIA.length} productos detectados`;document.getElementById('previewProductos').style.display='block';lista.innerHTML=productosIA.map(p=>`<div class="preview-item ${p._aceptado?'aceptado':'rechazado'}" id="preview-${p._id}">${p.imagen_url?`<img src="${p.imagen_url}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;margin-right:10px;flex-shrink:0;">`:''}<div class="preview-item-info"><div class="preview-item-nombre">${p.nombre}${p.referencia?` <span style="color:#888;font-weight:400;">(Ref: ${p.referencia})</span>`:''}</div><div class="preview-item-precio">$${Number(p.precio||0).toLocaleString('es-CO')} / ${p.unidad||'m²'}</div><div class="preview-item-desc">${p.descripcion||''}</div><div style="margin-top:6px;font-size:12px;color:#A78BFA;">📂 ${p.categoria||'Sin categoría'}${p.modelo_3d_tipo?` · 🧊 Modelo 3D: ${p.modelo_3d_tipo}`:''}</div></div><div class="preview-item-acciones"><button class="btn-exito" onclick="togglePreviewItem(${p._id},true)">✅</button><button class="btn-peligro" onclick="togglePreviewItem(${p._id},false)">❌</button></div></div>`).join('');}
+function renderPreviewIA(){const lista=document.getElementById('previewLista');document.getElementById('previewTitulo').textContent=`🤖 ${productosIA.length} productos detectados`;document.getElementById('previewProductos').style.display='block';lista.innerHTML=productosIA.map(p=>`<div class="preview-item ${p._aceptado?'aceptado':'rechazado'}" id="preview-${p._id}">${p.imagen_url?`<img src="${esc(p.imagen_url)}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;margin-right:10px;flex-shrink:0;">`:''}<div class="preview-item-info"><div class="preview-item-nombre">${esc(p.nombre)}${p.referencia?` <span style="color:#888;font-weight:400;">(Ref: ${esc(p.referencia)})</span>`:''}</div><div class="preview-item-precio">$${Number(p.precio||0).toLocaleString('es-CO')} / ${esc(p.unidad)||'m²'}</div><div class="preview-item-desc">${esc(p.descripcion)||''}</div><div style="margin-top:6px;font-size:12px;color:#A78BFA;">📂 ${esc(p.categoria)||'Sin categoría'}${p.modelo_3d_tipo?` · 🧊 Modelo 3D: ${esc(p.modelo_3d_tipo)}`:''}</div></div><div class="preview-item-acciones"><button class="btn-exito" onclick="togglePreviewItem(${p._id},true)">✅</button><button class="btn-peligro" onclick="togglePreviewItem(${p._id},false)">❌</button></div></div>`).join('');}
 function togglePreviewItem(id,a){const p=productosIA.find(x=>x._id===id);if(p){p._aceptado=a;document.getElementById(`preview-${id}`).className=`preview-item ${a?'aceptado':'rechazado'}`;}}
 function aceptarTodos(){productosIA.forEach(p=>{p._aceptado=true;document.getElementById(`preview-${p._id}`).className='preview-item aceptado';});}
 function rechazarTodos(){productosIA.forEach(p=>{p._aceptado=false;document.getElementById(`preview-${p._id}`).className='preview-item rechazado';});}
@@ -1428,7 +1448,7 @@ async function solicitarActivacionWa() {
 }
 
 // ── HELPERS ───────────────────────────────────────────────────────────────
-function renderImagenes(imagenes,contenedorId,limite){const c=document.getElementById(contenedorId);if(!imagenes||imagenes.length===0){c.innerHTML=`<div class="historial-empty"><div class="empty-icon">🏠</div><p>Aún no hay imágenes generadas.</p></div>`;return;}c.innerHTML=imagenes.slice(0,limite).map(img=>{const fecha=new Date(img.created_at).toLocaleDateString('es-CO',{day:'numeric',month:'short',year:'numeric'});const url=img.url_generada||img.url_original;return`<div class="historial-card"><div class="historial-img">${url?`<img src="${url}" alt="Imagen" loading="lazy" onerror="this.parentElement.innerHTML='🏠'">`:'🏠'}</div><div class="historial-info"><div class="historial-tipo">${img.tipo_espacio||'Espacio'} · ${img.estilo||'Moderno'}</div><div class="historial-fecha">${fecha}</div></div></div>`;}).join('');}
+function renderImagenes(imagenes,contenedorId,limite){const c=document.getElementById(contenedorId);if(!imagenes||imagenes.length===0){c.innerHTML=`<div class="historial-empty"><div class="empty-icon">🏠</div><p>Aún no hay imágenes generadas.</p></div>`;return;}c.innerHTML=imagenes.slice(0,limite).map(img=>{const fecha=new Date(img.created_at).toLocaleDateString('es-CO',{day:'numeric',month:'short',year:'numeric'});const url=img.url_generada||img.url_original;return`<div class="historial-card"><div class="historial-img">${url?`<img src="${esc(url)}" alt="Imagen" loading="lazy" onerror="this.parentElement.innerHTML='🏠'">`:'🏠'}</div><div class="historial-info"><div class="historial-tipo">${esc(img.tipo_espacio)||'Espacio'} · ${esc(img.estilo)||'Moderno'}</div><div class="historial-fecha">${fecha}</div></div></div>`;}).join('');}
 function mostrarAlerta(id,msg,tipo){const el=document.getElementById(id);if(!el)return;el.textContent=msg;el.className=tipo?`alerta ${tipo}`:'alerta';}
 function checkCampo(input){input.classList.toggle('tiene-valor',!!input.value.trim());}
 function mostrarTab(tabId,btn){document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));document.getElementById(tabId).classList.add('active');if(btn)btn.classList.add('active');}
@@ -1472,12 +1492,12 @@ async function cargarNotificaciones() {
             <div onclick="ndMarcarLeida('${n.id}')" style="cursor:pointer;display:flex;gap:10px;">
                 <div class="nd-icon">${n.tipo==='pago'?'💰':'🔔'}</div>
                 <div class="nd-info">
-                    <div class="nd-titulo">${n.titulo}</div>
-                    <div class="nd-msg">${n.mensaje}</div>
+                    <div class="nd-titulo">${esc(n.titulo)}</div>
+                    <div class="nd-msg">${esc(n.mensaje)}</div>
                     <div class="nd-tiempo">${ndTiempo(n.created_at)}</div>
                 </div>
             </div>
-            ${n.datos?.url_recibo ? `<a href="${n.datos.url_recibo}" target="_blank" style="display:inline-block;margin-top:6px;margin-left:42px;font-size:12px;color:#A78BFA;text-decoration:underline;">📄 Descargar recibo</a>` : ''}
+            ${n.datos?.url_recibo ? `<a href="${esc(n.datos.url_recibo)}" target="_blank" style="display:inline-block;margin-top:6px;margin-left:42px;font-size:12px;color:#A78BFA;text-decoration:underline;">📄 Descargar recibo</a>` : ''}
         </div>`).join('');
 }
 async function ndMarcarLeida(id){
