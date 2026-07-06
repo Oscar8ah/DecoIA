@@ -559,7 +559,7 @@ cargarTiendas();
     function probar() {
         if (i >= candidatos.length) return; // no se encontró — se queda el 🤖
         const img = new Image();
-        img.onload = () => { wrap.innerHTML = `<img src="${candidatos[i]}" alt="Eva" style="width:110px;height:110px;object-fit:contain;">`; };
+        img.onload = () => { wrap.innerHTML = `<img src="${candidatos[i]}" alt="Eva" style="width:140px;height:140px;object-fit:contain;">`; };
         img.onerror = () => { i++; probar(); };
         img.src = candidatos[i];
     }
