@@ -140,16 +140,23 @@ async def resolver_empresa_por_phone_id(phone_number_id: str):
     """
     Busca a qué empresa pertenece el número de WhatsApp que recibió el mensaje
     (metadata.phone_number_id del webhook). Si no coincide con ninguna empresa
-    registrada (ej: es el número demo/de pruebas), devuelve None y todo el
-    flujo sigue funcionando igual que hoy, con el comportamiento genérico.
+    registrada (ej: es el número demo/de pruebas), o si la empresa no tiene un
+    plan que incluya Multiasesor (Premium o Corporativo), devuelve None y todo
+    el flujo sigue funcionando igual que hoy, con el comportamiento genérico.
     """
     if not phone_number_id:
         return None
     try:
         supabase = get_supabase()
         r = supabase.table("empresas") \
-            .select("id, nombre, whatsapp_phone_number_id, whatsapp_numero_solicitado, tiendas(id, slug, nombre)") \
+            .select("id, nombre, whatsapp_phone_number_id, whatsapp_numero_solicitado, planes(nombre), tiendas(id, slug, nombre)") \
             .eq("whatsapp_phone_number_id", phone_number_id).maybeSingle().execute()
+        if not r.data:
+            return None
+        plan_nombre = (r.data.get("planes") or {}).get("nombre")
+        if plan_nombre not in ("premium", "corporativo"):
+            logger.info(f"Empresa {r.data.get('nombre')} tiene número configurado pero su plan ({plan_nombre}) no incluye Multiasesor")
+            return None
         return r.data
     except Exception as e:
         logger.error(f"Error resolviendo empresa por phone_number_id {phone_number_id}: {e}")

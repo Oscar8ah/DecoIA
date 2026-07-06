@@ -247,7 +247,7 @@
         <div class="page-header"><h1>📱 WhatsApp Multiasesor</h1><p>Solicitudes de tiendas para conectar su propio número de bot</p></div>
         <div class="tabla-container">
             <div class="tabla-header"><span class="tabla-titulo">Solicitudes</span></div>
-            <table><thead><tr><th>Empresa</th><th>Número solicitado</th><th>Contacto</th><th>Estado</th><th>Phone Number ID (Meta)</th><th>Acción</th></tr></thead>
+            <table><thead><tr><th>Empresa</th><th>Número solicitado</th><th>Contacto</th><th>Plan</th><th>Estado</th><th>Phone Number ID (Meta)</th><th>Acción</th></tr></thead>
             <tbody id="tablaWhatsapp"></tbody></table>
         </div>
     </div>
@@ -379,18 +379,23 @@ function renderWhatsappSolicitudes(empresas) {
     const badge = document.getElementById('badgeWaPendientes');
     if (pendientes > 0) { badge.textContent = pendientes; badge.style.display = 'inline-block'; }
 
-    if (solicitudes.length === 0) { tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="icon">📱</div><p>No hay solicitudes aún</p></div></td></tr>`; return; }
-    tbody.innerHTML = solicitudes.map(e => `
+    if (solicitudes.length === 0) { tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="icon">📱</div><p>No hay solicitudes aún</p></div></td></tr>`; return; }
+    tbody.innerHTML = solicitudes.map(e => {
+        const plan = e.planes?.nombre || 'basico';
+        const califica = ['premium','corporativo'].includes(plan);
+        return `
         <tr>
             <td><strong>${e.nombre}</strong><br><span style="font-size:12px;color:var(--gris)">${e.email}</span></td>
             <td>${e.whatsapp_numero_solicitado || '—'}</td>
             <td>${e.whatsapp_nombre_contacto || '—'}</td>
+            <td>${califica ? `<span class="badge badge-plan">${plan}</span>` : `<span class="badge badge-pendiente" title="Multiasesor es de Premium en adelante">${plan} ⚠️</span>`}</td>
             <td>${e.whatsapp_phone_number_id
                 ? '<span class="badge badge-activo">✅ Activo</span>'
                 : '<span class="badge badge-pendiente">⏳ Pendiente</span>'}</td>
-            <td><input type="text" id="phoneId-${e.id}" value="${e.whatsapp_phone_number_id||''}" placeholder="Pégalo aquí tras configurar en Meta" style="width:220px;background:var(--oscuro);border:1px solid rgba(124,58,237,0.25);border-radius:8px;padding:6px 10px;color:var(--texto);font-size:13px;"></td>
-            <td><button class="btn-accion btn-activar" onclick="guardarPhoneNumberId('${e.id}')">💾 Guardar</button></td>
-        </tr>`).join('');
+            <td><input type="text" id="phoneId-${e.id}" value="${e.whatsapp_phone_number_id||''}" placeholder="Pégalo aquí tras configurar en Meta" style="width:200px;background:var(--oscuro);border:1px solid rgba(124,58,237,0.25);border-radius:8px;padding:6px 10px;color:var(--texto);font-size:13px;"></td>
+            <td><button class="btn-accion btn-activar" onclick="guardarPhoneNumberId('${e.id}')" ${!califica ? `title="Esta tienda aún no tiene plan Premium/Corporativo — el número no funcionará como Multiasesor hasta que actualice su plan"` : ''}>💾 Guardar</button></td>
+        </tr>`;
+    }).join('');
 }
 
 async function guardarPhoneNumberId(empresaId) {
