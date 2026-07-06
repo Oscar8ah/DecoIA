@@ -323,7 +323,7 @@ function renderHeader(tienda) {
 function renderCategorias(productos) {
     const cats = ['todas', ...new Set(productos.map(p => p.categoria).filter(Boolean))];
     const scroll = document.getElementById('catsScroll');
-    const EMOJIS = { pisos:'🪵', enchapes:'🧱', cocinas:'🍳', baños:'🚿', materiales:'🏗️', electricos:'💡', pintura:'🎨', puertas:'🚪' };
+    const EMOJIS = { pisos:'🪵', enchapes:'🧱', cocinas:'🍳', baños:'🚿', materiales:'🏗️', electricos:'💡', pintura:'🎨', puertas:'🚪', muebles:'🛋️' };
 
     scroll.innerHTML = cats.map(cat => `
         <button class="cat-pill ${cat === 'todas' ? 'active' : ''}"

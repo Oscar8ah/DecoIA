@@ -2,6 +2,7 @@ import logging
 import base64
 import io
 import time
+import httpx
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Optional
@@ -15,9 +16,12 @@ router = APIRouter(tags=["render3d"])
 
 
 class RenderRequest(BaseModel):
-    imagen_base64: str
-    prompt:        str
-    empresa_id:    Optional[str] = None
+    imagen_base64:        str
+    prompt:               str
+    empresa_id:            Optional[str] = None
+    producto_imagen_url:   Optional[str] = None   # foto real del producto elegido (piso, mueble, etc.)
+    categoria_producto:    Optional[str] = None    # "muebles", "pisos", "enchapes", "pintura", ...
+    producto_nombre:       Optional[str] = None
 
 
 @router.post("/generar-render-3d")
@@ -49,10 +53,46 @@ async def generar_render_3d(data: RenderRequest):
         imagen_file = io.BytesIO(imagen_bytes)
         imagen_file.name = "render_3d.png"          # atributo name necesario
 
+        prompt_final   = data.prompt
+        imagenes_envio = imagen_file
+
+        # ── Si viene una foto real de producto, mandarla también a la IA ──
+        # (antes solo se describía el producto en texto, la IA nunca lo veía)
+        if data.producto_imagen_url:
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as http_client:
+                    resp_prod = await http_client.get(data.producto_imagen_url)
+                    resp_prod.raise_for_status()
+                producto_file = io.BytesIO(resp_prod.content)
+                producto_file.name = "producto_referencia.png"
+
+                if data.categoria_producto == "muebles":
+                    nombre_prod = data.producto_nombre or "el mueble de referencia"
+                    prompt_final = (
+                        f"Interior design photo edit. This is a photo of a room. "
+                        f"STEP 1: Remove ALL existing furniture and decor objects currently in the room "
+                        f"(sofas, chairs, tables, beds, shelves, lamps, rugs, curtains, decorative objects) — "
+                        f"leave the room completely empty of furniture. "
+                        f"STEP 2: Add this exact furniture piece, matching its design, color, material and "
+                        f"proportions EXACTLY as shown in the second reference image: \"{nombre_prod}\". "
+                        f"Place it in a natural, realistic position appropriate for the room's scale and use. "
+                        f"Keep the room's architecture EXACTLY unchanged: same walls, same wall color, same "
+                        f"floor material, same windows, same doors, same ceiling, same camera angle and lighting. "
+                        f"Photorealistic result, professional real estate photography, no text, no watermarks."
+                    )
+                else:
+                    # Materiales (piso/enchape/pintura): usar el prompt que ya arma el frontend,
+                    # pero con la foto real del producto como segunda referencia.
+                    prompt_final = data.prompt + " Match the exact material/color shown in the second reference image."
+
+                imagenes_envio = [imagen_file, producto_file]
+            except Exception as e:
+                logger.warning(f"No se pudo descargar la imagen del producto ({data.producto_imagen_url}): {e} — se sigue solo con texto")
+
         response = client.images.edit(
             model  = "gpt-image-1",
-            image  = imagen_file,                   # BytesIO con .name, no tupla
-            prompt = data.prompt,
+            image  = imagenes_envio,                # BytesIO único, o lista [cuarto, producto]
+            prompt = prompt_final,
             size   = "1024x1024",
         )
 

@@ -160,40 +160,66 @@ async def generar_imagen_con_producto(
     categoria: str = "material",
 ) -> str:
     """
-    Aplica un producto específico (piso, enchape, pintura) a la foto del espacio.
-    Usa la imagen del producto como referencia visual para gpt-image-1.
+    Aplica un producto específico a la foto del espacio.
+    Usa la FOTO REAL del producto como referencia visual para gpt-image-1
+    (antes solo se mandaba el nombre en texto — la IA nunca veía la foto real).
+
+    Para categoría "muebles": en vez de aplicar un material a piso/pared,
+    QUITA el mobiliario existente de la foto y coloca el mueble real de la
+    tienda en su lugar, con imagen de referencia real.
     """
     settings = get_settings()
+    es_mueble = categoria == "muebles"
 
-    instrucciones = {
-        "pisos":      f"Replace the floor with the exact flooring material shown in the reference image: {producto_nombre}. Keep all furniture and walls unchanged.",
-        "enchapes":   f"Apply the tile/enchape material from the reference image ({producto_nombre}) to the walls and floor. Keep furniture unchanged.",
-        "pintura":    f"Paint the walls with the exact color and finish shown in the reference image: {producto_nombre}. Keep all furniture and floor unchanged.",
-        "materiales": f"Apply the material from the reference image ({producto_nombre}) to the floor. Keep everything else unchanged.",
-    }
-    instruccion = instrucciones.get(
-        categoria,
-        f"Apply the product from the reference image ({producto_nombre}) to the space. Keep furniture unchanged."
-    )
+    if es_mueble:
+        prompt = (
+            f"Interior design photo edit. This is a photo of a room. "
+            f"STEP 1: Remove ALL existing furniture and decor objects currently in the room "
+            f"(sofas, chairs, tables, beds, shelves, lamps, rugs, curtains, decorative objects) — "
+            f"leave the room completely empty of furniture. "
+            f"STEP 2: Add this exact furniture piece, matching its design, color, material and "
+            f"proportions EXACTLY as shown in the second reference image: \"{producto_nombre}\". "
+            f"Place it in a natural, realistic position appropriate for the room's scale and use. "
+            f"Keep the room's architecture EXACTLY unchanged: same walls, same wall color, same "
+            f"floor material, same windows, same doors, same ceiling, same camera angle and lighting. "
+            f"Photorealistic result, professional real estate photography, no text, no watermarks."
+        )
+    else:
+        instrucciones = {
+            "pisos":      f"Replace the floor with the exact flooring material shown in the second reference image: {producto_nombre}. Keep all furniture and walls unchanged.",
+            "enchapes":   f"Apply the tile/enchape material from the second reference image ({producto_nombre}) to the walls and floor. Keep furniture unchanged.",
+            "pintura":    f"Paint the walls with the exact color and finish shown in the second reference image: {producto_nombre}. Keep all furniture and floor unchanged.",
+            "materiales": f"Apply the material from the second reference image ({producto_nombre}) to the floor. Keep everything else unchanged.",
+        }
+        instruccion = instrucciones.get(
+            categoria,
+            f"Apply the product from the second reference image ({producto_nombre}) to the space. Keep furniture unchanged."
+        )
+        prompt = (
+            f"Interior design renovation. {instruccion} "
+            f"Photorealistic result. Professional architectural photography. "
+            f"Same room layout, same furniture positions, same lighting angle. "
+            f"No text, no watermarks."
+        )
 
-    prompt = (
-        f"Interior design renovation. {instruccion} "
-        f"Photorealistic result. Professional architectural photography. "
-        f"Same room layout, same furniture positions, same lighting angle. "
-        f"No text, no watermarks."
-    )
+    imagen_png   = imagen_a_png_1024(foto_bytes)
+    producto_png = imagen_a_png_1024(producto_bytes)
 
-    imagen_png  = imagen_a_png_1024(foto_bytes)
-    mascara_png = crear_mascara_piso_paredes(foto_bytes)
+    # La máscara de piso/pared solo tiene sentido para materiales — para
+    # muebles necesitamos poder tocar toda la habitación, así que no se usa.
+    archivos = [
+        ("image[]", ("room.png", imagen_png, "image/png")),
+        ("image[]", ("producto_referencia.png", producto_png, "image/png")),
+    ]
+    if not es_mueble:
+        mascara_png = crear_mascara_piso_paredes(foto_bytes)
+        archivos.append(("mask", ("mask.png", mascara_png, "image/png")))
 
     async with httpx.AsyncClient(timeout=120.0) as client:
         response = await client.post(
             "https://api.openai.com/v1/images/edits",
             headers={"Authorization": f"Bearer {settings.openai_api_key}"},
-            files={
-                "image": ("room.png", imagen_png,  "image/png"),
-                "mask":  ("mask.png", mascara_png, "image/png"),
-            },
+            files=archivos,
             data={
                 "model":   "gpt-image-1",
                 "prompt":  prompt,
@@ -203,7 +229,7 @@ async def generar_imagen_con_producto(
             }
         )
 
-        logger.info(f"generar_imagen_con_producto status: {response.status_code}")
+        logger.info(f"generar_imagen_con_producto ({categoria}) status: {response.status_code}")
 
         if response.status_code == 200:
             data = response.json()
