@@ -1068,11 +1068,12 @@ async function subirDocumento(input, tipo) {
     try {
         const extPorTipo = { 'image/jpeg':'jpg', 'image/png':'png', 'image/webp':'webp', 'application/pdf':'pdf' };
         const ext    = extPorTipo[archivo.type];
-        const nombre = `${empresaId}/${tipo}_${Date.now()}.${ext}`;
-        const { error } = await db.storage.from('portafolio').upload(nombre, archivo, { upsert:true });
+        const ruta   = `${empresaId}/${tipo}_${Date.now()}.${ext}`;
+        const { error } = await db.storage.from('documentos-legales').upload(ruta, archivo, { upsert:true });
         if (error) throw error;
-        const { data:{ publicUrl } } = db.storage.from('portafolio').getPublicUrl(nombre);
-        document.getElementById(hiddenId).value = publicUrl;
+        // Guardamos la RUTA, no un link público — el documento es privado,
+        // cada vez que se necesite ver se genera un link temporal (createSignedUrl)
+        document.getElementById(hiddenId).value = ruta;
         status.innerHTML = `<span style="color:#6EE7B7;">✅ ${tipo==='rut'?'RUT':'Cámara de comercio'} subido correctamente</span>`;
     } catch(e) {
         console.error(e);
@@ -1108,9 +1109,17 @@ function renderMiTienda(tienda) {
     document.getElementById('legalCorreo').value    = tienda.correo_legal||'';
     document.getElementById('legalTelefono').value  = tienda.telefono_negocio||'';
     document.getElementById('legalDireccion').value = tienda.direccion_correspondencia||'';
-    if (tienda.url_rut) { document.getElementById('legalUrlRut').value=tienda.url_rut; document.getElementById('rutStatus').innerHTML='<span style="color:#6EE7B7;">✅ RUT subido</span>'; }
-    if (tienda.url_camara_comercio) { document.getElementById('legalUrlCamara').value=tienda.url_camara_comercio; document.getElementById('camaraStatus').innerHTML='<span style="color:#6EE7B7;">✅ Documento subido</span>'; }
+    if (tienda.url_rut) { document.getElementById('legalUrlRut').value=tienda.url_rut; document.getElementById('rutStatus').innerHTML='<span style="color:#6EE7B7;">✅ RUT subido</span> <a href="#" onclick="verDocumentoLegal(\'legalUrlRut\');return false;" style="margin-left:10px;color:#A78BFA;text-decoration:underline;">👁️ Ver</a>'; }
+    if (tienda.url_camara_comercio) { document.getElementById('legalUrlCamara').value=tienda.url_camara_comercio; document.getElementById('camaraStatus').innerHTML='<span style="color:#6EE7B7;">✅ Documento subido</span> <a href="#" onclick="verDocumentoLegal(\'legalUrlCamara\');return false;" style="margin-left:10px;color:#A78BFA;text-decoration:underline;">👁️ Ver</a>'; }
     renderVerificacionBadge(tienda.estado_verificacion, tienda.motivo_rechazo);
+}
+
+async function verDocumentoLegal(hiddenId) {
+    const ruta = document.getElementById(hiddenId).value;
+    if (!ruta) return;
+    const { data, error } = await db.storage.from('documentos-legales').createSignedUrl(ruta, 120); // 2 minutos
+    if (error) { alert('❌ No se pudo abrir el documento.'); console.error(error); return; }
+    window.open(data.signedUrl, '_blank');
 }
 
 function verificacionTexto(estado) {

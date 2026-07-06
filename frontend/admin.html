@@ -309,6 +309,14 @@ const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 
 const NOMBRES_PLAN = { basico:'Básico', profesional:'Profesional', premium:'Premium', corporativo:'Corporativo' };
 
+async function verDocumentoAdmin(ruta) {
+    if (!ruta) return;
+    const { data, error } = await db.storage.from('documentos-legales').createSignedUrl(ruta, 120); // 2 minutos
+    if (error) { alert('❌ No se pudo abrir el documento.'); console.error(error); return; }
+    window.open(data.signedUrl, '_blank');
+}
+
+
 let todasEmpresas = [];
 let todasTiendas  = [];
 let tiendaActual  = null;
@@ -521,8 +529,8 @@ function abrirModalVerificar(tiendaId) {
             <div class="modal-campo"><label>Cédula / NIT</label><div class="valor">${tiendaActual.cedula_nit||'No registrado'}</div></div>
             <div class="modal-campo"><label>Dirección de correspondencia</label><div class="valor">${tiendaActual.direccion_correspondencia||'No registrada'}</div></div>
             <div class="modal-campo"><label>Correo legal</label><div class="valor">${tiendaActual.correo_legal||'No registrado'}</div></div>
-            <div class="modal-campo"><label>RUT</label><div class="valor">${tiendaActual.url_rut ? `<a href="${tiendaActual.url_rut}" target="_blank">📄 Ver RUT →</a>` : 'No subido'}</div></div>
-            <div class="modal-campo" style="margin-bottom:0;"><label>Cámara de comercio</label><div class="valor">${tiendaActual.url_camara_comercio ? `<a href="${tiendaActual.url_camara_comercio}" target="_blank">📄 Ver documento →</a>` : 'No subido'}</div></div>
+            <div class="modal-campo"><label>RUT</label><div class="valor">${tiendaActual.url_rut ? `<a href="#" onclick="verDocumentoAdmin('${tiendaActual.url_rut}');return false;">📄 Ver RUT →</a>` : 'No subido'}</div></div>
+            <div class="modal-campo" style="margin-bottom:0;"><label>Cámara de comercio</label><div class="valor">${tiendaActual.url_camara_comercio ? `<a href="#" onclick="verDocumentoAdmin('${tiendaActual.url_camara_comercio}');return false;">📄 Ver documento →</a>` : 'No subido'}</div></div>
         </div>
 
         ${tiendaActual.motivo_rechazo ? `<div class="modal-campo"><label>Motivo de rechazo anterior</label><div class="valor" style="border-color:rgba(239,68,68,0.3);color:#FCA5A5;">${tiendaActual.motivo_rechazo}</div></div>` : ''}
