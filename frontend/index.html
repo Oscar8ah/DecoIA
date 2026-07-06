@@ -97,7 +97,7 @@
         .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; }
         .step { background: var(--oscuro2); border: 1px solid rgba(124,58,237,0.2); border-radius: 20px; padding: 36px 28px; text-align: center; transition: transform 0.3s, border-color 0.3s; }
         .step:hover { transform: translateY(-4px); border-color: rgba(124,58,237,0.5); }
-        .step-num { width: 54px; height: 54px; background: var(--degradado); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 800; margin: 0 auto 20px; }
+        .step-num { width: 54px; height: 54px; background: linear-gradient(135deg,#10B981,#059669); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 800; margin: 0 auto 20px; }
         .step h3 { font-size: 18px; margin-bottom: 10px; }
         .step p { color: var(--gris); line-height: 1.6; font-size: 14px; }
         .step-cta { display: inline-block; margin-top: 16px; background: var(--degradado); color: white; padding: 10px 22px; border-radius: 50px; font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; }
@@ -194,7 +194,7 @@
 
         <div class="dos-caminos">
             <div class="camino-card principal" onclick="irARemodelar()">
-                <span class="camino-icon">🤖</span>
+                <span class="camino-icon" id="evaIconWrap">🤖</span>
                 <div class="camino-titulo">Transformar con IA</div>
                 <div class="camino-desc">Sube una foto de tu espacio, elige productos y ve el resultado en segundos.</div>
                 <span class="camino-btn">✨ Empezar ahora</span>
@@ -283,8 +283,35 @@
         <p class="section-sub">Elige cómo quieres usar DecoIArte</p>
 
         <div class="tabs-funciona">
+            <button class="tab-fn" onclick="mostrarTab('bot',this)">📱 ¿Cómo funciona mi bot?</button>
             <button class="tab-fn active" onclick="mostrarTab('consumidor',this)">🏠 Quiero remodelar</button>
             <button class="tab-fn" onclick="mostrarTab('negocio',this)">🏪 Tengo un negocio</button>
+        </div>
+
+        <div class="steps-wrap" id="tab-bot">
+            <div class="steps">
+                <div class="step">
+                    <div class="step-num">1</div>
+                    <h3>Conecta tu número</h3>
+                    <p>Nos das el WhatsApp de tu negocio, lo activamos en menos de 24h. Tu WhatsApp normal sigue funcionando igual, el bot responde encima.</p>
+                </div>
+                <div class="step">
+                    <div class="step-num">2</div>
+                    <h3>Tu cliente te escribe</h3>
+                    <p>El bot le pregunta si quiere transformar su espacio o interpretar un plano — sin que tú tengas que estar ahí.</p>
+                </div>
+                <div class="step">
+                    <div class="step-num">3</div>
+                    <h3>La IA responde automático</h3>
+                    <p>En segundos, el cliente ve su espacio remodelado con los productos reales de tu catálogo, o su plano convertido en modelo 3D.</p>
+                </div>
+                <div class="step">
+                    <div class="step-num">4</div>
+                    <h3>Te llega la notificación</h3>
+                    <p>Recibes los datos del cliente y qué producto eligió — tú cierras la venta directamente.</p>
+                    <a href="/registro" class="step-cta">🚀 Activar mi bot</a>
+                </div>
+            </div>
         </div>
 
         <div class="steps-wrap active" id="tab-consumidor">
@@ -516,6 +543,22 @@ cargarTiendas();
         if (i >= candidatos.length) return; // no se encontró ninguna — se queda el degradado de siempre
         const img = new Image();
         img.onload = () => { capa.style.setProperty('--hero-bg-img', `url('${candidatos[i]}')`); };
+        img.onerror = () => { i++; probar(); };
+        img.src = candidatos[i];
+    }
+    probar();
+})();
+
+// ── MASCOTA EVA — reemplaza el 🤖 si el archivo existe, si no se queda el emoji ──
+(function cargarEva() {
+    const wrap = document.getElementById('evaIconWrap');
+    if (!wrap) return;
+    const candidatos = ['/img/EVE-icon.png', '/img/EVE-icon.png.png'];
+    let i = 0;
+    function probar() {
+        if (i >= candidatos.length) return; // no se encontró — se queda el 🤖
+        const img = new Image();
+        img.onload = () => { wrap.innerHTML = `<img src="${candidatos[i]}" alt="Eva" style="width:56px;height:56px;object-fit:contain;">`; };
         img.onerror = () => { i++; probar(); };
         img.src = candidatos[i];
     }
