@@ -22,6 +22,7 @@
         .nav-item:hover { background:rgba(124,58,237,0.1); color:var(--texto); }
         .nav-item.active { background:rgba(124,58,237,0.15); color:var(--texto); }
         .nav-item .icon { font-size:18px; width:22px; text-align:center; }
+        .nav-divider { height:1px; background:rgba(124,58,237,0.15); margin:8px 10px; }
         .dot-verde { margin-left:auto; width:8px; height:8px; border-radius:50%; background:var(--verde); }
         .dot-amarillo { margin-left:auto; width:8px; height:8px; border-radius:50%; background:var(--amarillo); }
         .sidebar-bottom { padding:16px 12px; border-top:1px solid rgba(124,58,237,0.15); }
@@ -469,13 +470,30 @@
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-logo">DecoIArte</div>
     <nav class="sidebar-nav">
+        <!-- Incluido en todos los planes (desde Gratis) -->
         <button class="nav-item active" onclick="mostrarPagina('inicio',this)"><span class="icon">🏠</span> Inicio</button>
         <button class="nav-item" onclick="mostrarPagina('mitienda',this)"><span class="icon">🏪</span> Mi Tienda <span class="dot-amarillo" id="dotTienda"></span></button>
-        <button class="nav-item" id="navVisor3D" onclick="window.open('/visor3d','_blank')"><span class="icon">🏗️</span> Visor 3D</button>
-        <button class="nav-item" id="navMedirAR" onclick="window.open('/medir-ar','_blank')"><span class="icon">📐</span> Medición AR</button>
-        <button class="nav-item" onclick="mostrarPagina('whatsapp',this)"><span class="icon">📱</span> WhatsApp <span class="dot-amarillo" id="dotWa"></span></button>
-        <a href="/crm" class="nav-item"><span class="icon">👥</span> CRM Clientes</a>
         <button class="nav-item" onclick="mostrarPagina('historial',this)"><span class="icon">🖼️</span> Historial</button>
+
+        <div class="nav-divider"></div>
+
+        <!-- Desde plan Básico -->
+        <button class="nav-item" onclick="mostrarPagina('whatsapp',this)"><span class="icon">📱</span> WhatsApp <span class="dot-amarillo" id="dotWa"></span></button>
+
+        <div class="nav-divider"></div>
+
+        <!-- Desde plan Profesional -->
+        <a href="/crm" class="nav-item"><span class="icon">👥</span> CRM Clientes</a>
+        <button class="nav-item" id="navVisor3D" onclick="window.open('/visor3d','_blank')"><span class="icon">🏗️</span> Visor 3D</button>
+
+        <div class="nav-divider"></div>
+
+        <!-- Exclusivo Corporativo -->
+        <button class="nav-item" id="navMedirAR" onclick="window.open('/medir-ar','_blank')"><span class="icon">📐</span> Medición AR</button>
+
+        <div class="nav-divider"></div>
+
+        <!-- Cuenta -->
         <button class="nav-item" onclick="mostrarPagina('plan',this)"><span class="icon">📦</span> Mi Plan</button>
         <button class="nav-item" onclick="mostrarPagina('perfil',this)"><span class="icon">👤</span> Mi Perfil</button>
     </nav>
@@ -813,10 +831,23 @@ let imagenActualBytes = null;
 window.addEventListener('DOMContentLoaded', async () => {
     const { data:{ session } } = await db.auth.getSession();
     if (!session) { window.location.href='/registro'; return; }
-    await cargarDatos(session.user);
-    document.getElementById('loadingOverlay').style.display = 'none';
-    await cargarNotificaciones();
-    abrirPaginaDesdeHash();
+    try {
+        await cargarDatos(session.user);
+        document.getElementById('loadingOverlay').style.display = 'none';
+        await cargarNotificaciones();
+        abrirPaginaDesdeHash();
+    } catch (e) {
+        console.error('Error cargando el dashboard:', e);
+        const overlay = document.getElementById('loadingOverlay');
+        overlay.innerHTML = `
+            <div style="text-align:center;padding:24px;max-width:420px;">
+                <div style="font-size:40px;margin-bottom:12px;">⚠️</div>
+                <div style="font-weight:700;margin-bottom:8px;">No pudimos cargar tu dashboard</div>
+                <div style="font-size:13px;color:#9CA3AF;margin-bottom:16px;">Revisa la consola (F12) para el detalle técnico, o intenta de nuevo.</div>
+                <div style="font-size:11px;color:#6B7280;font-family:monospace;margin-bottom:16px;word-break:break-word;">${esc(e.message||String(e))}</div>
+                <button onclick="location.reload()" style="background:linear-gradient(135deg,#7C3AED,#3B82F6);color:white;border:none;padding:10px 24px;border-radius:50px;font-weight:700;cursor:pointer;">Reintentar</button>
+            </div>`;
+    }
 });
 
 function abrirPaginaDesdeHash() {
