@@ -876,8 +876,8 @@ async function cargarDatos(user) {
         db.from('imagenes').select('*').eq('empresa_id',empresa.id).order('created_at',{ascending:false}).limit(50),
         db.from('tiendas').select('*').eq('empresa_id',empresa.id).maybeSingle()
     ]);
-    renderDashboard(empresa, empresa.planes, imagenesRes.data||[]);
     renderWhatsApp(empresa);
+    renderDashboard(empresa, empresa.planes, imagenesRes.data||[]);
     renderMiTienda(tiendaRes.data);
     if (tiendaRes.data) { tiendaId = tiendaRes.data.id; await cargarProductosTienda(); }
     if (!funcionDesbloqueada(PLANES_CON_IA)) {
@@ -1502,6 +1502,7 @@ function renderWhatsApp(empresa) {
     const badge = document.getElementById('waStatusBadge');
     const titulo= document.getElementById('waStatusTitulo');
     const sub   = document.getElementById('waStatusSub');
+    if (!card || !badge || !titulo || !sub) return; // la pestaña está reemplazada por el aviso de plan bloqueado — nada que rellenar
 
     if (empresa.whatsapp_phone_number_id) {
         // Oscar ya lo configuró en Meta — bot activo de verdad
