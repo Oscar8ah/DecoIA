@@ -359,6 +359,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (!session) { window.location.href = '/registro'; return; }
     if (session.user.email !== ADMIN_EMAIL) {
         document.getElementById('loadingOverlay').style.display = 'none';
+        document.getElementById('sidebar').style.display = 'none';
         document.getElementById('accesoDenegado').classList.add('show');
         return;
     }
