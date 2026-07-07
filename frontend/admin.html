@@ -506,9 +506,9 @@ async function cambiarPlanEmpresa(empresaId, nombreEmpresa, planActualNombre) {
     const nuevoPlanId = select.value;
     const nuevoPlanNombre = (todosPlanes.find(p => p.id === nuevoPlanId) || {}).nombre || '?';
     if (nuevoPlanNombre === planActualNombre) { alert('Ese ya es su plan actual.'); return; }
-    const ok = confirm(`¿Cambiar el plan de "${nombreEmpresa}" de ${NOMBRES_PLAN[planActualNombre]||planActualNombre} a ${NOMBRES_PLAN[nuevoPlanNombre]||nuevoPlanNombre}?\n\nEsto NO cobra nada ni cambia si está activo o no — solo cambia qué funciones ve.`);
+    const ok = confirm(`¿Cambiar el plan de "${nombreEmpresa}" de ${NOMBRES_PLAN[planActualNombre]||planActualNombre} a ${NOMBRES_PLAN[nuevoPlanNombre]||nuevoPlanNombre}?\n\nEsto NO cobra nada, y deja la cuenta activada de una vez con las herramientas de ese plan. Si prefieres dejarla sin activar, cámbiale el plan y después dale "Desactivar".`);
     if (!ok) return;
-    const { error } = await db.from('empresas').update({ plan_id: nuevoPlanId }).eq('id', empresaId);
+    const { error } = await db.from('empresas').update({ plan_id: nuevoPlanId, estado: 'activo' }).eq('id', empresaId);
     if (error) { alert('❌ Error cambiando el plan.'); console.error(error); return; }
     await cargarTodo();
 }
