@@ -499,13 +499,13 @@
         <div class="nav-divider"></div>
 
         <!-- Desde plan Profesional -->
-        <a href="/crm" class="nav-item" id="navCrm"><span class="icon">👥</span> CRM Clientes</a>
-        <button class="nav-item" id="navVisor3D" onclick="window.open('/visor3d','_blank')"><span class="icon">🏗️</span> Visor 3D</button>
+        <a href="/crm" class="nav-item" id="navCrm"><span class="icon">👥</span> CRM Clientes <span class="dot-amarillo" id="dotCrm" style="display:none;"></span></a>
+        <button class="nav-item" id="navVisor3D" onclick="window.open('/visor3d','_blank')"><span class="icon">🏗️</span> Visor 3D <span class="dot-amarillo" id="dotVisor3D" style="display:none;"></span></button>
 
         <div class="nav-divider"></div>
 
         <!-- Exclusivo Corporativo -->
-        <button class="nav-item" id="navMedirAR" onclick="window.open('/medir-ar','_blank')"><span class="icon">📐</span> Medición AR</button>
+        <button class="nav-item" id="navMedirAR" onclick="window.open('/medir-ar','_blank')"><span class="icon">📐</span> Medición AR <span class="dot-amarillo" id="dotMedirAR" style="display:none;"></span></button>
 
         <div class="nav-divider"></div>
 
@@ -964,6 +964,14 @@ function renderDashboard(empresa, plan, imagenes) {
             el.style.opacity = '0.5';
             el.title = msgCrmVisor;
         });
+        document.getElementById('dotCrm').style.display = 'none';
+        document.getElementById('dotVisor3D').style.display = 'none';
+    } else {
+        // Sí está incluido en el plan y activo — se "enciende" con punto verde
+        const dotCrm = document.getElementById('dotCrm');
+        const dotV3D = document.getElementById('dotVisor3D');
+        dotCrm.className = 'dot-verde'; dotCrm.style.display = 'inline-block'; dotCrm.title = 'Incluido en tu plan';
+        dotV3D.className = 'dot-verde'; dotV3D.style.display = 'inline-block'; dotV3D.title = 'Incluido en tu plan';
     }
 
     // WhatsApp con IA — no incluido en el plan Gratis, y requiere pago activo
@@ -985,6 +993,10 @@ function renderDashboard(empresa, plan, imagenes) {
         btnAR.onclick = () => alert(msgAR);
         btnAR.style.opacity = '0.5';
         btnAR.title = msgAR;
+        document.getElementById('dotMedirAR').style.display = 'none';
+    } else {
+        const dotAR = document.getElementById('dotMedirAR');
+        dotAR.className = 'dot-verde'; dotAR.style.display = 'inline-block'; dotAR.title = 'Incluido en tu plan';
     }
     const pa = document.getElementById('perfilAvatar');
     pa.textContent = nombre[0].toUpperCase();
