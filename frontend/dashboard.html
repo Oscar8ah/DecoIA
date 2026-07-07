@@ -799,6 +799,8 @@ const FEATURES_PLAN = {
 const PLANES_CON_IA      = ['profesional','premium','corporativo'];
 const PLANES_CON_CRM_VISOR = ['profesional','premium','corporativo'];   // Visor 3D y CRM
 const PLANES_CON_WHATSAPP  = ['basico','profesional','premium','corporativo']; // todo menos gratis
+const PLANES_CON_AR        = ['corporativo'];
+const PLANES_CON_PLANOS    = ['corporativo'];
 
 // ── CANDADO POR PLAN + PAGO ─────────────────────────────────────────────
 // Una función solo queda desbloqueada si el plan la incluye Y la empresa
@@ -1327,35 +1329,67 @@ document.getElementById('campoDimensiones').style.display=(p.modelo_3d_tipo&&p.m
     document.getElementById('modalProducto').classList.add('open');
 }
 
-const datos={
-    tienda_id: tiendaId,
-    nombre,
-    descripcion: document.getElementById('prodDesc').value.trim(),
-    precio,
-    precio_antes: parseInt(document.getElementById('prodPrecioAntes').value) || null,
-    categoria,
-    unidad: document.getElementById('prodUnidad').value,
-    stock: parseInt(document.getElementById('prodStock').value) || 0,
-    rendimiento_m2: parseFloat(document.getElementById('prodRendimiento').value) || null,
-    desperdicio_pct: parseInt(document.getElementById('prodDesperdicio').value) || 10,
-    tipo_calculo: document.getElementById('prodTipoCalculo').value,
-    datos_mortero: document.getElementById('prodTipoCalculo').value==='cemento_arena' ? {
-        material: document.getElementById('prodMaterialMortero').value,
-        uso: document.getElementById('prodUsoMortero').value,
-        proporcion: parseInt(document.getElementById('prodProporcionMortero').value),
-        espesor_cm: parseFloat(document.getElementById('prodEspesorCm').value) || 2.5,
-    } : null,
-    imagen_url: document.getElementById('prodImagenUrl').value || null,
+async function guardarProducto() {
+    const nombre    = document.getElementById('prodNombre').value.trim();
+    const precio    = parseFloat(document.getElementById('prodPrecio').value) || 0;
+    const categoria = document.getElementById('prodCategoria').value;
 
-    modelo_3d_tipo: document.getElementById('prodModelo3D').value,
-    dimensiones: {
-        ancho: parseFloat(document.getElementById('prodAncho').value) || 1,
-        largo: parseFloat(document.getElementById('prodLargo').value) || 1,
-        alto: parseFloat(document.getElementById('prodAlto').value) || 1,
-    },
+    if (!nombre)     { mostrarAlerta('modalAlerta','⚠️ Ponle un nombre al producto.','error'); return; }
+    if (!categoria)  { mostrarAlerta('modalAlerta','⚠️ Elige una categoría.','error'); return; }
+    if (precio <= 0) { mostrarAlerta('modalAlerta','⚠️ El precio debe ser mayor a 0.','error'); return; }
+    if (!tiendaId)   { mostrarAlerta('modalAlerta','⚠️ Primero crea tu tienda.','error'); return; }
 
-    activo: true
-};
+    const datos={
+        tienda_id: tiendaId,
+        nombre,
+        descripcion: document.getElementById('prodDesc').value.trim(),
+        precio,
+        precio_antes: parseInt(document.getElementById('prodPrecioAntes').value) || null,
+        categoria,
+        unidad: document.getElementById('prodUnidad').value,
+        stock: parseInt(document.getElementById('prodStock').value) || 0,
+        rendimiento_m2: parseFloat(document.getElementById('prodRendimiento').value) || null,
+        desperdicio_pct: parseInt(document.getElementById('prodDesperdicio').value) || 10,
+        tipo_calculo: document.getElementById('prodTipoCalculo').value,
+        datos_mortero: document.getElementById('prodTipoCalculo').value==='cemento_arena' ? {
+            material: document.getElementById('prodMaterialMortero').value,
+            uso: document.getElementById('prodUsoMortero').value,
+            proporcion: parseInt(document.getElementById('prodProporcionMortero').value),
+            espesor_cm: parseFloat(document.getElementById('prodEspesorCm').value) || 2.5,
+        } : null,
+        imagen_url: document.getElementById('prodImagenUrl').value || null,
+
+        modelo_3d_tipo: document.getElementById('prodModelo3D').value,
+        dimensiones: {
+            ancho: parseFloat(document.getElementById('prodAncho').value) || 1,
+            largo: parseFloat(document.getElementById('prodLargo').value) || 1,
+            alto: parseFloat(document.getElementById('prodAlto').value) || 1,
+        },
+
+        activo: true
+    };
+
+    const prodId = document.getElementById('prodId').value;
+    const btn = document.getElementById('btnGuardarProducto');
+    btn.disabled = true; btn.innerHTML = '<span class="spinner-btn"></span>Guardando...';
+
+    let error;
+    if (prodId) {
+        ({ error } = await db.from('productos').update(datos).eq('id', prodId));
+    } else {
+        ({ error } = await db.from('productos').insert(datos));
+    }
+
+    btn.disabled = false; btn.innerHTML = '💾 Guardar producto';
+
+    if (error) {
+        console.error('Error guardando producto:', error);
+        mostrarAlerta('modalAlerta','❌ Error guardando el producto. Intenta de nuevo.','error');
+        return;
+    }
+    cerrarModal('modalProducto');
+    await cargarProductosTienda();
+}
 async function toggleProducto(prodId,activo) {
     await db.from('productos').update({activo:!activo}).eq('id',prodId);
     await cargarProductosTienda();
