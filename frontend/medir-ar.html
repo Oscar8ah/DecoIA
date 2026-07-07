@@ -64,17 +64,23 @@ window.addEventListener('DOMContentLoaded', async () => {
     const { data:{ session } } = await db.auth.getSession();
     if (!session) { window.location.href = '/login'; return; }
 
-    const { data: empresa } = await db.from('empresas').select('planes(nombre)').eq('email', session.user.email).maybeSingle();
+    const { data: empresa } = await db.from('empresas').select('estado, planes(nombre)').eq('email', session.user.email).maybeSingle();
     const planNombre = empresa?.planes?.nombre;
+    const estadoEmpresa = empresa?.estado || 'pendiente_pago';
 
     document.getElementById('loadingOverlay').style.display = 'none';
 
-    if (planNombre !== 'corporativo') {
+    // Candado real: hay que tener el plan Corporativo Y el pago activo.
+    // Si el plan es el correcto pero el pago sigue pendiente, se lo decimos
+    // claro en vez de sugerir que le falta cambiar de plan.
+    if (planNombre !== 'corporativo' || estadoEmpresa !== 'activo') {
         document.getElementById('pantallaInicio').style.display = 'flex';
         document.getElementById('descripcionAR').style.display = 'none';
         document.getElementById('btnEmpezarAR').style.display = 'none';
         document.getElementById('avisoNoSoportado').style.display = 'block';
-        document.getElementById('avisoNoSoportado').innerHTML = '⚠️ La Medición AR está disponible desde el plan <strong>Corporativo</strong>. <a href="/dashboard#plan" style="color:#FCD34D;">Ver planes →</a>';
+        document.getElementById('avisoNoSoportado').innerHTML = (planNombre === 'corporativo' && estadoEmpresa !== 'activo')
+            ? '⏳ Tu plan <strong>Corporativo</strong> está pendiente de activación. En cuanto se confirme el pago, esta función se desbloquea sola.'
+            : '⚠️ La Medición AR está disponible desde el plan <strong>Corporativo</strong>. <a href="/dashboard#plan" style="color:#FCD34D;">Ver planes →</a>';
         return;
     }
 

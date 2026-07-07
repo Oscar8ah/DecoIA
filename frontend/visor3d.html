@@ -1708,14 +1708,15 @@ const VEL_CAM = 0.04; // metros por frame
 let rolUsuario = null;
 
 let planEmpresaVisor = null;
+let estadoEmpresaVisor = null;
 
 async function verificarRolYAcceso() {
     try {
         const { data:{ session } } = await db.auth.getSession();
         if (!session) { rolUsuario = null; return; }
         const email = session.user.email;
-        const { data:empresa } = await db.from('empresas').select('id, planes(nombre)').eq('email', email).maybeSingle();
-        if (empresa) { rolUsuario = 'empresa'; planEmpresaVisor = empresa.planes?.nombre || 'basico'; return; }
+        const { data:empresa } = await db.from('empresas').select('id, estado, planes(nombre)').eq('email', email).maybeSingle();
+        if (empresa) { rolUsuario = 'empresa'; planEmpresaVisor = empresa.planes?.nombre || 'basico'; estadoEmpresaVisor = empresa.estado || 'pendiente_pago'; return; }
         const { data:consumidor } = await db.from('consumidores').select('id').eq('email', email).maybeSingle();
         if (consumidor) { rolUsuario = 'consumidor'; return; }
         rolUsuario = null;
@@ -2773,7 +2774,7 @@ function aplicarProductoASuperficie(prod, superficie) {
 
 document.addEventListener('DOMContentLoaded', async () => {
     await verificarRolYAcceso();
-    if (rolUsuario === 'empresa' && !['profesional','premium','corporativo'].includes(planEmpresaVisor)) {
+    if (rolUsuario === 'empresa' && (!['profesional','premium','corporativo'].includes(planEmpresaVisor) || estadoEmpresaVisor !== 'activo')) {
         mostrarBloqueoPlanVisor();
         return;
     }
@@ -2782,9 +2783,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 cargarFotoIA();
 
 function mostrarBloqueoPlanVisor() {
+    const pagoPendiente = ['profesional','premium','corporativo'].includes(planEmpresaVisor) && estadoEmpresaVisor !== 'activo';
     const overlay = document.createElement('div');
     overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(10,10,20,0.97);display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;';
-    overlay.innerHTML = `
+    overlay.innerHTML = pagoPendiente ? `
+        <div style="max-width:420px;">
+            <div style="font-size:56px;margin-bottom:16px;">⏳</div>
+            <div style="font-size:20px;font-weight:800;color:white;margin-bottom:10px;">Tu plan está pendiente de activación</div>
+            <div style="font-size:14px;color:#9CA3AF;margin-bottom:24px;line-height:1.6;">Ya elegiste el plan correcto para el Visor 3D. En cuanto se confirme el pago, esta función se desbloquea sola.</div>
+            <a href="/dashboard#plan" style="display:inline-block;background:linear-gradient(135deg,#7C3AED,#3B82F6);color:white;padding:12px 28px;border-radius:50px;font-weight:700;text-decoration:none;font-size:14px;">Ir a Mi Plan →</a>
+        </div>` : `
         <div style="max-width:420px;">
             <div style="font-size:56px;margin-bottom:16px;">🏗️</div>
             <div style="font-size:20px;font-weight:800;color:white;margin-bottom:10px;">El Visor 3D es de plan Profesional en adelante</div>
@@ -3100,9 +3108,13 @@ function calcularMaterialModulo() {
     const prod = (todosProductos || []).find(p => p.id === prodId);
     if (!prod) { cont.innerHTML = ''; return; }
 
-    // El cálculo de materiales es exclusivo de Premium/Corporativo
-    if (rolUsuario === 'empresa' && !['premium','corporativo'].includes(planEmpresaVisor)) {
-        cont.innerHTML = `
+    // El cálculo de materiales es exclusivo de Premium/Corporativo, con pago activo
+    if (rolUsuario === 'empresa' && (!['premium','corporativo'].includes(planEmpresaVisor) || estadoEmpresaVisor !== 'activo')) {
+        const pagoPendiente = ['premium','corporativo'].includes(planEmpresaVisor) && estadoEmpresaVisor !== 'activo';
+        cont.innerHTML = pagoPendiente ? `
+            <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:12px;font-size:12px;color:#FCD34D;">
+                ⏳ Tu plan ya incluye <b>Cálculo de materiales</b>, está pendiente de activación por pago.
+            </div>` : `
             <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:12px;font-size:12px;color:#FCD34D;">
                 🔒 El <b>Cálculo de materiales</b> (cajas necesarias, cemento y arena) está disponible desde el plan <b>Premium</b>.
                 <a href="/dashboard#plan" target="_blank" style="color:#FCD34D;text-decoration:underline;">Ver planes →</a>

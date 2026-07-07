@@ -782,10 +782,30 @@ const PLANES_CON_IA      = ['profesional','premium','corporativo'];
 const PLANES_CON_CRM_VISOR = ['profesional','premium','corporativo'];   // Visor 3D y CRM
 const PLANES_CON_WHATSAPP  = ['basico','profesional','premium','corporativo']; // todo menos gratis
 
-let empresaId   = null;
-let tiendaId    = null;
-let planActual  = 'basico';
-let productosIA = [];
+// ── CANDADO POR PLAN + PAGO ─────────────────────────────────────────────
+// Una función solo queda desbloqueada si el plan la incluye Y la empresa
+// está activa (pagó). El plan Gratis siempre queda 'activo' desde el
+// registro, así que nunca se ve afectado por este segundo chequeo.
+// IMPORTANTE: listas blancas siempre — un plan nuevo que no esté en la
+// lista queda bloqueado por defecto, nunca desbloqueado por accidente.
+function funcionDesbloqueada(listaPlanes) {
+    return listaPlanes.includes(planActual) && empresaEstado === 'activo';
+}
+// Mensaje distinto según la razón del bloqueo: plan insuficiente vs. plan
+// correcto pero pago pendiente (para no confundir a alguien que sí eligió
+// el plan correcto pero Wompi/el admin aún no activó su cuenta).
+function mensajeBloqueo(listaPlanes, nombrePlanMinimo) {
+    if (listaPlanes.includes(planActual) && empresaEstado !== 'activo') {
+        return `⏳ Tu plan <strong>${NOMBRES_PLAN[planActual]||planActual}</strong> está pendiente de activación. En cuanto se confirme el pago, esta función se desbloquea sola.`;
+    }
+    return `⚠️ Esta función está disponible desde el plan <strong>${nombrePlanMinimo}</strong>.`;
+}
+
+let empresaId     = null;
+let tiendaId      = null;
+let planActual    = 'basico';
+let empresaEstado = 'pendiente_pago';
+let productosIA   = [];
 // Guardar bytes de imagen actual para rembg
 let imagenActualBytes = null;
 
@@ -816,8 +836,9 @@ async function cargarDatos(user) {
     window.location.href = consumidor ? '/marketplace' : '/registro';
     return;
 }
-    empresaId  = empresa.id;
-    planActual = empresa.planes?.nombre || 'basico';
+    empresaId     = empresa.id;
+    planActual    = empresa.planes?.nombre || 'basico';
+    empresaEstado = empresa.estado || 'pendiente_pago';
     const [imagenesRes, tiendaRes] = await Promise.all([
         db.from('imagenes').select('*').eq('empresa_id',empresa.id).order('created_at',{ascending:false}).limit(50),
         db.from('tiendas').select('*').eq('empresa_id',empresa.id).maybeSingle()
@@ -826,14 +847,18 @@ async function cargarDatos(user) {
     renderWhatsApp(empresa);
     renderMiTienda(tiendaRes.data);
     if (tiendaRes.data) { tiendaId = tiendaRes.data.id; await cargarProductosTienda(); }
-    if (!PLANES_CON_IA.includes(planActual)) {
+    if (!funcionDesbloqueada(PLANES_CON_IA)) {
         document.getElementById('importarBloqueado').style.display  = 'block';
         document.getElementById('importarDisponible').style.display = 'none';
+        document.getElementById('importarBloqueado').innerHTML =
+            `<div class="plan-requerido">${mensajeBloqueo(PLANES_CON_IA, 'Profesional')} <a href="#" onclick="mostrarPagina('plan')" style="color:#FCD34D;margin-left:8px;">Ver planes →</a></div>`;
     }
-    if (planActual === 'corporativo') {
+    if (funcionDesbloqueada(PLANES_CON_PLANOS)) {
         document.getElementById('planosDisponible').style.display = 'block';
     } else {
         document.getElementById('planosBloqueado').style.display  = 'block';
+        document.getElementById('planosBloqueado').innerHTML =
+            `<div class="plan-requerido">${mensajeBloqueo(PLANES_CON_PLANOS, 'Corporativo')} <a href="#" onclick="mostrarPagina('plan')" style="color:#FCD34D;margin-left:8px;">Ver planes →</a></div>`;
     }
 }
 
@@ -870,34 +895,37 @@ function renderDashboard(empresa, plan, imagenes) {
     document.getElementById('planPrecioPag').textContent = PRECIOS[planNombre]||'';
     document.getElementById('planFeatures').innerHTML    = (FEATURES_PLAN[planNombre]||[]).map(f=>`<span class="feature-tag">✓ ${f}</span>`).join('');
 
-    // Visor 3D y CRM — desde plan Profesional en adelante (lista blanca: cualquier
-    // plan nuevo que agreguemos abajo de Profesional queda bloqueado por defecto)
-    if (!PLANES_CON_CRM_VISOR.includes(planNombre)) {
+    // Visor 3D y CRM — desde plan Profesional en adelante Y con el pago activo
+    // (lista blanca: cualquier plan nuevo que agreguemos abajo de Profesional
+    // queda bloqueado por defecto; y si el pago está pendiente, tampoco pasa)
+    if (!funcionDesbloqueada(PLANES_CON_CRM_VISOR)) {
+        const msgCrmVisor = mensajeBloqueo(PLANES_CON_CRM_VISOR, 'Profesional').replace(/<\/?strong>/g, '');
         document.querySelectorAll('.btn-visor3d, #navVisor3D').forEach(el => {
-            el.onclick = () => alert('⚠️ El Visor 3D está disponible desde el plan Profesional. Ve a "Mi Plan" para actualizar.');
+            el.onclick = () => alert(msgCrmVisor);
             el.style.opacity = '0.5';
-            el.title = 'Disponible desde el plan Profesional';
+            el.title = msgCrmVisor;
         });
     }
 
-    // WhatsApp con IA — no incluido en el plan Gratis
-    if (!PLANES_CON_WHATSAPP.includes(planNombre)) {
+    // WhatsApp con IA — no incluido en el plan Gratis, y requiere pago activo
+    if (!funcionDesbloqueada(PLANES_CON_WHATSAPP)) {
         const tabWa = document.getElementById('pagina-whatsapp');
         if (tabWa) {
             tabWa.innerHTML = `<div class="page-header"><h1>📱 Conectar WhatsApp</h1></div>
                 <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:12px;padding:20px 24px;font-size:14px;color:#FCD34D;">
-                    ⚠️ El bot de WhatsApp con IA está disponible desde el plan <strong>Básico</strong>.
+                    ${mensajeBloqueo(PLANES_CON_WHATSAPP, 'Básico')}
                     <a href="#" onclick="mostrarPagina('plan')" style="color:#FCD34D;margin-left:8px;text-decoration:underline;">Ver planes →</a>
                 </div>`;
         }
     }
 
-    // Medición AR — exclusiva de Corporativo
-    if (planNombre !== 'corporativo') {
+    // Medición AR — exclusiva de Corporativo y con pago activo
+    if (!funcionDesbloqueada(PLANES_CON_AR)) {
+        const msgAR = mensajeBloqueo(PLANES_CON_AR, 'Corporativo').replace(/<\/?strong>/g, '');
         const btnAR = document.getElementById('navMedirAR');
-        btnAR.onclick = () => alert('⚠️ La Medición AR está disponible en el plan Corporativo. Ve a "Mi Plan" para actualizar.');
+        btnAR.onclick = () => alert(msgAR);
         btnAR.style.opacity = '0.5';
-        btnAR.title = 'Disponible en el plan Corporativo';
+        btnAR.title = msgAR;
     }
     const pa = document.getElementById('perfilAvatar');
     pa.textContent = nombre[0].toUpperCase();

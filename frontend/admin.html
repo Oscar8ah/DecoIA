@@ -193,6 +193,7 @@
     <nav class="sidebar-nav">
         <button class="nav-item active" onclick="mostrarPagina('resumen', this)"><span class="icon">📊</span> Resumen</button>
         <button class="nav-item" onclick="mostrarPagina('empresas', this)"><span class="icon">🏢</span> Empresas</button>
+        <button class="nav-item" onclick="mostrarPagina('compradores', this)"><span class="icon">🧍</span> Compradores</button>
         <button class="nav-item" onclick="mostrarPagina('tiendas', this)">
             <span class="icon">🏪</span> Tiendas
             <span class="nav-badge" id="badgePendientes" style="display:none;">0</span>
@@ -231,14 +232,27 @@
 
     <!-- EMPRESAS -->
     <div class="page" id="pagina-empresas">
-        <div class="page-header"><h1>🏢 Empresas</h1><p>Todos los negocios registrados</p></div>
+        <div class="page-header"><h1>🏢 Empresas</h1><p>Todos los negocios registrados — solo vendedores, con su propia tienda</p></div>
         <div class="tabla-container">
             <div class="tabla-header">
                 <span class="tabla-titulo">Lista completa</span>
                 <input type="text" class="tabla-search" placeholder="🔍 Buscar empresa..." oninput="filtrarEmpresas(this.value)">
             </div>
-            <table><thead><tr><th>Empresa</th><th>Email</th><th>Plan</th><th>Fotos usadas</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <table><thead><tr><th>Empresa</th><th>Email</th><th>Plan</th><th>Fotos usadas</th><th>Estado</th><th>Cambiar plan</th><th>Acciones</th></tr></thead>
             <tbody id="tablaEmpresas"></tbody></table>
+        </div>
+    </div>
+
+    <!-- COMPRADORES -->
+    <div class="page" id="pagina-compradores">
+        <div class="page-header"><h1>🧍 Compradores</h1><p>Cuentas sin tienda ni plan — solo compran en el marketplace</p></div>
+        <div class="tabla-container">
+            <div class="tabla-header">
+                <span class="tabla-titulo">Lista completa</span>
+                <input type="text" class="tabla-search" placeholder="🔍 Buscar comprador..." oninput="filtrarCompradores(this.value)">
+            </div>
+            <table><thead><tr><th>Nombre</th><th>Email</th><th>Estado</th><th>Fecha</th></tr></thead>
+            <tbody id="tablaCompradores"></tbody></table>
         </div>
     </div>
 
@@ -307,7 +321,7 @@ const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { flowType: 'pkce', persistSession: true, detectSessionInUrl: true, autoRefreshToken: true }
 });
 
-const NOMBRES_PLAN = { basico:'Básico', profesional:'Profesional', premium:'Premium', corporativo:'Corporativo' };
+const NOMBRES_PLAN = { gratis:'Gratis', basico:'Básico', profesional:'Profesional', premium:'Premium', corporativo:'Corporativo' };
 
 async function verDocumentoAdmin(ruta) {
     if (!ruta) return;
@@ -317,10 +331,12 @@ async function verDocumentoAdmin(ruta) {
 }
 
 
-let todasEmpresas = [];
-let todasTiendas  = [];
-let tiendaActual  = null;
-let filtroTiendas = 'todas';
+let todasEmpresas    = [];
+let todasTiendas     = [];
+let todosConsumidores = [];
+let todosPlanes      = [];
+let tiendaActual     = null;
+let filtroTiendas    = 'todas';
 
 // ── INIT ──────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
@@ -337,15 +353,19 @@ window.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function cargarTodo() {
-    const [empresasRes, imagenesRes, pagosRes, tiendasRes] = await Promise.all([
+    const [empresasRes, imagenesRes, pagosRes, tiendasRes, planesRes, consumidoresRes] = await Promise.all([
         db.from('empresas').select('*, planes(nombre,precio)').order('created_at',{ascending:false}),
         db.from('imagenes').select('*').order('created_at',{ascending:false}),
         db.from('pagos').select('*, empresas(nombre)').order('created_at',{ascending:false}),
-        db.from('tiendas').select('*, empresas(nombre,email)').order('created_at',{ascending:false})
+        db.from('tiendas').select('*, empresas(nombre,email)').order('created_at',{ascending:false}),
+        db.from('planes').select('id,nombre,precio').order('precio',{ascending:true}),
+        db.from('consumidores').select('*').order('created_at',{ascending:false})
     ]);
 
-    todasEmpresas = empresasRes.data || [];
-    todasTiendas  = tiendasRes.data  || [];
+    todasEmpresas     = empresasRes.data || [];
+    todasTiendas      = tiendasRes.data  || [];
+    todosPlanes       = planesRes.data   || [];
+    todosConsumidores = consumidoresRes.data || [];
 
     renderResumen(todasEmpresas, imagenesRes.data||[], todasTiendas);
     renderEmpresas(todasEmpresas);
@@ -353,6 +373,7 @@ async function cargarTodo() {
     renderPagos(pagosRes.data||[]);
     renderImagenes(imagenesRes.data||[], todasEmpresas);
     renderWhatsappSolicitudes(todasEmpresas);
+    renderCompradores(todosConsumidores);
 
     // Badge pendientes
     const pendientes = todasTiendas.filter(t => t.estado_verificacion === 'pendiente' || !t.estado_verificacion).length;
@@ -421,26 +442,73 @@ async function guardarPhoneNumberId(empresaId) {
 // ── EMPRESAS ──────────────────────────────────────────────────────────────
 function renderEmpresas(empresas) {
     const tbody = document.getElementById('tablaEmpresas');
-    if (empresas.length === 0) { tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="icon">🏢</div><p>No hay empresas</p></div></td></tr>`; return; }
-    tbody.innerHTML = empresas.map(e => `
+    if (empresas.length === 0) { tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="icon">🏢</div><p>No hay empresas</p></div></td></tr>`; return; }
+    tbody.innerHTML = empresas.map(e => {
+        const planActualNombre = e.planes?.nombre || 'gratis';
+        const opcionesPlan = todosPlanes.map(p =>
+            `<option value="${p.id}" ${p.nombre === planActualNombre ? 'selected' : ''}>${NOMBRES_PLAN[p.nombre]||p.nombre}</option>`
+        ).join('');
+        return `
         <tr>
             <td><strong>${e.nombre}</strong><br><span style="font-size:12px;color:var(--gris)">${e.telefono||''}</span></td>
             <td style="color:var(--gris);font-size:13px">${e.email}</td>
-            <td><span class="badge badge-plan">${NOMBRES_PLAN[e.planes?.nombre]||'—'}</span></td>
+            <td><span class="badge badge-plan">${NOMBRES_PLAN[planActualNombre]||'—'}</span></td>
             <td><strong>${e.fotos_usadas||0}</strong><span style="color:var(--gris)"> / ${(e.fotos_usadas||0)+(e.fotos_disponibles||0)}</span></td>
             <td>${estadoBadge(e.estado)}</td>
+            <td>
+                <select id="planSelect-${e.id}" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.25);border-radius:8px;padding:5px 8px;color:var(--texto);font-size:12px;">
+                    ${opcionesPlan}
+                </select>
+                <button class="btn-accion btn-ver" style="margin-left:4px;" onclick="cambiarPlanEmpresa('${e.id}','${e.nombre.replace(/'/g,"\\'")}','${planActualNombre}')">💾 Cambiar plan</button>
+            </td>
             <td>
                 <button class="btn-accion btn-ver" onclick="verEmpresa('${e.id}')">👁 Ver</button>
                 ${e.estado === 'activo'
                     ? `<button class="btn-accion btn-desactivar" onclick="cambiarEstadoEmpresa('${e.id}','pendiente_pago')">Desactivar</button>`
                     : `<button class="btn-accion btn-activar" onclick="cambiarEstadoEmpresa('${e.id}','activo')">✅ Activar</button>`}
             </td>
-        </tr>`).join('');
+        </tr>`;
+    }).join('');
+}
+
+// Cambio de plan manual — para pruebas con tus correos, o para subir de plan
+// a una empresa como cortesía/acuerdo comercial. NO cambia el estado de pago
+// (activo/pendiente) — eso lo controlas aparte con el botón Activar/Desactivar,
+// así tienes control total e independiente de las dos cosas.
+async function cambiarPlanEmpresa(empresaId, nombreEmpresa, planActualNombre) {
+    const select = document.getElementById(`planSelect-${empresaId}`);
+    const nuevoPlanId = select.value;
+    const nuevoPlanNombre = (todosPlanes.find(p => p.id === nuevoPlanId) || {}).nombre || '?';
+    if (nuevoPlanNombre === planActualNombre) { alert('Ese ya es su plan actual.'); return; }
+    const ok = confirm(`¿Cambiar el plan de "${nombreEmpresa}" de ${NOMBRES_PLAN[planActualNombre]||planActualNombre} a ${NOMBRES_PLAN[nuevoPlanNombre]||nuevoPlanNombre}?\n\nEsto NO cobra nada ni cambia si está activo o no — solo cambia qué funciones ve.`);
+    if (!ok) return;
+    const { error } = await db.from('empresas').update({ plan_id: nuevoPlanId }).eq('id', empresaId);
+    if (error) { alert('❌ Error cambiando el plan.'); console.error(error); return; }
+    await cargarTodo();
 }
 
 function filtrarEmpresas(query) {
     const q = query.toLowerCase();
     renderEmpresas(todasEmpresas.filter(e => e.nombre.toLowerCase().includes(q) || e.email.toLowerCase().includes(q)));
+}
+
+// ── COMPRADORES (consumidores — solo compran, nunca entran al dashboard) ───
+function renderCompradores(consumidores) {
+    const tbody = document.getElementById('tablaCompradores');
+    if (!tbody) return;
+    if (consumidores.length === 0) { tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state"><div class="icon">🧍</div><p>No hay compradores registrados aún</p></div></td></tr>`; return; }
+    tbody.innerHTML = consumidores.map(c => `
+        <tr>
+            <td><strong>${c.nombre||'—'}</strong></td>
+            <td style="color:var(--gris);font-size:13px">${c.email}</td>
+            <td>${estadoBadge(c.estado)}</td>
+            <td style="color:var(--gris)">${formatFecha(c.created_at)}</td>
+        </tr>`).join('');
+}
+
+function filtrarCompradores(query) {
+    const q = query.toLowerCase();
+    renderCompradores(todosConsumidores.filter(c => (c.nombre||'').toLowerCase().includes(q) || c.email.toLowerCase().includes(q)));
 }
 
 // ── TIENDAS ───────────────────────────────────────────────────────────────
