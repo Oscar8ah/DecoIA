@@ -71,6 +71,113 @@ async def consultar_estado_pago(
         return {"estado": "error", "detalle": str(e)}
 
 
+# ── PAGO DE CAMBIO DE PLAN (suscripción) ────────────────────────────────
+async def _procesar_pago_cambio_plan(referencia: str, monto_cop: float, metodo: str, tx_id: str, cliente_email: str):
+    """
+    Referencia: SUSC-{empresa_id_8chars}-{timestamp}
+    Al confirmarse el pago:
+      1. Busca la empresa por el prefijo de su id.
+      2. Busca su solicitud más reciente en estado 'pagando' -> ahí está
+         a qué plan se quiere cambiar.
+      3. Actualiza empresas: plan_id, estado='activo', fotos_disponibles
+         recalculadas con el cupo del plan nuevo menos las ya usadas.
+      4. Marca la solicitud como 'aprobada'.
+      5. Registra el pago y notifica a la empresa.
+    Si algo no calza (empresa o solicitud no encontrada), no truena — solo
+    lo deja registrado en logs para revisar a mano, y le confirma 200 a
+    Wompi para que no reintente indefinidamente.
+    """
+    supabase = get_supabase()
+    empresa = None
+    try:
+        partes = referencia.split("-")
+        if len(partes) >= 2:
+            empresa_id_partial = partes[1]
+            r = supabase.table("empresas").select(
+                "id, nombre, email, fotos_usadas"
+            ).ilike("id", f"{empresa_id_partial}%").maybeSingle().execute()
+            empresa = r.data
+    except Exception as e:
+        logger.error(f"Error buscando empresa para cambio de plan: {e}")
+
+    if not empresa:
+        logger.error(f"No se encontró empresa para el pago de cambio de plan {referencia} — requiere revisión manual")
+        return {"status": "ok", "mensaje": "empresa no encontrada, requiere revisión manual"}
+
+    empresa_id = empresa["id"]
+
+    solicitud = None
+    try:
+        r = supabase.table("solicitudes_plan").select(
+            "id, plan_solicitado_id"
+        ).eq("empresa_id", empresa_id).eq("estado", "pagando") \
+         .order("created_at", desc=True).limit(1).maybeSingle().execute()
+        solicitud = r.data
+    except Exception as e:
+        logger.error(f"Error buscando solicitud de cambio de plan: {e}")
+
+    if not solicitud:
+        logger.error(f"Pago {referencia} aprobado pero no hay solicitud 'pagando' para empresa {empresa_id} — requiere revisión manual")
+        return {"status": "ok", "mensaje": "solicitud no encontrada, requiere revisión manual"}
+
+    plan_nuevo = None
+    try:
+        r = supabase.table("planes").select("id, nombre, fotos_incluidas").eq("id", solicitud["plan_solicitado_id"]).maybeSingle().execute()
+        plan_nuevo = r.data
+    except Exception as e:
+        logger.error(f"Error buscando plan nuevo: {e}")
+
+    if not plan_nuevo:
+        logger.error(f"Plan solicitado {solicitud['plan_solicitado_id']} no existe — requiere revisión manual")
+        return {"status": "ok", "mensaje": "plan no encontrado, requiere revisión manual"}
+
+    fotos_usadas = empresa.get("fotos_usadas") or 0
+    fotos_nuevas_disponibles = max((plan_nuevo.get("fotos_incluidas") or 0) - fotos_usadas, 0)
+
+    try:
+        supabase.table("empresas").update({
+            "plan_id":           plan_nuevo["id"],
+            "estado":            "activo",
+            "pago_metodo":       "wompi",
+            "fotos_disponibles": fotos_nuevas_disponibles,
+        }).eq("id", empresa_id).execute()
+
+        supabase.table("solicitudes_plan").update({
+            "estado":      "aprobada",
+            "resuelta_at": datetime.now().isoformat(),
+        }).eq("id", solicitud["id"]).execute()
+
+        supabase.table("pagos").insert({
+            "empresa_id":  empresa_id,
+            "monto":       monto_cop,
+            "tipo":        "cambio_plan",
+            "metodo":      metodo,
+            "estado":      "aprobado",
+            "referencia":  referencia,
+            "created_at":  datetime.now().isoformat(),
+        }).execute()
+
+        supabase.table("notificaciones").insert({
+            "empresa_id": empresa_id,
+            "tipo":       "plan",
+            "titulo":     "🎉 ¡Tu plan fue actualizado!",
+            "mensaje":    f"Ahora estás en el plan {plan_nuevo['nombre'].capitalize()}. ${monto_cop:,.0f} COP · Ref: {referencia}",
+            "leida":      False,
+            "datos": {
+                "referencia": referencia,
+                "monto":      monto_cop,
+                "plan_nuevo": plan_nuevo["nombre"],
+            }
+        }).execute()
+
+        logger.info(f"Cambio de plan aprobado — empresa {empresa_id} -> {plan_nuevo['nombre']}")
+    except Exception as e:
+        logger.error(f"Error activando cambio de plan para empresa {empresa_id}: {e}")
+        return {"status": "ok", "error": str(e)}
+
+    return {"status": "ok", "mensaje": "cambio de plan procesado correctamente"}
+
+
 # ── WEBHOOK WOMPI ─────────────────────────────────────────────────────────
 @router.post("/webhook")
 async def webhook_wompi(
@@ -136,6 +243,12 @@ async def webhook_wompi(
 
         if estado != "APPROVED":
             return {"status": "ok", "mensaje": f"transacción {estado} ignorada"}
+
+        # ── Pago de CAMBIO DE PLAN (suscripción) — referencia SUSC-... ────
+        # Se procesa aparte de las compras del marketplace (DECO-...): activa
+        # el plan solo, sin que nadie tenga que aprobar nada a mano.
+        if referencia.startswith("SUSC-"):
+            return await _procesar_pago_cambio_plan(referencia, monto_cop, metodo, tx_id, cliente_email)
 
         # ── Pago aprobado — buscar la tienda por la referencia ────────────
         # La referencia tiene formato: DECO-{tienda_id_8chars}-{timestamp}

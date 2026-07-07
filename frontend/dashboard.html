@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard — DecoIArte</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://checkout.wompi.co/widget.js" data-auto-open="false"></script>
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
         :root {
@@ -263,14 +264,15 @@
 <div class="modal-overlay" id="modalCambioPlan">
     <div class="modal" style="max-width:420px;">
         <button class="modal-close" onclick="cerrarModal('modalCambioPlan')">✕</button>
-        <h2>⬆️ Solicitar cambio de plan</h2>
+        <h2>⬆️ Subir de plan</h2>
         <div class="alerta" id="cambioPlanAlerta"></div>
-        <p style="color:var(--gris);font-size:13px;margin-bottom:16px;">Tu solicitud le llega a nuestro equipo para activarla. No se cobra nada automáticamente.</p>
+        <p style="color:var(--gris);font-size:13px;margin-bottom:16px;">Solo puedes subir de plan por tu cuenta. Pagas la diferencia y tu plan se activa apenas Wompi confirme el pago. ¿Quieres bajar de plan? Escríbenos y lo hacemos manual.</p>
         <div class="form-campo">
-            <label>Plan al que quieres cambiarte</label>
-            <select id="selectPlanSolicitado"></select>
+            <label>Plan al que quieres subir</label>
+            <select id="selectPlanSolicitado" onchange="actualizarDiferenciaPlan()"></select>
         </div>
-        <button class="btn-primario" style="width:100%;margin-top:8px;" id="btnEnviarSolicitudPlan" onclick="enviarSolicitudCambioPlan()">📨 Enviar solicitud</button>
+        <div id="diferenciaPlanTexto" style="font-size:14px;color:var(--texto);margin:12px 0;font-weight:700;"></div>
+        <button class="btn-primario" style="width:100%;margin-top:8px;" id="btnEnviarSolicitudPlan" onclick="iniciarPagoCambioPlan()">💳 Pagar diferencia y subir de plan</button>
     </div>
 </div>
 
@@ -1353,50 +1355,120 @@ document.getElementById('campoDimensiones').style.display=(p.modelo_3d_tipo&&p.m
     document.getElementById('modalProducto').classList.add('open');
 }
 
-// ── SOLICITAR CAMBIO DE PLAN ────────────────────────────────────────────
+// ── SUBIR DE PLAN (pagando la diferencia con Wompi) ─────────────────────
+const WOMPI_LLAVE_PUBLICA = 'pub_test_VWTmTBcjGHtKGRGcBtuWZwDlWJn0xAzF';
+
 function renderAvisoSolicitudPlan() {
     const aviso = document.getElementById('solicitudPlanAviso');
     if (!aviso) return;
-    if (solicitudPendiente) {
+    if (solicitudPendiente && solicitudPendiente.estado === 'pagando') {
         aviso.style.display = 'block';
-        aviso.innerHTML = `⏳ Ya tienes una solicitud pendiente para cambiar a <strong>${NOMBRES_PLAN[solicitudPendiente.planes?.nombre]||'—'}</strong>. Te avisamos apenas se active.`;
+        aviso.innerHTML = `⏳ Tienes un pago en proceso para pasar a <strong>${NOMBRES_PLAN[solicitudPendiente.planes?.nombre]||'—'}</strong>. Si ya pagaste, en unos minutos se activa solo. Si no completaste el pago, puedes intentarlo de nuevo.`;
     } else {
         aviso.style.display = 'none';
     }
 }
 
-function abrirModalCambioPlan() {
-    if (solicitudPendiente) { mostrarAlerta('cambioPlanAlerta','⏳ Ya tienes una solicitud pendiente. Espera a que se resuelva antes de pedir otra.','error'); }
-    const select = document.getElementById('selectPlanSolicitado');
-    select.innerHTML = todosPlanesDash
-        .filter(p => p.id !== planIdActual)
-        .map(p => `<option value="${p.id}">${NOMBRES_PLAN[p.nombre]||p.nombre} — $${Number(p.precio||0).toLocaleString('es-CO')}/mes</option>`)
-        .join('');
-    document.getElementById('cambioPlanAlerta').className = 'alerta';
-    document.getElementById('modalCambioPlan').classList.add('open');
+function precioDePlan(planId) {
+    return Number((todosPlanesDash.find(p => p.id === planId) || {}).precio || 0);
 }
 
-async function enviarSolicitudCambioPlan() {
-    if (solicitudPendiente) { mostrarAlerta('cambioPlanAlerta','⏳ Ya tienes una solicitud pendiente.','error'); return; }
+function abrirModalCambioPlan() {
+    const precioActual = precioDePlan(planIdActual);
+    const opciones = todosPlanesDash.filter(p => p.id !== planIdActual && Number(p.precio||0) > precioActual);
+    document.getElementById('cambioPlanAlerta').className = 'alerta';
+    if (opciones.length === 0) {
+        mostrarAlerta('cambioPlanAlerta', planActual === 'corporativo' ? '🎉 Ya tienes el plan más alto.' : '⚠️ No hay planes disponibles para subir en este momento.', 'error');
+    }
+    const select = document.getElementById('selectPlanSolicitado');
+    select.innerHTML = opciones
+        .map(p => `<option value="${p.id}">${NOMBRES_PLAN[p.nombre]||p.nombre} — $${Number(p.precio||0).toLocaleString('es-CO')}/mes</option>`)
+        .join('');
+    document.getElementById('modalCambioPlan').classList.add('open');
+    actualizarDiferenciaPlan();
+}
+
+function actualizarDiferenciaPlan() {
+    const select = document.getElementById('selectPlanSolicitado');
+    const texto  = document.getElementById('diferenciaPlanTexto');
+    if (!select.value) { texto.textContent = ''; return; }
+    const precioActual = precioDePlan(planIdActual);
+    const precioNuevo  = precioDePlan(select.value);
+    const diferencia   = Math.max(precioNuevo - precioActual, 0);
+    texto.textContent = `Diferencia a pagar: $${diferencia.toLocaleString('es-CO')} COP`;
+}
+
+async function generarFirmaWompiDash(referencia, monto, moneda) {
+    try {
+        const r = await fetch('https://decoia.onrender.com/wompi/firma', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ referencia, monto, moneda })
+        });
+        const data = await r.json();
+        return data.firma;
+    } catch(e) { console.error('Error generando firma:', e); return null; }
+}
+
+async function iniciarPagoCambioPlan() {
+    if (solicitudPendiente && solicitudPendiente.estado === 'pagando') { mostrarAlerta('cambioPlanAlerta','⏳ Ya tienes un pago en proceso. Espera a que se confirme.','error'); return; }
     const planSolicitadoId = document.getElementById('selectPlanSolicitado').value;
     if (!planSolicitadoId) { mostrarAlerta('cambioPlanAlerta','⚠️ Elige un plan.','error'); return; }
+
+    const precioActual = precioDePlan(planIdActual);
+    const precioNuevo  = precioDePlan(planSolicitadoId);
+    const diferencia   = Math.max(precioNuevo - precioActual, 0);
+    if (diferencia <= 0) { mostrarAlerta('cambioPlanAlerta','⚠️ Ese plan no representa una subida real.','error'); return; }
+
     const btn = document.getElementById('btnEnviarSolicitudPlan');
-    btn.disabled = true; btn.innerHTML = '<span class="spinner-btn"></span>Enviando...';
-    const { error } = await db.from('solicitudes_plan').insert({
+    btn.disabled = true; btn.innerHTML = '<span class="spinner-btn"></span>Preparando pago...';
+
+    // Se registra como "pagando" ANTES de abrir el checkout — así, si el
+    // cliente abre la ventanita de Wompi, tú ya lo ves en tu campanita,
+    // sin necesidad de que confirme el pago primero.
+    const { data: solicitud, error: errSolicitud } = await db.from('solicitudes_plan').insert({
         empresa_id:         empresaId,
         plan_actual_id:     planIdActual,
         plan_solicitado_id: planSolicitadoId,
-        estado:             'pendiente'
-    });
-    btn.disabled = false; btn.innerHTML = '📨 Enviar solicitud';
-    if (error) {
-        console.error('Error enviando solicitud de plan:', error);
-        mostrarAlerta('cambioPlanAlerta','❌ Error enviando la solicitud. Intenta de nuevo.','error');
+        estado:             'pagando'
+    }).select().maybeSingle();
+
+    if (errSolicitud) {
+        console.error('Error creando solicitud de pago:', errSolicitud);
+        btn.disabled = false; btn.innerHTML = '💳 Pagar diferencia y subir de plan';
+        mostrarAlerta('cambioPlanAlerta','❌ Error preparando el pago. Intenta de nuevo.','error');
         return;
     }
+
+    const montoEnCentavos = diferencia * 100;
+    const referencia      = `SUSC-${empresaId.substring(0,8)}-${Date.now()}`;
+    const moneda           = 'COP';
+    const firma = await generarFirmaWompiDash(referencia, montoEnCentavos, moneda);
+
+    btn.disabled = false; btn.innerHTML = '💳 Pagar diferencia y subir de plan';
+
+    if (!firma) {
+        mostrarAlerta('cambioPlanAlerta','❌ Error preparando el pago. Intenta de nuevo.','error');
+        return;
+    }
+
+    const checkout = new WidgetCheckout({
+        currency: moneda, amountInCents: montoEnCentavos,
+        reference: referencia, publicKey: WOMPI_LLAVE_PUBLICA,
+        signature: { integrity: firma },
+        redirectUrl: `https://decoiarte.com/dashboard?pago=ok&ref=${referencia}#plan`,
+    });
     cerrarModal('modalCambioPlan');
-    await cargarDatos((await db.auth.getSession()).data.session.user);
-    mostrarAlerta('cambioPlanAlerta','✅ ¡Solicitud enviada!','exito');
+    checkout.open(async (result) => {
+        const { transaction } = result;
+        if (transaction?.status === 'APPROVED') {
+            mostrarAlerta('cambioPlanAlerta','✅ ¡Pago aprobado! Tu plan se activa en un momento.','exito');
+        } else if (transaction?.status === 'DECLINED') {
+            mostrarAlerta('cambioPlanAlerta','❌ Pago rechazado. Puedes intentarlo de nuevo.','error');
+        } else {
+            mostrarAlerta('cambioPlanAlerta','⚠️ Pago pendiente. Te avisamos apenas se confirme.','error');
+        }
+        await cargarDatos((await db.auth.getSession()).data.session.user);
+    });
 }
 
 async function guardarProducto() {

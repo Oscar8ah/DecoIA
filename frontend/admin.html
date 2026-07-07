@@ -398,8 +398,8 @@ async function cargarTodo() {
     const badge = document.getElementById('badgePendientes');
     if (pendientes > 0) { badge.textContent = pendientes; badge.style.display = 'inline'; }
 
-    // Badge campanita — solicitudes de cambio de plan pendientes
-    const solicitudesPendientes = todasSolicitudesPlan.filter(s => s.estado === 'pendiente').length;
+    // Badge campanita — solicitudes de cambio de plan pendientes o en proceso de pago
+    const solicitudesPendientes = todasSolicitudesPlan.filter(s => s.estado === 'pendiente' || s.estado === 'pagando').length;
     const badgeSolic = document.getElementById('badgeSolicitudesPlan');
     if (solicitudesPendientes > 0) { badgeSolic.textContent = solicitudesPendientes; badgeSolic.style.display = 'inline'; }
     else { badgeSolic.style.display = 'none'; }
@@ -549,13 +549,16 @@ function renderSolicitudesPlan(solicitudes) {
             <td>${s.estado === 'pendiente' ? `
                 <button class="btn-accion btn-activar" onclick="resolverSolicitudPlan('${s.id}','aprobada')">✅ Aprobar</button>
                 <button class="btn-accion btn-desactivar" onclick="resolverSolicitudPlan('${s.id}','rechazada')">❌ Rechazar</button>
+            ` : s.estado === 'pagando' ? `
+                <button class="btn-accion btn-desactivar" onclick="resolverSolicitudPlan('${s.id}','rechazada')" title="Úsalo solo si el pago quedó abandonado y nunca se confirmó">🗑️ Cancelar (pago abandonado)</button>
             ` : '—'}</td>
         </tr>`).join('');
 }
 
 function solicitudEstadoBadge(estado) {
     if (estado === 'aprobada')  return '<span class="badge badge-activo">✅ Aprobada</span>';
-    if (estado === 'rechazada') return '<span class="badge badge-rechazada">❌ Rechazada</span>';
+    if (estado === 'rechazada') return '<span class="badge badge-rechazada">❌ Rechazada / cancelada</span>';
+    if (estado === 'pagando')   return '<span class="badge badge-pendiente">💳 Pagando (Wompi)</span>';
     return '<span class="badge badge-pendiente">⏳ Pendiente</span>';
 }
 
