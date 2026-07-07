@@ -260,6 +260,20 @@
 </div>
 
 <!-- MODAL PRODUCTO -->
+<div class="modal-overlay" id="modalCambioPlan">
+    <div class="modal" style="max-width:420px;">
+        <button class="modal-close" onclick="cerrarModal('modalCambioPlan')">✕</button>
+        <h2>⬆️ Solicitar cambio de plan</h2>
+        <div class="alerta" id="cambioPlanAlerta"></div>
+        <p style="color:var(--gris);font-size:13px;margin-bottom:16px;">Tu solicitud le llega a nuestro equipo para activarla. No se cobra nada automáticamente.</p>
+        <div class="form-campo">
+            <label>Plan al que quieres cambiarte</label>
+            <select id="selectPlanSolicitado"></select>
+        </div>
+        <button class="btn-primario" style="width:100%;margin-top:8px;" id="btnEnviarSolicitudPlan" onclick="enviarSolicitudCambioPlan()">📨 Enviar solicitud</button>
+    </div>
+</div>
+
 <div class="modal-overlay" id="modalProducto">
     <div class="modal">
         <button class="modal-close" onclick="cerrarModal('modalProducto')">✕</button>
@@ -737,9 +751,10 @@
         <div class="page-header"><h1>📦 Mi Plan</h1><p>Detalles de tu plan actual</p></div>
         <div class="plan-card-dash">
             <div><div style="font-size:13px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Plan actual</div><div class="plan-nombre-dash" id="planNombrePag">—</div><div class="plan-precio-dash" id="planPrecioPag">—</div></div>
-            <button class="btn-upgrade" onclick="window.location.href='/#planes'">⬆️ Cambiar plan</button>
+            <button class="btn-upgrade" onclick="abrirModalCambioPlan()">⬆️ Cambiar plan</button>
         </div>
         <div class="plan-features-dash" id="planFeatures" style="margin-bottom:32px;"></div>
+        <div id="solicitudPlanAviso" style="display:none;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:12px;padding:14px 20px;font-size:13px;color:#FCD34D;margin-bottom:24px;"></div>
         <div class="section-title">📊 Uso actual</div>
         <div class="progress-section">
             <div class="progress-header"><span class="progress-title">Fotos del mes</span><span class="progress-nums"><strong id="planProgUsadas">0</strong> de <strong id="planProgTotal">0</strong></span></div>
@@ -824,7 +839,10 @@ function mensajeBloqueo(listaPlanes, nombrePlanMinimo) {
 let empresaId     = null;
 let tiendaId      = null;
 let planActual    = 'basico';
+let planIdActual  = null;
 let empresaEstado = 'pendiente_pago';
+let todosPlanesDash    = [];
+let solicitudPendiente = null;
 let productosIA   = [];
 // Guardar bytes de imagen actual para rembg
 let imagenActualBytes = null;
@@ -871,11 +889,17 @@ async function cargarDatos(user) {
 }
     empresaId     = empresa.id;
     planActual    = empresa.planes?.nombre || 'basico';
+    planIdActual  = empresa.plan_id;
     empresaEstado = empresa.estado || 'pendiente_pago';
-    const [imagenesRes, tiendaRes] = await Promise.all([
+    const [imagenesRes, tiendaRes, planesRes, solicitudRes] = await Promise.all([
         db.from('imagenes').select('*').eq('empresa_id',empresa.id).order('created_at',{ascending:false}).limit(50),
-        db.from('tiendas').select('*').eq('empresa_id',empresa.id).maybeSingle()
+        db.from('tiendas').select('*').eq('empresa_id',empresa.id).maybeSingle(),
+        db.from('planes').select('id,nombre,precio').order('precio',{ascending:true}),
+        db.from('solicitudes_plan').select('*, planes:plan_solicitado_id(nombre)').eq('empresa_id',empresa.id).eq('estado','pendiente').maybeSingle()
     ]);
+    todosPlanesDash    = planesRes.data || [];
+    solicitudPendiente = solicitudRes.data || null;
+    renderAvisoSolicitudPlan();
     renderWhatsApp(empresa);
     renderDashboard(empresa, empresa.planes, imagenesRes.data||[]);
     renderMiTienda(tiendaRes.data);
@@ -1327,6 +1351,52 @@ document.getElementById('campoDimensiones').style.display=(p.modelo_3d_tipo&&p.m
     }
     document.getElementById('modalAlerta').className='alerta';
     document.getElementById('modalProducto').classList.add('open');
+}
+
+// ── SOLICITAR CAMBIO DE PLAN ────────────────────────────────────────────
+function renderAvisoSolicitudPlan() {
+    const aviso = document.getElementById('solicitudPlanAviso');
+    if (!aviso) return;
+    if (solicitudPendiente) {
+        aviso.style.display = 'block';
+        aviso.innerHTML = `⏳ Ya tienes una solicitud pendiente para cambiar a <strong>${NOMBRES_PLAN[solicitudPendiente.planes?.nombre]||'—'}</strong>. Te avisamos apenas se active.`;
+    } else {
+        aviso.style.display = 'none';
+    }
+}
+
+function abrirModalCambioPlan() {
+    if (solicitudPendiente) { mostrarAlerta('cambioPlanAlerta','⏳ Ya tienes una solicitud pendiente. Espera a que se resuelva antes de pedir otra.','error'); }
+    const select = document.getElementById('selectPlanSolicitado');
+    select.innerHTML = todosPlanesDash
+        .filter(p => p.id !== planIdActual)
+        .map(p => `<option value="${p.id}">${NOMBRES_PLAN[p.nombre]||p.nombre} — $${Number(p.precio||0).toLocaleString('es-CO')}/mes</option>`)
+        .join('');
+    document.getElementById('cambioPlanAlerta').className = 'alerta';
+    document.getElementById('modalCambioPlan').classList.add('open');
+}
+
+async function enviarSolicitudCambioPlan() {
+    if (solicitudPendiente) { mostrarAlerta('cambioPlanAlerta','⏳ Ya tienes una solicitud pendiente.','error'); return; }
+    const planSolicitadoId = document.getElementById('selectPlanSolicitado').value;
+    if (!planSolicitadoId) { mostrarAlerta('cambioPlanAlerta','⚠️ Elige un plan.','error'); return; }
+    const btn = document.getElementById('btnEnviarSolicitudPlan');
+    btn.disabled = true; btn.innerHTML = '<span class="spinner-btn"></span>Enviando...';
+    const { error } = await db.from('solicitudes_plan').insert({
+        empresa_id:         empresaId,
+        plan_actual_id:     planIdActual,
+        plan_solicitado_id: planSolicitadoId,
+        estado:             'pendiente'
+    });
+    btn.disabled = false; btn.innerHTML = '📨 Enviar solicitud';
+    if (error) {
+        console.error('Error enviando solicitud de plan:', error);
+        mostrarAlerta('cambioPlanAlerta','❌ Error enviando la solicitud. Intenta de nuevo.','error');
+        return;
+    }
+    cerrarModal('modalCambioPlan');
+    await cargarDatos((await db.auth.getSession()).data.session.user);
+    mostrarAlerta('cambioPlanAlerta','✅ ¡Solicitud enviada!','exito');
 }
 
 async function guardarProducto() {
