@@ -490,6 +490,7 @@ function renderEmpresas(empresas) {
                 ${e.estado === 'activo'
                     ? `<button class="btn-accion btn-desactivar" onclick="cambiarEstadoEmpresa('${e.id}','pendiente_pago')">Desactivar</button>`
                     : `<button class="btn-accion btn-activar" onclick="cambiarEstadoEmpresa('${e.id}','activo')">✅ Activar</button>`}
+                <button class="btn-accion btn-ver" title="Para atraer clientes nuevos — funciona en cualquier plan, incluso Gratis" onclick="regalarFotos('${e.id}','${e.nombre.replace(/'/g,"\\'")}',${e.fotos_disponibles||0})">🎁 Regalar 10 fotos</button>
             </td>
         </tr>`;
     }).join('');
@@ -758,6 +759,17 @@ function renderImagenes(imagenes, empresas) {
 // ── ACCIONES EMPRESAS ─────────────────────────────────────────────────────
 async function cambiarEstadoEmpresa(empresaId, nuevoEstado) {
     await db.from('empresas').update({ estado:nuevoEstado }).eq('id', empresaId);
+    await cargarTodo();
+}
+
+// Regala 10 fotos de prueba a una tienda — funciona en CUALQUIER plan,
+// incluso Gratis, porque el bot de WhatsApp solo mira si fotos_disponibles
+// > 0, sin importar el plan. Sirve para que prueben la IA sin comprometerse.
+async function regalarFotos(empresaId, nombreEmpresa, fotosActuales) {
+    const ok = confirm(`¿Regalar 10 fotos de prueba a "${nombreEmpresa}"?\n\nQuedará con ${fotosActuales + 10} fotos disponibles, sin importar su plan.`);
+    if (!ok) return;
+    const { error } = await db.from('empresas').update({ fotos_disponibles: fotosActuales + 10 }).eq('id', empresaId);
+    if (error) { alert('❌ Error regalando las fotos.'); console.error(error); return; }
     await cargarTodo();
 }
 

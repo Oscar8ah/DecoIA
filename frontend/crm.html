@@ -274,16 +274,24 @@ window.addEventListener('DOMContentLoaded', async () => {
     const { data:{ session } } = await db.auth.getSession();
     if (!session) { window.location.href = '/login'; return; }
 
-    const { data: empresa } = await db.from('empresas').select('id,nombre,email,planes(nombre)').eq('email', session.user.email).maybeSingle();
+    const { data: empresa } = await db.from('empresas').select('id,nombre,email,estado,planes(nombre)').eq('email', session.user.email).maybeSingle();
     if (!empresa) { window.location.href = '/dashboard'; return; }
 
     const planNombre = empresa.planes?.nombre || 'basico';
-    if (!['profesional','premium','corporativo'].includes(planNombre)) {
+    const planCalifica = ['profesional','premium','corporativo'].includes(planNombre);
+    const pagoActivo = empresa.estado === 'activo';
+    if (!planCalifica || !pagoActivo) {
         document.getElementById('crmBloqueado').style.display  = 'block';
         document.getElementById('crmContenido').style.display  = 'none';
         document.getElementById('sidebarAvatar').textContent  = empresa.nombre?.[0]?.toUpperCase() || '?';
         document.getElementById('sidebarNombre').textContent  = empresa.nombre || 'Mi negocio';
         document.getElementById('sidebarEmail').textContent   = empresa.email || '';
+        if (planCalifica && !pagoActivo) {
+            document.getElementById('crmBloqueado').innerHTML = `
+                <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:12px;padding:20px 24px;font-size:14px;color:#FCD34D;">
+                    ⏳ Tu plan ya incluye el <strong>CRM de Clientes</strong>, está pendiente de activación por pago.
+                </div>`;
+        }
         const btnVisor = document.getElementById('navVisor3D');
         btnVisor.onclick = () => alert('⚠️ El Visor 3D está disponible desde el plan Profesional. Ve a "Mi Plan" para actualizar.');
         btnVisor.style.opacity = '0.5';
