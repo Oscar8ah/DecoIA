@@ -210,6 +210,7 @@
 <div class="tabs-principales">
     <button class="tab-vista active" id="tabPlanta" onclick="cambiarVista('planta')">📐 Editor Planta</button>
     <button class="tab-vista" id="tab3d" onclick="cambiarVista('3d')">🏗️ Entorno 3D</button>
+    <button class="tab-vista" id="tabRecorrido" onclick="cambiarVista('recorrido')">🎬 Recorrido</button>
     <button class="tab-vista" id="tabFoto" onclick="cambiarVista('foto')">📸 Foto IA</button>
 </div>
 <!-- TOOLBAR EDITOR PLANTA — visible solo en pestaña planta -->
@@ -228,6 +229,19 @@
         <button onclick="limpiarPlanta()" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#FCA5A5;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🗑️ Limpiar</button>
         <button onclick="generarDesdePlanta()" style="background:var(--degradado);color:white;border:none;padding:5px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">✨ Generar 3D</button>
     </div>
+</div>
+<!-- TOOLBAR RECORRIDO — visible solo en pestaña recorrido -->
+<div id="toolbarRecorrido" style="display:none;position:fixed;top:100px;left:0;width:220px;flex-direction:column;z-index:500;background:var(--oscuro2);border-right:1px solid rgba(124,58,237,0.2);padding:12px;gap:8px;height:calc(100vh - 100px);overflow-y:auto;">
+    <div style="font-size:11px;font-weight:700;color:#A78BFA;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;padding-bottom:8px;border-bottom:1px solid rgba(124,58,237,0.2);">🎬 Grabar recorrido</div>
+    <div style="font-size:12px;color:var(--gris);line-height:1.6;margin-bottom:4px;">Camina con W A S D (Q/E sube/baja) mientras grabas. El recorrido queda guardado con la posición exacta de la cámara.</div>
+    <button id="btnGrabarRecorrido" onclick="toggleGrabarRecorrido()" style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);color:#FCA5A5;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">⏺ Grabar recorrido</button>
+    <button id="btnMarcarZona" onclick="marcarZonaActual()" disabled style="background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;opacity:0.5;">📍 Marcar zona aquí</button>
+    <div style="border-top:1px solid rgba(124,58,237,0.15);margin-top:6px;padding-top:8px;display:flex;flex-direction:column;gap:6px;">
+        <button id="btnReproducirRecorrido" onclick="reproducirRecorrido()" disabled style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:#6EE7B7;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;opacity:0.5;">▶ Reproducir</button>
+        <button id="btnDescargarVideo" onclick="descargarVideoRecorrido()" disabled style="background:var(--degradado);color:white;border:none;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;opacity:0.5;">🎥 Descargar video (.webm)</button>
+        <button id="btnDescargarJSON" onclick="descargarJSONRecorrido()" disabled style="background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.2);color:var(--gris);padding:6px 12px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;opacity:0.5;">⬇ Descargar datos (.json)</button>
+    </div>
+    <div id="listaZonasRecorrido" style="border-top:1px solid rgba(124,58,237,0.15);margin-top:6px;padding-top:8px;display:flex;flex-direction:column;gap:6px;font-size:12px;"></div>
 </div>
 <!-- Badge modo arrastrar -->
 <div class="modo-badge" id="modoBadge">🖱️ Haz clic en el mueble y arrástralo · ESC para salir</div>
@@ -2311,12 +2325,21 @@ window.addEventListener('resize',onResize);
 function animate() {
     requestAnimationFrame(animate);
     procesarMovimientoWASD();   // ← movimiento suave por frame
+    procesarGrabacionRecorrido(); // ← muestrea la cámara si se está grabando un recorrido
     controls.update();
     renderer.render(scene,camera);
 }
 
 // ── PESTAÑAS ──────────────────────────────────────────────────────────────
 let vistaActual='3d', fotoIaUrl=null, salaConstruida=false;
+
+// ── RECORRIDO DE CÁMARA — estado (declarado aquí, antes de la primera
+// llamada a cambiarVista más abajo, para evitar error de inicialización) ──
+let grabandoRecorrido      = false;
+let recorridoFrames        = [];  // [{t, x,y,z, qx,qy,qz,qw}]
+let zonasRecorrido         = [];  // [{t, texto}]
+let tiempoInicioGrabacion  = 0;
+let reproduciendoRecorrido = false;
 
 configurarLuces();
 requestAnimationFrame(()=>{ centrarCamara(); animate(); });
@@ -2338,17 +2361,169 @@ function cambiarVista(vista) {
     document.getElementById('tab3d').classList.toggle('active',    vista==='3d');
     document.getElementById('tabFoto').classList.toggle('active',  vista==='foto');
     document.getElementById('tabPlanta').classList.toggle('active',vista==='planta');
+    document.getElementById('tabRecorrido').classList.toggle('active',vista==='recorrido');
     document.getElementById('toolbarPlanta').style.display=vista==='planta'?'flex':'none';
-    document.getElementById('toolbarPlanta').style.display = vista==='planta' ? 'flex' : 'none';
-    canvas.style.display=vista==='3d'?'block':'none';
+    document.getElementById('toolbarRecorrido').style.display=vista==='recorrido'?'flex':'none';
+    canvas.style.display=(vista==='3d'||vista==='recorrido')?'block':'none';
     document.getElementById('vistaFoto').style.display=vista==='foto'?'flex':'none';
     document.getElementById('vistaPlanta').style.display=vista==='planta'?'flex':'none';
-    document.getElementById('entorno3dVacio').style.display=(vista==='3d' && !salaConstruida)?'flex':'none';
+    document.getElementById('entorno3dVacio').style.display=((vista==='3d'||vista==='recorrido') && !salaConstruida)?'flex':'none';
     if (vista==='foto' && fotoIaUrl) {
         document.getElementById('fotoIaContenido').innerHTML=`<div class="foto-ia-container"><img src="${esc(fotoIaUrl)}" alt="Foto generada por IA"></div>`;
         document.getElementById('btnEnviarCliente').style.display='flex';
     }
     if (vista==='planta') iniciarEditorPlanta();
+    if (vista!=='recorrido' && grabandoRecorrido) toggleGrabarRecorrido(); // seguridad: no seguir grabando si sale de la pestaña
+}
+
+// ── RECORRIDO DE CÁMARA (Etapa 1 del módulo de video con IA) ───────────────
+// Graba la posición/rotación real de la cámara mientras el usuario camina con
+// WASD por el modelo 3D ya generado. No usa IA todavía — es la base sobre la
+// que luego se conecta el editor de nodos por zona y la mejora con IA.
+// (El estado — grabandoRecorrido, recorridoFrames, etc. — se declaró arriba,
+// junto a vistaActual, para que esté listo antes de la primera llamada a
+// cambiarVista al cargar la página.)
+
+function toggleGrabarRecorrido() {
+    const btn = document.getElementById('btnGrabarRecorrido');
+    if (!salaConstruida) { mostrarToast('⚠️ Primero genera un modelo 3D en Editor Planta'); return; }
+    grabandoRecorrido = !grabandoRecorrido;
+    if (grabandoRecorrido) {
+        recorridoFrames = [];
+        zonasRecorrido   = [];
+        tiempoInicioGrabacion = performance.now();
+        btn.textContent = '⏹ Detener grabación';
+        btn.style.background = 'rgba(16,185,129,0.2)';
+        btn.style.borderColor = 'rgba(16,185,129,0.5)';
+        btn.style.color = '#6EE7B7';
+        document.getElementById('btnMarcarZona').disabled = false;
+        document.getElementById('btnMarcarZona').style.opacity = '1';
+        mostrarToast('⏺ Grabando — camina con W A S D por el modelo');
+    } else {
+        btn.textContent = '⏺ Grabar recorrido';
+        btn.style.background = 'rgba(239,68,68,0.15)';
+        btn.style.borderColor = 'rgba(239,68,68,0.4)';
+        btn.style.color = '#FCA5A5';
+        document.getElementById('btnMarcarZona').disabled = true;
+        document.getElementById('btnMarcarZona').style.opacity = '0.5';
+        const hayFrames = recorridoFrames.length > 1;
+        ['btnReproducirRecorrido','btnDescargarVideo','btnDescargarJSON'].forEach(id => {
+            document.getElementById(id).disabled = !hayFrames;
+            document.getElementById(id).style.opacity = hayFrames ? '1' : '0.5';
+        });
+        if (hayFrames) mostrarToast(`✅ Recorrido guardado (${(recorridoFrames.at(-1).t/1000).toFixed(1)}s, ${zonasRecorrido.length} zonas marcadas)`);
+    }
+}
+
+function procesarGrabacionRecorrido() {
+    if (!grabandoRecorrido) return;
+    const t = performance.now() - tiempoInicioGrabacion;
+    // Muestrea ~10 veces por segundo — suficiente para un recorrido suave sin
+    // guardar miles de puntos innecesarios.
+    if (recorridoFrames.length && t - recorridoFrames.at(-1).t < 100) return;
+    const p = camera.position, q = camera.quaternion;
+    recorridoFrames.push({ t, x:p.x, y:p.y, z:p.z, qx:q.x, qy:q.y, qz:q.z, qw:q.w });
+}
+
+function marcarZonaActual() {
+    if (!grabandoRecorrido) return;
+    const texto = prompt('¿Qué zona es esta? (ej: "Sala — luz cálida, estilo moderno")', '');
+    if (!texto) return;
+    const t = performance.now() - tiempoInicioGrabacion;
+    zonasRecorrido.push({ t, texto });
+    renderListaZonasRecorrido();
+    mostrarToast(`📍 Zona marcada: ${texto}`);
+}
+
+function renderListaZonasRecorrido() {
+    const cont = document.getElementById('listaZonasRecorrido');
+    if (!zonasRecorrido.length) { cont.innerHTML = ''; return; }
+    cont.innerHTML = `<div style="font-size:11px;font-weight:700;color:#A78BFA;text-transform:uppercase;margin-bottom:4px;">Zonas marcadas</div>` +
+        zonasRecorrido.map((z,i) => `<div style="background:rgba(124,58,237,0.08);border-radius:6px;padding:6px 8px;">
+            <div style="color:var(--gris);font-size:10px;">${(z.t/1000).toFixed(1)}s</div>
+            <div style="color:var(--texto);">${esc(z.texto)}</div>
+        </div>`).join('');
+}
+
+async function reproducirRecorrido() {
+    if (reproduciendoRecorrido || recorridoFrames.length < 2) return;
+    reproduciendoRecorrido = true;
+    controls.enabled = false;
+    const inicio = performance.now();
+    const duracion = recorridoFrames.at(-1).t;
+    await new Promise(resolve => {
+        function paso() {
+            const t = performance.now() - inicio;
+            aplicarFrameRecorrido(t);
+            if (t < duracion) requestAnimationFrame(paso);
+            else resolve();
+        }
+        requestAnimationFrame(paso);
+    });
+    controls.enabled = true;
+    reproduciendoRecorrido = false;
+}
+
+function aplicarFrameRecorrido(t) {
+    // Busca los dos frames grabados más cercanos a t e interpola entre ellos
+    // para que la reproducción se vea suave aunque se haya grabado a ~10fps.
+    let i = 0;
+    while (i < recorridoFrames.length - 1 && recorridoFrames[i+1].t < t) i++;
+    const a = recorridoFrames[i], b = recorridoFrames[Math.min(i+1, recorridoFrames.length-1)];
+    const rango = Math.max(1, b.t - a.t);
+    const f = Math.min(1, Math.max(0, (t - a.t) / rango));
+    camera.position.set(
+        a.x + (b.x - a.x) * f,
+        a.y + (b.y - a.y) * f,
+        a.z + (b.z - a.z) * f,
+    );
+    const qa = new THREE.Quaternion(a.qx, a.qy, a.qz, a.qw);
+    const qb = new THREE.Quaternion(b.qx, b.qy, b.qz, b.qw);
+    camera.quaternion.slerpQuaternions(qa, qb, f);
+}
+
+async function descargarVideoRecorrido() {
+    if (recorridoFrames.length < 2) return;
+    const btn = document.getElementById('btnDescargarVideo');
+    btn.disabled = true;
+    btn.innerHTML = '<span style="display:inline-block;width:10px;height:10px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:6px;"></span>Grabando video...';
+    try {
+        const stream = canvas.captureStream(30);
+        const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm';
+        const grabador = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 6_000_000 });
+        const chunks = [];
+        grabador.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+        const terminado = new Promise(resolve => grabador.onstop = resolve);
+        grabador.start();
+        await reproducirRecorrido();
+        grabador.stop();
+        await terminado;
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `recorrido_decoiarte_${Date.now()}.webm`;
+        a.click();
+        URL.revokeObjectURL(url);
+        mostrarToast('✅ Video del recorrido descargado');
+    } catch (e) {
+        console.error(e);
+        mostrarToast('❌ No se pudo grabar el video. Prueba en Chrome o Edge.');
+    }
+    btn.disabled = false;
+    btn.innerHTML = '🎥 Descargar video (.webm)';
+}
+
+function descargarJSONRecorrido() {
+    if (recorridoFrames.length < 2) return;
+    const data = { frames: recorridoFrames, zonas: zonasRecorrido, generado: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `recorrido_decoiarte_${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
 }
 // ── CAPTURAR + IA ─────────────────────────────────────────────────────────
 async function capturarYGenerarIA() {
