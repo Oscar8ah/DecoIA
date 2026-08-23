@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import secrets
 import httpx
 from fastapi import APIRouter, Request, HTTPException, Depends, BackgroundTasks
 from fastapi.responses import PlainTextResponse
@@ -373,7 +374,10 @@ async def procesar_imagen_background(
                 settings, pid_envio
             )
 
-            session_id = f"{sender}_{int(datetime.now().timestamp())}"
+            # Token aleatorio real (no adivinable) — antes era teléfono+timestamp,
+            # lo cual permitía a alguien más insertar selecciones falsas si
+            # conocía o adivinaba el número y la hora aproximada de uso.
+            session_id = secrets.token_urlsafe(24)
             estado_usuarios[sender] = {
                 "modo":              "plano_analizado",
                 "session_id":        session_id,
@@ -464,7 +468,8 @@ async def procesar_imagen_background(
                 settings, pid_envio
             )
 
-            session_id   = f"{sender}_{int(datetime.now().timestamp())}"
+            # Mismo fix que en el flujo de plano: token aleatorio real.
+            session_id   = secrets.token_urlsafe(24)
             url_selector = url_selector_base or f"{BASE_URL}/remodelar"
 
             estado_usuarios[sender] = {
