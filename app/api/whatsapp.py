@@ -559,12 +559,14 @@ async def receive_message(
             tienda_ctx   = (tiendas_ctx[0] if isinstance(tiendas_ctx, list) and tiendas_ctx else tiendas_ctx) or None
             pid_envio    = empresa_ctx.get("whatsapp_phone_number_id") or None
             asesor_ctx   = empresa_ctx.get("whatsapp_numero_solicitado") or ASESOR_NUMERO
-            url_selector_base = f"{BASE_URL}/remodelar?tienda={tienda_ctx['id']}" if tienda_ctx else f"{BASE_URL}/remodelar"
+            # ?tel= identifica al cliente en remodelar.html sin depender del
+            # session_id (que ahora es un token aleatorio, no adivinable).
+            url_selector_base = f"{BASE_URL}/remodelar?tienda={tienda_ctx['id']}&tel={sender}" if tienda_ctx else f"{BASE_URL}/remodelar?tel={sender}"
             logger.info(f"Mensaje de {sender} identificado como cliente de la empresa '{empresa_ctx.get('nombre')}'")
         else:
             pid_envio    = None  # usa el número global/demo de settings
             asesor_ctx   = ASESOR_NUMERO
-            url_selector_base = f"{BASE_URL}/remodelar"
+            url_selector_base = f"{BASE_URL}/remodelar?tel={sender}"
 
         # ── BOTONES INTERACTIVOS ──────────────────────────────────────────
         if msg_type == "interactive":

@@ -330,6 +330,7 @@
                     </div>
                     <div class="ct-total"><span>Total</span><span id="totalTexto">$0</span></div>
                     <button class="btn-pagar" onclick="irAPagar()">💳 Pagar y desbloquear imagen</button>
+                    <button id="btnHablarAsesorCarrito" onclick="hablarConAsesorDesdeCarrito()" style="width:100%;margin-top:8px;background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;padding:10px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">👨‍💼 Prefiero hablar con un asesor</button>
                 </div>
             </div>
 
@@ -842,7 +843,60 @@ window.addEventListener('DOMContentLoaded', async () => {
     // preseleccionar esa tienda en vez de mostrarle el listado genérico
     const tiendaParam = new URLSearchParams(window.location.search).get('tienda');
     if (tiendaParam) await selTienda(tiendaParam);
+
+    // Teléfono del cliente (si llegó desde WhatsApp) — para poder avisarle
+    // al asesor quién es cuando pide hablar en vez de pagar directo.
+    clienteTelefono = new URLSearchParams(window.location.search).get('tel') || '';
 });
+
+let clienteTelefono = '';
+
+async function hablarConAsesorDesdeCarrito() {
+    const btn = document.getElementById('btnHablarAsesorCarrito');
+    // La tienda del carrito: si el cliente venía viendo "todas", tomamos la
+    // tienda real del primer producto que agregó (cada producto ya trae su
+    // tienda_id porque viene de un select('*') sobre la tabla productos).
+    const tiendaParaAsesor = (tiendaActiva && tiendaActiva !== 'todas')
+        ? tiendaActiva
+        : carrito[0]?.tienda_id;
+
+    if (!tiendaParaAsesor) {
+        toast('⚠️ Elige al menos un producto o una tienda antes de hablar con un asesor');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Avisando al asesor...';
+
+    try {
+        const response = await fetch('https://decoia.onrender.com/notificar-carrito-asesor', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                tienda_id: tiendaParaAsesor,
+                cliente_telefono: clienteTelefono,
+                items: carrito.map(p => ({ nombre: p.nombre, precio: Number(p.precio) || 0, unidad: p.unidad || '' })),
+                imagen_render_url: resultadoUrl || '',
+            })
+        });
+        if (!response.ok) throw new Error('No se pudo avisar al asesor');
+        const data = await response.json();
+
+        toast('✅ ¡Listo! Un asesor te va a contactar pronto');
+        btn.innerHTML = '✅ Asesor avisado';
+        if (data.asesor_numero) {
+            setTimeout(() => {
+                btn.innerHTML = `<a href="https://wa.me/${data.asesor_numero}" target="_blank" style="color:inherit;text-decoration:none;">💬 Escribirle ya por WhatsApp →</a>`;
+                btn.disabled = false;
+            }, 1200);
+        }
+    } catch (e) {
+        console.error(e);
+        toast('❌ No se pudo avisar al asesor. Intenta de nuevo.');
+        btn.disabled = false;
+        btn.textContent = '👨‍💼 Prefiero hablar con un asesor';
+    }
+}
 </script>
 </body>
 </html>
