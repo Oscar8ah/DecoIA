@@ -638,19 +638,28 @@ async def receive_message(
                     user_state = estado_usuarios.get(sender, {})
                     pid_conv   = user_state.get("pid_envio", pid_envio)
                     asesor_conv = user_state.get("asesor", asesor_ctx)
-                    if user_state.get("url_foto_generada"):
-                        await notificar_asesor(
-                            cliente_tel=sender,
-                            tipo_trabajo=user_state.get("tipo_trabajo", "consulta"),
-                            producto_nombre="Sin producto elegido — contacto directo",
-                            producto_precio=0,
-                            producto_categoria="",
-                            url_foto_original=user_state.get("url_foto_original", ""),
-                            url_foto_generada=user_state.get("url_foto_generada", ""),
-                            settings=settings,
-                            asesor_numero=asesor_conv,
-                            phone_number_id=pid_conv,
-                        )
+
+                    # Siempre avisar al asesor, tenga o no una imagen generada.
+                    # Antes solo avisaba si ya existía "url_foto_generada", así
+                    # que un cliente que tocaba "Asesor" directo desde el menú
+                    # principal (sin mandar foto todavía) generaba un lead que
+                    # nunca le llegaba a nadie — se perdía en silencio.
+                    tiene_contexto = bool(user_state.get("url_foto_generada"))
+                    await notificar_asesor(
+                        cliente_tel=sender,
+                        tipo_trabajo=user_state.get("tipo_trabajo", "consulta general (aún no compartió foto)"),
+                        producto_nombre=(
+                            "Sin producto elegido — contacto directo" if tiene_contexto
+                            else "Pidió hablar con asesor directo desde el menú (sin foto compartida aún)"
+                        ),
+                        producto_precio=0,
+                        producto_categoria="",
+                        url_foto_original=user_state.get("url_foto_original", ""),
+                        url_foto_generada=user_state.get("url_foto_generada", ""),
+                        settings=settings,
+                        asesor_numero=asesor_conv,
+                        phone_number_id=pid_conv,
+                    )
 
                     # Limpiar estado al ir con asesor
                     if sender in estado_usuarios:
