@@ -14,7 +14,7 @@ async def tiene_fotos_disponibles(empresa_id: str) -> bool:
         return False
     try:
         supabase = get_supabase()
-        r = supabase.table("empresas").select("fotos_disponibles").eq("id", empresa_id).maybeSingle().execute()
+        r = supabase.table("empresas").select("fotos_disponibles").eq("id", empresa_id).maybe_single().execute()
         if not r.data:
             return False
         return (r.data.get("fotos_disponibles") or 0) > 0
@@ -34,7 +34,7 @@ async def descontar_foto(empresa_id: str) -> None:
         return
     try:
         supabase = get_supabase()
-        r = supabase.table("empresas").select("fotos_disponibles, fotos_usadas").eq("id", empresa_id).maybeSingle().execute()
+        r = supabase.table("empresas").select("fotos_disponibles, fotos_usadas").eq("id", empresa_id).maybe_single().execute()
         if not r.data:
             return
         disponibles = max(0, (r.data.get("fotos_disponibles") or 0) - 1)

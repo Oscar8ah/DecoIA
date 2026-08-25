@@ -65,7 +65,7 @@ async def notificar_carrito_asesor(data: SolicitudAsesorRequest, request: Reques
 
     r = supabase.table("tiendas") \
         .select("id, nombre, empresa_id, empresas(id, nombre, whatsapp_numero_solicitado, whatsapp_phone_number_id, planes(nombre))") \
-        .eq("id", data.tienda_id).maybeSingle().execute()
+        .eq("id", data.tienda_id).maybe_single().execute()
 
     if not r.data:
         raise HTTPException(status_code=404, detail="Tienda no encontrada.")

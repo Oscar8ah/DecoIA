@@ -95,7 +95,7 @@ async def _procesar_pago_cambio_plan(referencia: str, monto_cop: float, metodo: 
             empresa_id_partial = partes[1]
             r = supabase.table("empresas").select(
                 "id, nombre, email, fotos_usadas"
-            ).ilike("id", f"{empresa_id_partial}%").maybeSingle().execute()
+            ).ilike("id", f"{empresa_id_partial}%").maybe_single().execute()
             empresa = r.data
     except Exception as e:
         logger.error(f"Error buscando empresa para cambio de plan: {e}")
@@ -111,7 +111,7 @@ async def _procesar_pago_cambio_plan(referencia: str, monto_cop: float, metodo: 
         r = supabase.table("solicitudes_plan").select(
             "id, plan_solicitado_id"
         ).eq("empresa_id", empresa_id).eq("estado", "pagando") \
-         .order("created_at", desc=True).limit(1).maybeSingle().execute()
+         .order("created_at", desc=True).limit(1).maybe_single().execute()
         solicitud = r.data
     except Exception as e:
         logger.error(f"Error buscando solicitud de cambio de plan: {e}")
@@ -122,7 +122,7 @@ async def _procesar_pago_cambio_plan(referencia: str, monto_cop: float, metodo: 
 
     plan_nuevo = None
     try:
-        r = supabase.table("planes").select("id, nombre, fotos_incluidas").eq("id", solicitud["plan_solicitado_id"]).maybeSingle().execute()
+        r = supabase.table("planes").select("id, nombre, fotos_incluidas").eq("id", solicitud["plan_solicitado_id"]).maybe_single().execute()
         plan_nuevo = r.data
     except Exception as e:
         logger.error(f"Error buscando plan nuevo: {e}")
@@ -265,7 +265,7 @@ async def webhook_wompi(
                 # Buscar tienda que empiece con ese ID
                 r = supabase.table("tiendas").select(
                     "id, nombre, empresa_id"
-                ).ilike("id", f"{tienda_id_partial}%").maybeSingle().execute()
+                ).ilike("id", f"{tienda_id_partial}%").maybe_single().execute()
 
                 if r.data:
                     empresa_id    = r.data.get("empresa_id")

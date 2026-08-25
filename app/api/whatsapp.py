@@ -130,7 +130,7 @@ async def obtener_slug_tienda(empresa_id: str = None) -> str:
         return TIENDA_DEMO_SLUG
     try:
         supabase = get_supabase()
-        r = supabase.table("tiendas").select("slug").eq("empresa_id", empresa_id).eq("activa", True).maybeSingle().execute()
+        r = supabase.table("tiendas").select("slug").eq("empresa_id", empresa_id).eq("activa", True).maybe_single().execute()
         return r.data["slug"] if r.data else TIENDA_DEMO_SLUG
     except Exception:
         return TIENDA_DEMO_SLUG
@@ -151,7 +151,7 @@ async def resolver_empresa_por_phone_id(phone_number_id: str):
         supabase = get_supabase()
         r = supabase.table("empresas") \
             .select("id, nombre, whatsapp_phone_number_id, whatsapp_numero_solicitado, planes(nombre), tiendas(id, slug, nombre)") \
-            .eq("whatsapp_phone_number_id", phone_number_id).maybeSingle().execute()
+            .eq("whatsapp_phone_number_id", phone_number_id).maybe_single().execute()
         if not r.data:
             return None
         plan_nombre = (r.data.get("planes") or {}).get("nombre")

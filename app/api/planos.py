@@ -44,7 +44,7 @@ async def analizar_plano_arquitectonico(
     supabase = get_supabase()
 
     # ── Verificar plan Corporativo server-side (no confiar solo en el frontend) ──
-    empresa_res = supabase.table("empresas").select("id, planes(nombre)").eq("id", empresa_id).maybeSingle().execute()
+    empresa_res = supabase.table("empresas").select("id, planes(nombre)").eq("id", empresa_id).maybe_single().execute()
     if not empresa_res.data:
         raise HTTPException(status_code=404, detail="Empresa no encontrada.")
     plan_nombre = (empresa_res.data.get("planes") or {}).get("nombre", "basico")
