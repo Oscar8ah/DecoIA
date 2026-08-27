@@ -2706,8 +2706,10 @@ let dibujandoConexionDesde = null;
 function nuevoIdNodo() { return 'n_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7); }
 
 function posicionAutoNodo(indice) {
+    // Empieza más abajo y más a la izquierda — la mini-pantalla vive fija
+    // arriba a la derecha del lienzo, así los nodos nunca nacen tapados.
     const col = indice % 4, fila = Math.floor(indice / 4);
-    return { x: 40 + col * 210, y: 30 + fila * 150 };
+    return { x: 40 + col * 210, y: 300 + fila * 150 };
 }
 
 function todosLosNodos() {
@@ -2887,19 +2889,31 @@ async function reproducirRecorrido() {
     actualizarBotonReproducir(true);
     const inicio = performance.now();
     const duracion = recorridoFrames.at(-1).t;
-    await new Promise(resolve => {
-        function paso() {
-            const t = performance.now() - inicio;
-            aplicarFrameRecorrido(t);
-            if (t < duracion && !detenerReproduccionSolicitado) requestAnimationFrame(paso);
-            else resolve();
-        }
-        requestAnimationFrame(paso);
-    });
-    marcadorCamara.visible = false;
-    reproduciendoRecorrido = false;
-    detenerReproduccionSolicitado = false;
-    actualizarBotonReproducir(false);
+    try {
+        await new Promise((resolve, reject) => {
+            function paso() {
+                try {
+                    const t = performance.now() - inicio;
+                    aplicarFrameRecorrido(t);
+                    if (t < duracion && !detenerReproduccionSolicitado) requestAnimationFrame(paso);
+                    else resolve();
+                } catch (err) {
+                    reject(err);
+                }
+            }
+            requestAnimationFrame(paso);
+        });
+    } catch (err) {
+        console.error('❌ Error reproduciendo el recorrido — se detuvo automáticamente:', err);
+        mostrarToast('❌ Error reproduciendo — revisa la consola (F12)');
+    } finally {
+        // Pase lo que pase (incluso si algo falla a mitad de la reproducción),
+        // el estado SIEMPRE se libera — así "Detener" nunca queda pegado.
+        marcadorCamara.visible = false;
+        reproduciendoRecorrido = false;
+        detenerReproduccionSolicitado = false;
+        actualizarBotonReproducir(false);
+    }
 }
 
 function detenerReproduccion() {
@@ -2951,18 +2965,29 @@ async function reproducirSegmentoNodo(nodoId) {
     marcadorCamara.visible = true;
     actualizarBotonReproducir(true);
     const tInicioReal = performance.now();
-    await new Promise(resolve => {
-        function paso() {
-            const t = inicioSeg + (performance.now() - tInicioReal);
-            aplicarFrameRecorrido(t);
-            if (t < finSeg && !detenerReproduccionSolicitado) requestAnimationFrame(paso);
-            else resolve();
-        }
-        requestAnimationFrame(paso);
-    });
-    marcadorCamara.visible = false;
-    reproduciendoRecorrido = false;
-    actualizarBotonReproducir(false);
+    try {
+        await new Promise((resolve, reject) => {
+            function paso() {
+                try {
+                    const t = inicioSeg + (performance.now() - tInicioReal);
+                    aplicarFrameRecorrido(t);
+                    if (t < finSeg && !detenerReproduccionSolicitado) requestAnimationFrame(paso);
+                    else resolve();
+                } catch (err) {
+                    reject(err);
+                }
+            }
+            requestAnimationFrame(paso);
+        });
+    } catch (err) {
+        console.error('❌ Error reproduciendo el nodo — se detuvo automáticamente:', err);
+        mostrarToast('❌ Error reproduciendo — revisa la consola (F12)');
+    } finally {
+        marcadorCamara.visible = false;
+        reproduciendoRecorrido = false;
+        detenerReproduccionSolicitado = false;
+        actualizarBotonReproducir(false);
+    }
 }
 
 function actualizarBotonReproducir(reproduciendo) {
