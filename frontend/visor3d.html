@@ -1140,17 +1140,22 @@ if (canvasPreviewEl) {
 // Camarita 3D — un cuerpo + un "lente" cónico apuntando hacia adelante, para
 // ver de un vistazo hacia dónde está grabando en cada instante.
 const marcadorCamara = new THREE.Group();
-const cuerpoMarcador = new THREE.Mesh(
-    new THREE.BoxGeometry(0.16, 0.12, 0.14),
-    new THREE.MeshStandardMaterial({ color: 0xFCD34D, emissive: 0x7C3AED, emissiveIntensity: 0.3 })
-);
-const lenteMarcador = new THREE.Mesh(
-    new THREE.ConeGeometry(0.07, 0.16, 12),
-    new THREE.MeshStandardMaterial({ color: 0x7C3AED, emissive: 0x7C3AED, emissiveIntensity: 0.5 })
-);
-lenteMarcador.rotation.x = -Math.PI / 2;  // el cono apunta en -Z ("adelante" para una cámara en Three.js)
-lenteMarcador.position.z = -0.14;
-marcadorCamara.add(cuerpoMarcador, lenteMarcador);
+const matCuerpoCam  = new THREE.MeshStandardMaterial({ color: 0x1F2937, emissive: 0x7C3AED, emissiveIntensity: 0.25, metalness: 0.4, roughness: 0.5 });
+const matDetalleCam = new THREE.MeshStandardMaterial({ color: 0xFCD34D, emissive: 0xFCD34D, emissiveIntensity: 0.6 });
+const matLuzCam      = new THREE.MeshStandardMaterial({ color: 0xEF4444, emissive: 0xEF4444, emissiveIntensity: 1.8 });
+
+const cuerpoCam = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.15, 0.16), matCuerpoCam);
+const lenteCam  = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.065, 0.14, 20), matDetalleCam);
+lenteCam.rotation.x = Math.PI / 2;
+lenteCam.position.z = -0.15;
+const anilloLenteCam = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.012, 8, 20), matDetalleCam);
+anilloLenteCam.rotation.x = Math.PI / 2;
+anilloLenteCam.position.z = -0.21;
+const visorCam = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.06, 0.08), matCuerpoCam);
+visorCam.position.set(0, 0.105, 0.02);
+const luzGrabandoCam = new THREE.Mesh(new THREE.SphereGeometry(0.016, 8, 8), matLuzCam);
+luzGrabandoCam.position.set(0.09, 0.08, 0.05);
+marcadorCamara.add(cuerpoCam, lenteCam, anilloLenteCam, visorCam, luzGrabandoCam);
 marcadorCamara.visible = false;
 scene.add(marcadorCamara);
 const planoArrastre = new THREE.Plane(new THREE.Vector3(0,1,0), 0); // plano Y=0
@@ -2923,7 +2928,7 @@ function detenerReproduccion() {
 async function enviarAProduccion() {
     if (recorridoFrames.length < 2) { mostrarToast('⚠️ Graba o dibuja un recorrido primero'); return; }
     const { tiendaId, empresaId } = await obtenerContextoTiendaParaRecorrido();
-    if (!tiendaId) { mostrarToast('⚠️ Inicia sesión con tu cuenta de tienda'); return; }
+    if (!tiendaId) { mostrarToast('⚠️ Primero crea tu tienda en el Dashboard — esto necesita una tienda real, no el modo demo'); return; }
 
     const nombre = prompt('Nombre para enviar a producción (aparecerá en Editor de video):', `Recorrido ${new Date().toLocaleDateString('es-CO')}`);
     if (nombre === null) return;
@@ -3128,7 +3133,7 @@ function actualizarCandadoEditorVideo() {
 async function cargarClipsDisponiblesEditor() {
     const cont = document.getElementById('listaClipsDisponibles');
     const { tiendaId } = await obtenerContextoTiendaParaRecorrido();
-    if (!tiendaId) { cont.innerHTML = `<div style="color:var(--gris);font-size:12px;">Inicia sesión con tu cuenta de tienda para ver tus clips.</div>`; return; }
+    if (!tiendaId) { cont.innerHTML = `<div style="color:var(--gris);font-size:12px;">Primero crea tu tienda en el Dashboard para ver tus clips.</div>`; return; }
 
     const { data, error } = await db.from('recorridos_camara')
         .select('id,nombre,duracion_ms,created_at')
@@ -3256,7 +3261,7 @@ async function obtenerContextoTiendaParaRecorrido() {
 async function guardarRecorridoEnSupabase() {
     if (recorridoFrames.length < 2) return;
     const { tiendaId, empresaId } = await obtenerContextoTiendaParaRecorrido();
-    if (!tiendaId) { mostrarToast('⚠️ Inicia sesión con tu cuenta de tienda para guardar recorridos'); return; }
+    if (!tiendaId) { mostrarToast('⚠️ Primero crea tu tienda en el Dashboard — esto necesita una tienda real, no el modo demo'); return; }
 
     const nombre = prompt('Nombre para este recorrido (ej: "Apartamento 501 - recorrido sala-comedor")', '');
     if (nombre === null) return; // canceló
