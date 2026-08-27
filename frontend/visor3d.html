@@ -267,6 +267,10 @@
     <div id="contenidoRecorridoReal" style="display:flex;flex-direction:column;gap:8px;">
     <div style="font-size:11px;font-weight:700;color:#A78BFA;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;padding-bottom:8px;border-bottom:1px solid rgba(124,58,237,0.2);">🔗 Nodos</div>
     <div style="font-size:11.5px;color:var(--gris);line-height:1.5;">Graba o dibuja el recorrido en <b style="color:#A78BFA;">🏗️ Entorno 3D</b>. Aquí arrastras los nodos, los conectas con flechas, y les asignas su orden.</div>
+    <div style="border:1px solid rgba(124,58,237,0.3);border-radius:8px;overflow:hidden;background:#000;">
+        <canvas id="canvasPreviewNodos" width="196" height="140" style="width:100%;display:block;"></canvas>
+        <div style="font-size:9.5px;color:var(--gris);text-align:center;padding:3px;background:rgba(124,58,237,0.1);">👁️ Vista por dentro (en vivo al reproducir)</div>
+    </div>
     <button id="btnAgregarReferencia" onclick="document.getElementById('inputReferenciaExterna').click()" style="width:100%;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);color:#FCD34D;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">🖼️ Agregar referencia externa</button>
     <input type="file" id="inputReferenciaExterna" accept="image/*,video/*" style="display:none;" onchange="subirReferenciaExterna(this.files[0])">
     <div style="font-size:10.5px;color:var(--gris);line-height:1.4;">Foto o video (ej: dron) que no viene del modelo 3D — se agrega como nodo aparte para conectar con los demás.</div>
@@ -461,6 +465,8 @@
 
     <div class="panel-section">
         <div class="panel-titulo">🏪 Portafolio de tu tienda</div>
+        <select id="selectorTiendaProductos" onchange="cambiarTiendaProductos(this.value)" style="display:none;width:100%;margin-bottom:12px;background:var(--oscuro);border:1px solid rgba(124,58,237,0.25);border-radius:8px;padding:8px 10px;color:var(--texto);font-size:12px;outline:none;">
+        </select>
         <div id="clienteSeleccion" style="display:none;">
             <div class="cliente-seleccion">
                 <div class="cliente-sel-img" id="clienteSelImg">📦</div>
@@ -1112,6 +1118,40 @@ controls.target.set(0, 1.4, 0);
 // ── RAYCASTER para drag & drop ────────────────────────────────────────────
 const raycaster  = new THREE.Raycaster();
 const mouse      = new THREE.Vector2();
+
+// ── MINI-PANTALLA "vista por dentro" (Nodos) + camarita marcadora (Entorno 3D) ──
+// Cámara y renderer SEPARADOS de la cámara principal — así el usuario puede
+// seguir orbitando libremente en Entorno 3D (viendo la camarita moverse por
+// afuera) mientras esta segunda cámara sí recorre el camino grabado en
+// primera persona, dibujando esa vista en un canvas chiquito aparte.
+const cameraPreview = new THREE.PerspectiveCamera(60, 196/140, 0.05, 100);
+let rendererPreview = null;
+const canvasPreviewEl = document.getElementById('canvasPreviewNodos');
+if (canvasPreviewEl) {
+    rendererPreview = new THREE.WebGLRenderer({ canvas: canvasPreviewEl, antialias: true });
+    rendererPreview.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    rendererPreview.setSize(196, 140, false);
+    rendererPreview.outputColorSpace = THREE.SRGBColorSpace;
+    rendererPreview.toneMapping = THREE.ACESFilmicToneMapping;
+    rendererPreview.toneMappingExposure = 1.15;
+}
+
+// Camarita 3D — un cuerpo + un "lente" cónico apuntando hacia adelante, para
+// ver de un vistazo hacia dónde está grabando en cada instante.
+const marcadorCamara = new THREE.Group();
+const cuerpoMarcador = new THREE.Mesh(
+    new THREE.BoxGeometry(0.16, 0.12, 0.14),
+    new THREE.MeshStandardMaterial({ color: 0xFCD34D, emissive: 0x7C3AED, emissiveIntensity: 0.3 })
+);
+const lenteMarcador = new THREE.Mesh(
+    new THREE.ConeGeometry(0.07, 0.16, 12),
+    new THREE.MeshStandardMaterial({ color: 0x7C3AED, emissive: 0x7C3AED, emissiveIntensity: 0.5 })
+);
+lenteMarcador.rotation.x = -Math.PI / 2;  // el cono apunta en -Z ("adelante" para una cámara en Three.js)
+lenteMarcador.position.z = -0.14;
+marcadorCamara.add(cuerpoMarcador, lenteMarcador);
+marcadorCamara.visible = false;
+scene.add(marcadorCamara);
 const planoArrastre = new THREE.Plane(new THREE.Vector3(0,1,0), 0); // plano Y=0
 const puntoArrastre = new THREE.Vector3();
 
@@ -1986,6 +2026,37 @@ async function cargarPlanBadge() {
     }
 }
 
+async function poblarSelectorTiendas(tiendaPropiaId) {
+    const sel = document.getElementById('selectorTiendaProductos');
+    if (!sel) return;
+    const { data: tiendas } = await db.from('tiendas').select('id,nombre').eq('activa', true).neq('plan_nombre', 'gratis').order('nombre');
+    if (!tiendas || tiendas.length <= 1) { sel.style.display = 'none'; return; }
+
+    sel.innerHTML =
+        `<option value="${tiendaPropiaId}">🏪 Mi tienda</option>` +
+        `<option value="todas">🌐 Todas las tiendas</option>` +
+        tiendas.filter(t => t.id !== tiendaPropiaId).map(t => `<option value="${t.id}">🛍️ ${esc(t.nombre)}</option>`).join('');
+    sel.value = tiendaPropiaId;
+    sel.style.display = 'block';
+}
+
+async function cambiarTiendaProductos(valor) {
+    let productos;
+    if (valor === 'todas') {
+        const { data: tiendas } = await db.from('tiendas').select('id').eq('activa', true).neq('plan_nombre', 'gratis');
+        const ids = (tiendas || []).map(t => t.id);
+        const { data } = await db.from('productos').select('*').in('tienda_id', ids).eq('activo', true).order('categoria');
+        productos = data;
+    } else {
+        const { data } = await db.from('productos').select('*').eq('tienda_id', valor).eq('activo', true).order('categoria');
+        productos = data;
+    }
+    todosProductos = productos || [];
+    if (todosProductos.length === 0) { mostrarEmptyPort('Esa tienda no tiene productos aún'); return; }
+    renderPortafolio(todosProductos);
+    mostrarToast(valor === 'todas' ? '🌐 Mostrando productos de todas las tiendas' : (valor === tiendaIdPropia ? '🏪 Mostrando tu tienda' : '🛍️ Mostrando otra tienda — solo se agrega si lo eliges tú'));
+}
+
 async function cargarPortafolio() {
     try {
         let tiendaId     = null;
@@ -2019,6 +2090,9 @@ async function cargarPortafolio() {
         todosProductos = productos || [];
         if (todosProductos.length === 0) { mostrarEmptyPort('La tienda no tiene productos aún'); return; }
         renderPortafolio(todosProductos);
+
+        tiendaIdPropia = tiendaId; // recordamos cuál es "mi tienda" para el selector
+        await poblarSelectorTiendas(tiendaId);
 
         const params = new URLSearchParams(window.location.search);
         const prodId = params.get('producto');
@@ -2434,12 +2508,15 @@ function animate() {
     requestAnimationFrame(animate);
     procesarMovimientoWASD();   // ← movimiento suave por frame
     procesarGrabacionRecorrido(); // ← muestrea la cámara si se está grabando un recorrido
-    // Durante la reproducción del recorrido, la cámara se posiciona a mano
-    // (posición + rotación exactas grabadas) — si controls.update() corre
-    // aquí también, reescribe la rotación para mirar hacia controls.target
-    // y el recorrido se ve "torcido" respecto a lo que se grabó o dibujó.
-    if (!reproduciendoRecorrido) controls.update();
+    // La cámara principal ya NO se mueve a mano durante la reproducción — eso
+    // ahora lo hace la camarita marcadora + la mini-cámara aparte (ver
+    // aplicarFrameRecorrido) — así que controls.update() puede correr
+    // siempre, y el usuario puede orbitar libremente mientras ve la camarita.
+    controls.update();
     renderer.render(scene,camera);
+    if (rendererPreview && (vistaActual === 'recorrido' || reproduciendoRecorrido)) {
+        rendererPreview.render(scene, cameraPreview);
+    }
 }
 
 // ── PESTAÑAS ──────────────────────────────────────────────────────────────
@@ -2456,6 +2533,7 @@ let planActualUsuario      = null;
 let estadoActualUsuario    = null;
 let pisosRaycastables      = []; // mallas de piso por módulo, para detectar clics del dibujo 3D
 let modoCaminarLibre       = false; // WASD libre por todo el plano (distinto del modoPivote viejo, de un solo cuarto)
+let tiendaIdPropia         = null; // para el selector de "mi tienda / todas / otra tienda" en productos
 const PLANES_CON_VIDEO     = ['corporativo']; // el módulo de recorrido/video es exclusivo de Corporativo
 
 // ── DIBUJAR RECORRIDO SOBRE EL PLANO (Etapa 1b) ─────────────────────────────
@@ -2800,7 +2878,7 @@ async function reproducirRecorrido() {
     if (reproduciendoRecorrido || recorridoFrames.length < 2) return;
     reproduciendoRecorrido = true;
     detenerReproduccionSolicitado = false;
-    controls.enabled = false;
+    marcadorCamara.visible = true;
     actualizarBotonReproducir(true);
     const inicio = performance.now();
     const duracion = recorridoFrames.at(-1).t;
@@ -2813,7 +2891,7 @@ async function reproducirRecorrido() {
         }
         requestAnimationFrame(paso);
     });
-    controls.enabled = true;
+    marcadorCamara.visible = false;
     reproduciendoRecorrido = false;
     detenerReproduccionSolicitado = false;
     actualizarBotonReproducir(false);
@@ -2865,7 +2943,7 @@ async function reproducirSegmentoNodo(nodoId) {
 
     reproduciendoRecorrido = true;
     detenerReproduccionSolicitado = false;
-    controls.enabled = false;
+    marcadorCamara.visible = true;
     actualizarBotonReproducir(true);
     const tInicioReal = performance.now();
     await new Promise(resolve => {
@@ -2877,7 +2955,7 @@ async function reproducirSegmentoNodo(nodoId) {
         }
         requestAnimationFrame(paso);
     });
-    controls.enabled = true;
+    marcadorCamara.visible = false;
     reproduciendoRecorrido = false;
     actualizarBotonReproducir(false);
 }
@@ -2908,14 +2986,23 @@ function aplicarFrameRecorrido(t) {
     const a = recorridoFrames[i], b = recorridoFrames[Math.min(i+1, recorridoFrames.length-1)];
     const rango = Math.max(1, b.t - a.t);
     const f = Math.min(1, Math.max(0, (t - a.t) / rango));
-    camera.position.set(
+    const pos = new THREE.Vector3(
         a.x + (b.x - a.x) * f,
         a.y + (b.y - a.y) * f,
         a.z + (b.z - a.z) * f,
     );
     const qa = new THREE.Quaternion(a.qx, a.qy, a.qz, a.qw);
     const qb = new THREE.Quaternion(b.qx, b.qy, b.qz, b.qw);
-    camera.quaternion.slerpQuaternions(qa, qb, f);
+    const quat = new THREE.Quaternion().slerpQuaternions(qa, qb, f);
+
+    // La cámara PRINCIPAL (Entorno 3D) no se toca — el usuario sigue
+    // orbitando libre y ve a la camarita moverse desde afuera. La mini-
+    // cámara (Nodos + exportar video) sí recorre el camino en primera
+    // persona real.
+    marcadorCamara.position.copy(pos);
+    marcadorCamara.quaternion.copy(quat);
+    cameraPreview.position.copy(pos);
+    cameraPreview.quaternion.copy(quat);
 }
 
 async function descargarVideoRecorrido() {
@@ -2924,7 +3011,12 @@ async function descargarVideoRecorrido() {
     btn.disabled = true;
     btn.innerHTML = '<span style="display:inline-block;width:10px;height:10px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:6px;"></span>Grabando video...';
     try {
-        const stream = canvas.captureStream(30);
+        // Se graba desde la MINI-pantalla (mini-cámara en primera persona),
+        // no desde el canvas principal — ese ahora queda libre para que el
+        // usuario orbite y mire la camarita moverse desde afuera, así que ya
+        // no sirve como fuente del video final.
+        if (!rendererPreview) throw new Error('No hay mini-cámara disponible');
+        const stream = canvasPreviewEl.captureStream(30);
         const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm';
         const grabador = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 6_000_000 });
         const chunks = [];
