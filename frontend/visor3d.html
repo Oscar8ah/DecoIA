@@ -266,7 +266,10 @@
     </div>
     <div id="contenidoRecorridoReal" style="display:flex;flex-direction:column;gap:8px;">
     <div style="font-size:11px;font-weight:700;color:#A78BFA;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;padding-bottom:8px;border-bottom:1px solid rgba(124,58,237,0.2);">🔗 Nodos</div>
-    <div style="font-size:11.5px;color:var(--gris);line-height:1.5;">Graba o dibuja el recorrido en la pestaña <b style="color:#A78BFA;">🏗️ Entorno 3D</b>. Aquí lo revisas, editas cada zona y lo exportas.</div>
+    <div style="font-size:11.5px;color:var(--gris);line-height:1.5;">Graba o dibuja el recorrido en <b style="color:#A78BFA;">🏗️ Entorno 3D</b>. Aquí arrastras los nodos, los conectas con flechas, y les asignas su orden.</div>
+    <button id="btnAgregarReferencia" onclick="document.getElementById('inputReferenciaExterna').click()" style="width:100%;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);color:#FCD34D;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">🖼️ Agregar referencia externa</button>
+    <input type="file" id="inputReferenciaExterna" accept="image/*,video/*" style="display:none;" onchange="subirReferenciaExterna(this.files[0])">
+    <div style="font-size:10.5px;color:var(--gris);line-height:1.4;">Foto o video (ej: dron) que no viene del modelo 3D — se agrega como nodo aparte para conectar con los demás.</div>
     <div style="border-top:1px solid rgba(124,58,237,0.15);margin-top:6px;padding-top:8px;display:flex;flex-direction:column;gap:6px;">
         <button id="btnReproducirRecorrido" onclick="reproducirRecorrido()" disabled style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:#6EE7B7;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;opacity:0.5;">▶ Reproducir</button>
         <button id="btnDescargarVideo" onclick="descargarVideoRecorrido()" disabled style="background:var(--degradado);color:white;border:none;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;opacity:0.5;">🎥 Descargar video (.webm)</button>
@@ -274,8 +277,14 @@
         <button id="btnGuardarRecorrido" onclick="guardarRecorridoEnSupabase()" disabled style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.35);color:#6EE7B7;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;opacity:0.5;">💾 Guardar recorrido</button>
     </div>
     <div id="listaRecorridosGuardados" style="border-top:1px solid rgba(124,58,237,0.15);margin-top:6px;padding-top:8px;display:flex;flex-direction:column;gap:6px;font-size:12px;"></div>
-    <div id="listaZonasRecorrido" style="border-top:1px solid rgba(124,58,237,0.15);margin-top:6px;padding-top:8px;display:flex;flex-direction:column;gap:6px;font-size:12px;"></div>
     </div>
+</div>
+<!-- LIENZO DE NODOS FLOTANTE — tapa visualmente el 3D (que sigue renderizando
+     por dentro, sin mostrarse, para que Reproducir/Descargar sigan funcionando) -->
+<div id="lienzoNodos" style="display:none;position:fixed;top:100px;left:220px;right:0;bottom:0;z-index:400;background:var(--oscuro);overflow:hidden;background-image:radial-gradient(rgba(124,58,237,0.15) 1px, transparent 1px);background-size:22px 22px;">
+    <svg id="svgConexionesNodos" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:1;"></svg>
+    <div id="nodosFlotantesCont" style="position:absolute;top:0;left:0;width:100%;height:100%;z-index:2;"></div>
+    <div id="lienzoNodosVacio" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;color:var(--gris);font-size:13px;pointer-events:none;">Graba o dibuja un recorrido en 🏗️ Entorno 3D,<br>o agrega una referencia externa, para ver los nodos aquí.</div>
 </div>
 <!-- EDITOR DE VIDEO — pantalla nueva: clips guardados → línea de tiempo → config por clip -->
 <div id="toolbarEditorVideo" style="display:none;position:fixed;top:100px;left:0;right:0;bottom:0;z-index:500;background:var(--oscuro2);flex-direction:column;">
@@ -2478,18 +2487,19 @@ function cambiarVista(vista) {
     document.getElementById('toolbarPlanta').style.display=vista==='planta'?'flex':'none';
     document.getElementById('toolbarEntorno3D').style.display=vista==='3d'?'flex':'none';
     document.getElementById('toolbarRecorrido').style.display=vista==='recorrido'?'flex':'none';
+    document.getElementById('lienzoNodos').style.display=vista==='recorrido'?'block':'none';
     document.getElementById('toolbarEditorVideo').style.display=vista==='editorvideo'?'flex':'none';
     canvas.style.display=(vista==='3d'||vista==='recorrido')?'block':'none';
     document.getElementById('vistaFoto').style.display=vista==='foto'?'flex':'none';
     document.getElementById('vistaPlanta').style.display=vista==='planta'?'flex':'none';
-    document.getElementById('entorno3dVacio').style.display=((vista==='3d'||vista==='recorrido') && !salaConstruida)?'flex':'none';
+    document.getElementById('entorno3dVacio').style.display=(vista==='3d' && !salaConstruida)?'flex':'none';
     if (vista==='foto' && fotoIaUrl) {
         document.getElementById('fotoIaContenido').innerHTML=`<div class="foto-ia-container"><img src="${esc(fotoIaUrl)}" alt="Foto generada por IA"></div>`;
         document.getElementById('btnEnviarCliente').style.display='flex';
     }
     if (vista==='planta') iniciarEditorPlanta();
     if (vista==='3d') actualizarCandadoEntorno3D();
-    if (vista==='recorrido') { cargarRecorridosGuardados(); actualizarCandadoRecorrido(); }
+    if (vista==='recorrido') { cargarRecorridosGuardados(); actualizarCandadoRecorrido(); renderLienzoNodos(); }
     if (vista==='editorvideo') { actualizarCandadoEditorVideo(); cargarClipsDisponiblesEditor(); }
     // Grabar/dibujar y caminar libre viven entre las pestañas 3D y Recorrido
     // (comparten el mismo canvas) — solo se apagan al salir de las dos.
@@ -2583,33 +2593,187 @@ function marcarZonaActual() {
     const texto = prompt('¿Qué zona es esta? (ej: "Sala — luz cálida, estilo moderno")', '');
     if (!texto) return;
     const t = performance.now() - tiempoInicioGrabacion;
-    zonasRecorrido.push({ t, texto });
-    renderListaZonasRecorrido();
+    const pos = posicionAutoNodo(zonasRecorrido.length + nodosReferencia.length);
+    zonasRecorrido.push({ id: nuevoIdNodo(), t, texto, prompt: '', color: '#7C3AED', textura_url: '', orden: zonasRecorrido.length + 1, x: pos.x, y: pos.y });
+    renderLienzoNodos();
     mostrarToast(`📍 Zona marcada: ${texto}`);
 }
 
-function renderListaZonasRecorrido() {
-    const cont = document.getElementById('listaZonasRecorrido');
-    if (!zonasRecorrido.length) { cont.innerHTML = ''; return; }
-    cont.innerHTML = `<div style="font-size:11px;font-weight:700;color:#A78BFA;text-transform:uppercase;margin-bottom:4px;">Nodos por zona — prompt, color, textura</div>` +
-        zonasRecorrido.map((z, i) => `
-        <div style="background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:8px;padding:10px;margin-bottom:6px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                <div style="color:var(--texto);font-weight:700;font-size:12.5px;">${esc(z.texto)}</div>
-                <div style="color:var(--gris);font-size:10px;">${(z.t/1000).toFixed(1)}s</div>
-            </div>
-            ${z.piso_info ? `<div style="font-size:10.5px;color:#6EE7B7;margin-bottom:6px;">${esc(z.piso_info)}</div>` : ''}
-            <textarea placeholder="Prompt para esta zona (ej: luz cálida, estilo moderno, piso porcelanato claro)"
-                oninput="actualizarZonaRecorrido(${i}, 'prompt', this.value)"
-                style="width:100%;min-height:44px;background:rgba(0,0,0,0.25);border:1px solid rgba(124,58,237,0.25);border-radius:6px;color:var(--texto);font-size:11.5px;padding:6px;resize:vertical;box-sizing:border-box;">${esc(z.prompt || '')}</textarea>
-            <div style="display:flex;gap:8px;margin-top:6px;align-items:center;">
-                <input type="color" value="${esc(z.color || '#7C3AED')}" oninput="actualizarZonaRecorrido(${i}, 'color', this.value)" style="width:32px;height:26px;border:none;border-radius:5px;background:none;cursor:pointer;padding:0;">
-                <input type="text" placeholder="URL de textura de referencia (opcional)" value="${esc(z.textura_url || '')}"
-                    oninput="actualizarZonaRecorrido(${i}, 'textura_url', this.value)"
-                    style="flex:1;background:rgba(0,0,0,0.25);border:1px solid rgba(124,58,237,0.25);border-radius:6px;color:var(--texto);font-size:11px;padding:5px 7px;">
-            </div>
-        </div>`).join('');
+// ── LIENZO DE NODOS FLOTANTE ─────────────────────────────────────────────
+// Reemplaza la vieja lista vertical de tarjetas — ahora los nodos (zonas
+// grabadas Y referencias externas subidas) viven en un lienzo libre, se
+// pueden arrastrar, conectar con flechas, y tienen un orden asignable.
+let nodosReferencia    = []; // [{id, url, esVideo, nota, orden, x, y}]
+let conexionesCanvas   = []; // [{desde, hacia}] — ids de nodos
+let arrastrandoNodoId  = null;
+let offsetArrastreNodo = { x: 0, y: 0 };
+let dibujandoConexionDesde = null;
+
+function nuevoIdNodo() { return 'n_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7); }
+
+function posicionAutoNodo(indice) {
+    const col = indice % 4, fila = Math.floor(indice / 4);
+    return { x: 40 + col * 210, y: 30 + fila * 150 };
 }
+
+function todosLosNodos() {
+    // Une zonas grabadas + referencias externas en una sola lista para
+    // dibujar/conectar, cada una con tipo para saber cómo renderizarla.
+    return [
+        ...zonasRecorrido.map(z => ({ ...z, tipo: 'zona' })),
+        ...nodosReferencia.map(r => ({ ...r, tipo: 'referencia' })),
+    ];
+}
+
+async function subirReferenciaExterna(archivo) {
+    if (!archivo) return;
+    const esVideo = archivo.type.startsWith('video/');
+    if (!esVideo && !archivo.type.startsWith('image/')) { mostrarToast('⚠️ Solo se aceptan imágenes o videos'); return; }
+    if (archivo.size > 50 * 1024 * 1024) { mostrarToast('⚠️ Máximo 50MB por archivo'); return; }
+
+    mostrarToast('⏳ Subiendo referencia...');
+    const ext = archivo.name.split('.').pop();
+    const nombreArchivo = `${nuevoIdNodo()}.${ext}`;
+
+    const { error } = await db.storage.from('nodos-referencias').upload(nombreArchivo, archivo, { upsert: true, contentType: archivo.type });
+    if (error) { console.error(error); mostrarToast('❌ No se pudo subir el archivo'); return; }
+
+    const { data: { publicUrl } } = db.storage.from('nodos-referencias').getPublicUrl(nombreArchivo);
+    const nota = prompt('¿Qué es esta referencia? (ej: "Video de dron — aquí se construye la casa")', '') || '';
+
+    const pos = posicionAutoNodo(zonasRecorrido.length + nodosReferencia.length);
+    nodosReferencia.push({
+        id: nuevoIdNodo(), url: publicUrl, esVideo, nota,
+        orden: todosLosNodos().length + 1, x: pos.x, y: pos.y,
+    });
+    document.getElementById('inputReferenciaExterna').value = '';
+    renderLienzoNodos();
+    mostrarToast('✅ Referencia agregada al lienzo');
+}
+
+function renderLienzoNodos() {
+    const cont = document.getElementById('nodosFlotantesCont');
+    const svg  = document.getElementById('svgConexionesNodos');
+    const vacio = document.getElementById('lienzoNodosVacio');
+    if (!cont || !svg) return;
+
+    const nodos = todosLosNodos();
+    vacio.style.display = nodos.length ? 'none' : 'block';
+
+    cont.innerHTML = nodos.map(n => {
+        if (n.tipo === 'zona') {
+            return `
+            <div class="nodo-flotante" data-id="${n.id}" style="position:absolute;left:${n.x}px;top:${n.y}px;width:190px;background:rgba(124,58,237,0.15);border:1.5px solid rgba(124,58,237,0.5);border-radius:10px;padding:10px;cursor:grab;user-select:none;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                    <span style="font-size:12px;font-weight:700;color:var(--texto);">🎬 ${esc(n.texto)}</span>
+                    <input type="number" value="${n.orden||1}" min="1" onchange="actualizarOrdenNodo('${n.id}',this.value)" title="Orden en la secuencia"
+                        style="width:34px;background:rgba(0,0,0,0.3);border:1px solid rgba(124,58,237,0.4);border-radius:5px;color:#FCD34D;font-size:11px;text-align:center;padding:2px;">
+                </div>
+                ${n.piso_info ? `<div style="font-size:9.5px;color:#6EE7B7;margin-bottom:4px;">${esc(n.piso_info)}</div>` : ''}
+                <div style="font-size:10px;color:var(--gris);margin-bottom:6px;">${(n.t/1000).toFixed(1)}s</div>
+                <button onclick="editarNodoZona('${n.id}')" style="width:100%;background:rgba(255,255,255,0.06);border:none;color:var(--texto);padding:4px;border-radius:5px;font-size:10px;cursor:pointer;">✏️ Editar prompt</button>
+                <div class="conector conector-der" data-id="${n.id}" style="position:absolute;right:-7px;top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;background:#7C3AED;border:2px solid white;cursor:crosshair;"></div>
+                <div class="conector conector-izq" data-id="${n.id}" style="position:absolute;left:-7px;top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;background:rgba(255,255,255,0.2);border:2px solid white;"></div>
+            </div>`;
+        } else {
+            return `
+            <div class="nodo-flotante" data-id="${n.id}" style="position:absolute;left:${n.x}px;top:${n.y}px;width:190px;background:rgba(245,158,11,0.12);border:1.5px solid rgba(245,158,11,0.5);border-radius:10px;padding:10px;cursor:grab;user-select:none;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                    <span style="font-size:12px;font-weight:700;color:#FCD34D;">${n.esVideo ? '🎥' : '🖼️'} Referencia externa</span>
+                    <input type="number" value="${n.orden||1}" min="1" onchange="actualizarOrdenNodo('${n.id}',this.value)" title="Orden en la secuencia"
+                        style="width:34px;background:rgba(0,0,0,0.3);border:1px solid rgba(245,158,11,0.4);border-radius:5px;color:#FCD34D;font-size:11px;text-align:center;padding:2px;">
+                </div>
+                ${n.esVideo
+                    ? `<video src="${esc(n.url)}" style="width:100%;height:80px;object-fit:cover;border-radius:6px;margin-bottom:6px;" muted></video>`
+                    : `<img src="${esc(n.url)}" style="width:100%;height:80px;object-fit:cover;border-radius:6px;margin-bottom:6px;">`}
+                <div style="font-size:10px;color:var(--gris);line-height:1.3;">${esc(n.nota || 'Sin nota')}</div>
+                <div class="conector conector-der" data-id="${n.id}" style="position:absolute;right:-7px;top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;background:#F59E0B;border:2px solid white;cursor:crosshair;"></div>
+                <div class="conector conector-izq" data-id="${n.id}" style="position:absolute;left:-7px;top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;background:rgba(255,255,255,0.2);border:2px solid white;"></div>
+            </div>`;
+        }
+    }).join('');
+
+    dibujarConexionesSVG();
+}
+
+function posicionNodo(id) {
+    const el = document.querySelector(`.nodo-flotante[data-id="${id}"]`);
+    if (!el) return null;
+    return { x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight };
+}
+
+function dibujarConexionesSVG() {
+    const svg = document.getElementById('svgConexionesNodos');
+    svg.innerHTML = `<defs><marker id="flechaNodo" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#A78BFA"/></marker></defs>`;
+    conexionesCanvas.forEach(c => {
+        const a = posicionNodo(c.desde), b = posicionNodo(c.hacia);
+        if (!a || !b) return;
+        const x1 = a.x + a.w, y1 = a.y + a.h/2, x2 = b.x, y2 = b.y + b.h/2;
+        const mx = (x1 + x2) / 2;
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`);
+        path.setAttribute('stroke', '#A78BFA');
+        path.setAttribute('stroke-width', '2.5');
+        path.setAttribute('fill', 'none');
+        path.setAttribute('marker-end', 'url(#flechaNodo)');
+        svg.appendChild(path);
+    });
+}
+
+function actualizarOrdenNodo(id, valor) {
+    const orden = parseInt(valor) || 1;
+    const z = zonasRecorrido.find(n => n.id === id);
+    if (z) { z.orden = orden; return; }
+    const r = nodosReferencia.find(n => n.id === id);
+    if (r) r.orden = orden;
+}
+
+function editarNodoZona(id) {
+    const z = zonasRecorrido.find(n => n.id === id);
+    if (!z) return;
+    const nuevoPrompt = prompt('Prompt para esta zona:', z.prompt || '');
+    if (nuevoPrompt !== null) z.prompt = nuevoPrompt;
+}
+
+// ── Arrastrar nodos y conectar con flechas ──────────────────────────────
+document.addEventListener('mousedown', (e) => {
+    if (vistaActual !== 'recorrido') return;
+    const conectorDer = e.target.closest('.conector-der');
+    if (conectorDer) { dibujandoConexionDesde = conectorDer.dataset.id; return; }
+    const nodoEl = e.target.closest('.nodo-flotante');
+    if (nodoEl) {
+        arrastrandoNodoId = nodoEl.dataset.id;
+        offsetArrastreNodo = { x: e.clientX - nodoEl.offsetLeft, y: e.clientY - nodoEl.offsetTop };
+    }
+});
+document.addEventListener('mousemove', (e) => {
+    if (vistaActual !== 'recorrido') return;
+    if (arrastrandoNodoId) {
+        const el = document.querySelector(`.nodo-flotante[data-id="${arrastrandoNodoId}"]`);
+        if (!el) return;
+        const nuevoX = Math.max(0, e.clientX - offsetArrastreNodo.x);
+        const nuevoY = Math.max(0, e.clientY - offsetArrastreNodo.y);
+        el.style.left = nuevoX + 'px';
+        el.style.top  = nuevoY + 'px';
+        const z = zonasRecorrido.find(n => n.id === arrastrandoNodoId);
+        if (z) { z.x = nuevoX; z.y = nuevoY; }
+        const r = nodosReferencia.find(n => n.id === arrastrandoNodoId);
+        if (r) { r.x = nuevoX; r.y = nuevoY; }
+        dibujarConexionesSVG();
+    }
+});
+document.addEventListener('mouseup', (e) => {
+    if (vistaActual !== 'recorrido') return;
+    if (dibujandoConexionDesde) {
+        const conectorIzq = e.target.closest('.conector-izq');
+        if (conectorIzq && conectorIzq.dataset.id !== dibujandoConexionDesde) {
+            conexionesCanvas.push({ desde: dibujandoConexionDesde, hacia: conectorIzq.dataset.id });
+            dibujarConexionesSVG();
+        }
+        dibujandoConexionDesde = null;
+    }
+    arrastrandoNodoId = null;
+});
 
 function actualizarZonaRecorrido(i, campo, valor) {
     if (!zonasRecorrido[i]) return;
@@ -2878,6 +3042,8 @@ async function guardarRecorridoEnSupabase() {
         nombre:      nombre.trim() || 'Recorrido sin nombre',
         frames:      recorridoFrames,
         zonas:       zonasRecorrido,
+        nodos_referencia: nodosReferencia,
+        conexiones:       conexionesCanvas,
         duracion_ms: recorridoFrames.at(-1).t,
     });
 
@@ -2922,7 +3088,9 @@ async function cargarRecorridoGuardado(id) {
 
     recorridoFrames = data.frames;
     zonasRecorrido   = data.zonas || [];
-    renderListaZonasRecorrido();
+    nodosReferencia  = data.nodos_referencia || [];
+    conexionesCanvas = data.conexiones || [];
+    renderLienzoNodos();
     ['btnReproducirRecorrido','btnDescargarVideo','btnDescargarJSON','btnGuardarRecorrido'].forEach(elId => {
         document.getElementById(elId).disabled = false;
         document.getElementById(elId).style.opacity = '1';
@@ -3087,18 +3255,20 @@ function convertirTrazo3DARecorrido() {
             const pisoInfo = modInfo?.imagenPisoUrl
                 ? '🪵 Piso real del portafolio de la tienda asignado'
                 : `Piso genérico: ${modInfo?.materialPiso || 'sin definir'}`;
+            const pos = posicionAutoNodo(zonasRecorrido.length);
             zonasRecorrido.push({
-                t, texto: p.moduloNombre || 'Zona',
+                id: nuevoIdNodo(), t, texto: p.moduloNombre || 'Zona',
                 prompt: promptPredeterminadoPorNombre(p.moduloNombre),
                 color: '#7C3AED',
                 textura_url: modInfo?.imagenPisoUrl || '',
                 piso_info: pisoInfo,
+                orden: zonasRecorrido.length + 1, x: pos.x, y: pos.y,
             });
             moduloAnterior = p.moduloId;
         }
     });
 
-    renderListaZonasRecorrido();
+    renderLienzoNodos();
     ['btnReproducirRecorrido','btnDescargarVideo','btnDescargarJSON','btnGuardarRecorrido'].forEach(id => {
         document.getElementById(id).disabled = false;
         document.getElementById(id).style.opacity = '1';
@@ -3176,7 +3346,7 @@ function convertirTrazoARecorrido() {
         document.getElementById(id).disabled = false;
         document.getElementById(id).style.opacity = '1';
     });
-    renderListaZonasRecorrido();
+    renderLienzoNodos();
     cambiarVista('recorrido');
     mostrarToast(`✅ Recorrido creado a partir del dibujo (${(recorridoFrames.at(-1).t/1000).toFixed(1)}s de recorrido)`);
 }
