@@ -248,8 +248,10 @@
     </div>
     <div id="contenidoRecorridoReal" style="display:flex;flex-direction:column;gap:8px;">
     <div style="font-size:11px;font-weight:700;color:#A78BFA;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;padding-bottom:8px;border-bottom:1px solid rgba(124,58,237,0.2);">🎬 Grabar recorrido</div>
+    <button id="btnCamaraInteriorRecorrido" onclick="entrarModoCaminarRecorrido()" style="width:100%;padding:9px;border-radius:8px;background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;font-size:12px;font-weight:700;cursor:pointer;">👁️ Entrar y caminar desde adentro</button>
     <div style="font-size:12px;color:var(--gris);line-height:1.6;margin-bottom:4px;">Camina con W A S D (Q/E sube/baja) mientras grabas. El recorrido queda guardado con la posición exacta de la cámara.</div>
     <button id="btnGrabarRecorrido" onclick="toggleGrabarRecorrido()" style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);color:#FCA5A5;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">⏺ Grabar recorrido</button>
+    <div id="cronometroGrabacion" style="display:none;text-align:center;font-size:20px;font-weight:800;color:#FCA5A5;font-variant-numeric:tabular-nums;padding:4px 0;">00:00</div>
     <button id="btnMarcarZona" onclick="marcarZonaActual()" disabled style="background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;opacity:0.5;">📍 Marcar zona aquí</button>
     <div style="border-top:1px solid rgba(124,58,237,0.15);margin-top:6px;padding-top:8px;display:flex;flex-direction:column;gap:6px;">
         <button id="btnReproducirRecorrido" onclick="reproducirRecorrido()" disabled style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:#6EE7B7;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;opacity:0.5;">▶ Reproducir</button>
@@ -2428,6 +2430,8 @@ function toggleGrabarRecorrido() {
         btn.style.color = '#6EE7B7';
         document.getElementById('btnMarcarZona').disabled = false;
         document.getElementById('btnMarcarZona').style.opacity = '1';
+        document.getElementById('cronometroGrabacion').style.display = 'block';
+        cronometroIntervalo = setInterval(actualizarCronometroGrabacion, 250);
         mostrarToast('⏺ Grabando — camina con W A S D por el modelo');
     } else {
         btn.textContent = '⏺ Grabar recorrido';
@@ -2436,6 +2440,8 @@ function toggleGrabarRecorrido() {
         btn.style.color = '#FCA5A5';
         document.getElementById('btnMarcarZona').disabled = true;
         document.getElementById('btnMarcarZona').style.opacity = '0.5';
+        document.getElementById('cronometroGrabacion').style.display = 'none';
+        clearInterval(cronometroIntervalo);
         const hayFrames = recorridoFrames.length > 1;
         ['btnReproducirRecorrido','btnDescargarVideo','btnDescargarJSON','btnGuardarRecorrido'].forEach(id => {
             document.getElementById(id).disabled = !hayFrames;
@@ -2443,6 +2449,33 @@ function toggleGrabarRecorrido() {
         });
         if (hayFrames) mostrarToast(`✅ Recorrido guardado (${(recorridoFrames.at(-1).t/1000).toFixed(1)}s, ${zonasRecorrido.length} zonas marcadas)`);
     }
+}
+
+let cronometroIntervalo = null;
+function actualizarCronometroGrabacion() {
+    const seg = (performance.now() - tiempoInicioGrabacion) / 1000;
+    const m = Math.floor(seg / 60).toString().padStart(2, '0');
+    const s = Math.floor(seg % 60).toString().padStart(2, '0');
+    document.getElementById('cronometroGrabacion').textContent = `${m}:${s}`;
+}
+
+// Posiciona la cámara DENTRO del modelo con controles libres (no confundir
+// con "cámara pivote" — modoInterior/activarCamaraPivote — que restringe el
+// movimiento a un punto fijo de un solo cuarto; el recorrido necesita
+// moverse libremente por todo el apartamento con WASD).
+function entrarModoCaminarRecorrido() {
+    if (!salaConstruida) { mostrarToast('⚠️ Primero genera un modelo 3D en Editor Planta'); return; }
+    if (modoInterior) salirCamaraPivote(); // por seguridad, si estaba activo
+    controls.minDistance = 0.05;
+    controls.maxDistance = 25;
+    controls.enabled = true;
+    const primero = modulosActuales3D[0];
+    if (primero) {
+        camera.position.set(primero.cx, 1.6, primero.cz);
+        controls.target.set(primero.cx, 1.6, primero.cz - 1);
+        controls.update();
+    }
+    mostrarToast('👁️ Estás dentro — camina con W A S D, mira arrastrando el mouse');
 }
 
 function procesarGrabacionRecorrido() {
