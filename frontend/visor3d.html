@@ -3023,7 +3023,12 @@ function aplicarFrameRecorrido(t) {
     );
     const qa = new THREE.Quaternion(a.qx, a.qy, a.qz, a.qw);
     const qb = new THREE.Quaternion(b.qx, b.qy, b.qz, b.qw);
-    const quat = new THREE.Quaternion().slerpQuaternions(qa, qb, f);
+    // OJO: en esta versión de Three.js, slerpQuaternions() no siempre devuelve
+    // "this" para encadenar — por eso NO se puede hacer
+    // "new THREE.Quaternion().slerpQuaternions(...)" en una sola línea (eso
+    // era el bug real: "quat" quedaba undefined). Se crea aparte y se llama.
+    const quat = new THREE.Quaternion();
+    quat.slerpQuaternions(qa, qb, f);
 
     // La cámara PRINCIPAL (Entorno 3D) no se toca — el usuario sigue
     // orbitando libre y ve a la camarita moverse desde afuera. La mini-
