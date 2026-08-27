@@ -211,6 +211,7 @@
     <button class="tab-vista active" id="tabPlanta" onclick="cambiarVista('planta')">📐 Editor Planta</button>
     <button class="tab-vista" id="tab3d" onclick="cambiarVista('3d')">🏗️ Entorno 3D</button>
     <button class="tab-vista" id="tabRecorrido" onclick="cambiarVista('recorrido')">🎬 Recorrido</button>
+    <button class="tab-vista" id="tabEditorVideo" onclick="cambiarVista('editorvideo')">🎞️ Editor de video</button>
     <button class="tab-vista" id="tabFoto" onclick="cambiarVista('foto')">📸 Foto IA</button>
 </div>
 <!-- TOOLBAR EDITOR PLANTA — visible solo en pestaña planta -->
@@ -261,6 +262,33 @@
     </div>
     <div id="listaRecorridosGuardados" style="border-top:1px solid rgba(124,58,237,0.15);margin-top:6px;padding-top:8px;display:flex;flex-direction:column;gap:6px;font-size:12px;"></div>
     <div id="listaZonasRecorrido" style="border-top:1px solid rgba(124,58,237,0.15);margin-top:6px;padding-top:8px;display:flex;flex-direction:column;gap:6px;font-size:12px;"></div>
+    </div>
+</div>
+<!-- EDITOR DE VIDEO — pantalla nueva: clips guardados → línea de tiempo → config por clip -->
+<div id="toolbarEditorVideo" style="display:none;position:fixed;top:100px;left:0;right:0;bottom:0;z-index:500;background:var(--oscuro2);flex-direction:column;">
+    <div id="bloqueoEditorVideo" style="display:none;padding:40px;">
+        <div style="max-width:420px;margin:0 auto;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:20px;text-align:center;">
+            <div style="font-size:15px;color:#FCD34D;font-weight:700;margin-bottom:8px;">🔒 Exclusivo del plan Corporativo</div>
+            <div style="font-size:13px;color:var(--gris);line-height:1.5;">El Editor de video está disponible solo en el plan Corporativo.</div>
+            <a href="#" onclick="mostrarPagina && mostrarPagina('plan')" style="display:inline-block;margin-top:10px;color:#FCD34D;font-size:13px;font-weight:600;">Ver planes →</a>
+        </div>
+    </div>
+    <div id="contenidoEditorVideoReal" style="display:none;flex-direction:column;height:100%;">
+        <div style="padding:12px 16px;border-bottom:1px solid rgba(124,58,237,0.2);">
+            <div style="font-size:11px;font-weight:700;color:#A78BFA;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">🎞️ Mis clips (recorridos guardados)</div>
+            <div id="listaClipsDisponibles" style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;"></div>
+        </div>
+        <div style="flex:1;display:flex;overflow:hidden;">
+            <div style="flex:1;padding:16px;overflow-y:auto;display:flex;flex-direction:column;">
+                <div style="font-size:11px;font-weight:700;color:#A78BFA;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">🎬 Línea de tiempo</div>
+                <div style="font-size:11.5px;color:var(--gris);margin-bottom:10px;">Los clips conectados de izquierda a derecha forman el orden del video final. Click en un clip para configurarlo.</div>
+                <div id="timelineContenedor" style="display:flex;gap:8px;align-items:stretch;min-height:90px;background:rgba(0,0,0,0.2);border-radius:10px;padding:12px;flex-wrap:wrap;"></div>
+                <div id="timelineTotalDuracion" style="margin-top:10px;font-size:12.5px;color:var(--gris);"></div>
+            </div>
+            <div id="panelConfigClipTimeline" style="width:300px;border-left:1px solid rgba(124,58,237,0.2);padding:16px;overflow-y:auto;">
+                <div style="color:var(--gris);font-size:12.5px;">Selecciona un clip de la línea de tiempo para configurarlo (prompt de IA, audio).</div>
+            </div>
+        </div>
     </div>
 </div>
 <!-- Badge modo arrastrar -->
@@ -2393,8 +2421,10 @@ function cambiarVista(vista) {
     document.getElementById('tabFoto').classList.toggle('active',  vista==='foto');
     document.getElementById('tabPlanta').classList.toggle('active',vista==='planta');
     document.getElementById('tabRecorrido').classList.toggle('active',vista==='recorrido');
+    document.getElementById('tabEditorVideo').classList.toggle('active',vista==='editorvideo');
     document.getElementById('toolbarPlanta').style.display=vista==='planta'?'flex':'none';
     document.getElementById('toolbarRecorrido').style.display=vista==='recorrido'?'flex':'none';
+    document.getElementById('toolbarEditorVideo').style.display=vista==='editorvideo'?'flex':'none';
     canvas.style.display=(vista==='3d'||vista==='recorrido')?'block':'none';
     document.getElementById('vistaFoto').style.display=vista==='foto'?'flex':'none';
     document.getElementById('vistaPlanta').style.display=vista==='planta'?'flex':'none';
@@ -2405,6 +2435,7 @@ function cambiarVista(vista) {
     }
     if (vista==='planta') iniciarEditorPlanta();
     if (vista==='recorrido') { cargarRecorridosGuardados(); actualizarCandadoRecorrido(); }
+    if (vista==='editorvideo') { actualizarCandadoEditorVideo(); cargarClipsDisponiblesEditor(); }
     if (vista!=='recorrido' && grabandoRecorrido) toggleGrabarRecorrido(); // seguridad: no seguir grabando si sale de la pestaña
 }
 
@@ -2613,6 +2644,136 @@ function actualizarCandadoRecorrido() {
     if (!bloqueo || !contenido) return;
     bloqueo.style.display   = desbloqueado ? 'none' : 'block';
     contenido.style.display = desbloqueado ? 'flex' : 'none';
+}
+
+// ── EDITOR DE VIDEO — clips guardados → línea de tiempo → config por clip ──
+// Reusa los recorridos ya guardados en Supabase (recorridos_camara) como
+// "clips" de origen. La línea de tiempo hoy vive solo en memoria del
+// navegador (no se persiste todavía) — construir esa persistencia es un
+// siguiente paso, no algo que se perdió.
+let clipsDisponiblesEditor  = [];
+let timelineClips           = []; // [{key, recorrido_id, nombre, duracion_ms, prompt_ia, usar_ia, audio_url}]
+let clipTimelineSeleccionado = null; // key del clip seleccionado en el panel derecho
+
+function actualizarCandadoEditorVideo() {
+    const desbloqueado = PLANES_CON_VIDEO.includes(planActualUsuario) && estadoActualUsuario === 'activo';
+    const bloqueo    = document.getElementById('bloqueoEditorVideo');
+    const contenido  = document.getElementById('contenidoEditorVideoReal');
+    if (!bloqueo || !contenido) return;
+    bloqueo.style.display   = desbloqueado ? 'none' : 'block';
+    contenido.style.display = desbloqueado ? 'flex' : 'none';
+}
+
+async function cargarClipsDisponiblesEditor() {
+    const cont = document.getElementById('listaClipsDisponibles');
+    const { tiendaId } = await obtenerContextoTiendaParaRecorrido();
+    if (!tiendaId) { cont.innerHTML = `<div style="color:var(--gris);font-size:12px;">Inicia sesión con tu cuenta de tienda para ver tus clips.</div>`; return; }
+
+    const { data, error } = await db.from('recorridos_camara')
+        .select('id,nombre,duracion_ms,created_at')
+        .eq('tienda_id', tiendaId)
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+    if (error) { cont.innerHTML = `<div style="color:#FCA5A5;font-size:12px;">No se pudieron cargar los clips.</div>`; return; }
+    clipsDisponiblesEditor = data || [];
+
+    if (!clipsDisponiblesEditor.length) {
+        cont.innerHTML = `<div style="color:var(--gris);font-size:12px;">Todavía no tienes recorridos guardados. Ve a la pestaña 🎬 Recorrido, graba uno, y dale "Guardar recorrido".</div>`;
+        return;
+    }
+
+    cont.innerHTML = clipsDisponiblesEditor.map(c => `
+        <div style="min-width:150px;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.25);border-radius:8px;padding:10px;flex-shrink:0;">
+            <div style="font-size:12.5px;font-weight:700;color:var(--texto);margin-bottom:2px;">${esc(c.nombre)}</div>
+            <div style="font-size:10.5px;color:var(--gris);margin-bottom:8px;">${(c.duracion_ms/1000).toFixed(1)}s</div>
+            <button onclick='agregarClipATimeline(${JSON.stringify(c.id)}, ${JSON.stringify(c.nombre)}, ${c.duracion_ms})' style="width:100%;background:var(--degradado);color:white;border:none;padding:6px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;">➕ Agregar</button>
+        </div>`).join('');
+}
+
+function agregarClipATimeline(recorridoId, nombre, duracionMs) {
+    const key = `tl_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    timelineClips.push({
+        key, recorrido_id: recorridoId, nombre, duracion_ms: duracionMs,
+        prompt_ia: '', usar_ia: false, audio_url: '',
+    });
+    renderTimeline();
+    mostrarToast(`✅ "${nombre}" agregado a la línea de tiempo`);
+}
+
+function renderTimeline() {
+    const cont = document.getElementById('timelineContenedor');
+    if (!timelineClips.length) {
+        cont.innerHTML = `<div style="color:var(--gris);font-size:12.5px;padding:20px;">Agrega clips de arriba para armar el video.</div>`;
+    } else {
+        cont.innerHTML = timelineClips.map((c, i) => `
+            <div onclick="seleccionarClipTimeline('${c.key}')" style="cursor:pointer;min-width:130px;background:${clipTimelineSeleccionado===c.key ? 'rgba(124,58,237,0.3)' : 'rgba(124,58,237,0.1)'};border:1px solid ${clipTimelineSeleccionado===c.key ? '#7C3AED' : 'rgba(124,58,237,0.25)'};border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:4px;">
+                <div style="font-size:11px;font-weight:700;color:var(--texto);">${i+1}. ${esc(c.nombre)}</div>
+                <div style="font-size:10px;color:var(--gris);">${(c.duracion_ms/1000).toFixed(1)}s ${c.usar_ia ? '· 🪄 IA' : ''} ${c.audio_url ? '· 🎵' : ''}</div>
+                <div style="display:flex;gap:4px;margin-top:4px;" onclick="event.stopPropagation()">
+                    <button onclick="moverClipTimeline('${c.key}',-1)" style="flex:1;background:rgba(255,255,255,0.06);border:none;color:var(--gris);border-radius:4px;padding:3px;cursor:pointer;font-size:11px;">◀</button>
+                    <button onclick="moverClipTimeline('${c.key}',1)" style="flex:1;background:rgba(255,255,255,0.06);border:none;color:var(--gris);border-radius:4px;padding:3px;cursor:pointer;font-size:11px;">▶</button>
+                    <button onclick="quitarClipTimeline('${c.key}')" style="flex:1;background:rgba(239,68,68,0.15);border:none;color:#FCA5A5;border-radius:4px;padding:3px;cursor:pointer;font-size:11px;">✕</button>
+                </div>
+            </div>`).join('');
+    }
+    const totalMs = timelineClips.reduce((s, c) => s + c.duracion_ms, 0);
+    document.getElementById('timelineTotalDuracion').textContent = `Duración total: ${(totalMs/1000).toFixed(1)}s — ${timelineClips.length} clip(s)`;
+    renderPanelConfigClip();
+}
+
+function moverClipTimeline(key, direccion) {
+    const i = timelineClips.findIndex(c => c.key === key);
+    const j = i + direccion;
+    if (i < 0 || j < 0 || j >= timelineClips.length) return;
+    [timelineClips[i], timelineClips[j]] = [timelineClips[j], timelineClips[i]];
+    renderTimeline();
+}
+
+function quitarClipTimeline(key) {
+    timelineClips = timelineClips.filter(c => c.key !== key);
+    if (clipTimelineSeleccionado === key) clipTimelineSeleccionado = null;
+    renderTimeline();
+}
+
+function seleccionarClipTimeline(key) {
+    clipTimelineSeleccionado = key;
+    renderTimeline();
+}
+
+function actualizarConfigClipTimeline(key, campo, valor) {
+    const clip = timelineClips.find(c => c.key === key);
+    if (!clip) return;
+    clip[campo] = valor;
+    if (campo === 'usar_ia') renderTimeline(); // para actualizar el badge "🪄 IA"
+}
+
+function renderPanelConfigClip() {
+    const panel = document.getElementById('panelConfigClipTimeline');
+    const clip = timelineClips.find(c => c.key === clipTimelineSeleccionado);
+    if (!clip) {
+        panel.innerHTML = `<div style="color:var(--gris);font-size:12.5px;">Selecciona un clip de la línea de tiempo para configurarlo (prompt de IA, audio).</div>`;
+        return;
+    }
+    panel.innerHTML = `
+        <div style="font-size:11px;font-weight:700;color:#A78BFA;text-transform:uppercase;margin-bottom:10px;">${esc(clip.nombre)}</div>
+
+        <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--texto);margin-bottom:10px;cursor:pointer;">
+            <input type="checkbox" ${clip.usar_ia ? 'checked' : ''} onchange="actualizarConfigClipTimeline('${clip.key}','usar_ia',this.checked)">
+            🪄 Mejorar este clip con IA
+        </label>
+        <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:6px;padding:8px;font-size:11px;color:#FCD34D;margin-bottom:12px;">
+            ⏳ La conexión con la IA de video todavía no está activa — se conecta en el siguiente paso. Por ahora puedes dejar preparado el prompt.
+        </div>
+
+        <label style="font-size:11px;color:var(--gris);text-transform:uppercase;font-weight:700;">Prompt para este clip</label>
+        <textarea oninput="actualizarConfigClipTimeline('${clip.key}','prompt_ia',this.value)" placeholder="Ej: luz cálida, estilo moderno, mantener la arquitectura exacta"
+            style="width:100%;min-height:70px;margin-top:6px;background:rgba(0,0,0,0.25);border:1px solid rgba(124,58,237,0.25);border-radius:6px;color:var(--texto);font-size:12px;padding:8px;resize:vertical;box-sizing:border-box;">${esc(clip.prompt_ia)}</textarea>
+
+        <label style="font-size:11px;color:var(--gris);text-transform:uppercase;font-weight:700;display:block;margin-top:14px;">🎵 Audio (URL, opcional)</label>
+        <input type="text" value="${esc(clip.audio_url)}" oninput="actualizarConfigClipTimeline('${clip.key}','audio_url',this.value)" placeholder="https://..."
+            style="width:100%;margin-top:6px;background:rgba(0,0,0,0.25);border:1px solid rgba(124,58,237,0.25);border-radius:6px;color:var(--texto);font-size:12px;padding:7px;box-sizing:border-box;">
+    `;
 }
 
 // ── GUARDAR / CARGAR RECORRIDOS EN SUPABASE ─────────────────────────────
