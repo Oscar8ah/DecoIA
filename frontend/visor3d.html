@@ -275,6 +275,7 @@
         <button id="btnDescargarVideo" onclick="descargarVideoRecorrido()" disabled style="background:var(--degradado);color:white;border:none;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;opacity:0.5;">🎥 Descargar video (.webm)</button>
         <button id="btnDescargarJSON" onclick="descargarJSONRecorrido()" disabled style="background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.2);color:var(--gris);padding:6px 12px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;opacity:0.5;">⬇ Descargar datos (.json)</button>
         <button id="btnGuardarRecorrido" onclick="guardarRecorridoEnSupabase()" disabled style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.35);color:#6EE7B7;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;opacity:0.5;">💾 Guardar recorrido</button>
+        <button id="btnEnviarProduccion" onclick="enviarAProduccion()" disabled style="background:var(--degradado);color:white;border:none;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;opacity:0.5;">📤 Enviar a producción (Editor de video)</button>
     </div>
     <div id="listaRecorridosGuardados" style="border-top:1px solid rgba(124,58,237,0.15);margin-top:6px;padding-top:8px;display:flex;flex-direction:column;gap:6px;font-size:12px;"></div>
     </div>
@@ -2504,7 +2505,11 @@ function cambiarVista(vista) {
     // Grabar/dibujar y caminar libre viven entre las pestañas 3D y Recorrido
     // (comparten el mismo canvas) — solo se apagan al salir de las dos.
     if (vista!=='recorrido' && vista!=='3d' && grabandoRecorrido) toggleGrabarRecorrido();
-    if (vista!=='recorrido' && vista!=='3d') modoCaminarLibre = false;
+    if (vista!=='recorrido' && vista!=='3d' && modoCaminarLibre) {
+        modoCaminarLibre = false;
+        controls.enableZoom = true;
+        controls.enablePan  = true;
+    }
 }
 
 // ── RECORRIDO DE CÁMARA (Etapa 1 del módulo de video con IA) ───────────────
@@ -2542,7 +2547,7 @@ function toggleGrabarRecorrido() {
         document.getElementById('cronometroGrabacion').style.display = 'none';
         clearInterval(cronometroIntervalo);
         const hayFrames = recorridoFrames.length > 1;
-        ['btnReproducirRecorrido','btnDescargarVideo','btnDescargarJSON','btnGuardarRecorrido'].forEach(id => {
+        ['btnReproducirRecorrido','btnDescargarVideo','btnDescargarJSON','btnGuardarRecorrido','btnEnviarProduccion'].forEach(id => {
             document.getElementById(id).disabled = !hayFrames;
             document.getElementById(id).style.opacity = hayFrames ? '1' : '0.5';
         });
@@ -2569,6 +2574,12 @@ function entrarModoCaminarRecorrido() {
     controls.minDistance = 0.05;
     controls.maxDistance = 25;
     controls.enabled = true;
+    // Bloquear zoom (scroll) y paneo (arrastre) — solo se debe poder MIRAR
+    // alrededor y moverse con WASD. Sin esto, un scroll sin querer aleja la
+    // cámara del modelo y esa posición se graba tal cual, como si hubieras
+    // "salido" del apartamento sin querer.
+    controls.enableZoom = false;
+    controls.enablePan  = false;
     const primero = modulosActuales3D[0];
     if (primero) {
         camera.position.set(primero.cx, 1.6, primero.cz);
@@ -2671,7 +2682,10 @@ function renderLienzoNodos() {
                 </div>
                 ${n.piso_info ? `<div style="font-size:9.5px;color:#6EE7B7;margin-bottom:4px;">${esc(n.piso_info)}</div>` : ''}
                 <div style="font-size:10px;color:var(--gris);margin-bottom:6px;">${(n.t/1000).toFixed(1)}s</div>
-                <button onclick="editarNodoZona('${n.id}')" style="width:100%;background:rgba(255,255,255,0.06);border:none;color:var(--texto);padding:4px;border-radius:5px;font-size:10px;cursor:pointer;">✏️ Editar prompt</button>
+                <div style="display:flex;gap:4px;">
+                    <button onclick="reproducirSegmentoNodo('${n.id}')" title="Reproducir solo este nodo" style="background:rgba(16,185,129,0.15);border:none;color:#6EE7B7;padding:4px 8px;border-radius:5px;font-size:10px;cursor:pointer;">▶</button>
+                    <button onclick="editarNodoZona('${n.id}')" style="flex:1;background:rgba(255,255,255,0.06);border:none;color:var(--texto);padding:4px;border-radius:5px;font-size:10px;cursor:pointer;">✏️ Editar prompt</button>
+                </div>
                 <div class="conector conector-der" data-id="${n.id}" style="position:absolute;right:-7px;top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;background:#7C3AED;border:2px solid white;cursor:crosshair;"></div>
                 <div class="conector conector-izq" data-id="${n.id}" style="position:absolute;left:-7px;top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;background:rgba(255,255,255,0.2);border:2px solid white;"></div>
             </div>`;
@@ -2780,23 +2794,110 @@ function actualizarZonaRecorrido(i, campo, valor) {
     zonasRecorrido[i][campo] = valor;
 }
 
+let detenerReproduccionSolicitado = false;
+
 async function reproducirRecorrido() {
     if (reproduciendoRecorrido || recorridoFrames.length < 2) return;
     reproduciendoRecorrido = true;
+    detenerReproduccionSolicitado = false;
     controls.enabled = false;
+    actualizarBotonReproducir(true);
     const inicio = performance.now();
     const duracion = recorridoFrames.at(-1).t;
     await new Promise(resolve => {
         function paso() {
             const t = performance.now() - inicio;
             aplicarFrameRecorrido(t);
-            if (t < duracion) requestAnimationFrame(paso);
+            if (t < duracion && !detenerReproduccionSolicitado) requestAnimationFrame(paso);
             else resolve();
         }
         requestAnimationFrame(paso);
     });
     controls.enabled = true;
     reproduciendoRecorrido = false;
+    detenerReproduccionSolicitado = false;
+    actualizarBotonReproducir(false);
+}
+
+function detenerReproduccion() {
+    detenerReproduccionSolicitado = true;
+}
+
+async function enviarAProduccion() {
+    if (recorridoFrames.length < 2) { mostrarToast('⚠️ Graba o dibuja un recorrido primero'); return; }
+    const { tiendaId, empresaId } = await obtenerContextoTiendaParaRecorrido();
+    if (!tiendaId) { mostrarToast('⚠️ Inicia sesión con tu cuenta de tienda'); return; }
+
+    const nombre = prompt('Nombre para enviar a producción (aparecerá en Editor de video):', `Recorrido ${new Date().toLocaleDateString('es-CO')}`);
+    if (nombre === null) return;
+
+    const btn = document.getElementById('btnEnviarProduccion');
+    btn.disabled = true; btn.textContent = 'Enviando...';
+
+    const { data, error } = await db.from('recorridos_camara').insert({
+        tienda_id: tiendaId, empresa_id: empresaId,
+        nombre: nombre.trim() || 'Recorrido sin nombre',
+        frames: recorridoFrames, zonas: zonasRecorrido,
+        nodos_referencia: nodosReferencia, conexiones: conexionesCanvas,
+        duracion_ms: recorridoFrames.at(-1).t,
+    }).select().single();
+
+    btn.disabled = false; btn.textContent = '📤 Enviar a producción (Editor de video)';
+
+    if (error || !data) {
+        console.error(error);
+        mostrarToast('❌ No se pudo enviar a producción');
+        return;
+    }
+
+    cambiarVista('editorvideo');
+    agregarClipATimeline(data.id, data.nombre, data.duracion_ms);
+    mostrarToast('📤 Enviado — revisa la línea de tiempo en Editor de video');
+}
+
+async function reproducirSegmentoNodo(nodoId) {
+    if (reproduciendoRecorrido) return;
+    const nodos = [...zonasRecorrido].sort((a, b) => (a.orden || 0) - (b.orden || 0));
+    const idx = nodos.findIndex(n => n.id === nodoId);
+    if (idx === -1) return;
+    const inicioSeg = nodos[idx].t;
+    const finSeg = idx < nodos.length - 1 ? nodos[idx + 1].t : recorridoFrames.at(-1).t;
+
+    reproduciendoRecorrido = true;
+    detenerReproduccionSolicitado = false;
+    controls.enabled = false;
+    actualizarBotonReproducir(true);
+    const tInicioReal = performance.now();
+    await new Promise(resolve => {
+        function paso() {
+            const t = inicioSeg + (performance.now() - tInicioReal);
+            aplicarFrameRecorrido(t);
+            if (t < finSeg && !detenerReproduccionSolicitado) requestAnimationFrame(paso);
+            else resolve();
+        }
+        requestAnimationFrame(paso);
+    });
+    controls.enabled = true;
+    reproduciendoRecorrido = false;
+    actualizarBotonReproducir(false);
+}
+
+function actualizarBotonReproducir(reproduciendo) {
+    ['btnReproducirRecorrido', 'btnReproducirRecorridoNodos'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (!btn) return;
+        if (reproduciendo) {
+            btn.textContent = '⏹ Detener reproducción';
+            btn.onclick = detenerReproduccion;
+            btn.style.background = 'rgba(239,68,68,0.2)';
+            btn.style.color = '#FCA5A5';
+        } else {
+            btn.textContent = '▶ Reproducir';
+            btn.onclick = reproducirRecorrido;
+            btn.style.background = 'rgba(16,185,129,0.15)';
+            btn.style.color = '#6EE7B7';
+        }
+    });
 }
 
 function aplicarFrameRecorrido(t) {
@@ -3091,7 +3192,7 @@ async function cargarRecorridoGuardado(id) {
     nodosReferencia  = data.nodos_referencia || [];
     conexionesCanvas = data.conexiones || [];
     renderLienzoNodos();
-    ['btnReproducirRecorrido','btnDescargarVideo','btnDescargarJSON','btnGuardarRecorrido'].forEach(elId => {
+    ['btnReproducirRecorrido','btnDescargarVideo','btnDescargarJSON','btnGuardarRecorrido','btnEnviarProduccion'].forEach(elId => {
         document.getElementById(elId).disabled = false;
         document.getElementById(elId).style.opacity = '1';
     });
@@ -3269,7 +3370,7 @@ function convertirTrazo3DARecorrido() {
     });
 
     renderLienzoNodos();
-    ['btnReproducirRecorrido','btnDescargarVideo','btnDescargarJSON','btnGuardarRecorrido'].forEach(id => {
+    ['btnReproducirRecorrido','btnDescargarVideo','btnDescargarJSON','btnGuardarRecorrido','btnEnviarProduccion'].forEach(id => {
         document.getElementById(id).disabled = false;
         document.getElementById(id).style.opacity = '1';
     });
@@ -3342,7 +3443,7 @@ function convertirTrazoARecorrido() {
 
     // 4. Habilitar los mismos controles de reproducir/exportar que usa el
     //    recorrido grabado caminando, y saltar a esa pestaña.
-    ['btnReproducirRecorrido','btnDescargarVideo','btnDescargarJSON','btnGuardarRecorrido'].forEach(id => {
+    ['btnReproducirRecorrido','btnDescargarVideo','btnDescargarJSON','btnGuardarRecorrido','btnEnviarProduccion'].forEach(id => {
         document.getElementById(id).disabled = false;
         document.getElementById(id).style.opacity = '1';
     });
