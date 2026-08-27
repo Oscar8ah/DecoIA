@@ -253,6 +253,8 @@
     <div id="cronometroGrabacion" style="display:none;text-align:center;font-size:20px;font-weight:800;color:#FCA5A5;font-variant-numeric:tabular-nums;padding:4px 0;">00:00</div>
     <button id="btnMarcarZona" onclick="marcarZonaActual()" disabled style="background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;opacity:0.5;">📍 Marcar zona aquí</button>
     <div style="border-top:1px solid rgba(124,58,237,0.15);margin-top:6px;padding-top:8px;font-size:11px;color:var(--gris);line-height:1.5;">Cuando termines, ve a la pestaña <b style="color:#A78BFA;">🔗 Nodos</b> para revisar, editar y exportar lo que grabaste.</div>
+    <div style="font-size:10.5px;color:var(--gris);line-height:1.4;">💡 Cada vez que grabas o dibujas, se SUMA a lo anterior — no se borra. Usa "Limpiar todo" si quieres empezar de cero.</div>
+    <button onclick="limpiarRecorridoCompleto()" style="width:100%;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#FCA5A5;padding:6px 12px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;">🗑️ Limpiar todo</button>
     </div>
 </div>
 <div id="toolbarRecorrido" style="display:none;position:fixed;top:100px;left:0;width:220px;flex-direction:column;z-index:500;background:var(--oscuro2);border-right:1px solid rgba(124,58,237,0.2);padding:12px;gap:8px;height:calc(100vh - 100px);overflow-y:auto;">
@@ -1156,6 +1158,15 @@ visorCam.position.set(0, 0.105, 0.02);
 const luzGrabandoCam = new THREE.Mesh(new THREE.SphereGeometry(0.016, 8, 8), matLuzCam);
 luzGrabandoCam.position.set(0.09, 0.08, 0.05);
 marcadorCamara.add(cuerpoCam, lenteCam, anilloLenteCam, visorCam, luzGrabandoCam);
+// Anillo en el piso, debajo, para ubicarla más fácil incluso desde lejos
+const anilloBaseCam = new THREE.Mesh(
+    new THREE.RingGeometry(0.14, 0.17, 24),
+    new THREE.MeshBasicMaterial({ color: 0x7C3AED, transparent: true, opacity: 0.6, side: THREE.DoubleSide })
+);
+anilloBaseCam.rotation.x = -Math.PI / 2;
+anilloBaseCam.position.y = -0.16;
+marcadorCamara.add(anilloBaseCam);
+marcadorCamara.scale.set(1.8, 1.8, 1.8); // más grande, para verla bien a distancia
 marcadorCamara.visible = false;
 scene.add(marcadorCamara);
 const planoArrastre = new THREE.Plane(new THREE.Vector3(0,1,0), 0); // plano Y=0
@@ -2538,6 +2549,7 @@ let grabandoRecorrido      = false;
 let recorridoFrames        = [];  // [{t, x,y,z, qx,qy,qz,qw}]
 let zonasRecorrido         = [];  // [{t, texto}]
 let tiempoInicioGrabacion  = 0;
+let tiempoBaseSegmento     = 0; // dónde empieza el nuevo tramo en el tiempo total — para SUMAR, no reemplazar
 let reproduciendoRecorrido = false;
 let planActualUsuario      = null;
 let estadoActualUsuario    = null;
@@ -2613,8 +2625,10 @@ function toggleGrabarRecorrido() {
     if (!salaConstruida) { mostrarToast('⚠️ Primero genera un modelo 3D en Editor Planta'); return; }
     grabandoRecorrido = !grabandoRecorrido;
     if (grabandoRecorrido) {
-        recorridoFrames = [];
-        zonasRecorrido   = [];
+        // Ya NO se borra lo que ya había — el tramo nuevo se SUMA al final
+        // del anterior, para poder grabar/dibujar por partes sin perder lo
+        // que ya tenías (esto era el bug real de "solo me dio 2 nodos").
+        tiempoBaseSegmento    = recorridoFrames.length ? recorridoFrames.at(-1).t + 300 : 0;
         tiempoInicioGrabacion = performance.now();
         btn.textContent = '⏹ Detener grabación';
         btn.style.background = 'rgba(16,185,129,0.2)';
@@ -2679,7 +2693,7 @@ function entrarModoCaminarRecorrido() {
 
 function procesarGrabacionRecorrido() {
     if (!grabandoRecorrido) return;
-    const t = performance.now() - tiempoInicioGrabacion;
+    const t = tiempoBaseSegmento + (performance.now() - tiempoInicioGrabacion);
     // Muestrea ~10 veces por segundo — suficiente para un recorrido suave sin
     // guardar miles de puntos innecesarios.
     if (recorridoFrames.length && t - recorridoFrames.at(-1).t < 100) return;
@@ -2691,7 +2705,7 @@ function marcarZonaActual() {
     if (!grabandoRecorrido) return;
     const texto = prompt('¿Qué zona es esta? (ej: "Sala — luz cálida, estilo moderno")', '');
     if (!texto) return;
-    const t = performance.now() - tiempoInicioGrabacion;
+    const t = tiempoBaseSegmento + (performance.now() - tiempoInicioGrabacion);
     const pos = posicionAutoNodo(zonasRecorrido.length + nodosReferencia.length);
     zonasRecorrido.push({ id: nuevoIdNodo(), t, texto, prompt: '', color: '#7C3AED', textura_url: '', orden: zonasRecorrido.length + 1, x: pos.x, y: pos.y });
     renderLienzoNodos();
@@ -2923,6 +2937,21 @@ async function reproducirRecorrido() {
 
 function detenerReproduccion() {
     detenerReproduccionSolicitado = true;
+}
+
+function limpiarRecorridoCompleto() {
+    if (!confirm('¿Borrar todo el recorrido grabado, todos los nodos y las conexiones? No se puede deshacer.')) return;
+    recorridoFrames  = [];
+    zonasRecorrido    = [];
+    nodosReferencia   = [];
+    conexionesCanvas  = [];
+    tiempoBaseSegmento = 0;
+    ['btnReproducirRecorrido','btnDescargarVideo','btnDescargarJSON','btnGuardarRecorrido','btnEnviarProduccion'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
+    });
+    renderLienzoNodos();
+    mostrarToast('🗑️ Todo limpio — puedes empezar de cero');
 }
 
 async function enviarAProduccion() {
@@ -3402,10 +3431,15 @@ function agregarPuntoTrazo3D(hit) {
 function dibujarLineaTrazo3D() {
     if (lineaTrazo3DObj) scene.remove(lineaTrazo3DObj);
     if (trazo3D.length < 2) return;
-    const puntos = trazo3D.map(p => new THREE.Vector3(p.x, 0.05, p.z));
-    const geo = new THREE.BufferGeometry().setFromPoints(puntos);
-    const mat = new THREE.LineBasicMaterial({ color: 0xFCD34D, linewidth: 3 });
-    lineaTrazo3DObj = new THREE.Line(geo, mat);
+    // OJO: THREE.Line con linewidth>1 casi nunca se ve más grueso en el
+    // navegador (limitación de WebGL, no del código) — por eso se usa un
+    // tubo real (geometría 3D) en vez de una línea, para que sí se vea grueso.
+    const puntos = trazo3D.map(p => new THREE.Vector3(p.x, 0.06, p.z));
+    const curva = new THREE.CatmullRomCurve3(puntos);
+    const segmentos = Math.max(8, puntos.length * 4);
+    const geo = new THREE.TubeGeometry(curva, segmentos, 0.035, 8, false);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xFCD34D });
+    lineaTrazo3DObj = new THREE.Mesh(geo, mat);
     scene.add(lineaTrazo3DObj);
 }
 
@@ -3464,31 +3498,35 @@ function convertirTrazo3DARecorrido() {
     }
     if (suavizado.length < 2) suavizado.push(trazo3D.at(-1));
 
+    const offsetTiempo = recorridoFrames.length ? recorridoFrames.at(-1).t + 300 : 0;
+
     const dummy3D = new THREE.Object3D();
     let distanciaAcumulada = 0;
-    recorridoFrames = suavizado.map((p, i) => {
+    const nuevosFrames = suavizado.map((p, i) => {
         if (i > 0) distanciaAcumulada += Math.hypot(p.x - suavizado[i-1].x, p.z - suavizado[i-1].z);
-        const t = (distanciaAcumulada / VELOCIDAD_RECORRIDO) * 1000;
+        const t = offsetTiempo + (distanciaAcumulada / VELOCIDAD_RECORRIDO) * 1000;
         const siguiente = suavizado[Math.min(i + 1, suavizado.length - 1)];
         dummy3D.position.set(p.x, ALTURA_CAMARA_RECORRIDO, p.z);
         dummy3D.lookAt(siguiente.x, ALTURA_CAMARA_RECORRIDO, siguiente.z);
         const q = dummy3D.quaternion;
         return { t, x: p.x, y: ALTURA_CAMARA_RECORRIDO, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w };
     });
+    // Se SUMA al final de lo que ya había — antes esto reemplazaba todo, y
+    // era la causa real de "solo me dio 2 nodos" cuando dibujabas por partes.
+    recorridoFrames = recorridoFrames.concat(nuevosFrames);
 
     // Auto-generar un nodo/zona por cada módulo distinto que tocó el trazo —
     // ya trae el piso asignado a ese módulo (real del portafolio, o genérico)
     // y un prompt sugerido según el tipo de espacio, listo para editar.
-    zonasRecorrido = [];
     let moduloAnterior = null;
     suavizado.forEach((p, i) => {
         if (p.moduloId && p.moduloId !== moduloAnterior) {
-            const t = recorridoFrames[i]?.t || 0;
+            const t = nuevosFrames[i]?.t || 0;
             const modInfo = modulosActuales3D.find(m => m.id === p.moduloId);
             const pisoInfo = modInfo?.imagenPisoUrl
                 ? '🪵 Piso real del portafolio de la tienda asignado'
                 : `Piso genérico: ${modInfo?.materialPiso || 'sin definir'}`;
-            const pos = posicionAutoNodo(zonasRecorrido.length);
+            const pos = posicionAutoNodo(zonasRecorrido.length + nodosReferencia.length);
             zonasRecorrido.push({
                 id: nuevoIdNodo(), t, texto: p.moduloNombre || 'Zona',
                 prompt: promptPredeterminadoPorNombre(p.moduloNombre),
