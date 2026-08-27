@@ -267,10 +267,6 @@
     <div id="contenidoRecorridoReal" style="display:flex;flex-direction:column;gap:8px;">
     <div style="font-size:11px;font-weight:700;color:#A78BFA;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;padding-bottom:8px;border-bottom:1px solid rgba(124,58,237,0.2);">🔗 Nodos</div>
     <div style="font-size:11.5px;color:var(--gris);line-height:1.5;">Graba o dibuja el recorrido en <b style="color:#A78BFA;">🏗️ Entorno 3D</b>. Aquí arrastras los nodos, los conectas con flechas, y les asignas su orden.</div>
-    <div style="border:1px solid rgba(124,58,237,0.3);border-radius:8px;overflow:hidden;background:#000;">
-        <canvas id="canvasPreviewNodos" width="196" height="140" style="width:100%;display:block;"></canvas>
-        <div style="font-size:9.5px;color:var(--gris);text-align:center;padding:3px;background:rgba(124,58,237,0.1);">👁️ Vista por dentro (en vivo al reproducir)</div>
-    </div>
     <button id="btnAgregarReferencia" onclick="document.getElementById('inputReferenciaExterna').click()" style="width:100%;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);color:#FCD34D;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">🖼️ Agregar referencia externa</button>
     <input type="file" id="inputReferenciaExterna" accept="image/*,video/*" style="display:none;" onchange="subirReferenciaExterna(this.files[0])">
     <div style="font-size:10.5px;color:var(--gris);line-height:1.4;">Foto o video (ej: dron) que no viene del modelo 3D — se agrega como nodo aparte para conectar con los demás.</div>
@@ -290,6 +286,10 @@
     <svg id="svgConexionesNodos" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:1;"></svg>
     <div id="nodosFlotantesCont" style="position:absolute;top:0;left:0;width:100%;height:100%;z-index:2;"></div>
     <div id="lienzoNodosVacio" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;color:var(--gris);font-size:13px;pointer-events:none;">Graba o dibuja un recorrido en 🏗️ Entorno 3D,<br>o agrega una referencia externa, para ver los nodos aquí.</div>
+    <div style="position:absolute;top:16px;right:16px;z-index:3;border:1.5px solid rgba(124,58,237,0.4);border-radius:10px;overflow:hidden;background:#000;box-shadow:0 8px 24px rgba(0,0,0,0.5);">
+        <canvas id="canvasPreviewNodos" width="360" height="240" style="width:360px;height:240px;display:block;"></canvas>
+        <div style="font-size:11px;color:var(--gris);text-align:center;padding:5px;background:rgba(124,58,237,0.15);">👁️ Vista por dentro (en vivo al reproducir)</div>
+    </div>
 </div>
 <!-- EDITOR DE VIDEO — pantalla nueva: clips guardados → línea de tiempo → config por clip -->
 <div id="toolbarEditorVideo" style="display:none;position:fixed;top:100px;left:0;right:0;bottom:0;z-index:500;background:var(--oscuro2);flex-direction:column;">
@@ -1124,13 +1124,14 @@ const mouse      = new THREE.Vector2();
 // seguir orbitando libremente en Entorno 3D (viendo la camarita moverse por
 // afuera) mientras esta segunda cámara sí recorre el camino grabado en
 // primera persona, dibujando esa vista en un canvas chiquito aparte.
-const cameraPreview = new THREE.PerspectiveCamera(60, 196/140, 0.05, 100);
+const cameraPreview = new THREE.PerspectiveCamera(60, 360/240, 0.05, 100);
 let rendererPreview = null;
 const canvasPreviewEl = document.getElementById('canvasPreviewNodos');
 if (canvasPreviewEl) {
     rendererPreview = new THREE.WebGLRenderer({ canvas: canvasPreviewEl, antialias: true });
     rendererPreview.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    rendererPreview.setSize(196, 140, false);
+    rendererPreview.setSize(360, 240, false);
+    rendererPreview.setClearColor(0x0F0F1A, 1);
     rendererPreview.outputColorSpace = THREE.SRGBColorSpace;
     rendererPreview.toneMapping = THREE.ACESFilmicToneMapping;
     rendererPreview.toneMappingExposure = 1.15;
@@ -2515,7 +2516,11 @@ function animate() {
     controls.update();
     renderer.render(scene,camera);
     if (rendererPreview && (vistaActual === 'recorrido' || reproduciendoRecorrido)) {
-        rendererPreview.render(scene, cameraPreview);
+        try {
+            rendererPreview.render(scene, cameraPreview);
+        } catch (e) {
+            console.error('Error renderizando la mini-pantalla (vista por dentro):', e);
+        }
     }
 }
 
