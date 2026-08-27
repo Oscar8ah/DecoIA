@@ -250,6 +250,9 @@
     <div id="contenidoRecorridoReal" style="display:flex;flex-direction:column;gap:8px;">
     <div style="font-size:11px;font-weight:700;color:#A78BFA;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;padding-bottom:8px;border-bottom:1px solid rgba(124,58,237,0.2);">🎬 Grabar recorrido</div>
     <button id="btnCamaraInteriorRecorrido" onclick="entrarModoCaminarRecorrido()" style="width:100%;padding:9px;border-radius:8px;background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;font-size:12px;font-weight:700;cursor:pointer;">👁️ Entrar y caminar desde adentro</button>
+    <button id="btnDibujar3D" onclick="toggleDibujo3D()" style="width:100%;padding:9px;border-radius:8px;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);color:#FCD34D;font-size:12px;font-weight:700;cursor:pointer;">🎯 Dibujar recorrido sobre el modelo</button>
+    <div id="hintDibujo3D" style="display:none;font-size:11px;color:#FCD34D;background:rgba(245,158,11,0.08);border-radius:6px;padding:6px 8px;">Arrastra el mouse sobre el piso para dibujar. Cada zona que toques queda marcada sola, con su piso ya asignado.</div>
+    <button id="btnUsarTrazo3D" onclick="convertirTrazo3DARecorrido()" style="display:none;width:100%;padding:9px;border-radius:8px;background:var(--degradado);color:white;border:none;font-size:12px;font-weight:700;cursor:pointer;">➡️ Usar este recorrido</button>
     <div style="font-size:12px;color:var(--gris);line-height:1.6;margin-bottom:4px;">Camina con W A S D (Q/E sube/baja) mientras grabas. El recorrido queda guardado con la posición exacta de la cámara.</div>
     <button id="btnGrabarRecorrido" onclick="toggleGrabarRecorrido()" style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);color:#FCA5A5;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">⏺ Grabar recorrido</button>
     <div id="cronometroGrabacion" style="display:none;text-align:center;font-size:20px;font-weight:800;color:#FCA5A5;font-variant-numeric:tabular-nums;padding:4px 0;">00:00</div>
@@ -373,10 +376,9 @@
             </div>
             <div>
                 <label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;">Piso del portafolio de la tienda</label>
-                <div id="propPortafolioPiso" style="display:flex;flex-direction:column;gap:6px;margin-top:6px;max-height:180px;overflow-y:auto;">
+                <div id="propPortafolioPiso" style="margin-top:6px;">
                     <div style="font-size:11px;color:var(--gris);">Cargando...</div>
                 </div>
-                <button onclick="quitarPortafolioPiso()" style="width:100%;margin-top:6px;background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.2);color:var(--gris);padding:6px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;">Quitar y usar piso genérico</button>
                 <div id="calculoMaterialPiso" style="margin-top:8px;"></div>
             </div>
             <button onclick="eliminarModuloSeleccionado()" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#FCA5A5;padding:8px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin-top:8px;">🗑️ Eliminar módulo</button>
@@ -2028,7 +2030,17 @@ function aplicarProductoPortafolio(prodId) {
         return;
     }
 
-    // Modo normal — aplicar según categoría
+    // Si hay un módulo seleccionado en Editor Planta y el producto es de piso/
+    // enchape, asignarlo a ESE módulo (con cálculo real de material/costo) en
+    // vez de al cuarto único viejo — este es ahora el único camino real para
+    // asignar piso; la lista chica que había dentro de "Propiedades" se quitó
+    // porque quedaba duplicada con este panel.
+    if (moduloSeleccionado && ['pisos','enchapes','materiales'].includes(prod.categoria)) {
+        seleccionarPortafolioPiso(prodId);
+        return;
+    }
+
+    // Modo normal (cuarto único, sin módulo de plano seleccionado) — aplicar según categoría
     const esPiso    = ['pisos','enchapes','materiales'].includes(prod.categoria);
     const esPintura = prod.categoria === 'pintura';
 
@@ -2393,6 +2405,7 @@ let tiempoInicioGrabacion  = 0;
 let reproduciendoRecorrido = false;
 let planActualUsuario      = null;
 let estadoActualUsuario    = null;
+let pisosRaycastables      = []; // mallas de piso por módulo, para detectar clics del dibujo 3D
 const PLANES_CON_VIDEO     = ['corporativo']; // el módulo de recorrido/video es exclusivo de Corporativo
 
 // ── DIBUJAR RECORRIDO SOBRE EL PLANO (Etapa 1b) ─────────────────────────────
@@ -2539,6 +2552,7 @@ function renderListaZonasRecorrido() {
                 <div style="color:var(--texto);font-weight:700;font-size:12.5px;">${esc(z.texto)}</div>
                 <div style="color:var(--gris);font-size:10px;">${(z.t/1000).toFixed(1)}s</div>
             </div>
+            ${z.piso_info ? `<div style="font-size:10.5px;color:#6EE7B7;margin-bottom:6px;">${esc(z.piso_info)}</div>` : ''}
             <textarea placeholder="Prompt para esta zona (ej: luz cálida, estilo moderno, piso porcelanato claro)"
                 oninput="actualizarZonaRecorrido(${i}, 'prompt', this.value)"
                 style="width:100%;min-height:44px;background:rgba(0,0,0,0.25);border:1px solid rgba(124,58,237,0.25);border-radius:6px;color:var(--texto);font-size:11.5px;padding:6px;resize:vertical;box-sizing:border-box;">${esc(z.prompt || '')}</textarea>
@@ -2870,6 +2884,98 @@ async function borrarRecorridoGuardado(id) {
     cargarRecorridosGuardados();
 }
 
+// ── DIBUJAR RECORRIDO SOBRE EL MODELO 3D (clic real, no el plano 2D) ───────
+let modoDibujo3D    = false;
+let dibujando3D      = false;
+let trazo3D          = []; // [{x,z,moduloId,moduloNombre}]
+let lineaTrazo3DObj  = null;
+const raycaster3D = new THREE.Raycaster();
+const mouse3D     = new THREE.Vector2();
+
+const PROMPTS_PREDETERMINADOS_POR_ZONA = {
+    bano:       'Luz cálida-neutra, ambiente limpio. Agregar accesorios típicos de baño (jabón, shampoo, toallas) sin exagerar. Mantener la arquitectura exacta.',
+    cocina:     'Luz neutra brillante, ambiente funcional. Mantener la arquitectura exacta, no inventar muebles fijos nuevos.',
+    sala:       'Luz cálida acogedora, estilo moderno. Mantener la arquitectura exacta.',
+    habitacion: 'Luz cálida suave, ambiente de descanso. Mantener la arquitectura exacta.',
+    pasillo:    'Luz neutra uniforme, transición fluida entre espacios.',
+};
+function promptPredeterminadoPorNombre(nombre) {
+    const n = (nombre || '').toLowerCase();
+    if (n.includes('baño')) return PROMPTS_PREDETERMINADOS_POR_ZONA.bano;
+    if (n.includes('cocina')) return PROMPTS_PREDETERMINADOS_POR_ZONA.cocina;
+    if (n.includes('sala')) return PROMPTS_PREDETERMINADOS_POR_ZONA.sala;
+    if (n.includes('habita') || n.includes('cuarto') || n.includes('dormitorio')) return PROMPTS_PREDETERMINADOS_POR_ZONA.habitacion;
+    if (n.includes('pasillo')) return PROMPTS_PREDETERMINADOS_POR_ZONA.pasillo;
+    return '';
+}
+
+function toggleDibujo3D() {
+    modoDibujo3D = !modoDibujo3D;
+    const btn = document.getElementById('btnDibujar3D');
+    document.getElementById('hintDibujo3D').style.display = modoDibujo3D ? 'block' : 'none';
+    if (modoDibujo3D) {
+        if (!salaConstruida) { mostrarToast('⚠️ Primero genera un modelo 3D en Editor Planta'); modoDibujo3D = false; return; }
+        btn.textContent = '✋ Salir del modo dibujo';
+        btn.style.background = 'rgba(245,158,11,0.3)';
+        controls.enabled = false; // el arrastre dibuja, no orbita, mientras esté activo
+        trazo3D = [];
+        if (lineaTrazo3DObj) { scene.remove(lineaTrazo3DObj); lineaTrazo3DObj = null; }
+        document.getElementById('btnUsarTrazo3D').style.display = 'none';
+    } else {
+        btn.textContent = '🎯 Dibujar recorrido sobre el modelo';
+        btn.style.background = 'rgba(245,158,11,0.15)';
+        controls.enabled = true;
+    }
+}
+
+function raycastPiso3D(e) {
+    const rect = canvas.getBoundingClientRect();
+    mouse3D.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse3D.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster3D.setFromCamera(mouse3D, camera);
+    const hits = raycaster3D.intersectObjects(pisosRaycastables);
+    return hits.length ? hits[0] : null;
+}
+
+function agregarPuntoTrazo3D(hit) {
+    const ud = hit.object.userData || {};
+    trazo3D.push({ x: hit.point.x, z: hit.point.z, moduloId: ud.moduloId, moduloNombre: ud.moduloNombre });
+    dibujarLineaTrazo3D();
+}
+
+function dibujarLineaTrazo3D() {
+    if (lineaTrazo3DObj) scene.remove(lineaTrazo3DObj);
+    if (trazo3D.length < 2) return;
+    const puntos = trazo3D.map(p => new THREE.Vector3(p.x, 0.05, p.z));
+    const geo = new THREE.BufferGeometry().setFromPoints(puntos);
+    const mat = new THREE.LineBasicMaterial({ color: 0xFCD34D, linewidth: 3 });
+    lineaTrazo3DObj = new THREE.Line(geo, mat);
+    scene.add(lineaTrazo3DObj);
+}
+
+canvas.addEventListener('mousedown', (e) => {
+    if (!modoDibujo3D) return;
+    const hit = raycastPiso3D(e);
+    if (!hit) return;
+    dibujando3D = true;
+    trazo3D = [];
+    agregarPuntoTrazo3D(hit);
+});
+canvas.addEventListener('mousemove', (e) => {
+    if (!modoDibujo3D || !dibujando3D) return;
+    const hit = raycastPiso3D(e);
+    if (!hit) return;
+    const ultimo = trazo3D.at(-1);
+    if (!ultimo || Math.hypot(hit.point.x - ultimo.x, hit.point.z - ultimo.z) > 0.15) {
+        agregarPuntoTrazo3D(hit);
+    }
+});
+canvas.addEventListener('mouseup', () => {
+    if (!modoDibujo3D) return;
+    dibujando3D = false;
+    if (trazo3D.length > 1) document.getElementById('btnUsarTrazo3D').style.display = 'block';
+});
+
 // ── DIBUJAR RECORRIDO SOBRE EL PLANO (Etapa 1b) ─────────────────────────────
 // Alternativa a caminar con WASD: el usuario dibuja con el mouse/dedo por
 // dónde debe pasar la cámara, directo sobre el Editor Planta. El trazo se
@@ -2879,6 +2985,80 @@ async function borrarRecorridoGuardado(id) {
 const ALTURA_CAMARA_RECORRIDO = 1.6;  // metros — altura de "ojos" al caminar
 const VELOCIDAD_RECORRIDO     = 1.2;  // metros/segundo — paso caminando normal
 const ESPACIADO_RESAMPLEO     = 0.35; // metros entre puntos ya suavizados
+
+function convertirTrazo3DARecorrido() {
+    if (trazo3D.length < 2) return;
+
+    const suavizado = [trazo3D[0]];
+    let distanciaSobrante = 0;
+    for (let i = 1; i < trazo3D.length; i++) {
+        const a = trazo3D[i-1], b = trazo3D[i];
+        const segLen = Math.hypot(b.x - a.x, b.z - a.z);
+        let recorrido = distanciaSobrante;
+        while (recorrido + ESPACIADO_RESAMPLEO <= segLen) {
+            recorrido += ESPACIADO_RESAMPLEO;
+            const f = recorrido / segLen;
+            suavizado.push({
+                x: a.x + (b.x-a.x)*f, z: a.z + (b.z-a.z)*f,
+                moduloId: f < 0.5 ? a.moduloId : b.moduloId,
+                moduloNombre: f < 0.5 ? a.moduloNombre : b.moduloNombre,
+            });
+        }
+        distanciaSobrante = segLen - recorrido;
+    }
+    if (suavizado.length < 2) suavizado.push(trazo3D.at(-1));
+
+    const dummy3D = new THREE.Object3D();
+    let distanciaAcumulada = 0;
+    recorridoFrames = suavizado.map((p, i) => {
+        if (i > 0) distanciaAcumulada += Math.hypot(p.x - suavizado[i-1].x, p.z - suavizado[i-1].z);
+        const t = (distanciaAcumulada / VELOCIDAD_RECORRIDO) * 1000;
+        const siguiente = suavizado[Math.min(i + 1, suavizado.length - 1)];
+        dummy3D.position.set(p.x, ALTURA_CAMARA_RECORRIDO, p.z);
+        dummy3D.lookAt(siguiente.x, ALTURA_CAMARA_RECORRIDO, siguiente.z);
+        const q = dummy3D.quaternion;
+        return { t, x: p.x, y: ALTURA_CAMARA_RECORRIDO, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w };
+    });
+
+    // Auto-generar un nodo/zona por cada módulo distinto que tocó el trazo —
+    // ya trae el piso asignado a ese módulo (real del portafolio, o genérico)
+    // y un prompt sugerido según el tipo de espacio, listo para editar.
+    zonasRecorrido = [];
+    let moduloAnterior = null;
+    suavizado.forEach((p, i) => {
+        if (p.moduloId && p.moduloId !== moduloAnterior) {
+            const t = recorridoFrames[i]?.t || 0;
+            const modInfo = modulosActuales3D.find(m => m.id === p.moduloId);
+            const pisoInfo = modInfo?.imagenPisoUrl
+                ? '🪵 Piso real del portafolio de la tienda asignado'
+                : `Piso genérico: ${modInfo?.materialPiso || 'sin definir'}`;
+            zonasRecorrido.push({
+                t, texto: p.moduloNombre || 'Zona',
+                prompt: promptPredeterminadoPorNombre(p.moduloNombre),
+                color: '#7C3AED',
+                textura_url: modInfo?.imagenPisoUrl || '',
+                piso_info: pisoInfo,
+            });
+            moduloAnterior = p.moduloId;
+        }
+    });
+
+    renderListaZonasRecorrido();
+    ['btnReproducirRecorrido','btnDescargarVideo','btnDescargarJSON','btnGuardarRecorrido'].forEach(id => {
+        document.getElementById(id).disabled = false;
+        document.getElementById(id).style.opacity = '1';
+    });
+
+    if (lineaTrazo3DObj) { scene.remove(lineaTrazo3DObj); lineaTrazo3DObj = null; }
+    document.getElementById('btnUsarTrazo3D').style.display = 'none';
+    modoDibujo3D = false;
+    document.getElementById('btnDibujar3D').textContent = '🎯 Dibujar recorrido sobre el modelo';
+    document.getElementById('btnDibujar3D').style.background = 'rgba(245,158,11,0.15)';
+    document.getElementById('hintDibujo3D').style.display = 'none';
+    controls.enabled = true;
+
+    mostrarToast(`✅ Recorrido creado — ${zonasRecorrido.length} zona(s) detectadas con su piso ya asignado`);
+}
 
 function toggleDibujoRecorrido() {
     modoDibujoRecorrido = !modoDibujoRecorrido;
@@ -3710,20 +3890,17 @@ function seleccionarModulo(id) {
 function renderPortafolioPisoModulo() {
     const cont = document.getElementById('propPortafolioPiso');
     if (!cont || !moduloSeleccionado) return;
-    const opciones = (todosProductos || []).filter(p => ['pisos','enchapes','materiales'].includes(p.categoria));
-    if (!opciones.length) {
-        cont.innerHTML = '<div style="font-size:11px;color:var(--gris);">La tienda aún no tiene pisos/enchapes en su portafolio</div>';
-        return;
+    if (moduloSeleccionado.imagenPisoId) {
+        const prod = (todosProductos || []).find(p => p.id === moduloSeleccionado.imagenPisoId);
+        cont.innerHTML = `
+            <div style="display:flex;align-items:center;gap:8px;padding:6px;border-radius:8px;background:rgba(124,58,237,0.2);border:1px solid rgba(124,58,237,0.4);">
+                <img src="${esc(moduloSeleccionado.imagenPisoUrl)}" style="width:32px;height:32px;border-radius:6px;object-fit:cover;flex-shrink:0;">
+                <span style="font-size:11px;color:var(--texto);flex:1;">${esc(prod?.nombre || 'Producto del portafolio')}</span>
+                <button onclick="quitarPortafolioPiso()" style="background:rgba(239,68,68,0.15);border:none;color:#FCA5A5;border-radius:5px;padding:4px 7px;font-size:10px;cursor:pointer;">✕</button>
+            </div>`;
+    } else {
+        cont.innerHTML = `<div style="font-size:11px;color:var(--gris);line-height:1.4;">Sin asignar — haz clic en un piso/enchape del panel derecho (👉) mientras este módulo esté seleccionado.</div>`;
     }
-    cont.innerHTML = opciones.map(p => `
-        <div onclick="seleccionarPortafolioPiso('${p.id}')"
-            style="display:flex;align-items:center;gap:8px;padding:6px;border-radius:8px;cursor:pointer;
-            background:${moduloSeleccionado.imagenPisoId===p.id?'rgba(124,58,237,0.25)':'rgba(255,255,255,0.03)'};
-            border:1px solid ${moduloSeleccionado.imagenPisoId===p.id?'rgba(124,58,237,0.5)':'transparent'};">
-            <img src="${esc(p.imagen_url)}" style="width:32px;height:32px;border-radius:6px;object-fit:cover;flex-shrink:0;">
-            <span style="font-size:11px;color:var(--texto);line-height:1.3;">${esc(p.nombre)}</span>
-        </div>
-    `).join('');
 }
 
 function calcularCementoArena(areaM2, espesorCm, proporcion) {
@@ -4035,6 +4212,7 @@ function cargarDesdePlano(modelo3d) {
     const offsetZ = maxZ / 2;
     modulosActuales3D = [];
     paredesInteractivas = [];
+    pisosRaycastables = [];
 
     // Construir cada módulo
     modulos.forEach(mod => {
@@ -4046,7 +4224,7 @@ function cargarDesdePlano(modelo3d) {
         const color  = mod.color_pared || '#F5F5F5';
         const mat    = mod.material_piso || 'ceramica';
         if (mod.tipo !== 'pared' && mod.tipo !== 'vidrio') {
-            modulosActuales3D.push({ id: mod.id, nombre: mod.nombre, cx: x, cz: z, ancho, largo, alto });
+            modulosActuales3D.push({ id: mod.id, nombre: mod.nombre, cx: x, cz: z, ancho, largo, alto, materialPiso: mat, imagenPisoUrl: mod.imagen_piso || null });
         }
 
         const matPared = new THREE.MeshStandardMaterial({
@@ -4089,7 +4267,9 @@ function cargarDesdePlano(modelo3d) {
         const piso = new THREE.Mesh(new THREE.BoxGeometry(ancho, 0.1, largo), matPiso);
         piso.position.set(x, -0.05, z);
         piso.receiveShadow = true;
+        piso.userData = { moduloId: mod.id, moduloNombre: mod.nombre };
         scene.add(piso);
+        pisosRaycastables.push(piso);
 
         // Si el módulo tiene un piso del portafolio de la tienda asignado, reemplazar por la textura real
         if (mod.imagen_piso) {
