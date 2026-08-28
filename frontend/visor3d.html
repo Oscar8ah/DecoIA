@@ -3454,6 +3454,7 @@ function toggleDibujo3D() {
         btn.textContent = '🎯 Dibujar recorrido sobre el modelo';
         btn.style.background = 'rgba(245,158,11,0.15)';
         controls.enabled = true;
+        marcadorCamara.visible = false;
     }
 }
 
@@ -3470,6 +3471,24 @@ function agregarPuntoTrazo3D(hit) {
     const ud = hit.object.userData || {};
     trazo3D.push({ x: hit.point.x, z: hit.point.z, moduloId: ud.moduloId, moduloNombre: ud.moduloNombre });
     dibujarLineaTrazo3D();
+    actualizarCamaraMientrasDibuja();
+}
+
+function actualizarCamaraMientrasDibuja() {
+    // Muestra la camarita EN LA PUNTA del trazo mientras dibujas, mirando
+    // hacia donde te estás moviendo — así sabes de una vez hacia dónde va a
+    // quedar mirando la grabación, sin tener que adivinar con solo la línea.
+    if (!trazo3D.length) { marcadorCamara.visible = false; return; }
+    const ultimo = trazo3D.at(-1);
+    marcadorCamara.visible = true;
+    marcadorCamara.position.set(ultimo.x, ALTURA_CAMARA_RECORRIDO, ultimo.z);
+    if (trazo3D.length >= 2) {
+        const anterior = trazo3D[trazo3D.length - 2];
+        const dx = ultimo.x - anterior.x, dz = ultimo.z - anterior.z;
+        if (Math.abs(dx) > 0.001 || Math.abs(dz) > 0.001) {
+            marcadorCamara.lookAt(ultimo.x + dx, ALTURA_CAMARA_RECORRIDO, ultimo.z + dz);
+        }
+    }
 }
 
 function dibujarLineaTrazo3D() {
@@ -3602,6 +3621,7 @@ function convertirTrazo3DARecorrido() {
     if (lineaTrazo3DObj) { scene.remove(lineaTrazo3DObj); lineaTrazo3DObj = null; }
     document.getElementById('btnUsarTrazo3D').style.display = 'none';
     modoDibujo3D = false;
+    marcadorCamara.visible = false;
     document.getElementById('btnDibujar3D').textContent = '🎯 Dibujar recorrido sobre el modelo';
     document.getElementById('btnDibujar3D').style.background = 'rgba(245,158,11,0.15)';
     document.getElementById('hintDibujo3D').style.display = 'none';
