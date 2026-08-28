@@ -1167,6 +1167,40 @@ anilloBaseCam.rotation.x = -Math.PI / 2;
 anilloBaseCam.position.y = -0.16;
 marcadorCamara.add(anilloBaseCam);
 marcadorCamara.scale.set(1.8, 1.8, 1.8); // más grande, para verla bien a distancia
+
+// ── ESTELA de la cámara — rastro que va dejando mientras graba, grueso
+// cerca de la "cabeza" (la cámara) y desvaneciéndose hacia atrás.
+let estelaCamaraObj = null;
+const PUNTOS_ESTELA = 26;
+function actualizarEstelaCamara(t) {
+    if (estelaCamaraObj) { scene.remove(estelaCamaraObj); estelaCamaraObj = null; }
+    if (!recorridoFrames.length) return;
+    // Toma los frames que ya pasaron, hasta PUNTOS_ESTELA hacia atrás
+    const pasados = recorridoFrames.filter(fr => fr.t <= t);
+    if (pasados.length < 2) return;
+    const cola = pasados.slice(-PUNTOS_ESTELA);
+
+    const grupo = new THREE.Group();
+    for (let i = 1; i < cola.length; i++) {
+        const a = cola[i-1], b = cola[i];
+        const prog = i / cola.length;           // 0 = más viejo (atrás), 1 = más nuevo (cabeza)
+        const radio   = 0.012 + prog * 0.045;   // se engruesa hacia la cabeza
+        const opacidad = 0.08 + prog * 0.72;    // se desvanece hacia la cola
+        const va = new THREE.Vector3(a.x, a.y - 0.05, a.z);
+        const vb = new THREE.Vector3(b.x, b.y - 0.05, b.z);
+        const largo = va.distanceTo(vb);
+        if (largo < 0.001) continue;
+        const seg = new THREE.Mesh(
+            new THREE.CylinderGeometry(radio, radio * 0.85, largo, 6),
+            new THREE.MeshBasicMaterial({ color: 0xFCD34D, transparent: true, opacity: opacidad, depthWrite: false })
+        );
+        seg.position.copy(va).lerp(vb, 0.5);
+        seg.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), vb.clone().sub(va).normalize());
+        grupo.add(seg);
+    }
+    estelaCamaraObj = grupo;
+    scene.add(grupo);
+}
 marcadorCamara.visible = false;
 scene.add(marcadorCamara);
 const planoArrastre = new THREE.Plane(new THREE.Vector3(0,1,0), 0); // plano Y=0
@@ -2090,12 +2124,19 @@ async function cargarPortafolio() {
         }
 
         // 2. Fallback → tienda demo global
+        let usandoDemo = false;
         if (!tiendaId) {
             const { data: demo } = await db.from('tiendas').select('id,nombre').eq('slug', TIENDA_DEMO_SLUG).maybeSingle();
-            if (demo) { tiendaId = demo.id; tiendaNombre = demo.nombre + ' 🏪'; }
+            if (demo) { tiendaId = demo.id; tiendaNombre = demo.nombre + ' 🏪'; usandoDemo = true; }
         }
 
         if (!tiendaId) { mostrarEmptyPort('No hay productos disponibles aún'); return; }
+
+        if (usandoDemo && session) {
+            // Tiene cuenta pero no tiene tienda creada — avisar claramente, porque
+            // en modo demo no se puede guardar ni enviar a producción.
+            setTimeout(() => mostrarToast('ℹ️ Estás viendo la tienda DEMO — crea tu tienda en el Dashboard para guardar recorridos'), 1200);
+        }
 
         // Actualizar título del panel
         const tituloPanel = document.querySelector('#pagina-mitienda .panel-titulo, .panel-titulo');
@@ -2929,6 +2970,7 @@ async function reproducirRecorrido() {
         // Pase lo que pase (incluso si algo falla a mitad de la reproducción),
         // el estado SIEMPRE se libera — así "Detener" nunca queda pegado.
         marcadorCamara.visible = false;
+        if (estelaCamaraObj) { scene.remove(estelaCamaraObj); estelaCamaraObj = null; }
         reproduciendoRecorrido = false;
         detenerReproduccionSolicitado = false;
         actualizarBotonReproducir(false);
@@ -3018,6 +3060,7 @@ async function reproducirSegmentoNodo(nodoId) {
         mostrarToast('❌ Error reproduciendo — revisa la consola (F12)');
     } finally {
         marcadorCamara.visible = false;
+        if (estelaCamaraObj) { scene.remove(estelaCamaraObj); estelaCamaraObj = null; }
         reproduciendoRecorrido = false;
         detenerReproduccionSolicitado = false;
         actualizarBotonReproducir(false);
@@ -3072,6 +3115,7 @@ function aplicarFrameRecorrido(t) {
     marcadorCamara.quaternion.copy(quat);
     cameraPreview.position.copy(pos);
     cameraPreview.quaternion.copy(quat);
+    actualizarEstelaCamara(t);
 }
 
 async function descargarVideoRecorrido() {
@@ -3505,9 +3549,19 @@ function convertirTrazo3DARecorrido() {
     const nuevosFrames = suavizado.map((p, i) => {
         if (i > 0) distanciaAcumulada += Math.hypot(p.x - suavizado[i-1].x, p.z - suavizado[i-1].z);
         const t = offsetTiempo + (distanciaAcumulada / VELOCIDAD_RECORRIDO) * 1000;
-        const siguiente = suavizado[Math.min(i + 1, suavizado.length - 1)];
+        // Mirar unos puntos MÁS ADELANTE (no solo el siguiente) — da un giro
+        // más natural y evita que en el último punto lookAt reciba su propia
+        // posición, lo cual dejaba la rotación indefinida y la cámara
+        // aparecía mirando hacia atrás.
+        const idxMira = Math.min(i + 3, suavizado.length - 1);
+        const mira = idxMira > i ? suavizado[idxMira] : suavizado[Math.max(0, i - 1)];
+        const invertir = idxMira > i ? 1 : -1; // si tuvimos que mirar atrás, invertimos la dirección
         dummy3D.position.set(p.x, ALTURA_CAMARA_RECORRIDO, p.z);
-        dummy3D.lookAt(siguiente.x, ALTURA_CAMARA_RECORRIDO, siguiente.z);
+        dummy3D.lookAt(
+            p.x + (mira.x - p.x) * invertir,
+            ALTURA_CAMARA_RECORRIDO,
+            p.z + (mira.z - p.z) * invertir
+        );
         const q = dummy3D.quaternion;
         return { t, x: p.x, y: ALTURA_CAMARA_RECORRIDO, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w };
     });
