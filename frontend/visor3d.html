@@ -233,6 +233,16 @@
 </div>
 <!-- TOOLBAR RECORRIDO — visible solo en pestaña recorrido -->
 <!-- ENTORNO 3D — panel izquierdo con las herramientas para GRABAR/DIBUJAR el recorrido -->
+<!-- PANTALLA EN VIVO DE LA CÁMARA — dentro de Entorno 3D, siempre visible.
+     Muestra lo que la cámara está viendo en este momento, como el recuadro
+     del CameraActor de Unreal. -->
+<div id="pantallaVivoEntorno3D" style="display:none;position:fixed;top:116px;right:316px;z-index:600;border:2px solid #FCD34D;border-radius:10px;overflow:hidden;background:#000;box-shadow:0 8px 30px rgba(0,0,0,0.6);">
+    <div style="background:rgba(252,211,77,0.15);color:#FCD34D;font-size:11px;font-weight:700;padding:5px 8px;display:flex;align-items:center;gap:6px;">
+        <span style="width:8px;height:8px;border-radius:50%;background:#EF4444;display:inline-block;"></span>
+        VISTA DE LA CÁMARA
+    </div>
+    <canvas id="canvasVivoEntorno3D" width="340" height="220" style="width:340px;height:220px;display:block;"></canvas>
+</div>
 <div id="toolbarEntorno3D" style="display:none;position:fixed;top:100px;left:0;width:220px;flex-direction:column;z-index:500;background:var(--oscuro2);border-right:1px solid rgba(124,58,237,0.2);padding:12px;gap:8px;height:calc(100vh - 100px);overflow-y:auto;">
     <div id="bloqueoEntorno3D" style="display:none;">
         <div style="font-size:11px;font-weight:700;color:#A78BFA;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;padding-bottom:8px;border-bottom:1px solid rgba(124,58,237,0.2);">🎬 Grabar recorrido</div>
@@ -246,6 +256,8 @@
     <div style="font-size:11px;font-weight:700;color:#A78BFA;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;padding-bottom:8px;border-bottom:1px solid rgba(124,58,237,0.2);">🎬 Grabar recorrido</div>
     <button id="btnCamaraInteriorRecorrido" onclick="entrarModoCaminarRecorrido()" style="width:100%;padding:9px;border-radius:8px;background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;font-size:12px;font-weight:700;cursor:pointer;">👁️ Entrar y caminar desde adentro</button>
     <button id="btnDibujar3D" onclick="toggleDibujo3D()" style="width:100%;padding:9px;border-radius:8px;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);color:#FCD34D;font-size:12px;font-weight:700;cursor:pointer;">🎯 Dibujar recorrido sobre el modelo</button>
+    <button id="btnArrastrarCamara" onclick="toggleArrastrarCamara()" style="width:100%;padding:9px;border-radius:8px;background:rgba(34,211,238,0.15);border:1px solid rgba(34,211,238,0.5);color:#22D3EE;font-size:12px;font-weight:700;cursor:pointer;">🎥 Arrastrar la cámara</button>
+    <div id="hintArrastrarCamara" style="display:none;font-size:11px;color:#22D3EE;background:rgba(34,211,238,0.08);border-radius:6px;padding:6px 8px;line-height:1.5;">Arrastra la cámara por el modelo — el camino que recorra queda grabado. También puedes moverla con ← → ↑ ↓.</div>
     <div id="hintDibujo3D" style="display:none;font-size:11px;color:#FCD34D;background:rgba(245,158,11,0.08);border-radius:6px;padding:6px 8px;">Arrastra el mouse sobre el piso para dibujar. Cada zona que toques queda marcada sola, con su piso ya asignado.</div>
     <button id="btnUsarTrazo3D" onclick="convertirTrazo3DARecorrido()" style="display:none;width:100%;padding:9px;border-radius:8px;background:var(--degradado);color:white;border:none;font-size:12px;font-weight:700;cursor:pointer;">➡️ Usar este recorrido</button>
     <div style="font-size:12px;color:var(--gris);line-height:1.6;margin-bottom:4px;">O camina con W A S D (Q/E sube/baja) mientras grabas.</div>
@@ -1139,6 +1151,20 @@ if (canvasPreviewEl) {
     rendererPreview.toneMappingExposure = 1.15;
 }
 
+// Renderer de la pantalla en vivo dentro de Entorno 3D (comparte la misma
+// cameraPreview, así ambas pantallas muestran lo mismo que ve la cámara).
+let rendererVivo = null;
+const canvasVivoEl = document.getElementById('canvasVivoEntorno3D');
+if (canvasVivoEl) {
+    rendererVivo = new THREE.WebGLRenderer({ canvas: canvasVivoEl, antialias: true });
+    rendererVivo.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    rendererVivo.setSize(340, 220, false);
+    rendererVivo.setClearColor(0x0F0F1A, 1);
+    rendererVivo.outputColorSpace = THREE.SRGBColorSpace;
+    rendererVivo.toneMapping = THREE.ACESFilmicToneMapping;
+    rendererVivo.toneMappingExposure = 1.15;
+}
+
 // Camarita 3D — un cuerpo + un "lente" cónico apuntando hacia adelante, para
 // ver de un vistazo hacia dónde está grabando en cada instante.
 const marcadorCamara = new THREE.Group();
@@ -1166,7 +1192,43 @@ const anilloBaseCam = new THREE.Mesh(
 anilloBaseCam.rotation.x = -Math.PI / 2;
 anilloBaseCam.position.y = -0.16;
 marcadorCamara.add(anilloBaseCam);
-marcadorCamara.scale.set(1.8, 1.8, 1.8); // más grande, para verla bien a distancia
+// ── GIZMO DE PIVOTE — los 3 ejes de color (como Unreal/Blender), para ver
+// de un vistazo la orientación de la cámara en el espacio.
+function crearFlechaEje(color, direccion) {
+    const g = new THREE.Group();
+    const mat = new THREE.MeshBasicMaterial({ color });
+    const asta = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.42, 8), mat);
+    asta.position.y = 0.21;
+    const punta = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.13, 10), mat);
+    punta.position.y = 0.47;
+    g.add(asta, punta);
+    if (direccion === 'x') g.rotation.z = -Math.PI / 2;
+    if (direccion === 'z') g.rotation.x =  Math.PI / 2;
+    return g;
+}
+function crearAnilloRot(color, eje) {
+    const anillo = new THREE.Mesh(
+        new THREE.TorusGeometry(0.55, 0.012, 8, 40),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.65 })
+    );
+    if (eje === 'yaw')  anillo.rotation.x = Math.PI / 2;
+    if (eje === 'roll') anillo.rotation.y = Math.PI / 2;
+    return anillo;
+}
+const gizmoPivote = new THREE.Group();
+gizmoPivote.add(
+    crearFlechaEje(0xEF4444, 'x'),   // rojo  → X
+    crearFlechaEje(0x22C55E, 'y'),   // verde → Y
+    crearFlechaEje(0x3B82F6, 'z'),   // azul  → Z (hacia donde mira)
+    crearAnilloRot(0x22C55E, 'yaw'),
+    crearAnilloRot(0xEF4444, 'pitch'),
+    crearAnilloRot(0x3B82F6, 'roll'),
+);
+marcadorCamara.add(gizmoPivote);
+
+// ESCALA: el apartamento mide >10 metros, así que una cámara de 22cm se veía
+// como un punto. A 6x mide ~1.3m — el tamaño de una persona, visible de verdad.
+marcadorCamara.scale.set(6, 6, 6);
 
 // ── ESTELA de la cámara — rastro que va dejando mientras graba, grueso
 // cerca de la "cabeza" (la cámara) y desvaneciéndose hacia atrás.
@@ -2571,7 +2633,21 @@ function animate() {
     // aplicarFrameRecorrido) — así que controls.update() puede correr
     // siempre, y el usuario puede orbitar libremente mientras ve la camarita.
     controls.update();
+
+    // La mini-cámara sigue SIEMPRE a la camarita (no solo al reproducir), así
+    // la pantalla en vivo muestra lo que la cámara ve mientras la arrastras.
+    if (marcadorCamara.visible && !reproduciendoRecorrido) {
+        cameraPreview.position.copy(marcadorCamara.position);
+        cameraPreview.quaternion.copy(marcadorCamara.quaternion);
+    }
+
     renderer.render(scene,camera);
+
+    // Pantalla en vivo dentro de Entorno 3D
+    if (rendererVivo && vistaActual === '3d' && marcadorCamara.visible) {
+        try { rendererVivo.render(scene, cameraPreview); } catch (e) { /* ignorar */ }
+    }
+
     if (rendererPreview && (vistaActual === 'recorrido' || reproduciendoRecorrido)) {
         try {
             rendererPreview.render(scene, cameraPreview);
@@ -2633,6 +2709,7 @@ function cambiarVista(vista) {
     document.getElementById('tabEditorVideo').classList.toggle('active',vista==='editorvideo');
     document.getElementById('toolbarPlanta').style.display=vista==='planta'?'flex':'none';
     document.getElementById('toolbarEntorno3D').style.display=vista==='3d'?'flex':'none';
+    document.getElementById('pantallaVivoEntorno3D').style.display=vista==='3d'?'block':'none';
     document.getElementById('toolbarRecorrido').style.display=vista==='recorrido'?'flex':'none';
     document.getElementById('lienzoNodos').style.display=vista==='recorrido'?'block':'none';
     document.getElementById('toolbarEditorVideo').style.display=vista==='editorvideo'?'flex':'none';
@@ -3483,6 +3560,69 @@ function agregarPuntoTrazo3D(hit) {
     actualizarCamaraMientrasDibuja();
 }
 
+// ── ARRASTRAR LA CÁMARA — el camino que recorra queda grabado ─────────────
+let modoArrastrarCamara = false;
+let arrastrandoCamara   = false;
+
+function toggleArrastrarCamara() {
+    modoArrastrarCamara = !modoArrastrarCamara;
+    const btn = document.getElementById('btnArrastrarCamara');
+    document.getElementById('hintArrastrarCamara').style.display = modoArrastrarCamara ? 'block' : 'none';
+    if (modoArrastrarCamara) {
+        if (!salaConstruida) { mostrarToast('⚠️ Primero genera un modelo 3D en Editor Planta'); modoArrastrarCamara = false; return; }
+        if (modoDibujo3D) toggleDibujo3D();   // no pueden estar los dos a la vez
+        btn.textContent = '✋ Salir del modo cámara';
+        btn.style.background = 'rgba(34,211,238,0.35)';
+        controls.enabled = false;
+        trazo3D = [];
+        // Colocar la cámara en el centro del primer módulo para empezar
+        const primero = modulosActuales3D[0];
+        if (primero) {
+            marcadorCamara.visible = true;
+            marcadorCamara.position.set(primero.cx, ALTURA_CAMARA_RECORRIDO, primero.cz);
+            trazo3D.push({ x: primero.cx, z: primero.cz, moduloId: primero.id, moduloNombre: primero.nombre });
+        }
+        mostrarToast('🎥 Arrastra la cámara por el modelo — su recorrido queda grabado');
+    } else {
+        btn.textContent = '🎥 Arrastrar la cámara';
+        btn.style.background = 'rgba(34,211,238,0.15)';
+        controls.enabled = true;
+        if (trazo3D.length > 1) document.getElementById('btnUsarTrazo3D').style.display = 'block';
+    }
+}
+
+// Agarrar la cámara con el mouse
+canvas.addEventListener('mousedown', (e) => {
+    if (!modoArrastrarCamara) return;
+    const rect = canvas.getBoundingClientRect();
+    mouse3D.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse3D.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster3D.setFromCamera(mouse3D, camera);
+    // ¿tocó la cámara?
+    const tocaCamara = raycaster3D.intersectObject(marcadorCamara, true);
+    if (tocaCamara.length) arrastrandoCamara = true;
+});
+
+canvas.addEventListener('mousemove', (e) => {
+    if (!modoArrastrarCamara || !arrastrandoCamara) return;
+    const hit = raycastPiso3D(e);   // dónde está el mouse sobre el piso del modelo
+    if (!hit) return;
+    const ud = hit.object.userData || {};
+    const ultimo = trazo3D.at(-1);
+    // Solo agrega punto si se movió lo suficiente (evita miles de puntos)
+    if (!ultimo || Math.hypot(hit.point.x - ultimo.x, hit.point.z - ultimo.z) > 0.15) {
+        trazo3D.push({ x: hit.point.x, z: hit.point.z, moduloId: ud.moduloId, moduloNombre: ud.moduloNombre });
+        dibujarLineaTrazo3D();
+        actualizarCamaraMientrasDibuja();
+    }
+});
+
+canvas.addEventListener('mouseup', () => {
+    if (!modoArrastrarCamara) return;
+    arrastrandoCamara = false;
+    if (trazo3D.length > 1) document.getElementById('btnUsarTrazo3D').style.display = 'block';
+});
+
 function actualizarCamaraMientrasDibuja() {
     // Muestra la camarita EN LA PUNTA del trazo mientras dibujas, mirando
     // hacia donde te estás moviendo — así sabes de una vez hacia dónde va a
@@ -3526,11 +3666,11 @@ function dibujarLineaTrazo3D() {
     // OJO: THREE.Line con linewidth>1 casi nunca se ve más grueso en el
     // navegador (limitación de WebGL, no del código) — por eso se usa un
     // tubo real (geometría 3D) en vez de una línea, para que sí se vea grueso.
-    const puntos = trazo3D.map(p => new THREE.Vector3(p.x, 0.06, p.z));
+    const puntos = trazo3D.map(p => new THREE.Vector3(p.x, 1.0, p.z));
     const curva = new THREE.CatmullRomCurve3(puntos);
-    const segmentos = Math.max(8, puntos.length * 4);
-    const geo = new THREE.TubeGeometry(curva, segmentos, 0.035, 8, false);
-    const mat = new THREE.MeshBasicMaterial({ color: 0xFCD34D });
+    const segmentos = Math.max(12, puntos.length * 4);
+    const geo = new THREE.TubeGeometry(curva, segmentos, 0.35, 12, false);
+    const mat = new THREE.MeshBasicMaterial({ color: 0x22D3EE });
     lineaTrazo3DObj = new THREE.Mesh(geo, mat);
     scene.add(lineaTrazo3DObj);
 }
