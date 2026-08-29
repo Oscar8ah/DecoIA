@@ -3,7 +3,8 @@ import base64
 import io
 import time
 import httpx
-from fastapi import APIRouter
+from collections import defaultdict, deque
+from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from openai import OpenAI
@@ -13,6 +14,24 @@ from app.services.limites_service import tiene_fotos_disponibles, descontar_foto
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["render3d"])
+
+# ── Límite de uso por IP ──────────────────────────────────────────────────
+# Este endpoint llama a gpt-image-1, que cuesta dinero real por cada llamada.
+# Antes no tenía ningún límite: cualquiera podía llamarlo en bucle.
+_peticiones_por_ip: dict = defaultdict(deque)
+LIMITE_PETICIONES = 20
+VENTANA_SEGUNDOS  = 3600
+
+
+def _verificar_limite_ip(request: Request):
+    ip = request.client.host if request.client else "desconocido"
+    ahora = time.time()
+    historial = _peticiones_por_ip[ip]
+    while historial and ahora - historial[0] > VENTANA_SEGUNDOS:
+        historial.popleft()
+    if len(historial) >= LIMITE_PETICIONES:
+        raise HTTPException(status_code=429, detail="Demasiados renders desde esta conexión. Intenta de nuevo más tarde.")
+    historial.append(ahora)
 
 
 class RenderRequest(BaseModel):
@@ -25,20 +44,28 @@ class RenderRequest(BaseModel):
 
 
 @router.post("/generar-render-3d")
-async def generar_render_3d(data: RenderRequest):
+async def generar_render_3d(data: RenderRequest, request: Request):
     """
     Recibe captura del visor 3D + prompt.
     Genera render fotorrealista con gpt-image-1.
     Guarda en Supabase Storage y retorna URL pública.
     """
+    _verificar_limite_ip(request)
     settings = get_settings()
 
     # ── Revisar cupo de fotos del plan ANTES de gastar en la IA ───────────
-    if data.empresa_id:
-        if not await tiene_fotos_disponibles(data.empresa_id):
-            logger.warning(f"Empresa {data.empresa_id} sin fotos disponibles — render bloqueado")
-            return {"status": "error", "error": "sin_fotos_disponibles",
-                    "mensaje": "Ya usaste todas las fotos incluidas en tu plan este mes. Actualiza tu plan para seguir generando renders."}
+    # OJO: antes, si la petición llegaba SIN empresa_id, este bloque se
+    # saltaba entero y el render se generaba gratis sin descontarle a nadie.
+    # Ahora la empresa es obligatoria: sin ella no se gasta dinero de la IA.
+    if not data.empresa_id:
+        logger.warning("Render 3D rechazado: petición sin empresa_id")
+        return {"status": "error", "error": "empresa_requerida",
+                "mensaje": "No se pudo identificar tu empresa. Vuelve a iniciar sesión e inténtalo de nuevo."}
+
+    if not await tiene_fotos_disponibles(data.empresa_id):
+        logger.warning(f"Empresa {data.empresa_id} sin fotos disponibles — render bloqueado")
+        return {"status": "error", "error": "sin_fotos_disponibles",
+                "mensaje": "Ya usaste todas las fotos incluidas en tu plan este mes. Actualiza tu plan para seguir generando renders."}
 
     try:
         client = OpenAI(api_key=settings.openai_api_key)

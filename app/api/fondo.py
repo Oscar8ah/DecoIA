@@ -2,12 +2,31 @@ import logging
 import base64
 import io
 import time
-from fastapi import APIRouter
+from collections import defaultdict, deque
+from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel
 from app.utils.supabase_client import get_supabase
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["fondo"])
+
+# ── Límite de uso por IP ──────────────────────────────────────────────────
+# rembg no cuesta dinero de API, pero sí consume bastante CPU del servidor —
+# sin límite, alguien podría saturar Render llamándolo en bucle.
+_peticiones_por_ip: dict = defaultdict(deque)
+LIMITE_PETICIONES = 30
+VENTANA_SEGUNDOS  = 3600
+
+
+def _verificar_limite_ip(request: Request):
+    ip = request.client.host if request.client else "desconocido"
+    ahora = time.time()
+    historial = _peticiones_por_ip[ip]
+    while historial and ahora - historial[0] > VENTANA_SEGUNDOS:
+        historial.popleft()
+    if len(historial) >= LIMITE_PETICIONES:
+        raise HTTPException(status_code=429, detail="Demasiadas peticiones desde esta conexión. Intenta de nuevo más tarde.")
+    historial.append(ahora)
 
 
 class FondoRequest(BaseModel):
@@ -16,11 +35,12 @@ class FondoRequest(BaseModel):
 
 
 @router.post("/quitar-fondo")
-async def quitar_fondo(data: FondoRequest):
+async def quitar_fondo(data: FondoRequest, request: Request):
     """
     Recibe imagen en base64, quita el fondo con rembg,
     sube el PNG transparente a Supabase y retorna la URL.
     """
+    _verificar_limite_ip(request)
     try:
         from rembg import remove
 

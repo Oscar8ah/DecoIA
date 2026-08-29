@@ -17,6 +17,7 @@ from app.services.openai_service import (
     analizar_plano_completo,
     analizar_mensaje_texto,
 )
+from app.services.limites_service import tiene_fotos_disponibles, descontar_foto
 from app.utils.supabase_client import get_supabase
 from datetime import datetime
 import json
@@ -196,7 +197,7 @@ async def esperar_seleccion_y_procesar(
     url_foto_original: str, url_foto_generada: str,
     tipo_trabajo: str, settings: Settings,
     pid_envio: str = None, asesor_numero: str = None,
-    timeout_seg: int = 300
+    timeout_seg: int = 300, empresa_id: str = None
 ):
     supabase  = get_supabase()
     intervalo = 5
@@ -235,13 +236,20 @@ async def esperar_seleccion_y_procesar(
                     foto_bytes = foto_r.content
 
                 if seleccion.get("imagen_url"):
-                    async with httpx.AsyncClient(timeout=30.0) as client:
-                        prod_r     = await client.get(seleccion["imagen_url"])
-                        prod_bytes = prod_r.content
-                    url_resultado = await generar_imagen_con_producto(
-                        foto_bytes, prod_bytes,
-                        seleccion["nombre"], seleccion.get("categoria", "material"),
-                    )
+                    # Mismo control de cupo que en el resto del bot — este flujo
+                    # hoy no se dispara (viene de selector.html, que quedó
+                    # desconectado), pero si se reconecta debe respetar el plan.
+                    if empresa_id and not await tiene_fotos_disponibles(empresa_id):
+                        logger.warning(f"Empresa {empresa_id} sin fotos — no se aplica producto con IA")
+                    else:
+                        async with httpx.AsyncClient(timeout=30.0) as client:
+                            prod_r     = await client.get(seleccion["imagen_url"])
+                            prod_bytes = prod_r.content
+                        url_resultado = await generar_imagen_con_producto(
+                            foto_bytes, prod_bytes,
+                            seleccion["nombre"], seleccion.get("categoria", "material"),
+                        )
+                        if empresa_id: await descontar_foto(empresa_id)
             except Exception as e:
                 logger.error(f"Error aplicando producto: {e}")
 
@@ -302,6 +310,22 @@ async def procesar_imagen_background(
     empresa_id: str = None,
 ):
     try:
+        # ── CONTROL DE CUPO ───────────────────────────────────────────────
+        # Antes NO se revisaba nada aquí: el bot generaba imágenes con IA sin
+        # mirar el cupo del plan, así que una empresa podía gastar muchas más
+        # fotos de las que pagó y el costo salía del bolsillo de DecoIArte.
+        # Si no hay empresa (número demo/genérico), se deja pasar como antes.
+        if empresa_id and not await tiene_fotos_disponibles(empresa_id):
+            logger.warning(f"Empresa {empresa_id} sin fotos disponibles — generación bloqueada en el bot")
+            await enviar_mensaje_whatsapp(
+                sender,
+                "⚠️ *Se acabaron las fotos disponibles de este mes*\n\n"
+                "Tu asesor ya fue notificado y puede recargar el cupo o subir de plan "
+                "para seguir generando imágenes con IA. 🙏",
+                settings, pid_envio
+            )
+            return
+
         imagen_bytes = await descargar_imagen_whatsapp(image_id, settings.whatsapp_token)
         modo         = estado_usuarios.get(sender, {}).get("modo", "remodelar")
 
@@ -366,6 +390,7 @@ async def procesar_imagen_background(
                 )
 
             url_isometrica = await generar_vista_isometrica(imagen_bytes, resultado)
+            if empresa_id: await descontar_foto(empresa_id)
 
             await enviar_imagen_whatsapp(
                 sender, url_isometrica,
@@ -456,6 +481,7 @@ async def procesar_imagen_background(
             )
 
             url_generada = await generar_imagen_remodelada(imagen_bytes, "moderno")
+            if empresa_id: await descontar_foto(empresa_id)
 
             from app.services.imagen_service import subir_imagen_a_imgbb
             settings_obj = get_settings()
