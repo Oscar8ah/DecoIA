@@ -3784,7 +3784,10 @@ canvas.addEventListener('mousedown', (e) => {
     const hit = raycastPiso3D(e);
     if (!hit) return;
     dibujando3D = true;
-    trazo3D = [];
+    // OJO — ANTES aquí había `trazo3D = []`, que BORRABA todo lo dibujado
+    // cada vez que se volvía a presionar el mouse. Por eso, al dibujar en
+    // varios trazos, solo sobrevivían las zonas del último — esa era la causa
+    // real de "pasé por 5 zonas y solo salieron 2". Ahora se acumula.
     agregarPuntoTrazo3D(hit);
 });
 canvas.addEventListener('mousemove', (e) => {
@@ -3845,24 +3848,32 @@ function convertirTrazo3DARecorrido() {
 
     const offsetTiempo = recorridoFrames.length ? recorridoFrames.at(-1).t + 300 : 0;
 
-    const dummy3D = new THREE.Object3D();
+    // OJO — ESTE ERA EL BUG DE "GRABA HACIA ATRÁS":
+    // `Object3D.lookAt()` orienta el objeto para que su cara +Z mire al
+    // objetivo, pero una cámara mira por su -Z. Al copiar la rotación de un
+    // Object3D a la cámara, quedaba girada 180° — grababa exactamente al
+    // revés de la dirección dibujada. Usando una Camera como dummy, la
+    // rotación ya sale correcta (verificado con prueba: antes daba (-1,0,0)
+    // cuando debía dar (1,0,0)).
+    const dummy3D = new THREE.PerspectiveCamera();
     let distanciaAcumulada = 0;
     const nuevosFrames = suavizado.map((p, i) => {
         if (i > 0) distanciaAcumulada += Math.hypot(p.x - suavizado[i-1].x, p.z - suavizado[i-1].z);
         const t = offsetTiempo + (distanciaAcumulada / VELOCIDAD_RECORRIDO) * 1000;
-        // Mirar unos puntos MÁS ADELANTE (no solo el siguiente) — da un giro
-        // más natural y evita que en el último punto lookAt reciba su propia
-        // posición, lo cual dejaba la rotación indefinida y la cámara
-        // aparecía mirando hacia atrás.
-        const idxMira = Math.min(i + 3, suavizado.length - 1);
-        const mira = idxMira > i ? suavizado[idxMira] : suavizado[Math.max(0, i - 1)];
-        const invertir = idxMira > i ? 1 : -1; // si tuvimos que mirar atrás, invertimos la dirección
+        // Mirar unos puntos MÁS ADELANTE da un giro más natural. En los
+        // últimos puntos se usa la dirección del tramo anterior (no la propia
+        // posición, que dejaría la rotación indefinida).
+        let dx, dz;
+        if (i < suavizado.length - 1) {
+            const mira = suavizado[Math.min(i + 3, suavizado.length - 1)];
+            dx = mira.x - p.x;  dz = mira.z - p.z;
+        } else {
+            const anterior = suavizado[Math.max(0, i - 1)];
+            dx = p.x - anterior.x;  dz = p.z - anterior.z;
+        }
+        if (Math.abs(dx) < 1e-6 && Math.abs(dz) < 1e-6) { dx = 0; dz = -1; } // sin dirección → mirar a -Z
         dummy3D.position.set(p.x, ALTURA_CAMARA_RECORRIDO, p.z);
-        dummy3D.lookAt(
-            p.x + (mira.x - p.x) * invertir,
-            ALTURA_CAMARA_RECORRIDO,
-            p.z + (mira.z - p.z) * invertir
-        );
+        dummy3D.lookAt(p.x + dx, ALTURA_CAMARA_RECORRIDO, p.z + dz);
         const q = dummy3D.quaternion;
         return { t, x: p.x, y: ALTURA_CAMARA_RECORRIDO, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w };
     });
@@ -3975,7 +3986,7 @@ function convertirTrazoARecorrido() {
 
     // 3. Construir recorridoFrames: posición a altura fija de "ojos", mirando
     //    siempre hacia el siguiente punto del trazo.
-    const dummy = new THREE.Object3D();
+    const dummy = new THREE.PerspectiveCamera(); // OJO: debe ser una Camera, NO un Object3D
     let distanciaAcumulada = 0;
     recorridoFrames = suavizado.map((p, i) => {
         if (i > 0) distanciaAcumulada += Math.hypot(p.x - suavizado[i-1].x, p.z - suavizado[i-1].z);
