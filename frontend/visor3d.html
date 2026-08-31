@@ -3827,24 +3827,42 @@ function convertirTrazo3DARecorrido() {
     );
     if (promptMovimiento === null) return; // canceló
 
+    // ── RESAMPLEO a espaciado uniforme ───────────────────────────────────
+    // OJO: la versión anterior estaba MAL. Comparaba el espaciado contra la
+    // longitud de CADA segmento por separado; como el dibujo agrega puntos
+    // cada ~0.15m y el espaciado buscado es 0.35m, la condición nunca se
+    // cumplía y casi no generaba puntos — el recorrido salía como una recta
+    // que ignoraba toda la curva dibujada. Ahora la distancia se acumula a lo
+    // largo de TODA la polilínea, como debe ser.
     const suavizado = [trazo3D[0]];
-    let distanciaSobrante = 0;
+    let acumulado = 0; // distancia recorrida desde el último punto emitido
     for (let i = 1; i < trazo3D.length; i++) {
         const a = trazo3D[i-1], b = trazo3D[i];
         const segLen = Math.hypot(b.x - a.x, b.z - a.z);
-        let recorrido = distanciaSobrante;
-        while (recorrido + ESPACIADO_RESAMPLEO <= segLen) {
-            recorrido += ESPACIADO_RESAMPLEO;
-            const f = recorrido / segLen;
+        if (segLen < 1e-9) continue;
+        let pos = 0; // avance dentro de este segmento
+        while (acumulado + (segLen - pos) >= ESPACIADO_RESAMPLEO) {
+            pos += ESPACIADO_RESAMPLEO - acumulado;
+            const f = pos / segLen;
             suavizado.push({
-                x: a.x + (b.x-a.x)*f, z: a.z + (b.z-a.z)*f,
+                x: a.x + (b.x - a.x) * f, z: a.z + (b.z - a.z) * f,
                 moduloId: f < 0.5 ? a.moduloId : b.moduloId,
                 moduloNombre: f < 0.5 ? a.moduloNombre : b.moduloNombre,
             });
+            acumulado = 0;
         }
-        distanciaSobrante = segLen - recorrido;
+        acumulado += segLen - pos;
     }
-    if (suavizado.length < 2) suavizado.push(trazo3D.at(-1));
+    // SIEMPRE incluir el último punto real del trazo. El resampleo solo agrega
+    // puntos en múltiplos exactos del espaciado, así que el tramo final se
+    // quedaba fuera y el recorrido terminaba ANTES de llegar a la última zona
+    // — por eso "faltaba el último nodo".
+    const ultimoReal = trazo3D.at(-1);
+    const ultimoSuave = suavizado.at(-1);
+    if (!ultimoSuave || Math.hypot(ultimoReal.x - ultimoSuave.x, ultimoReal.z - ultimoSuave.z) > 0.01) {
+        suavizado.push({ ...ultimoReal });
+    }
+    if (suavizado.length < 2) suavizado.push({ ...trazo3D.at(-1) });
 
     const offsetTiempo = recorridoFrames.length ? recorridoFrames.at(-1).t + 300 : 0;
 
@@ -3880,6 +3898,14 @@ function convertirTrazo3DARecorrido() {
     // Se SUMA al final de lo que ya había — antes esto reemplazaba todo, y
     // era la causa real de "solo me dio 2 nodos" cuando dibujabas por partes.
     recorridoFrames = recorridoFrames.concat(nuevosFrames);
+
+    // Pausa al final: repite el último frame 1.2 segundos más. Sin esto, la
+    // reproducción termina en el instante exacto en que la cámara llega a la
+    // última zona, y no se alcanza a ver.
+    const ultimoFrame = recorridoFrames.at(-1);
+    if (ultimoFrame) {
+        recorridoFrames.push({ ...ultimoFrame, t: ultimoFrame.t + 1200 });
+    }
 
     // Auto-generar un nodo/zona por cada módulo distinto que tocó el trazo.
     // BUG CORREGIDO: antes se recorría `suavizado` (el trazo resampleado cada
