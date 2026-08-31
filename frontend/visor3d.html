@@ -258,6 +258,31 @@
     <button id="btnDibujar3D" onclick="toggleDibujo3D()" style="width:100%;padding:9px;border-radius:8px;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);color:#FCD34D;font-size:12px;font-weight:700;cursor:pointer;">🎯 Dibujar recorrido sobre el modelo</button>
     <button id="btnArrastrarCamara" onclick="toggleArrastrarCamara()" style="width:100%;padding:9px;border-radius:8px;background:rgba(34,211,238,0.15);border:1px solid rgba(34,211,238,0.5);color:#22D3EE;font-size:12px;font-weight:700;cursor:pointer;">🎥 Arrastrar la cámara</button>
     <div id="hintArrastrarCamara" style="display:none;font-size:11px;color:#22D3EE;background:rgba(34,211,238,0.08);border-radius:6px;padding:6px 8px;line-height:1.5;">Arrastra la cámara por el modelo — el camino que recorra queda grabado. También puedes moverla con ← → ↑ ↓.</div>
+
+    <!-- CONTROL Y ANIMACIÓN DE LA CÁMARA -->
+    <div style="border-top:1px solid rgba(34,211,238,0.2);margin-top:6px;padding-top:8px;">
+        <div style="font-size:10.5px;font-weight:700;color:#22D3EE;text-transform:uppercase;margin-bottom:6px;">🎬 Animación de cámara</div>
+
+        <div style="font-size:10px;color:var(--gris);margin-bottom:3px;">Girar (yaw)</div>
+        <div style="display:flex;gap:4px;margin-bottom:6px;">
+            <button onclick="rotarCamaraVideo('yaw',-1)" style="flex:1;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.35);color:#6EE7B7;padding:5px;border-radius:6px;font-size:12px;cursor:pointer;">↺</button>
+            <button onclick="rotarCamaraVideo('yaw',1)" style="flex:1;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.35);color:#6EE7B7;padding:5px;border-radius:6px;font-size:12px;cursor:pointer;">↻</button>
+        </div>
+
+        <div style="font-size:10px;color:var(--gris);margin-bottom:3px;">Inclinar (pitch)</div>
+        <div style="display:flex;gap:4px;margin-bottom:6px;">
+            <button onclick="rotarCamaraVideo('pitch',-1)" style="flex:1;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#FCA5A5;padding:5px;border-radius:6px;font-size:12px;cursor:pointer;">▲</button>
+            <button onclick="rotarCamaraVideo('pitch',1)" style="flex:1;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#FCA5A5;padding:5px;border-radius:6px;font-size:12px;cursor:pointer;">▼</button>
+        </div>
+
+        <div style="font-size:10px;color:var(--gris);margin-bottom:3px;">Altura: <span id="valorAlturaCam">1.6</span> m</div>
+        <input type="range" id="sliderAlturaCam" min="0.4" max="2.4" step="0.1" value="1.6" oninput="cambiarAlturaCamaraVideo(this.value)" style="width:100%;margin-bottom:8px;">
+
+        <div style="font-size:10px;color:var(--gris);margin-bottom:3px;">Velocidad: <span id="valorVelocidadCam">1.2</span> m/s</div>
+        <input type="range" id="sliderVelocidadCam" min="0.3" max="3" step="0.1" value="1.2" oninput="cambiarVelocidadRecorrido(this.value)" style="width:100%;margin-bottom:8px;">
+
+        <button onclick="reproducirRecorrido()" style="width:100%;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.35);color:#6EE7B7;padding:7px;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer;">▶ Ver animación del recorrido</button>
+    </div>
     <div id="hintDibujo3D" style="display:none;font-size:11px;color:#FCD34D;background:rgba(245,158,11,0.08);border-radius:6px;padding:6px 8px;">Arrastra el mouse sobre el piso para dibujar. Cada zona que toques queda marcada sola, con su piso ya asignado.</div>
     <button id="btnUsarTrazo3D" onclick="convertirTrazo3DARecorrido()" style="display:none;width:100%;padding:9px;border-radius:8px;background:var(--degradado);color:white;border:none;font-size:12px;font-weight:700;cursor:pointer;">➡️ Usar este recorrido</button>
     <div style="font-size:12px;color:var(--gris);line-height:1.6;margin-bottom:4px;">O camina con W A S D (Q/E sube/baja) mientras grabas.</div>
@@ -1165,42 +1190,81 @@ if (canvasVivoEl) {
     rendererVivo.toneMappingExposure = 1.15;
 }
 
-// Camarita 3D — un cuerpo + un "lente" cónico apuntando hacia adelante, para
-// ver de un vistazo hacia dónde está grabando en cada instante.
+// ══════════════════════════════════════════════════════════════════════
+// CÁMARA DE VIDEO 3D — modelo con forma de camcorder profesional.
+// Verificado con render real antes de integrarlo (cuerpo, LCD, lente con
+// parasol, asa superior, micrófono, visor, luz roja de grabando).
+// Mira hacia -Z, que es la convención de "adelante" en Three.js.
+// ══════════════════════════════════════════════════════════════════════
 const marcadorCamara = new THREE.Group();
-const matCuerpoCam  = new THREE.MeshStandardMaterial({ color: 0x1F2937, emissive: 0x7C3AED, emissiveIntensity: 0.25, metalness: 0.4, roughness: 0.5 });
-const matDetalleCam = new THREE.MeshStandardMaterial({ color: 0xFCD34D, emissive: 0xFCD34D, emissiveIntensity: 0.6 });
-const matLuzCam      = new THREE.MeshStandardMaterial({ color: 0xEF4444, emissive: 0xEF4444, emissiveIntensity: 1.8 });
+const matCuerpoCam  = new THREE.MeshStandardMaterial({ color: 0x2A2E35, metalness: 0.55, roughness: 0.45 });
+const matOscuroCam  = new THREE.MeshStandardMaterial({ color: 0x15171B, metalness: 0.40, roughness: 0.60 });
+const matLenteCam   = new THREE.MeshStandardMaterial({ color: 0x0A0C10, metalness: 0.90, roughness: 0.15 });
+const matVidrioCam  = new THREE.MeshStandardMaterial({ color: 0x1E3A5F, metalness: 1.0, roughness: 0.05, emissive: 0x0A1A2F, emissiveIntensity: 0.6 });
+const matDetalleCam = new THREE.MeshStandardMaterial({ color: 0x4A4F58, metalness: 0.70, roughness: 0.35 });
+const matLuzCam     = new THREE.MeshStandardMaterial({ color: 0xEF4444, emissive: 0xEF4444, emissiveIntensity: 2.0 });
 
-const cuerpoCam = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.15, 0.16), matCuerpoCam);
-const lenteCam  = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.065, 0.14, 20), matDetalleCam);
-lenteCam.rotation.x = Math.PI / 2;
-lenteCam.position.z = -0.15;
-const anilloLenteCam = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.012, 8, 20), matDetalleCam);
-anilloLenteCam.rotation.x = Math.PI / 2;
-anilloLenteCam.position.z = -0.21;
-const visorCam = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.06, 0.08), matCuerpoCam);
-visorCam.position.set(0, 0.105, 0.02);
-const luzGrabandoCam = new THREE.Mesh(new THREE.SphereGeometry(0.016, 8, 8), matLuzCam);
-luzGrabandoCam.position.set(0.09, 0.08, 0.05);
-marcadorCamara.add(cuerpoCam, lenteCam, anilloLenteCam, visorCam, luzGrabandoCam);
-// Anillo en el piso, debajo, para ubicarla más fácil incluso desde lejos
-const anilloBaseCam = new THREE.Mesh(
-    new THREE.RingGeometry(0.14, 0.17, 24),
-    new THREE.MeshBasicMaterial({ color: 0x7C3AED, transparent: true, opacity: 0.6, side: THREE.DoubleSide })
-);
-anilloBaseCam.rotation.x = -Math.PI / 2;
-anilloBaseCam.position.y = -0.16;
-marcadorCamara.add(anilloBaseCam);
-// ── GIZMO DE PIVOTE — los 3 ejes de color (como Unreal/Blender), para ver
-// de un vistazo la orientación de la cámara en el espacio.
+// Cuerpo principal + bisel frontal (le da la silueta característica)
+const cuerpoCam = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.24, 0.46), matCuerpoCam);
+cuerpoCam.position.set(0, 0, 0.02);
+const biselCam = new THREE.Mesh(new THREE.CylinderGeometry(0.135, 0.145, 0.30, 8), matCuerpoCam);
+biselCam.rotation.z = Math.PI / 2;
+biselCam.position.set(0, 0.01, -0.22);
+
+// Pantalla LCD lateral
+const marcoPantallaCam = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.17, 0.26), matOscuroCam);
+marcoPantallaCam.position.set(-0.16, 0.01, 0.05);
+const pantallaCam = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.14, 0.22), matVidrioCam);
+pantallaCam.position.set(-0.172, 0.01, 0.05);
+
+// Lente: cuerpo + anillos de enfoque + parasol + cristal
+const lenteBaseCam = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.115, 0.20, 24), matLenteCam);
+lenteBaseCam.rotation.x = Math.PI / 2;
+lenteBaseCam.position.set(0, 0.01, -0.38);
+marcadorCamara.add(cuerpoCam, biselCam, marcoPantallaCam, pantallaCam, lenteBaseCam);
+[-0.32, -0.40].forEach(z => {
+    const anillo = new THREE.Mesh(new THREE.TorusGeometry(0.108, 0.014, 10, 24), matDetalleCam);
+    anillo.rotation.y = Math.PI / 2;
+    anillo.rotation.x = Math.PI / 2;
+    anillo.position.set(0, 0.01, z);
+    marcadorCamara.add(anillo);
+});
+const campanaCam = new THREE.Mesh(new THREE.CylinderGeometry(0.135, 0.105, 0.13, 24, 1, true), matOscuroCam);
+campanaCam.rotation.x = Math.PI / 2;
+campanaCam.position.set(0, 0.01, -0.52);
+const cristalCam = new THREE.Mesh(new THREE.CircleGeometry(0.095, 24), matVidrioCam);
+cristalCam.rotation.y = Math.PI;
+cristalCam.position.set(0, 0.01, -0.475);
+
+// Asa superior con sus dos soportes
+const asaCam = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.035, 0.42), matOscuroCam);
+asaCam.position.set(0, 0.235, -0.04);
+marcadorCamara.add(campanaCam, cristalCam, asaCam);
+[-0.14, 0.16].forEach(z => {
+    const soporte = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.08, 0.05), matOscuroCam);
+    soporte.position.set(0, 0.17, z);
+    marcadorCamara.add(soporte);
+});
+
+// Visor trasero, micrófono y luz roja de grabando
+const visorCam = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.055, 0.16, 16), matOscuroCam);
+visorCam.rotation.x = Math.PI / 2.4;
+visorCam.position.set(0.02, 0.20, 0.22);
+const micCam = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.17, 12), matDetalleCam);
+micCam.rotation.x = Math.PI / 2;
+micCam.position.set(0, 0.27, -0.22);
+const luzGrabandoCam = new THREE.Mesh(new THREE.SphereGeometry(0.022, 10, 10), matLuzCam);
+luzGrabandoCam.position.set(0.10, 0.10, -0.245);
+marcadorCamara.add(visorCam, micCam, luzGrabandoCam);
+
+// ── GIZMO DE PIVOTE — los 3 ejes de color (como Unreal/Blender) ──
 function crearFlechaEje(color, direccion) {
     const g = new THREE.Group();
     const mat = new THREE.MeshBasicMaterial({ color });
-    const asta = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.42, 8), mat);
-    asta.position.y = 0.21;
-    const punta = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.13, 10), mat);
-    punta.position.y = 0.47;
+    const asta = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.70, 8), mat);
+    asta.position.y = 0.35;
+    const punta = new THREE.Mesh(new THREE.ConeGeometry(0.065, 0.18, 12), mat);
+    punta.position.y = 0.79;
     g.add(asta, punta);
     if (direccion === 'x') g.rotation.z = -Math.PI / 2;
     if (direccion === 'z') g.rotation.x =  Math.PI / 2;
@@ -1208,8 +1272,8 @@ function crearFlechaEje(color, direccion) {
 }
 function crearAnilloRot(color, eje) {
     const anillo = new THREE.Mesh(
-        new THREE.TorusGeometry(0.55, 0.012, 8, 40),
-        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.65 })
+        new THREE.TorusGeometry(0.62, 0.014, 8, 44),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55 })
     );
     if (eje === 'yaw')  anillo.rotation.x = Math.PI / 2;
     if (eje === 'roll') anillo.rotation.y = Math.PI / 2;
@@ -1217,8 +1281,8 @@ function crearAnilloRot(color, eje) {
 }
 const gizmoPivote = new THREE.Group();
 gizmoPivote.add(
-    crearFlechaEje(0xEF4444, 'x'),   // rojo  → X
-    crearFlechaEje(0x22C55E, 'y'),   // verde → Y
+    crearFlechaEje(0xEF4444, 'x'),   // rojo  → X (derecha)
+    crearFlechaEje(0x22C55E, 'y'),   // verde → Y (arriba)
     crearFlechaEje(0x3B82F6, 'z'),   // azul  → Z (hacia donde mira)
     crearAnilloRot(0x22C55E, 'yaw'),
     crearAnilloRot(0xEF4444, 'pitch'),
@@ -1226,9 +1290,10 @@ gizmoPivote.add(
 );
 marcadorCamara.add(gizmoPivote);
 
-// ESCALA: el apartamento mide >10 metros, así que una cámara de 22cm se veía
-// como un punto. A 6x mide ~1.3m — el tamaño de una persona, visible de verdad.
-marcadorCamara.scale.set(6, 6, 6);
+// ESCALA: el modelo base mide ~0.65m (tamaño real de una cámara profesional).
+// A 3x mide ~2m — visible de verdad dentro de un apartamento de 10-12 metros
+// sin verse absurda. Verificado con render antes de integrar.
+marcadorCamara.scale.set(3, 3, 3);
 
 // ── ESTELA de la cámara — rastro que va dejando mientras graba, grueso
 // cerca de la "cabeza" (la cámara) y desvaneciéndose hacia atrás.
@@ -2722,7 +2787,19 @@ function cambiarVista(vista) {
         document.getElementById('btnEnviarCliente').style.display='flex';
     }
     if (vista==='planta') iniciarEditorPlanta();
-    if (vista==='3d') actualizarCandadoEntorno3D();
+    if (vista==='3d') {
+        actualizarCandadoEntorno3D();
+        // La cámara vive SIEMPRE en el entorno (como el CameraActor de Unreal),
+        // no solo mientras se graba — así se puede ver, arrastrar y orientar
+        // en cualquier momento.
+        if (salaConstruida) {
+            marcadorCamara.visible = true;
+            if (marcadorCamara.position.lengthSq() === 0 && modulosActuales3D.length) {
+                const m0 = modulosActuales3D[0];
+                marcadorCamara.position.set(m0.cx, ALTURA_CAMARA_RECORRIDO, m0.cz);
+            }
+        }
+    }
     if (vista==='recorrido') { cargarRecorridosGuardados(); actualizarCandadoRecorrido(); renderLienzoNodos(); }
     if (vista==='editorvideo') { actualizarCandadoEditorVideo(); cargarClipsDisponiblesEditor(); }
     // Grabar/dibujar y caminar libre viven entre las pestañas 3D y Recorrido
@@ -3564,6 +3641,33 @@ function agregarPuntoTrazo3D(hit) {
 let modoArrastrarCamara = false;
 let arrastrandoCamara   = false;
 
+// ── CONTROL MANUAL DE LA CÁMARA DE VIDEO ─────────────────────────────────
+const PASO_ROTACION = Math.PI / 18; // 10 grados por clic
+
+function rotarCamaraVideo(eje, dir) {
+    if (!marcadorCamara.visible) { mostrarToast('⚠️ Genera un modelo 3D primero'); return; }
+    if (eje === 'yaw')   marcadorCamara.rotation.y += PASO_ROTACION * dir;
+    if (eje === 'pitch') marcadorCamara.rotation.x += PASO_ROTACION * dir;
+    // Si ya hay un trazo, guardar esta orientación en el último punto para
+    // que la grabación respete hacia dónde el usuario dejó mirando la cámara.
+    if (trazo3D.length) {
+        const u = trazo3D.at(-1);
+        u.rotY = marcadorCamara.rotation.y;
+        u.rotX = marcadorCamara.rotation.x;
+    }
+}
+
+function cambiarAlturaCamaraVideo(valor) {
+    ALTURA_CAMARA_RECORRIDO = parseFloat(valor);
+    document.getElementById('valorAlturaCam').textContent = ALTURA_CAMARA_RECORRIDO.toFixed(1);
+    if (marcadorCamara.visible) marcadorCamara.position.y = ALTURA_CAMARA_RECORRIDO;
+}
+
+function cambiarVelocidadRecorrido(valor) {
+    VELOCIDAD_RECORRIDO = parseFloat(valor);
+    document.getElementById('valorVelocidadCam').textContent = VELOCIDAD_RECORRIDO.toFixed(1);
+}
+
 function toggleArrastrarCamara() {
     modoArrastrarCamara = !modoArrastrarCamara;
     const btn = document.getElementById('btnArrastrarCamara');
@@ -3704,8 +3808,9 @@ canvas.addEventListener('mouseup', () => {
 // convierte en la MISMA estructura de datos (recorridoFrames) que genera
 // grabar caminando — así que reproducir/exportar funciona igual sin importar
 // cómo nació el recorrido.
-const ALTURA_CAMARA_RECORRIDO = 1.6;  // metros — altura de "ojos" al caminar
-const VELOCIDAD_RECORRIDO     = 1.2;  // metros/segundo — paso caminando normal
+// Ajustables desde los sliders del panel de animación de cámara
+let ALTURA_CAMARA_RECORRIDO = 1.6;  // metros — altura de "ojos" al caminar
+let VELOCIDAD_RECORRIDO     = 1.2;  // metros/segundo — paso caminando normal
 const ESPACIADO_RESAMPLEO     = 0.35; // metros entre puntos ya suavizados
 
 function convertirTrazo3DARecorrido() {
@@ -5155,6 +5260,14 @@ function cargarDesdePlano(modelo3d) {
     camera.position.set(0, distCam * 0.8, distCam);
     controls.target.set(0, altoPiso * 0.4, 0);
     controls.update();
+
+    // Colocar la CÁMARA DE VIDEO dentro del primer módulo, visible de una vez
+    if (modulosActuales3D.length) {
+        const m0 = modulosActuales3D[0];
+        marcadorCamara.position.set(m0.cx, ALTURA_CAMARA_RECORRIDO, m0.cz);
+        marcadorCamara.rotation.set(0, 0, 0);
+        marcadorCamara.visible = (vistaActual === '3d');
+    }
 
     configurarLuces();
 
