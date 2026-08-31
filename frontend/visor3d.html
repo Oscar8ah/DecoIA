@@ -229,6 +229,9 @@
     <div style="border-top:1px solid rgba(124,58,237,0.2);margin-top:4px;padding-top:8px;display:flex;flex-direction:column;gap:6px;">
         <button onclick="limpiarPlanta()" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#FCA5A5;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🗑️ Limpiar</button>
         <button onclick="generarDesdePlanta()" style="background:var(--degradado);color:white;border:none;padding:5px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">✨ Generar 3D</button>
+    <div style="border-top:1px solid rgba(34,197,94,0.2);margin-top:4px;padding-top:8px;">
+        <div style="font-size:10.5px;font-weight:700;color:#22C55E;text-transform:uppercase;margin-bottom:4px;">🚪 Vanos</div>
+        <div style="font-size:10.5px;color:var(--gris);line-height:1.5;">Cuando dos zonas se tocan aparece un vano (puerta) de 90cm sobre la pared. Haz clic en la barra verde para moverlo, cambiar su ancho, o agregar otro.</div>
     </div>
 </div>
 <!-- TOOLBAR RECORRIDO — visible solo en pestaña recorrido -->
@@ -398,6 +401,7 @@
         </div>
 
         <!-- PANEL PROPIEDADES -->
+        <div id="panelVano" style="width:220px;background:var(--oscuro2);border-left:1px solid rgba(34,197,94,0.25);padding:16px;overflow-y:auto;display:none;"></div>
         <div id="panelPropiedades" style="width:220px;background:var(--oscuro2);border-left:1px solid rgba(124,58,237,0.2);padding:16px;overflow-y:auto;display:none;flex-direction:column;gap:12px;">
             <div style="font-size:14px;font-weight:700;margin-bottom:4px;">📋 Propiedades</div>
             <div id="propNombre" style="font-size:13px;color:#A78BFA;font-weight:600;"></div>
@@ -4488,6 +4492,7 @@ function mostrarBloqueoPlanVisor() {
 }
 // ── EDITOR PLANTA L T U ───────────────────────────────────────────────────
 let modulosPlanta = [];
+let vanosPlanta   = []; // vanos (puertas/pasos) colocados sobre las paredes compartidas
 let moduloSeleccionado = null;
 let dragging = false;
 let dragOffsetX = 0, dragOffsetZ = 0;
@@ -4551,6 +4556,124 @@ function agregarModulo(tipo) {
     seleccionarModulo(id);
     dibujarPlanta();
     actualizarListaModulos();
+}
+
+// ── VANOS: geometría, selección y arrastre ───────────────────────────────
+let vanoSeleccionado = null;
+let vanoArrastrando  = null;
+
+// Devuelve las coordenadas en píxeles del vano sobre su pared, para dibujarlo
+// y para detectar clics. El vano vive sobre el lado compartido entre dos
+// módulos, así que se ubica usando el módulo A y el lado guardado.
+function geometriaVanoEnPlano(v) {
+    const a = modulosPlanta.find(m => m.id === v.modulo_a);
+    if (!a) return null;
+    const mitad = v.ancho / 2;
+    const ini = (v.centro - mitad) * ESCALA;
+    const fin = (v.centro + mitad) * ESCALA;
+    if (v.lado === 'norte')      return { x1: ini, z1: a.pz,               x2: fin, z2: a.pz,               horizontal: true };
+    if (v.lado === 'sur')        return { x1: ini, z1: a.pz + a.largo*ESCALA, x2: fin, z2: a.pz + a.largo*ESCALA, horizontal: true };
+    if (v.lado === 'oeste')      return { x1: a.px,                    z1: ini, x2: a.px,                    z2: fin, horizontal: false };
+    if (v.lado === 'este')       return { x1: a.px + a.ancho*ESCALA,   z1: ini, x2: a.px + a.ancho*ESCALA,   z2: fin, horizontal: false };
+    return null;
+}
+
+// ¿El clic cayó sobre algún vano? Devuelve el vano o null.
+function vanoEnPunto(px, pz) {
+    const TOL = 10; // píxeles de tolerancia
+    for (const v of vanosPlanta) {
+        const g = geometriaVanoEnPlano(v);
+        if (!g) continue;
+        if (g.horizontal) {
+            if (Math.abs(pz - g.z1) < TOL && px >= Math.min(g.x1,g.x2) - TOL && px <= Math.max(g.x1,g.x2) + TOL) return v;
+        } else {
+            if (Math.abs(px - g.x1) < TOL && pz >= Math.min(g.z1,g.z2) - TOL && pz <= Math.max(g.z1,g.z2) + TOL) return v;
+        }
+    }
+    return null;
+}
+
+function seleccionarVano(v) {
+    vanoSeleccionado = v;
+    moduloSeleccionado = null;
+    renderPanelVano();
+    dibujarPlanta();
+}
+
+function moverVanoA(px, pz) {
+    if (!vanoArrastrando) return;
+    const v = vanoArrastrando;
+    // Deslizar SOLO a lo largo de su pared, sin salirse del tramo compartido
+    const nuevoCentro = (v.lado === 'norte' || v.lado === 'sur') ? px / ESCALA : pz / ESCALA;
+    const mitad = v.ancho / 2;
+    v.centro = Math.max(v.limIni + mitad, Math.min(v.limFin - mitad, nuevoCentro));
+    dibujarPlanta();
+}
+
+function actualizarVano(campo, valor) {
+    if (!vanoSeleccionado) return;
+    if (campo === 'ancho') {
+        const maxAncho = vanoSeleccionado.limFin - vanoSeleccionado.limIni;
+        vanoSeleccionado.ancho = Math.max(0.4, Math.min(maxAncho, parseFloat(valor)));
+        // Reajustar el centro si al ensanchar se sale del tramo
+        const mitad = vanoSeleccionado.ancho / 2;
+        vanoSeleccionado.centro = Math.max(vanoSeleccionado.limIni + mitad,
+                                   Math.min(vanoSeleccionado.limFin - mitad, vanoSeleccionado.centro));
+    } else if (campo === 'tipo') {
+        vanoSeleccionado.tipo = valor;
+    } else if (campo === 'alto') {
+        vanoSeleccionado.alto = Math.max(1.6, Math.min(2.5, parseFloat(valor)));
+    }
+    renderPanelVano();
+    dibujarPlanta();
+}
+
+function borrarVano() {
+    if (!vanoSeleccionado) return;
+    vanosPlanta = vanosPlanta.filter(v => v.id !== vanoSeleccionado.id);
+    vanoSeleccionado = null;
+    renderPanelVano();
+    dibujarPlanta();
+    mostrarToast('🗑️ Vano eliminado — la pared queda cerrada');
+}
+
+// Duplicar un vano en la misma pared — para el caso real de un baño con dos
+// puertas (una a la alcoba, otra al pasillo).
+function duplicarVano() {
+    if (!vanoSeleccionado) return;
+    const v = vanoSeleccionado;
+    const copia = { ...v, id: 'v_' + Date.now() + '_' + Math.random().toString(36).slice(2,6) };
+    const mitad = copia.ancho / 2;
+    copia.centro = Math.min(v.limFin - mitad, v.centro + v.ancho + 0.3);
+    vanosPlanta.push(copia);
+    seleccionarVano(copia);
+    mostrarToast('➕ Vano duplicado — arrástralo a su posición');
+}
+
+function renderPanelVano() {
+    const panel = document.getElementById('panelVano');
+    if (!panel) return;
+    if (!vanoSeleccionado) { panel.style.display = 'none'; return; }
+    const v = vanoSeleccionado;
+    const maxAncho = (v.limFin - v.limIni).toFixed(2);
+    panel.style.display = 'block';
+    panel.innerHTML = `
+        <div style="font-size:11px;font-weight:700;color:#22C55E;text-transform:uppercase;margin-bottom:8px;">🚪 Vano seleccionado</div>
+        <label style="font-size:11px;color:var(--gris);">Ancho: <b style="color:var(--texto);">${v.ancho.toFixed(2)} m</b> (máx ${maxAncho})</label>
+        <input type="range" min="0.4" max="${maxAncho}" step="0.05" value="${v.ancho}" oninput="actualizarVano('ancho', this.value)" style="width:100%;margin:4px 0 10px;">
+        <label style="font-size:11px;color:var(--gris);display:block;margin-bottom:4px;">Tipo</label>
+        <div style="display:flex;gap:5px;margin-bottom:10px;">
+            <button onclick="actualizarVano('tipo','arco')" style="flex:1;padding:6px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid ${v.tipo==='arco'?'#22C55E':'rgba(148,163,184,0.3)'};background:${v.tipo==='arco'?'rgba(34,197,94,0.25)':'rgba(255,255,255,0.04)'};color:${v.tipo==='arco'?'#6EE7B7':'var(--gris)'};">Arco</button>
+            <button onclick="actualizarVano('tipo','puerta')" style="flex:1;padding:6px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid ${v.tipo==='puerta'?'#F59E0B':'rgba(148,163,184,0.3)'};background:${v.tipo==='puerta'?'rgba(245,158,11,0.25)':'rgba(255,255,255,0.04)'};color:${v.tipo==='puerta'?'#FCD34D':'var(--gris)'};">Puerta</button>
+        </div>
+        ${v.tipo === 'puerta' ? `
+        <label style="font-size:11px;color:var(--gris);">Alto de la puerta: <b style="color:var(--texto);">${(v.alto||2.1).toFixed(2)} m</b></label>
+        <input type="range" min="1.6" max="2.5" step="0.05" value="${v.alto||2.1}" oninput="actualizarVano('alto', this.value)" style="width:100%;margin:4px 0 10px;">` : ''}
+        <div style="font-size:10.5px;color:var(--gris);line-height:1.5;margin-bottom:8px;">Arrástralo sobre la pared para moverlo. Vuelve a generar el 3D para ver el cambio.</div>
+        <div style="display:flex;gap:5px;">
+            <button onclick="duplicarVano()" style="flex:1;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.35);color:#6EE7B7;padding:6px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;">➕ Otro vano</button>
+            <button onclick="borrarVano()" style="flex:1;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#FCA5A5;padding:6px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;">🗑️ Borrar</button>
+        </div>`;
 }
 
 function dibujarPlanta() {
@@ -4621,6 +4744,28 @@ function dibujarPlanta() {
         ctx.stroke();
     });
 
+    // ── VANOS (puertas / pasos entre zonas) ──────────────────────────────
+    // Se dibujan como una barra sobre la pared donde están. Verde = arco
+    // (de piso a techo), naranja = puerta (con dintel encima).
+    vanosPlanta.forEach(v => {
+        const geo = geometriaVanoEnPlano(v);
+        if (!geo) return;
+        const selec = vanoSeleccionado && vanoSeleccionado.id === v.id;
+        ctx.strokeStyle = v.tipo === 'puerta' ? '#F59E0B' : '#22C55E';
+        ctx.lineWidth   = (selec ? 9 : 6) / zoomPlanta;
+        ctx.lineCap     = 'round';
+        ctx.beginPath();
+        ctx.moveTo(geo.x1, geo.z1);
+        ctx.lineTo(geo.x2, geo.z2);
+        ctx.stroke();
+        if (selec) {
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth   = 2 / zoomPlanta;
+            ctx.stroke();
+        }
+        ctx.lineCap = 'butt';
+    });
+
     // Trazo del recorrido de cámara (Etapa 1b) — se dibuja en el mismo
     // espacio de coordenadas que los módulos, respetando pan/zoom.
     if (trazoRecorridoPlanta.length > 1) {
@@ -4680,6 +4825,15 @@ function onPlantaMouseDown(e) {
         return;
     }
 
+    // ¿Clic sobre un VANO? Se revisa ANTES que los módulos, porque el vano
+    // vive sobre el borde de una zona y si no tendría prioridad el módulo.
+    const vanoClic = vanoEnPunto(mx, my);
+    if (vanoClic) {
+        seleccionarVano(vanoClic);
+        vanoArrastrando = vanoClic;
+        return;
+    }
+
     // Verificar si clickeó el handle de resize (esquina inf-der)
     for (let i = modulosPlanta.length - 1; i >= 0; i--) {
         const m  = modulosPlanta[i];
@@ -4711,6 +4865,8 @@ function onPlantaMouseDown(e) {
 
     // Click en vacío — deseleccionar
     moduloSeleccionado = null;
+    vanoSeleccionado   = null;
+    renderPanelVano();
     document.getElementById('panelPropiedades').style.display = 'none';
     dibujarPlanta();
 }
@@ -4729,6 +4885,9 @@ function onPlantaMouseMove(e) {
         }
         return;
     }
+
+    // Arrastrar un vano a lo largo de su pared
+    if (vanoArrastrando) { moverVanoA(mx, my); return; }
 
     if (resizing && resizeModulo) {
         const snap  = ESCALA * 0.5;
@@ -4777,6 +4936,7 @@ function onPlantaMouseUp() {
     dragging  = false;
     resizing  = false;
     resizeModulo = null;
+    vanoArrastrando = null;
 }
 
 function seleccionarModulo(id) {
@@ -5032,6 +5192,34 @@ function generarDesdePlanta() {
         }
     }
 
+    // ── VANOS (puertas / pasos entre zonas) ──────────────────────────────
+    // Antes, al detectar dos zonas que se tocan, se borraba TODO el tramo de
+    // contacto — si una alcoba de 4m tocaba el pasillo, desaparecían los 4
+    // metros de pared. En un apartamento real hay una pared con una puerta.
+    // Ahora cada contacto genera un VANO de 90cm (puerta estándar en Colombia)
+    // que el diseñador puede mover, ensanchar, o borrar; y puede agregar más
+    // vanos en la misma pared (caso real: un baño con dos puertas).
+    const ANCHO_VANO_DEFECTO = 0.9;
+    paredes_compartidas.forEach(pc => {
+        const yaExiste = vanosPlanta.some(v => v.modulo_a === pc.modulo_a && v.modulo_b === pc.modulo_b && v.lado === pc.lado);
+        if (yaExiste) return;
+        const largoContacto = pc.fin - pc.ini;
+        const anchoVano = Math.min(ANCHO_VANO_DEFECTO, Math.max(0.6, largoContacto - 0.2));
+        vanosPlanta.push({
+            id: 'v_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+            modulo_a: pc.modulo_a, modulo_b: pc.modulo_b, lado: pc.lado,
+            centro: (pc.ini + pc.fin) / 2,   // posición a lo largo de la pared, en metros
+            ancho: anchoVano,
+            tipo: 'arco',                     // 'arco' = de piso a techo | 'puerta' = 2.1m con pared encima
+            alto: 2.1,                        // solo aplica cuando tipo === 'puerta'
+            limIni: pc.ini, limFin: pc.fin,   // hasta dónde se puede deslizar sobre esa pared
+        });
+    });
+    // Descartar vanos cuyas zonas ya no se tocan (el usuario movió un módulo)
+    vanosPlanta = vanosPlanta.filter(v =>
+        paredes_compartidas.some(pc => pc.modulo_a === v.modulo_a && pc.modulo_b === v.modulo_b && pc.lado === v.lado)
+    );
+
     const modelo3d = {
         alto_piso: modulosPlanta[0]?.alto || 2.6,
         modulos: modulosPlanta.map(m => ({
@@ -5048,7 +5236,8 @@ function generarDesdePlanta() {
             imagen_piso:    m.imagenPisoUrl || null,
             paredes_eliminadas: m.paredesEliminadas || [],
         })),
-        paredes_compartidas
+        paredes_compartidas,
+        vanos: vanosPlanta
     };
 
     mostrarToast(`✨ Generando 3D con ${modulosPlanta.length} módulos...`);
@@ -5116,6 +5305,7 @@ function cargarDesdePlano(modelo3d) {
     const modulos  = modelo3d.modulos;
     const altoPiso = modelo3d.alto_piso || 2.6;
     const paredes_compartidas = modelo3d.paredes_compartidas || [];
+    const vanosDelPlano       = modelo3d.vanos || [];
 
     // Calcular centro del plano para centrar en Three.js
     let maxX = 0, maxZ = 0;
@@ -5197,14 +5387,25 @@ function cargarDesdePlano(modelo3d) {
             });
         }
 
-        // Recolectar huecos (tramos de contacto real con otros módulos) para cada lado
+        // Recolectar los VANOS de este módulo por lado. Antes se restaba el
+        // tramo COMPLETO de contacto (la pared entera desaparecía); ahora solo
+        // se resta el ancho de cada vano, que el diseñador controla.
         const huecosPorLado = { norte:[], sur:[], oeste:[], este:[] };
+        const dintelesPorLado = { norte:[], sur:[], oeste:[], este:[] }; // vanos tipo puerta → llevan pared encima
         const opuestoLado = { norte:'sur', sur:'norte', este:'oeste', oeste:'este' };
-        paredes_compartidas.forEach(pc => {
-            if (pc.modulo_a === mod.id) huecosPorLado[pc.lado].push([pc.ini - offsetX_o_offsetZ(pc.lado), pc.fin - offsetX_o_offsetZ(pc.lado)]);
-            else if (pc.modulo_b === mod.id) huecosPorLado[opuestoLado[pc.lado]].push([pc.ini - offsetX_o_offsetZ(pc.lado), pc.fin - offsetX_o_offsetZ(pc.lado)]);
-        });
         function offsetX_o_offsetZ(lado) { return (lado==='norte'||lado==='sur') ? offsetX : offsetZ; }
+
+        vanosDelPlano.forEach(v => {
+            let ladoEste = null;
+            if (v.modulo_a === mod.id)      ladoEste = v.lado;
+            else if (v.modulo_b === mod.id) ladoEste = opuestoLado[v.lado];
+            if (!ladoEste) return;
+            const off = offsetX_o_offsetZ(v.lado);
+            const ini = v.centro - v.ancho/2 - off;
+            const fin = v.centro + v.ancho/2 - off;
+            huecosPorLado[ladoEste].push([ini, fin]);
+            if (v.tipo === 'puerta') dintelesPorLado[ladoEste].push({ ini, fin, altoVano: v.alto || 2.1 });
+        });
 
         // Paredes — cada lado se construye en segmentos, restando solo el tramo que se toca
         const gruesoPared = 0.1;
@@ -5233,6 +5434,28 @@ function cargarDesdePlano(modelo3d) {
                 pared.material.emissive = new THREE.Color(0x000000);
                 scene.add(pared);
                 paredesInteractivas.push(pared);
+            });
+
+            // DINTEL: los vanos tipo "puerta" llevan un pedazo de pared encima
+            // (de 2.1m hasta el techo). Los tipo "arco" van de piso a techo y
+            // por eso no llevan nada.
+            dintelesPorLado[p.id].forEach(d => {
+                const altoDintel = alto - d.altoVano;
+                if (altoDintel <= 0.05) return;
+                const largoD = d.fin - d.ini;
+                const centroD = (d.ini + d.fin) / 2;
+                const geoD = p.horizontal
+                    ? new THREE.BoxGeometry(largoD, altoDintel, gruesoPared)
+                    : new THREE.BoxGeometry(gruesoPared, altoDintel, largoD);
+                const dintel = new THREE.Mesh(geoD, matPared.clone());
+                const yD = d.altoVano + altoDintel/2;
+                if (p.horizontal) dintel.position.set(centroD, yD, p.posPerp);
+                else               dintel.position.set(p.posPerp, yD, centroD);
+                dintel.castShadow = true;
+                dintel.receiveShadow = true;
+                dintel.userData = { esPared: true, moduloId: mod.id, lado: p.id, esDintel: true };
+                dintel.material.emissive = new THREE.Color(0x000000);
+                scene.add(dintel);
             });
         });
 
