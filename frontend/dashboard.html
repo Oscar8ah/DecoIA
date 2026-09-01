@@ -868,7 +868,7 @@ const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { flowType: 'pkce', persistSession: true, detectSessionInUrl: true, autoRefreshToken: true }
 });
 
-const PRECIOS       = { gratis:'$0/mes', basico:'$700.000/mes', profesional:'$1.200.000/mes', premium:'$1.500.000/mes', corporativo:'$3.000.000/mes' };
+const PRECIOS       = { gratis:'$0', basico:'$700.000 pago único', profesional:'$1.200.000 pago único', premium:'$1.500.000 pago único', corporativo:'$3.000.000 pago único' };
 const NOMBRES_PLAN  = { gratis:'Gratis', basico:'Básico', profesional:'Profesional', premium:'Premium', corporativo:'Corporativo' };
 const FEATURES_PLAN = {
     gratis:      ['Tienda en el marketplace','Subir tu catálogo'],
@@ -1468,7 +1468,7 @@ function abrirModalCambioPlan() {
     }
     const select = document.getElementById('selectPlanSolicitado');
     select.innerHTML = opciones
-        .map(p => `<option value="${p.id}">${NOMBRES_PLAN[p.nombre]||p.nombre} — $${Number(p.precio||0).toLocaleString('es-CO')}/mes</option>`)
+        .map(p => `<option value="${p.id}">${NOMBRES_PLAN[p.nombre]||p.nombre} — $${Number(p.precio||0).toLocaleString("es-CO")} pago único</option>`)
         .join('');
     document.getElementById('modalCambioPlan').classList.add('open');
     actualizarDiferenciaPlan();
