@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prueba de segmentación — DecoIArte</title>
+<style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+        font-family:'Segoe UI', system-ui, sans-serif;
+        background:#0F0F1A; color:#E2E8F0; padding:20px; line-height:1.5;
+    }
+    .wrap { max-width:900px; margin:0 auto; }
+    h1 { font-size:22px; color:#A78BFA; margin-bottom:6px; }
+    .sub { color:#94A3B8; font-size:14px; margin-bottom:20px; }
+    .caja {
+        background:#16162A; border:1px solid rgba(124,58,237,0.25);
+        border-radius:12px; padding:18px; margin-bottom:16px;
+    }
+    .titulo-caja { font-size:12px; font-weight:700; color:#A78BFA;
+        text-transform:uppercase; letter-spacing:0.05em; margin-bottom:12px; }
+    button {
+        background:linear-gradient(135deg,#3B82F6,#7C3AED); color:white; border:none;
+        padding:11px 20px; border-radius:9px; font-size:14px; font-weight:700;
+        cursor:pointer; font-family:inherit;
+    }
+    button:disabled { opacity:0.45; cursor:not-allowed; }
+    .metrica { display:flex; justify-content:space-between; padding:8px 0;
+        border-bottom:1px solid rgba(255,255,255,0.06); font-size:14px; }
+    .metrica:last-child { border-bottom:none; }
+    .metrica b { color:#6EE7B7; }
+    #log { font-family:ui-monospace,monospace; font-size:12px; color:#94A3B8;
+        background:#0A0A14; border-radius:8px; padding:12px; max-height:220px;
+        overflow-y:auto; white-space:pre-wrap; }
+    #lienzo { max-width:100%; border-radius:10px; margin-top:12px; cursor:crosshair;
+        border:1px solid rgba(124,58,237,0.3); display:none; }
+    .ok { color:#6EE7B7; } .mal { color:#FCA5A5; } .warn { color:#FCD34D; }
+    input[type=file] { color:#94A3B8; font-size:13px; }
+    .veredicto { font-size:15px; font-weight:700; padding:14px; border-radius:10px;
+        margin-top:12px; display:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <h1>🔬 Prueba de segmentación en el navegador</h1>
+    <p class="sub">Mide si la tecnología tipo Roomvo es viable en TU dispositivo, antes de construir nada.</p>
+
+    <div class="caja">
+        <div class="titulo-caja">Paso 1 — Cargar el modelo</div>
+        <p style="font-size:13.5px;color:#94A3B8;margin-bottom:12px;">
+            Descarga el modelo de segmentación (se guarda en caché, solo se descarga una vez).
+        </p>
+        <button id="btnCargar" onclick="cargarModelo()">⬇️ Descargar y cargar modelo</button>
+        <div id="metricasCarga" style="margin-top:14px;display:none;">
+            <div class="metrica"><span>Tiempo de descarga + carga</span><b id="mTiempoCarga">—</b></div>
+            <div class="metrica"><span>Motor usado</span><b id="mMotor">—</b></div>
+            <div class="metrica"><span>Memoria del dispositivo</span><b id="mMemoria">—</b></div>
+        </div>
+    </div>
+
+    <div class="caja">
+        <div class="titulo-caja">Paso 2 — Probar con una foto real</div>
+        <p style="font-size:13.5px;color:#94A3B8;margin-bottom:12px;">
+            Sube una foto de una sala o cocina (de las que usarían tus clientes) y
+            <b>haz clic sobre el piso</b>. Debería marcarte solo el piso.
+        </p>
+        <input type="file" id="archivo" accept="image/*" onchange="cargarImagen(this)" disabled>
+        <canvas id="lienzo"></canvas>
+        <div id="selectorNivel" style="display:none;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center;">
+            <span style="font-size:12.5px;color:#94A3B8;">Ver máscara:</span>
+            <button class="btn-nivel" onclick="pintarMascara(0)" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#E2E8F0;padding:7px 14px;border-radius:7px;font-size:12.5px;font-weight:700;cursor:pointer;">1 · Pequeña</button>
+            <button class="btn-nivel" onclick="pintarMascara(1)" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#E2E8F0;padding:7px 14px;border-radius:7px;font-size:12.5px;font-weight:700;cursor:pointer;">2 · Media</button>
+            <button class="btn-nivel" onclick="pintarMascara(2)" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#E2E8F0;padding:7px 14px;border-radius:7px;font-size:12.5px;font-weight:700;cursor:pointer;">3 · Grande</button>
+            <span id="infoMascara" style="font-size:12px;color:#6EE7B7;margin-left:4px;"></span>
+        </div>
+        <div id="metricasUso" style="margin-top:14px;display:none;">
+            <div class="metrica"><span>Análisis de la imagen (una vez por foto)</span><b id="mEncoder">—</b></div>
+            <div class="metrica"><span>Cada clic (esto es lo que siente el cliente)</span><b id="mClic">—</b></div>
+        </div>
+    </div>
+
+    <div id="veredicto" class="veredicto"></div>
+
+    <div class="caja">
+        <div class="titulo-caja">Registro técnico</div>
+        <div id="log">Esperando...</div>
+    </div>
+</div>
+
+<script type="module">
+let modelo = null, procesador = null, embeddings = null, imgActual = null;
+const logEl = document.getElementById('log');
+
+function log(msg, clase='') {
+    const hora = new Date().toLocaleTimeString('es-CO');
+    logEl.innerHTML += `\n<span class="${clase}">[${hora}] ${msg}</span>`;
+    logEl.scrollTop = logEl.scrollHeight;
+}
+
+// Info del dispositivo, para saber en qué se está probando
+const mem = navigator.deviceMemory ? navigator.deviceMemory + ' GB' : 'no reportada';
+document.getElementById('mMemoria').textContent = mem;
+log(`Dispositivo: ${navigator.userAgent.slice(0,70)}...`);
+log(`Memoria reportada: ${mem} | Núcleos: ${navigator.hardwareConcurrency || '?'}`);
+
+window.cargarModelo = async function() {
+    const btn = document.getElementById('btnCargar');
+    btn.disabled = true; btn.textContent = 'Descargando...';
+    document.getElementById('metricasCarga').style.display = 'block';
+    const t0 = performance.now();
+
+    try {
+        log('Importando la librería de IA...');
+        const { SamModel, AutoProcessor, RawImage, env } =
+            await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2');
+        window._RawImage = RawImage;
+
+        // ¿El dispositivo soporta WebGPU (mucho más rápido) o toca CPU?
+        const tieneWebGPU = 'gpu' in navigator;
+        document.getElementById('mMotor').textContent = tieneWebGPU ? 'WebGPU (rápido)' : 'CPU (más lento)';
+        log(`Motor: ${tieneWebGPU ? 'WebGPU disponible ✓' : 'Solo CPU (sin WebGPU)'}`,
+            tieneWebGPU ? 'ok' : 'warn');
+
+        log('Descargando modelo SlimSAM (~40 MB)... puede tardar según tu conexión');
+        modelo = await SamModel.from_pretrained('Xenova/slimsam-77-uniform', {
+            dtype: 'fp16',
+            device: tieneWebGPU ? 'webgpu' : 'wasm',
+        });
+        procesador = await AutoProcessor.from_pretrained('Xenova/slimsam-77-uniform');
+
+        const seg = ((performance.now() - t0) / 1000).toFixed(1);
+        document.getElementById('mTiempoCarga').textContent = seg + ' s';
+        log(`✅ Modelo listo en ${seg} segundos`, 'ok');
+
+        btn.textContent = '✅ Modelo cargado';
+        document.getElementById('archivo').disabled = false;
+    } catch (e) {
+        log('❌ Falló la carga: ' + e.message, 'mal');
+        btn.disabled = false; btn.textContent = '⬇️ Reintentar';
+        mostrarVeredicto('mal', '❌ El modelo no cargó en este dispositivo. Revisa el registro.');
+    }
+};
+
+window.cargarImagen = async function(input) {
+    if (!input.files?.[0]) return;
+    const t0 = performance.now();
+    log('Analizando la imagen (esto pasa una sola vez por foto)...');
+
+    try {
+        const url = URL.createObjectURL(input.files[0]);
+
+        // Las fotos de WhatsApp vienen en resolución alta y eso hace lentísimo
+        // el análisis (14+ segundos). El modelo trabaja internamente a baja
+        // resolución de todas formas, así que reducirla antes no le quita
+        // precisión y sí baja mucho el tiempo.
+        const bmpOriginal = await createImageBitmap(await (await fetch(url)).blob());
+        const MAX_LADO = 1024;
+        const escala = Math.min(1, MAX_LADO / Math.max(bmpOriginal.width, bmpOriginal.height));
+        const anchoFinal = Math.round(bmpOriginal.width * escala);
+        const altoFinal  = Math.round(bmpOriginal.height * escala);
+        if (escala < 1) log(`Foto reducida de ${bmpOriginal.width}px a ${anchoFinal}px para ir más rápido`);
+
+        const tmp = document.createElement('canvas');
+        tmp.width = anchoFinal; tmp.height = altoFinal;
+        tmp.getContext('2d').drawImage(bmpOriginal, 0, 0, anchoFinal, altoFinal);
+        const urlReducida = tmp.toDataURL('image/jpeg', 0.92);
+
+        imgActual = await window._RawImage.fromURL(urlReducida);
+
+        const lienzo = document.getElementById('lienzo');
+        lienzo.width = anchoFinal; lienzo.height = altoFinal;
+        lienzo.style.display = 'block';
+        lienzo.getContext('2d').drawImage(bmpOriginal, 0, 0, anchoFinal, altoFinal);
+        window._imgLimpia = tmp; // copia sin máscara, para poder limpiar entre clics
+
+        const entradas = await procesador(imgActual);
+        embeddings = await modelo.get_image_embeddings(entradas);
+        window._entradas = entradas;
+
+        const seg = ((performance.now() - t0) / 1000).toFixed(1);
+        document.getElementById('mEncoder').textContent = seg + ' s';
+        document.getElementById('metricasUso').style.display = 'block';
+        log(`✅ Imagen analizada en ${seg} s — ahora haz clic sobre el piso`, 'ok');
+    } catch (e) {
+        log('❌ Error analizando la imagen: ' + e.message, 'mal');
+    }
+};
+
+// Se importa UNA sola vez, no en cada clic (importarlo por clic era lo que
+// hacía que cada clic tardara ~1800ms en vez de milisegundos).
+let Tensor = null;
+let mascarasActuales = null, nivelActual = 0;
+
+document.getElementById('lienzo').addEventListener('click', async (e) => {
+    if (!embeddings) return;
+    const t0 = performance.now();
+    const lienzo = e.target;
+    const r = lienzo.getBoundingClientRect();
+    const x = (e.clientX - r.left) * (lienzo.width / r.width);
+    const y = (e.clientY - r.top) * (lienzo.height / r.height);
+    log(`Clic en (${Math.round(x)}, ${Math.round(y)})`);
+
+    try {
+        if (!Tensor) {
+            ({ Tensor } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2'));
+        }
+        const puntos = new Tensor('float32', [x, y], [1, 1, 1, 2]);
+        const etiquetas = new Tensor('int64', [1n], [1, 1, 1]);
+
+        const salida = await modelo({ ...embeddings, input_points: puntos, input_labels: etiquetas });
+        const mascaras = await procesador.post_process_masks(
+            salida.pred_masks, window._entradas.original_sizes, window._entradas.reshaped_input_sizes
+        );
+
+        // SAM devuelve TRES máscaras por clic: la pieza pequeña, la parte
+        // mediana, y la región grande. Antes se tomaba siempre la primera a
+        // ciegas y salía la región completa (por eso marcaba casi toda la
+        // foto). Ahora se elige la de MEJOR puntaje de confianza.
+        const puntajes = Array.from(salida.iou_scores.data);
+        let mejor = 0;
+        puntajes.forEach((p, i) => { if (p > puntajes[mejor]) mejor = i; });
+        log(`Puntajes de las 3 máscaras: ${puntajes.map(p => p.toFixed(2)).join(' | ')} → usando la #${mejor+1}`);
+
+        mascarasActuales = mascaras[0];
+        nivelActual = mejor;
+        document.getElementById('selectorNivel').style.display = 'flex';
+        pintarMascara(mejor);
+
+        const ms = Math.round(performance.now() - t0);
+        document.getElementById('mClic').textContent = ms + ' ms';
+        log(`✅ Máscara generada en ${ms} ms`, 'ok');
+
+        if (ms < 400)       mostrarVeredicto('ok',   `✅ EXCELENTE — ${ms} ms por clic. Se siente instantáneo.`);
+        else if (ms < 1200) mostrarVeredicto('warn', `⚠️ ACEPTABLE — ${ms} ms por clic. Se nota un poco, pero es usable.`);
+        else                mostrarVeredicto('mal',  `❌ LENTO — ${ms} ms por clic.`);
+    } catch (e) {
+        log('❌ Error generando la máscara: ' + e.message, 'mal');
+    }
+});
+
+// Pinta una de las 3 máscaras sobre la foto
+window.pintarMascara = function(nivel) {
+    if (!mascarasActuales) return;
+    nivelActual = nivel;
+    const lienzo = document.getElementById('lienzo');
+    const ctx = lienzo.getContext('2d');
+    ctx.drawImage(window._imgLimpia, 0, 0);
+
+    const w = lienzo.width, h = lienzo.height;
+    const datos = mascarasActuales.data;
+    const offset = nivel * w * h;   // cada máscara ocupa w*h valores seguidos
+    const capa = ctx.getImageData(0, 0, w, h);
+    let pixelesMarcados = 0;
+    for (let i = 0; i < w * h; i++) {
+        if (datos[offset + i]) {
+            pixelesMarcados++;
+            capa.data[i*4]   = capa.data[i*4]   * 0.45 + 34  * 0.55;
+            capa.data[i*4+1] = capa.data[i*4+1] * 0.45 + 197 * 0.55;
+            capa.data[i*4+2] = capa.data[i*4+2] * 0.45 + 94  * 0.55;
+        }
+    }
+    ctx.putImageData(capa, 0, 0);
+
+    const porcentaje = ((pixelesMarcados / (w*h)) * 100).toFixed(1);
+    document.getElementById('infoMascara').textContent =
+        `Máscara ${nivel+1} de 3 — cubre el ${porcentaje}% de la foto`;
+
+    document.querySelectorAll('.btn-nivel').forEach((b, i) => {
+        b.style.background = i === nivel ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.06)';
+        b.style.borderColor = i === nivel ? '#22C55E' : 'rgba(255,255,255,0.15)';
+    });
+};
+
+function mostrarVeredicto(tipo, texto) {
+    const v = document.getElementById('veredicto');
+    const colores = {
+        ok:   ['rgba(34,197,94,0.12)',  'rgba(34,197,94,0.4)',  '#6EE7B7'],
+        warn: ['rgba(245,158,11,0.12)', 'rgba(245,158,11,0.4)', '#FCD34D'],
+        mal:  ['rgba(239,68,68,0.12)',  'rgba(239,68,68,0.4)',  '#FCA5A5'],
+    }[tipo];
+    v.style.cssText = `display:block;background:${colores[0]};border:1px solid ${colores[1]};color:${colores[2]};font-size:15px;font-weight:700;padding:14px;border-radius:10px;margin-top:12px;`;
+    v.textContent = texto;
+}
+</script>
+</body>
+</html>
