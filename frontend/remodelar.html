@@ -355,6 +355,21 @@ let superficieActiva = 'piso';
 let tiendaActiva     = null;
 let productoActivo   = null;
 let todosProds       = [];
+// Escapa HTML antes de insertarlo con innerHTML. Los nombres/descripciones de
+// producto vienen del catálogo de la tienda — y ese catálogo puede haber sido
+// generado por IA a partir de un PDF externo, así que NO es contenido de
+// confianza. Sin esto, un producto llamado <img src=x onerror=...> ejecutaría
+// código en el navegador de cualquier cliente que abra la página.
+function esc(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 let carrito          = [];
 let rolUsuario       = null;
 let sliderDragging   = false;
@@ -590,10 +605,10 @@ function renderProds(prods) {
     if (!prods?.length) { g.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--gris);font-size:12px;padding:12px;">Sin productos en esta categoría</div>'; return; }
     g.innerHTML = prods.map(p => `
         <div class="prod-card ${productoActivo?.id===p.id?'activo':''}" id="prod-${p.id}" onclick="selProd(${JSON.stringify(p).replace(/"/g,'&quot;')})">
-            <div class="prod-img">${p.imagen_url?`<img src="${p.imagen_url}" alt="${p.nombre}" draggable="false" onerror="this.parentElement.innerHTML='📦'">`:'📦'}</div>
+            <div class="prod-img">${p.imagen_url?`<img src="${esc(p.imagen_url)}" alt="${esc(p.nombre)}" draggable="false" onerror="this.parentElement.innerHTML='📦'">`:'📦'}</div>
             <div class="prod-info">
-                <div class="prod-nombre">${p.nombre}</div>
-                <div class="prod-precio">$${Number(p.precio).toLocaleString('es-CO')}/${p.unidad||'m²'}</div>
+                <div class="prod-nombre">${esc(p.nombre)}</div>
+                <div class="prod-precio">$${Number(p.precio).toLocaleString('es-CO')}/${esc(p.unidad||'m²')}</div>
             </div>
         </div>`).join('');
 }
@@ -765,12 +780,12 @@ function renderCarrito() {
     carrito.forEach(p => {
         html += `
         <div class="carrito-item">
-            <div class="ci-img">${p.imagen_url?`<img src="${p.imagen_url}" alt="${p.nombre}" draggable="false">`:'📦'}</div>
+            <div class="ci-img">${p.imagen_url?`<img src="${esc(p.imagen_url)}" alt="${esc(p.nombre)}" draggable="false">`:'📦'}</div>
             <div class="ci-info">
-                <div class="ci-nombre">${p.nombre}</div>
-                <div class="ci-precio">$${Number(p.precio).toLocaleString('es-CO')}/${p.unidad||'m²'}</div>
+                <div class="ci-nombre">${esc(p.nombre)}</div>
+                <div class="ci-precio">$${Number(p.precio).toLocaleString('es-CO')}/${esc(p.unidad||'m²')}</div>
             </div>
-            <button class="ci-remove" onclick="quitarDeCarrito('${p.id}')">✕</button>
+            <button class="ci-remove" onclick="quitarDeCarrito('${esc(p.id)}')">✕</button>
         </div>`;
     });
 

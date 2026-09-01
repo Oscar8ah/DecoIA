@@ -1,3 +1,4 @@
+import re
 import json
 import logging
 import base64
@@ -312,6 +313,37 @@ async def _post_procesar_productos(productos: list, imagenes: list, settings) ->
             p["modelo_3d_tipo"] = None
         if p.get("categoria") not in CATEGORIAS_VALIDAS:
             p["categoria"] = "otros"
+
+        # Limpiar los campos de TEXTO LIBRE que salen de la IA. Estos vienen de
+        # un PDF o página web que subió la tienda — contenido que NO controlamos.
+        # Sin esto, un catálogo manipulado podría meter HTML/scripts que después
+        # se renderizan en el marketplace, o textos enormes que rompen la vista.
+        for campo, largo_max in (("nombre", 200), ("referencia", 80), ("descripcion", 500)):
+            valor = p.get(campo)
+            if not isinstance(valor, str):
+                p[campo] = ""
+                continue
+            limpio = valor.replace("\x00", "").replace("\r", "")
+            limpio = re.sub(r"<[^>]*>", "", limpio)      # quitar cualquier etiqueta HTML
+            limpio = " ".join(limpio.split())             # colapsar espacios/saltos raros
+            p[campo] = limpio[:largo_max].strip()
+
+        # El precio debe ser un número razonable, nunca texto ni negativo
+        try:
+            precio = float(p.get("precio") or 0)
+            p["precio"] = precio if 0 <= precio <= 1_000_000_000 else 0
+        except (TypeError, ValueError):
+            p["precio"] = 0
+
+        # Descartar rendimiento_m2 si no es un número positivo válido
+        try:
+            r = p.get("rendimiento_m2")
+            p["rendimiento_m2"] = float(r) if r is not None and 0 < float(r) <= 1000 else None
+        except (TypeError, ValueError):
+            p["rendimiento_m2"] = None
+
+    # Solo productos que al menos tengan nombre real
+    productos = [p for p in productos if p.get("nombre")]
 
     return {"productos": productos, "total_imagenes_detectadas": len(imagenes)}
 

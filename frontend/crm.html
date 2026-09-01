@@ -262,6 +262,21 @@ const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { flowType: 'pkce', persistSession: true, detectSessionInUrl: true, autoRefreshToken: true }
 });
 
+// Escapa HTML antes de insertarlo con innerHTML. Los nombres, correos y
+// teléfonos de los clientes vienen de gente del público que escribe al bot de
+// WhatsApp — NO es contenido de confianza. Sin esto, alguien podría ponerse
+// como nombre un script y ejecutarlo en el navegador del dueño de la tienda
+// cuando abra su CRM.
+function esc(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 let todosClientes = [];
 let filtroActual  = 'todos';
 let busquedaActual = '';
@@ -439,17 +454,17 @@ function renderClientes() {
             ? `<a class="btn-wa" href="https://wa.me/${c.telefono.replace(/\D/g,'')}?text=Hola%20${encodeURIComponent(c.nombre)},%20te%20escribo%20desde%20DecoIArte" target="_blank">💬 WhatsApp</a>`
             : `<span style="color:var(--gris);font-size:12px;">Sin teléfono</span>`;
         return `
-        <div class="cliente-row" onclick="abrirCliente('${c.id}')">
+        <div class="cliente-row" onclick="abrirCliente('${esc(c.id)}')">
             <div class="cliente-info">
-                <div class="cliente-avatar">${inicial}</div>
+                <div class="cliente-avatar">${esc(inicial)}</div>
                 <div>
-                    <div class="cliente-nombre">${c.nombre}</div>
-                    <div class="cliente-email">${c.email}</div>
+                    <div class="cliente-nombre">${esc(c.nombre)}</div>
+                    <div class="cliente-email">${esc(c.email)}</div>
                 </div>
             </div>
-            <div class="cliente-tel">${c.telefono}</div>
+            <div class="cliente-tel">${esc(c.telefono)}</div>
             <div>${canalBadge}</div>
-            <div><span class="badge badge-morado">🖼️ ${c.renders}</span></div>
+            <div><span class="badge badge-morado">🖼️ ${Number(c.renders) || 0}</span></div>
             <div style="font-size:13px;color:var(--gris);">${fecha}</div>
             <div onclick="event.stopPropagation()">
                 <select class="estado-select estado-${c.estado||'nuevo'}" 
