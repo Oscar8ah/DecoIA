@@ -2,6 +2,7 @@
   "rewrites": [
     { "source": "/login",       "destination": "/login.html" },
     { "source": "/prueba-seg",  "destination": "/prueba-segmentacion.html" },
+    { "source": "/ver-en-espacio", "destination": "/ver-en-espacio.html" },
     { "source": "/registro",    "destination": "/registro.html" },
     { "source": "/dashboard",   "destination": "/dashboard.html" },
     { "source": "/marketplace", "destination": "/marketplace.html" },

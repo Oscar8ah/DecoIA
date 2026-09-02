@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Ver en tu espacio — DecoIArte</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>
+<style>
+    * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    :root {
+        --morado:#7C3AED; --azul:#3B82F6; --oscuro:#0F0F1A; --oscuro2:#16162A;
+        --gris:#94A3B8; --texto:#E2E8F0;
+        --degradado:linear-gradient(135deg,#3B82F6 0%,#7C3AED 100%);
+    }
+    body {
+        font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+        background:var(--oscuro); color:var(--texto); min-height:100vh;
+    }
+    .header {
+        padding:14px 18px; background:var(--oscuro2);
+        border-bottom:1px solid rgba(124,58,237,0.2);
+        display:flex; align-items:center; gap:12px; position:sticky; top:0; z-index:10;
+    }
+    .logo { font-size:18px; font-weight:800;
+        background:var(--degradado); -webkit-background-clip:text;
+        -webkit-text-fill-color:transparent; background-clip:text; }
+    .volver { margin-left:auto; color:var(--gris); font-size:13px;
+        text-decoration:none; padding:6px 12px; border-radius:8px;
+        border:1px solid rgba(148,163,184,0.25); }
+    .cont { padding:18px; max-width:560px; margin:0 auto; }
+    .card {
+        background:var(--oscuro2); border:1px solid rgba(124,58,237,0.2);
+        border-radius:16px; overflow:hidden; margin-bottom:16px;
+    }
+    .prod-img { width:100%; height:220px; object-fit:cover; display:block; background:#0A0A14; }
+    .prod-body { padding:16px; }
+    .prod-nombre { font-size:19px; font-weight:800; margin-bottom:4px; }
+    .prod-precio { font-size:17px; font-weight:800; color:#6EE7B7; margin-bottom:2px; }
+    .prod-tienda { font-size:12.5px; color:var(--gris); }
+    .btn-ar {
+        width:100%; padding:16px; border:none; border-radius:14px;
+        background:var(--degradado); color:white; font-size:16px; font-weight:800;
+        cursor:pointer; font-family:inherit; display:flex; align-items:center;
+        justify-content:center; gap:10px; margin-bottom:12px;
+    }
+    .btn-ar:disabled { opacity:0.45; }
+    .aviso {
+        background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3);
+        border-radius:12px; padding:14px; font-size:13.5px; color:#FCD34D;
+        line-height:1.6; margin-bottom:14px;
+    }
+    .pasos { font-size:13px; color:var(--gris); line-height:1.7; padding:0 4px; }
+    .pasos b { color:var(--texto); }
+    model-viewer { width:100%; height:300px; background:#0A0A14; border-radius:12px; }
+    .cargando { text-align:center; padding:50px 20px; color:var(--gris); }
+    .medidas {
+        display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;
+    }
+    .medida-btn {
+        flex:1; min-width:80px; padding:10px; border-radius:10px; cursor:pointer;
+        background:rgba(255,255,255,0.05); border:1px solid rgba(148,163,184,0.2);
+        color:var(--gris); font-size:12.5px; font-weight:700; font-family:inherit;
+    }
+    .medida-btn.activo { background:rgba(124,58,237,0.25); border-color:var(--morado); color:#A78BFA; }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <span class="logo">DecoIArte</span>
+    <span style="font-size:13px;color:var(--gris);">Ver en tu espacio</span>
+    <a href="#" id="linkVolver" class="volver">← Volver</a>
+</div>
+
+<div class="cont">
+    <div id="cargando" class="cargando">Cargando producto...</div>
+
+    <div id="contenido" style="display:none;">
+        <div class="card">
+            <img id="prodImg" class="prod-img" alt="">
+            <div class="prod-body">
+                <div id="prodNombre" class="prod-nombre">—</div>
+                <div id="prodPrecio" class="prod-precio">—</div>
+                <div id="prodTienda" class="prod-tienda">—</div>
+            </div>
+        </div>
+
+        <div style="font-size:12px;font-weight:700;color:#A78BFA;text-transform:uppercase;margin-bottom:8px;">
+            Tamaño del área a visualizar
+        </div>
+        <div class="medidas">
+            <button class="medida-btn activo" data-m="1" onclick="cambiarMedida(1,this)">1 × 1 m</button>
+            <button class="medida-btn" data-m="2" onclick="cambiarMedida(2,this)">2 × 2 m</button>
+            <button class="medida-btn" data-m="3" onclick="cambiarMedida(3,this)">3 × 3 m</button>
+        </div>
+
+        <button id="btnAR" class="btn-ar" onclick="activarAR()">📱 Ver en tu espacio</button>
+        <div id="avisoSoporte" class="aviso" style="display:none;"></div>
+
+        <model-viewer id="visor"
+            ar ar-modes="webxr scene-viewer quick-look"
+            ar-placement="floor"
+            camera-controls
+            shadow-intensity="1"
+            exposure="1.1"
+            alt="Vista previa del material">
+        </model-viewer>
+
+        <div class="pasos" style="margin-top:14px;">
+            <b>Cómo usarlo:</b><br>
+            1. Toca <b>"Ver en tu espacio"</b><br>
+            2. Apunta la cámara al <b>piso</b> y muévela despacio<br>
+            3. Cuando aparezca el recuadro, <b>toca para colocarlo</b><br>
+            4. Camina alrededor para verlo desde otros ángulos
+        </div>
+    </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://cqwbsikyzdtegutyvgfo.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxd2JzaWt5emR0ZWd1dHl2Z2ZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI4NzY0NzEsImV4cCI6MjA2ODQ1MjQ3MX0.f5vP0FhIkzC33H_-BpUxUKQ3Yh3fzZ0V0PYzCmKVrPU';
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+function esc(s) {
+    if (s === null || s === undefined) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
+
+let productoActual = null;
+let medidaActual = 1;
+
+// ── Generar el modelo 3D del piso al vuelo ────────────────────────────────
+// No hace falta Meshy ni modelos prehechos: un piso es un plano con la
+// textura del producto. Se arma un archivo GLB en memoria, con la textura
+// repetida según los metros elegidos, y se le pasa a model-viewer.
+function construirGLB(texturaBase64, metros) {
+    const repeticiones = metros; // 1 baldosa por metro aprox.
+
+    // Un GLB es un contenedor binario: cabecera + JSON + datos binarios.
+    // Se arma a mano un plano de N×N metros con la textura aplicada.
+    const half = metros / 2;
+    const vertices = new Float32Array([
+        -half, 0, -half,   half, 0, -half,   half, 0,  half,  -half, 0,  half,
+    ]);
+    const normales = new Float32Array([
+        0,1,0,  0,1,0,  0,1,0,  0,1,0,
+    ]);
+    const uvs = new Float32Array([
+        0,0,  repeticiones,0,  repeticiones,repeticiones,  0,repeticiones,
+    ]);
+    const indices = new Uint16Array([0,1,2, 0,2,3]);
+
+    // Alinear cada bloque a múltiplos de 4 bytes (lo exige el formato)
+    function alinear(len) { return Math.ceil(len / 4) * 4; }
+
+    const imgBytes = Uint8Array.from(atob(texturaBase64), c => c.charCodeAt(0));
+
+    const bufVert = new Uint8Array(vertices.buffer);
+    const bufNorm = new Uint8Array(normales.buffer);
+    const bufUv   = new Uint8Array(uvs.buffer);
+    const bufIdx  = new Uint8Array(indices.buffer);
+
+    let offset = 0;
+    const partes = [];
+    function agregar(datos) {
+        const inicio = offset;
+        partes.push(datos);
+        offset += datos.byteLength;
+        const relleno = alinear(offset) - offset;
+        if (relleno) { partes.push(new Uint8Array(relleno)); offset += relleno; }
+        return inicio;
+    }
+
+    const offVert = agregar(bufVert);
+    const offNorm = agregar(bufNorm);
+    const offUv   = agregar(bufUv);
+    const offIdx  = agregar(bufIdx);
+    const offImg  = agregar(imgBytes);
+
+    const json = {
+        asset: { version: "2.0", generator: "DecoIArte" },
+        scene: 0,
+        scenes: [{ nodes: [0] }],
+        nodes: [{ mesh: 0 }],
+        meshes: [{ primitives: [{
+            attributes: { POSITION: 0, NORMAL: 1, TEXCOORD_0: 2 },
+            indices: 3, material: 0
+        }]}],
+        materials: [{
+            pbrMetallicRoughness: {
+                baseColorTexture: { index: 0 },
+                metallicFactor: 0.0, roughnessFactor: 0.75
+            },
+            doubleSided: true
+        }],
+        textures: [{ source: 0, sampler: 0 }],
+        samplers: [{ wrapS: 10497, wrapT: 10497 }], // 10497 = repetir la textura
+        images: [{ bufferView: 4, mimeType: "image/jpeg" }],
+        accessors: [
+            { bufferView:0, componentType:5126, count:4, type:"VEC3",
+              min:[-half,0,-half], max:[half,0,half] },
+            { bufferView:1, componentType:5126, count:4, type:"VEC3" },
+            { bufferView:2, componentType:5126, count:4, type:"VEC2" },
+            { bufferView:3, componentType:5123, count:6, type:"SCALAR" },
+        ],
+        bufferViews: [
+            { buffer:0, byteOffset:offVert, byteLength:bufVert.byteLength },
+            { buffer:0, byteOffset:offNorm, byteLength:bufNorm.byteLength },
+            { buffer:0, byteOffset:offUv,   byteLength:bufUv.byteLength },
+            { buffer:0, byteOffset:offIdx,  byteLength:bufIdx.byteLength },
+            { buffer:0, byteOffset:offImg,  byteLength:imgBytes.byteLength },
+        ],
+        buffers: [{ byteLength: offset }],
+    };
+
+    const jsonStr = JSON.stringify(json);
+    const jsonBytes = new TextEncoder().encode(jsonStr);
+    const jsonRelleno = alinear(jsonBytes.length) - jsonBytes.length;
+    const jsonFinal = new Uint8Array(jsonBytes.length + jsonRelleno);
+    jsonFinal.set(jsonBytes);
+    jsonFinal.fill(0x20, jsonBytes.length); // rellenar con espacios
+
+    const binTotal = new Uint8Array(offset);
+    let p = 0;
+    partes.forEach(x => { binTotal.set(x, p); p += x.byteLength; });
+
+    const totalLen = 12 + 8 + jsonFinal.length + 8 + binTotal.length;
+    const glb = new ArrayBuffer(totalLen);
+    const dv = new DataView(glb);
+    let pos = 0;
+    dv.setUint32(pos, 0x46546C67, true); pos += 4; // "glTF"
+    dv.setUint32(pos, 2, true); pos += 4;
+    dv.setUint32(pos, totalLen, true); pos += 4;
+    dv.setUint32(pos, jsonFinal.length, true); pos += 4;
+    dv.setUint32(pos, 0x4E4F534A, true); pos += 4; // "JSON"
+    new Uint8Array(glb, pos, jsonFinal.length).set(jsonFinal); pos += jsonFinal.length;
+    dv.setUint32(pos, binTotal.length, true); pos += 4;
+    dv.setUint32(pos, 0x004E4942, true); pos += 4; // "BIN"
+    new Uint8Array(glb, pos, binTotal.length).set(binTotal);
+
+    return URL.createObjectURL(new Blob([glb], { type: 'model/gltf-binary' }));
+}
+
+async function imagenABase64(url) {
+    const resp = await fetch(url, { mode: 'cors' });
+    const blob = await resp.blob();
+    // Redibujar en canvas: normaliza el formato a JPEG y evita problemas
+    // con imágenes de origen distinto al cargarlas en el modelo
+    const bmp = await createImageBitmap(blob);
+    const c = document.createElement('canvas');
+    c.width = 512; c.height = 512;
+    c.getContext('2d').drawImage(bmp, 0, 0, 512, 512);
+    return c.toDataURL('image/jpeg', 0.9).split(',')[1];
+}
+
+async function cargarProducto() {
+    const params = new URLSearchParams(location.search);
+    const prodId = params.get('producto');
+    document.getElementById('linkVolver').href = params.get('volver') || '/marketplace';
+
+    if (!prodId) {
+        document.getElementById('cargando').textContent = 'No se indicó ningún producto.';
+        return;
+    }
+
+    const { data: p, error } = await db.from('productos')
+        .select('*, tiendas(nombre)').eq('id', prodId).maybeSingle();
+
+    if (error || !p) {
+        document.getElementById('cargando').textContent = 'No se encontró el producto.';
+        return;
+    }
+
+    productoActual = p;
+    document.getElementById('prodNombre').textContent = p.nombre || 'Producto';
+    document.getElementById('prodPrecio').textContent =
+        '$' + Number(p.precio || 0).toLocaleString('es-CO') + '/' + (p.unidad || 'm²');
+    document.getElementById('prodTienda').textContent = p.tiendas?.nombre || '';
+    if (p.imagen_url) document.getElementById('prodImg').src = p.imagen_url;
+
+    document.getElementById('cargando').style.display = 'none';
+    document.getElementById('contenido').style.display = 'block';
+
+    await prepararModelo();
+    revisarSoporteAR();
+}
+
+async function prepararModelo() {
+    if (!productoActual?.imagen_url) {
+        mostrarAviso('Este producto no tiene imagen, así que no se puede ver en AR.');
+        document.getElementById('btnAR').disabled = true;
+        return;
+    }
+    try {
+        const b64 = await imagenABase64(productoActual.imagen_url);
+        const url = construirGLB(b64, medidaActual);
+        document.getElementById('visor').src = url;
+    } catch (e) {
+        console.error(e);
+        mostrarAviso('No se pudo preparar la vista 3D de este producto.');
+        document.getElementById('btnAR').disabled = true;
+    }
+}
+
+window.cambiarMedida = async function(m, btn) {
+    medidaActual = m;
+    document.querySelectorAll('.medida-btn').forEach(b => b.classList.remove('activo'));
+    btn.classList.add('activo');
+    await prepararModelo();
+};
+
+function mostrarAviso(txt) {
+    const a = document.getElementById('avisoSoporte');
+    a.style.display = 'block';
+    a.innerHTML = txt;
+}
+
+function revisarSoporteAR() {
+    const visor = document.getElementById('visor');
+    // model-viewer avisa por su cuenta si el dispositivo soporta AR
+    visor.addEventListener('load', () => {
+        setTimeout(() => {
+            if (!visor.canActivateAR) {
+                document.getElementById('btnAR').disabled = true;
+                mostrarAviso('📱 Este dispositivo no soporta AR. Ábrelo desde un <b>celular</b>: ' +
+                    'Android con Chrome, o iPhone con Safari. Abajo puedes girar el material en 3D.');
+            }
+        }, 700);
+    });
+}
+
+window.activarAR = function() {
+    const visor = document.getElementById('visor');
+    if (visor.canActivateAR) visor.activateAR();
+    else mostrarAviso('📱 Este dispositivo no soporta AR. Prueba desde un celular.');
+};
+
+cargarProducto();
+</script>
+</body>
+</html>

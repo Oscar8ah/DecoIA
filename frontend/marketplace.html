@@ -326,6 +326,7 @@
                 <button class="modal-btn-carrito" id="modalBtnCarrito" onclick="modalAgregarCarrito()">🛒 Añadir al carrito</button>
                 <a class="modal-btn-pedir" id="modalBtnPedir" href="#" target="_blank" style="flex:none;padding:14px 18px;">💬 Pedir</a>
             </div>
+            <a id="modalBtnAR" href="#" style="display:none;width:100%;margin-top:10px;padding:14px;border-radius:12px;background:linear-gradient(135deg,#3B82F6 0%,#7C3AED 100%);color:white;font-size:15px;font-weight:800;text-decoration:none;text-align:center;box-sizing:border-box;">📱 Ver en tu espacio</a>
             <button class="modal-btn-cerrar-prod" onclick="cerrarModalProducto()" style="width:100%;margin-top:10px;">Cerrar</button>
         </div>
     </div>
@@ -553,6 +554,18 @@ function abrirModalProducto(p, tienda) {
     document.getElementById('modalProdTienda').innerHTML = `🏪 <strong>${esc(tienda.nombre)}</strong> · 📍 ${esc(tienda.ciudad) || 'Colombia'}`;
     document.getElementById('modalBtnPedir').href = tienda.whatsapp_contacto
         ? `https://wa.me/${tienda.whatsapp_contacto}?text=Hola,%20quiero%20consultar%20sobre:%20${encodeURIComponent(p.nombre)}` : '#';
+    // Botón "Ver en tu espacio" — solo para pisos/enchapes con imagen, que son
+    // los que se pueden mostrar como una superficie sobre el piso real. Los
+    // muebles necesitarían un modelo 3D de verdad (Meshy), aún no disponible.
+    const btnAR = document.getElementById('modalBtnAR');
+    const esSuperficie = ['pisos','enchapes','materiales','pintura'].includes((p.categoria || '').toLowerCase());
+    if (esSuperficie && p.imagen_url) {
+        btnAR.style.display = 'block';
+        btnAR.href = `/ver-en-espacio?producto=${encodeURIComponent(p.id)}&volver=${encodeURIComponent(location.pathname + location.search)}`;
+    } else {
+        btnAR.style.display = 'none';
+    }
+
     window._modalProd   = p;
     window._modalTienda = tienda;
     document.getElementById('modalProductoOverlay').classList.add('open');
