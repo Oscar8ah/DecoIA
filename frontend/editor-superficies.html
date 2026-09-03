@@ -2,9 +2,10 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Editor de superficies — DecoIArte</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Ver en tu espacio — DecoIArte</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>
 <style>
     * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
     :root {
@@ -12,462 +13,331 @@
         --gris:#94A3B8; --texto:#E2E8F0;
         --degradado:linear-gradient(135deg,#3B82F6 0%,#7C3AED 100%);
     }
-    body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
-        background:var(--oscuro); color:var(--texto); min-height:100vh; padding-bottom:30px; }
-    .header { padding:13px 16px; background:var(--oscuro2);
+    body {
+        font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+        background:var(--oscuro); color:var(--texto); min-height:100vh;
+    }
+    .header {
+        padding:14px 18px; background:var(--oscuro2);
         border-bottom:1px solid rgba(124,58,237,0.2);
-        display:flex; align-items:center; gap:10px; position:sticky; top:0; z-index:20; }
-    .logo { font-size:17px; font-weight:800; background:var(--degradado);
-        -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
-    .volver { margin-left:auto; color:var(--gris); font-size:13px; text-decoration:none;
-        padding:6px 11px; border-radius:8px; border:1px solid rgba(148,163,184,0.25); }
-    .cont { padding:16px; max-width:640px; margin:0 auto; }
-    .card { background:var(--oscuro2); border:1px solid rgba(124,58,237,0.2);
-        border-radius:14px; padding:15px; margin-bottom:14px; }
-    .titulo { font-size:11.5px; font-weight:700; color:#A78BFA; text-transform:uppercase;
-        letter-spacing:0.05em; margin-bottom:10px; }
-    button { font-family:inherit; cursor:pointer; }
-    .btn-principal { width:100%; padding:14px; border:none; border-radius:12px;
-        background:var(--degradado); color:white; font-size:15px; font-weight:800; }
-    .btn-principal:disabled { opacity:0.4; }
-    #lienzo { width:100%; border-radius:12px; display:none; cursor:crosshair; touch-action:manipulation; }
-    .estado { font-size:13px; color:var(--gris); text-align:center; padding:14px; line-height:1.6; }
-    .barra { height:5px; background:rgba(124,58,237,0.15); border-radius:3px; overflow:hidden; margin-top:10px; }
-    .barra > div { height:100%; background:var(--degradado); width:0%; transition:width 0.3s; }
-    .opciones { display:flex; gap:7px; margin-top:11px; flex-wrap:wrap; }
-    .op { flex:1; min-width:78px; padding:9px 6px; border-radius:9px; font-size:12px; font-weight:700;
-        background:rgba(255,255,255,0.05); border:1px solid rgba(148,163,184,0.2); color:var(--gris); }
-    .op.activo { background:rgba(34,197,94,0.22); border-color:#22C55E; color:#6EE7B7; }
-    .prods { display:grid; grid-template-columns:repeat(auto-fill,minmax(88px,1fr)); gap:9px; margin-top:11px; }
-    .prod { border-radius:10px; overflow:hidden; border:2px solid transparent;
-        background:rgba(255,255,255,0.04); cursor:pointer; }
-    .prod.sel { border-color:var(--morado); }
-    .prod img { width:100%; height:62px; object-fit:cover; display:block; }
-    .prod-n { font-size:9.5px; padding:5px 4px; color:var(--texto); line-height:1.25;
-        display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-    .prod-p { font-size:9.5px; padding:0 4px 5px; color:#6EE7B7; font-weight:700; }
-    .aviso { background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3);
-        border-radius:10px; padding:11px; font-size:12.5px; color:#FCD34D; line-height:1.55; margin-top:10px; }
-    .ok-box { background:rgba(34,197,94,0.1); border:1px solid rgba(34,197,94,0.3);
-        border-radius:10px; padding:11px; font-size:12.5px; color:#6EE7B7; line-height:1.55; }
-    .fila { display:flex; gap:8px; margin-top:10px; }
-    .fila button { flex:1; padding:11px; border-radius:10px; font-size:12.5px; font-weight:700;
-        background:rgba(255,255,255,0.05); border:1px solid rgba(148,163,184,0.2); color:var(--texto); }
-    .costo { font-size:13px; color:var(--texto); line-height:1.9; }
-    .costo b { color:#6EE7B7; }
+        display:flex; align-items:center; gap:12px; position:sticky; top:0; z-index:10;
+    }
+    .logo { font-size:18px; font-weight:800;
+        background:var(--degradado); -webkit-background-clip:text;
+        -webkit-text-fill-color:transparent; background-clip:text; }
+    .volver { margin-left:auto; color:var(--gris); font-size:13px;
+        text-decoration:none; padding:6px 12px; border-radius:8px;
+        border:1px solid rgba(148,163,184,0.25); }
+    .cont { padding:18px; max-width:560px; margin:0 auto; }
+    .card {
+        background:var(--oscuro2); border:1px solid rgba(124,58,237,0.2);
+        border-radius:16px; overflow:hidden; margin-bottom:16px;
+    }
+    .prod-img { width:100%; height:220px; object-fit:cover; display:block; background:#0A0A14; }
+    .prod-body { padding:16px; }
+    .prod-nombre { font-size:19px; font-weight:800; margin-bottom:4px; }
+    .prod-precio { font-size:17px; font-weight:800; color:#6EE7B7; margin-bottom:2px; }
+    .prod-tienda { font-size:12.5px; color:var(--gris); }
+    .btn-ar {
+        width:100%; padding:16px; border:none; border-radius:14px;
+        background:var(--degradado); color:white; font-size:16px; font-weight:800;
+        cursor:pointer; font-family:inherit; display:flex; align-items:center;
+        justify-content:center; gap:10px; margin-bottom:12px;
+    }
+    .btn-ar:disabled { opacity:0.45; }
+    .aviso {
+        background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3);
+        border-radius:12px; padding:14px; font-size:13.5px; color:#FCD34D;
+        line-height:1.6; margin-bottom:14px;
+    }
+    .pasos { font-size:13px; color:var(--gris); line-height:1.7; padding:0 4px; }
+    .pasos b { color:var(--texto); }
+    model-viewer { width:100%; height:300px; background:#0A0A14; border-radius:12px; }
+    .cargando { text-align:center; padding:50px 20px; color:var(--gris); }
+    .medidas {
+        display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;
+    }
+    .medida-btn {
+        flex:1; min-width:80px; padding:10px; border-radius:10px; cursor:pointer;
+        background:rgba(255,255,255,0.05); border:1px solid rgba(148,163,184,0.2);
+        color:var(--gris); font-size:12.5px; font-weight:700; font-family:inherit;
+    }
+    .medida-btn.activo { background:rgba(124,58,237,0.25); border-color:var(--morado); color:#A78BFA; }
 </style>
 </head>
 <body>
 
 <div class="header">
     <span class="logo">DecoIArte</span>
-    <span style="font-size:12.5px;color:var(--gris);">Editor de superficies</span>
-    <a href="/remodelar" id="volver" class="volver">← Volver</a>
+    <span style="font-size:13px;color:var(--gris);">Ver en tu espacio</span>
+    <a href="#" id="linkVolver" class="volver">← Volver</a>
 </div>
 
 <div class="cont">
+    <div id="cargando" class="cargando">Cargando producto...</div>
 
-    <div class="card">
-        <div class="titulo">1 · Tu foto</div>
-        <div id="zonaFoto">
-            <input type="file" id="inputFoto" accept="image/*" onchange="cargarFoto(this)"
-                   style="width:100%;font-size:13px;color:var(--gris);">
-            <div style="font-size:12px;color:var(--gris);margin-top:8px;line-height:1.5;">
-                Sube una foto de tu espacio, o vuelve atrás y usa la imagen que generó la IA.
+    <div id="contenido" style="display:none;">
+        <div class="card">
+            <img id="prodImg" class="prod-img" alt="">
+            <div class="prod-body">
+                <div id="prodNombre" class="prod-nombre">—</div>
+                <div id="prodPrecio" class="prod-precio">—</div>
+                <div id="prodTienda" class="prod-tienda">—</div>
             </div>
         </div>
-        <canvas id="lienzo"></canvas>
-        <div id="estadoFoto" class="estado" style="display:none;"></div>
-        <div id="barraWrap" class="barra" style="display:none;"><div id="barra"></div></div>
-    </div>
 
-    <div class="card" id="cardSeleccion" style="display:none;">
-        <div class="titulo">2 · Toca la superficie que quieres cambiar</div>
-        <div style="font-size:12.5px;color:var(--gris);line-height:1.55;">
-            Toca el <b style="color:var(--texto);">piso</b> o una <b style="color:var(--texto);">pared</b>.
-            La IA la detecta sola y te muestra tres opciones — elige la que mejor la cubra.
+        <div style="font-size:12px;font-weight:700;color:#A78BFA;text-transform:uppercase;margin-bottom:8px;">
+            Tamaño del área a visualizar
         </div>
-        <div id="opcionesMascara" class="opciones" style="display:none;">
-            <button class="op" onclick="verMascara(0)">Opción 1</button>
-            <button class="op" onclick="verMascara(1)">Opción 2</button>
-            <button class="op" onclick="verMascara(2)">Opción 3</button>
+        <div class="medidas">
+            <button class="medida-btn activo" data-m="1" onclick="cambiarMedida(1,this)">1 × 1 m</button>
+            <button class="medida-btn" data-m="2" onclick="cambiarMedida(2,this)">2 × 2 m</button>
+            <button class="medida-btn" data-m="3" onclick="cambiarMedida(3,this)">3 × 3 m</button>
         </div>
-        <div id="infoMascara" style="font-size:11.5px;color:#6EE7B7;margin-top:7px;"></div>
-    </div>
 
-    <div class="card" id="cardProductos" style="display:none;">
-        <div class="titulo">3 · Elige el material</div>
-        <select id="selTienda" onchange="cambiarTienda(this.value)"
-                style="width:100%;background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);border-radius:10px;padding:10px;color:var(--texto);font-size:13px;margin-bottom:10px;">
-            <option value="">Cargando tiendas...</option>
-        </select>
-        <div id="filtroCats" class="opciones" style="margin-top:0;margin-bottom:4px;"></div>
-        <div id="listaProds" class="prods"></div>
-        <div class="fila">
-            <button onclick="quitarMaterial()">↩️ Quitar material</button>
-            <button onclick="descargarResultado()">⬇️ Descargar</button>
+        <button id="btnAR" class="btn-ar" onclick="activarAR()">📱 Ver en tu espacio</button>
+        <div id="avisoSoporte" class="aviso" style="display:none;"></div>
+
+        <model-viewer id="visor"
+            ar ar-modes="webxr scene-viewer quick-look"
+            ar-placement="floor"
+            camera-controls
+            shadow-intensity="1"
+            exposure="1.1"
+            alt="Vista previa del material">
+        </model-viewer>
+
+        <div class="pasos" style="margin-top:14px;">
+            <b>Cómo usarlo:</b><br>
+            1. Toca <b>"Ver en tu espacio"</b><br>
+            2. Apunta la cámara al <b>piso</b> y muévela despacio<br>
+            3. Cuando aparezca el recuadro, <b>toca para colocarlo</b><br>
+            4. Camina alrededor para verlo desde otros ángulos
         </div>
     </div>
-
-    <div class="card" id="cardCosto" style="display:none;">
-        <div class="titulo">4 · Estimado</div>
-        <div id="detalleCosto" class="costo"></div>
-        <div style="font-size:11px;color:var(--gris);margin-top:8px;line-height:1.5;">
-            Estimado aproximado según el área visible en la foto. Para una cotización exacta,
-            habla con la tienda.
-        </div>
-    </div>
-
 </div>
 
-<script type="module">
+<script>
 const SUPABASE_URL = 'https://cqwbsikyzdtegutyvgfo.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxd2JzaWt5emR0ZWd1dHl2Z2ZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI4NzY0NzEsImV4cCI6MjA2ODQ1MjQ3MX0.f5vP0FhIkzC33H_-BpUxUKQ3Yh3fzZ0V0PYzCmKVrPU';
-const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxd2JzaWt5emR0ZWd1dHl2Z2ZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NTk5MjUsImV4cCI6MjA5NDMzNTkyNX0.v9Qmp85POur1zZ3nHVYNRyhqHAi4VawafBsCiXF72Yo';
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-function esc(s){ if(s==null) return ''; return String(s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
-
-let modelo=null, procesador=null, RawImage=null, Tensor=null;
-let embeddings=null, entradas=null;
-let mascaras=null, mascaraElegida=null, nivelElegido=0;
-let imgLimpia=null, productos=[], productoSel=null;
-
-const est = document.getElementById('estadoFoto');
-const barraWrap = document.getElementById('barraWrap');
-const barra = document.getElementById('barra');
-
-function mostrarEstado(txt, pct){
-    est.style.display='block'; est.innerHTML=txt;
-    if(pct!=null){ barraWrap.style.display='block'; barra.style.width=pct+'%'; }
-    else barraWrap.style.display='none';
+function esc(s) {
+    if (s === null || s === undefined) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 }
 
-// ── Cargar el modelo de segmentación (una sola vez, queda en caché) ───────
-async function cargarModelo(){
-    if(modelo) return true;
-    mostrarEstado('⏳ Preparando el detector de superficies...<br><span style="font-size:11.5px">Solo la primera vez (~40 MB)</span>', 20);
-    try{
-        const lib = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2');
-        RawImage = lib.RawImage; Tensor = lib.Tensor;
-        const hayGPU = 'gpu' in navigator;
-        modelo = await lib.SamModel.from_pretrained('Xenova/slimsam-77-uniform', {
-            dtype:'fp16', device: hayGPU ? 'webgpu' : 'wasm'
-        });
-        procesador = await lib.AutoProcessor.from_pretrained('Xenova/slimsam-77-uniform');
-        return true;
-    }catch(e){
-        console.error(e);
-        mostrarEstado('❌ No se pudo cargar el detector en este dispositivo.');
-        return false;
+let productoActual = null;
+let medidaActual = 1;
+
+// ── Generar el modelo 3D del piso al vuelo ────────────────────────────────
+// No hace falta Meshy ni modelos prehechos: un piso es un plano con la
+// textura del producto. Se arma un archivo GLB en memoria, con la textura
+// repetida según los metros elegidos, y se le pasa a model-viewer.
+function construirGLB(texturaBase64, metros) {
+    const repeticiones = metros; // 1 baldosa por metro aprox.
+
+    // Un GLB es un contenedor binario: cabecera + JSON + datos binarios.
+    // Se arma a mano un plano de N×N metros con la textura aplicada.
+    const half = metros / 2;
+    const vertices = new Float32Array([
+        -half, 0, -half,   half, 0, -half,   half, 0,  half,  -half, 0,  half,
+    ]);
+    const normales = new Float32Array([
+        0,1,0,  0,1,0,  0,1,0,  0,1,0,
+    ]);
+    const uvs = new Float32Array([
+        0,0,  repeticiones,0,  repeticiones,repeticiones,  0,repeticiones,
+    ]);
+    const indices = new Uint16Array([0,1,2, 0,2,3]);
+
+    // Alinear cada bloque a múltiplos de 4 bytes (lo exige el formato)
+    function alinear(len) { return Math.ceil(len / 4) * 4; }
+
+    const imgBytes = Uint8Array.from(atob(texturaBase64), c => c.charCodeAt(0));
+
+    const bufVert = new Uint8Array(vertices.buffer);
+    const bufNorm = new Uint8Array(normales.buffer);
+    const bufUv   = new Uint8Array(uvs.buffer);
+    const bufIdx  = new Uint8Array(indices.buffer);
+
+    let offset = 0;
+    const partes = [];
+    function agregar(datos) {
+        const inicio = offset;
+        partes.push(datos);
+        offset += datos.byteLength;
+        const relleno = alinear(offset) - offset;
+        if (relleno) { partes.push(new Uint8Array(relleno)); offset += relleno; }
+        return inicio;
     }
+
+    const offVert = agregar(bufVert);
+    const offNorm = agregar(bufNorm);
+    const offUv   = agregar(bufUv);
+    const offIdx  = agregar(bufIdx);
+    const offImg  = agregar(imgBytes);
+
+    const json = {
+        asset: { version: "2.0", generator: "DecoIArte" },
+        scene: 0,
+        scenes: [{ nodes: [0] }],
+        nodes: [{ mesh: 0 }],
+        meshes: [{ primitives: [{
+            attributes: { POSITION: 0, NORMAL: 1, TEXCOORD_0: 2 },
+            indices: 3, material: 0
+        }]}],
+        materials: [{
+            pbrMetallicRoughness: {
+                baseColorTexture: { index: 0 },
+                metallicFactor: 0.0, roughnessFactor: 0.75
+            },
+            doubleSided: true
+        }],
+        textures: [{ source: 0, sampler: 0 }],
+        samplers: [{ wrapS: 10497, wrapT: 10497 }], // 10497 = repetir la textura
+        images: [{ bufferView: 4, mimeType: "image/jpeg" }],
+        accessors: [
+            { bufferView:0, componentType:5126, count:4, type:"VEC3",
+              min:[-half,0,-half], max:[half,0,half] },
+            { bufferView:1, componentType:5126, count:4, type:"VEC3" },
+            { bufferView:2, componentType:5126, count:4, type:"VEC2" },
+            { bufferView:3, componentType:5123, count:6, type:"SCALAR" },
+        ],
+        bufferViews: [
+            { buffer:0, byteOffset:offVert, byteLength:bufVert.byteLength },
+            { buffer:0, byteOffset:offNorm, byteLength:bufNorm.byteLength },
+            { buffer:0, byteOffset:offUv,   byteLength:bufUv.byteLength },
+            { buffer:0, byteOffset:offIdx,  byteLength:bufIdx.byteLength },
+            { buffer:0, byteOffset:offImg,  byteLength:imgBytes.byteLength },
+        ],
+        buffers: [{ byteLength: offset }],
+    };
+
+    const jsonStr = JSON.stringify(json);
+    const jsonBytes = new TextEncoder().encode(jsonStr);
+    const jsonRelleno = alinear(jsonBytes.length) - jsonBytes.length;
+    const jsonFinal = new Uint8Array(jsonBytes.length + jsonRelleno);
+    jsonFinal.set(jsonBytes);
+    jsonFinal.fill(0x20, jsonBytes.length); // rellenar con espacios
+
+    const binTotal = new Uint8Array(offset);
+    let p = 0;
+    partes.forEach(x => { binTotal.set(x, p); p += x.byteLength; });
+
+    const totalLen = 12 + 8 + jsonFinal.length + 8 + binTotal.length;
+    const glb = new ArrayBuffer(totalLen);
+    const dv = new DataView(glb);
+    let pos = 0;
+    dv.setUint32(pos, 0x46546C67, true); pos += 4; // "glTF"
+    dv.setUint32(pos, 2, true); pos += 4;
+    dv.setUint32(pos, totalLen, true); pos += 4;
+    dv.setUint32(pos, jsonFinal.length, true); pos += 4;
+    dv.setUint32(pos, 0x4E4F534A, true); pos += 4; // "JSON"
+    new Uint8Array(glb, pos, jsonFinal.length).set(jsonFinal); pos += jsonFinal.length;
+    dv.setUint32(pos, binTotal.length, true); pos += 4;
+    dv.setUint32(pos, 0x004E4942, true); pos += 4; // "BIN"
+    new Uint8Array(glb, pos, binTotal.length).set(binTotal);
+
+    return URL.createObjectURL(new Blob([glb], { type: 'model/gltf-binary' }));
 }
 
-window.cargarFoto = async function(input){
-    const archivo = input.files?.[0];
-    if(!archivo) return;
-    await procesarImagenDesdeBlob(archivo);
-};
-
-async function procesarImagenDesdeBlob(origen){
-    document.getElementById('zonaFoto').style.display='none';
-    if(!await cargarModelo()) return;
-
-    mostrarEstado('🔍 Analizando tu espacio...', 60);
-    try{
-        const bmp = await createImageBitmap(origen instanceof Blob ? origen : await (await fetch(origen)).blob());
-
-        // Reducir antes de analizar: las fotos de celular vienen enormes y eso
-        // dispara el tiempo. El modelo trabaja en baja resolución igual.
-        const MAX=1024;
-        const k = Math.min(1, MAX/Math.max(bmp.width,bmp.height));
-        const w = Math.round(bmp.width*k), h = Math.round(bmp.height*k);
-
-        const lienzo = document.getElementById('lienzo');
-        lienzo.width=w; lienzo.height=h; lienzo.style.display='block';
-        lienzo.getContext('2d').drawImage(bmp,0,0,w,h);
-
-        imgLimpia = document.createElement('canvas');
-        imgLimpia.width=w; imgLimpia.height=h;
-        imgLimpia.getContext('2d').drawImage(bmp,0,0,w,h);
-
-        const dataUrl = imgLimpia.toDataURL('image/jpeg',0.92);
-        const img = await RawImage.fromURL(dataUrl);
-        entradas = await procesador(img);
-        embeddings = await modelo.get_image_embeddings(entradas);
-
-        mostrarEstado('✅ Listo — toca la superficie que quieres cambiar', 100);
-        setTimeout(()=>{ est.style.display='none'; barraWrap.style.display='none'; }, 1600);
-        document.getElementById('cardSeleccion').style.display='block';
-        await cargarTiendas();
-    }catch(e){
-        console.error(e);
-        mostrarEstado('❌ No se pudo analizar la imagen. Intenta con otra foto.');
-    }
+async function imagenABase64(url) {
+    const resp = await fetch(url, { mode: 'cors' });
+    const blob = await resp.blob();
+    // Redibujar en canvas: normaliza el formato a JPEG y evita problemas
+    // con imágenes de origen distinto al cargarlas en el modelo
+    const bmp = await createImageBitmap(blob);
+    const c = document.createElement('canvas');
+    c.width = 512; c.height = 512;
+    c.getContext('2d').drawImage(bmp, 0, 0, 512, 512);
+    return c.toDataURL('image/jpeg', 0.9).split(',')[1];
 }
 
-// ── Clic sobre la imagen → detectar la superficie ────────────────────────
-document.getElementById('lienzo').addEventListener('click', async (e)=>{
-    if(!embeddings) return;
-    const lienzo = e.target;
-    const r = lienzo.getBoundingClientRect();
-    const x = (e.clientX-r.left)*(lienzo.width/r.width);
-    const y = (e.clientY-r.top)*(lienzo.height/r.height);
-
-    try{
-        const pts = new Tensor('float32',[x,y],[1,1,1,2]);
-        const lbl = new Tensor('int64',[1n],[1,1,1]);
-        const salida = await modelo({...embeddings, input_points:pts, input_labels:lbl});
-        const res = await procesador.post_process_masks(
-            salida.pred_masks, entradas.original_sizes, entradas.reshaped_input_sizes);
-
-        mascaras = res[0];
-        // SAM da 3 máscaras (pieza / parte / región). Se muestra la de mejor
-        // puntaje, pero el usuario puede cambiar — el mejor puntaje NO siempre
-        // es la superficie que la persona quería.
-        const puntajes = Array.from(salida.iou_scores.data);
-        let mejor=0; puntajes.forEach((p,i)=>{ if(p>puntajes[mejor]) mejor=i; });
-
-        document.getElementById('opcionesMascara').style.display='flex';
-        verMascara(mejor);
-        document.getElementById('cardProductos').style.display='block';
-    }catch(err){ console.error(err); }
-});
-
-window.verMascara = function(nivel){
-    if(!mascaras) return;
-    nivelElegido = nivel;
-    const lienzo = document.getElementById('lienzo');
-    const w=lienzo.width, h=lienzo.height;
-    const datos = mascaras.data;
-    const off = nivel*w*h;
-
-    mascaraElegida = new Uint8Array(w*h);
-    let n=0;
-    for(let i=0;i<w*h;i++){ if(datos[off+i]){ mascaraElegida[i]=1; n++; } }
-
-    document.querySelectorAll('.op').forEach((b,i)=> b.classList.toggle('activo', i===nivel));
-    document.getElementById('infoMascara').textContent =
-        `Cubre el ${((n/(w*h))*100).toFixed(1)}% de la foto`;
-
-    if(productoSel) aplicarMaterial(); else pintarSeleccion();
-};
-
-// Verde translúcido para que se vea qué quedó seleccionado
-function pintarSeleccion(){
-    const lienzo=document.getElementById('lienzo'), ctx=lienzo.getContext('2d');
-    ctx.drawImage(imgLimpia,0,0);
-    const w=lienzo.width,h=lienzo.height;
-    const d=ctx.getImageData(0,0,w,h);
-    for(let i=0;i<w*h;i++){
-        if(mascaraElegida[i]){
-            d.data[i*4]  =d.data[i*4]*0.5+34*0.5;
-            d.data[i*4+1]=d.data[i*4+1]*0.5+197*0.5;
-            d.data[i*4+2]=d.data[i*4+2]*0.5+94*0.5;
-        }
-    }
-    ctx.putImageData(d,0,0);
-}
-
-// ── Productos: tienda predeterminada + posibilidad de ver otras ──────────
-// Si el cliente llegó desde una tienda (por el link de WhatsApp), esa sale
-// primero. Si es un visitante externo, se muestran todas las tiendas.
-const CATS_SUPERFICIE = ['pisos','enchapes','materiales','pintura'];
-const CATS_OBJETOS    = ['muebles','baños','cocinas','puertas','electrodomesticos','jardineria'];
-let tiendaSel = '', catSel = 'superficies';
-
-async function cargarTiendas(){
+async function cargarProducto() {
     const params = new URLSearchParams(location.search);
-    const tiendaOrigen = params.get('tienda') || '';
+    const prodId = params.get('producto');
+    document.getElementById('linkVolver').href = params.get('volver') || '/marketplace';
 
-    // Se listan TODAS las tiendas activas. Antes se excluían las de plan
-    // gratis, pero al elegir "todas" la búsqueda sí traía sus productos —
-    // era inconsistente (aparecían productos de tiendas que no salían en la
-    // lista, y viceversa).
-    const { data: tiendas } = await db.from('tiendas')
-        .select('id,nombre').eq('activa',true).order('nombre');
-
-    const sel = document.getElementById('selTienda');
-    const lista = tiendas || [];
-
-    let html = '';
-    if (tiendaOrigen) {
-        const propia = lista.find(t => t.id === tiendaOrigen);
-        if (propia) html += `<option value="${esc(propia.id)}">🏪 ${esc(propia.nombre)}</option>`;
-    }
-    html += `<option value="todas">🌐 Todas las tiendas</option>`;
-    html += lista.filter(t => t.id !== tiendaOrigen)
-                 .map(t => `<option value="${esc(t.id)}">🛍️ ${esc(t.nombre)}</option>`).join('');
-    sel.innerHTML = html;
-
-    tiendaSel = tiendaOrigen || 'todas';
-    sel.value = tiendaSel;
-
-    renderFiltroCats();
-    await cargarProductos();
-}
-
-function renderFiltroCats(){
-    document.getElementById('filtroCats').innerHTML = `
-        <button class="op ${catSel==='superficies'?'activo':''}" onclick="cambiarCat('superficies')">🧱 Superficies</button>
-        <button class="op ${catSel==='objetos'?'activo':''}" onclick="cambiarCat('objetos')">🛋️ Objetos</button>`;
-}
-
-window.cambiarCat = async function(c){ catSel = c; renderFiltroCats(); await cargarProductos(); };
-window.cambiarTienda = async function(v){ tiendaSel = v; await cargarProductos(); };
-
-async function cargarProductos(){
-    const cont = document.getElementById('listaProds');
-    cont.innerHTML = '<div style="font-size:12.5px;color:var(--gris);">Cargando...</div>';
-
-    const cats = catSel === 'superficies' ? CATS_SUPERFICIE : CATS_OBJETOS;
-    let q = db.from('productos').select('*').eq('activo',true).in('categoria',cats).limit(40);
-    if (tiendaSel && tiendaSel !== 'todas') q = q.eq('tienda_id', tiendaSel);
-
-    const { data, error } = await q;
-    if (error) {
-        cont.innerHTML = `<div style="font-size:12px;color:#FCA5A5;line-height:1.5;">Error consultando productos: ${esc(error.message)}</div>`;
+    if (!prodId) {
+        document.getElementById('cargando').textContent = 'No se indicó ningún producto.';
         return;
     }
-    const enCategoria = data || [];
-    productos = enCategoria.filter(p => p.imagen_url);
 
-    if(!productos.length){
-        // Sin resultados en esas categorías: buscar CUALQUIER producto, para
-        // no dejar la lista vacía si la tienda usa otros nombres de categoría.
-        let q2 = db.from('productos').select('*').eq('activo',true).limit(40);
-        if (tiendaSel && tiendaSel !== 'todas') q2 = q2.eq('tienda_id', tiendaSel);
-        const { data: d2 } = await q2;
-        const todos = d2 || [];
-        productos = todos.filter(p => p.imagen_url);
+    const { data: p, error } = await db.from('productos')
+        .select('*, tiendas(nombre)').eq('id', prodId).maybeSingle();
 
-        // Diagnóstico visible: en vez de un "no hay nada" genérico, decir QUÉ
-        // falta exactamente. Casi siempre es que los productos no tienen foto.
-        if(!productos.length){
-            let msg;
-            if (todos.length > 0) {
-                msg = `Hay <b>${todos.length} producto(s)</b> pero <b>ninguno tiene foto</b>. ` +
-                      `El editor necesita la imagen del producto para poder aplicarlo. ` +
-                      `Sube las fotos desde el Dashboard → Mi Tienda.`;
-            } else if (tiendaSel !== 'todas') {
-                msg = `Esta tienda no tiene productos activos. Prueba con <b>🌐 Todas las tiendas</b>.`;
-            } else {
-                msg = `No hay productos activos con foto en ninguna tienda todavía.`;
-            }
-            cont.innerHTML = `<div style="font-size:12px;color:var(--gris);line-height:1.6;">${msg}</div>`;
-            return;
-        }
-        // Sí había productos, pero en otras categorías — avisar sin bloquear
-        cont.innerHTML = `<div style="grid-column:1/-1;font-size:11px;color:#FCD34D;line-height:1.5;margin-bottom:2px;">
-            Mostrando todos los productos con foto (no hay ninguno clasificado como ${catSel === 'superficies' ? 'piso/enchape/pintura' : 'mueble/objeto'}).
-        </div>`;
-    } else {
-        cont.innerHTML = '';
+    if (error || !p) {
+        document.getElementById('cargando').textContent = 'No se encontró el producto.';
+        return;
     }
 
-    cont.innerHTML += productos.map((p,i)=>`
-        <div class="prod" id="pr${i}" onclick="elegirProducto(${i})">
-            <img src="${esc(p.imagen_url)}" alt="${esc(p.nombre)}" crossorigin="anonymous">
-            <div class="prod-n">${esc(p.nombre)}</div>
-            <div class="prod-p">$${Number(p.precio||0).toLocaleString('es-CO')}</div>
-        </div>`).join('');
+    productoActual = p;
+    document.getElementById('prodNombre').textContent = p.nombre || 'Producto';
+    document.getElementById('prodPrecio').textContent =
+        '$' + Number(p.precio || 0).toLocaleString('es-CO') + '/' + (p.unidad || 'm²');
+    document.getElementById('prodTienda').textContent = p.tiendas?.nombre || '';
+    if (p.imagen_url) document.getElementById('prodImg').src = p.imagen_url;
+
+    document.getElementById('cargando').style.display = 'none';
+    document.getElementById('contenido').style.display = 'block';
+
+    await prepararModelo();
+    revisarSoporteAR();
 }
 
-window.elegirProducto = async function(i){
-    productoSel = productos[i];
-    document.querySelectorAll('.prod').forEach((el,j)=> el.classList.toggle('sel', j===i));
-    await aplicarMaterial();
-};
-
-// ── Aplicar la textura del material sobre la superficie detectada ────────
-async function aplicarMaterial(){
-    if(!productoSel || !mascaraElegida) return;
-    const lienzo=document.getElementById('lienzo'), ctx=lienzo.getContext('2d');
-    const w=lienzo.width, h=lienzo.height;
-
-    try{
-        const resp = await fetch(productoSel.imagen_url, {mode:'cors'});
-        const bmp = await createImageBitmap(await resp.blob());
-
-        // Repetir la textura en mosaico sobre un lienzo auxiliar
-        const tam = Math.round(Math.min(w,h)/5);
-        const aux = document.createElement('canvas');
-        aux.width=w; aux.height=h;
-        const auxCtx = aux.getContext('2d');
-        for(let yy=0; yy<h; yy+=tam)
-            for(let xx=0; xx<w; xx+=tam)
-                auxCtx.drawImage(bmp, xx, yy, tam, tam);
-
-        const tex = auxCtx.getImageData(0,0,w,h);
-        ctx.drawImage(imgLimpia,0,0);
-        const base = ctx.getImageData(0,0,w,h);
-
-        // Mezclar conservando la luz/sombra original: se toma el brillo del
-        // pixel original y se aplica sobre el color de la textura. Así el
-        // material respeta las sombras de la foto y no se ve pegado encima.
-        for(let i=0;i<w*h;i++){
-            if(!mascaraElegida[i]) continue;
-            const lum = (base.data[i*4]*0.299 + base.data[i*4+1]*0.587 + base.data[i*4+2]*0.114)/255;
-            const f = 0.55 + lum*0.75;
-            base.data[i*4]   = Math.min(255, tex.data[i*4]  *f);
-            base.data[i*4+1] = Math.min(255, tex.data[i*4+1]*f);
-            base.data[i*4+2] = Math.min(255, tex.data[i*4+2]*f);
-        }
-        ctx.putImageData(base,0,0);
-        calcularCosto();
-    }catch(e){
+async function prepararModelo() {
+    if (!productoActual?.imagen_url) {
+        mostrarAviso('Este producto no tiene imagen, así que no se puede ver en AR.');
+        document.getElementById('btnAR').disabled = true;
+        return;
+    }
+    try {
+        const b64 = await imagenABase64(productoActual.imagen_url);
+        const url = construirGLB(b64, medidaActual);
+        document.getElementById('visor').src = url;
+    } catch (e) {
         console.error(e);
-        alert('No se pudo aplicar este material. Puede ser un problema con la imagen del producto.');
+        mostrarAviso('No se pudo preparar la vista 3D de este producto.');
+        document.getElementById('btnAR').disabled = true;
     }
 }
 
-window.quitarMaterial = function(){
-    productoSel=null;
-    document.querySelectorAll('.prod').forEach(el=>el.classList.remove('sel'));
-    document.getElementById('cardCosto').style.display='none';
-    if(mascaraElegida) pintarSeleccion(); else {
-        const l=document.getElementById('lienzo');
-        l.getContext('2d').drawImage(imgLimpia,0,0);
-    }
+window.cambiarMedida = async function(m, btn) {
+    medidaActual = m;
+    document.querySelectorAll('.medida-btn').forEach(b => b.classList.remove('activo'));
+    btn.classList.add('activo');
+    await prepararModelo();
 };
 
-window.descargarResultado = function(){
-    const a=document.createElement('a');
-    a.download = 'decoiarte-'+Date.now()+'.jpg';
-    a.href = document.getElementById('lienzo').toDataURL('image/jpeg',0.92);
-    a.click();
-};
-
-// Estimado MUY aproximado: la foto no da medidas reales, así que se avisa
-// claramente que es solo una referencia.
-function calcularCosto(){
-    if(!productoSel || !mascaraElegida) return;
-    const lienzo=document.getElementById('lienzo');
-    const total = lienzo.width*lienzo.height;
-    let n=0; for(let i=0;i<total;i++) if(mascaraElegida[i]) n++;
-    const porcentaje = n/total;
-    const m2Estimados = Math.max(1, Math.round(porcentaje*28));  // referencia gruesa
-    const costo = m2Estimados * Number(productoSel.precio||0);
-
-    document.getElementById('cardCosto').style.display='block';
-    document.getElementById('detalleCosto').innerHTML = `
-        Material: <b>${esc(productoSel.nombre)}</b><br>
-        Precio: <b>$${Number(productoSel.precio||0).toLocaleString('es-CO')}</b> por ${esc(productoSel.unidad||'m²')}<br>
-        Área aproximada: <b>~${m2Estimados} m²</b><br>
-        Estimado: <b>$${costo.toLocaleString('es-CO')}</b>`;
+function mostrarAviso(txt) {
+    const a = document.getElementById('avisoSoporte');
+    a.style.display = 'block';
+    a.innerHTML = txt;
 }
 
-// Si viene una imagen ya generada por la IA, se carga sola
-(async function inicio(){
-    const params = new URLSearchParams(location.search);
-    const imgUrl = params.get('img') || sessionStorage.getItem('deco_resultado_url');
-    if(params.get('volver')) document.getElementById('volver').href = params.get('volver');
-    if(imgUrl){
-        document.getElementById('zonaFoto').style.display='none';
-        await procesarImagenDesdeBlob(imgUrl);
-    }
-})();
+function revisarSoporteAR() {
+    const visor = document.getElementById('visor');
+    // model-viewer avisa por su cuenta si el dispositivo soporta AR
+    visor.addEventListener('load', () => {
+        setTimeout(() => {
+            if (!visor.canActivateAR) {
+                document.getElementById('btnAR').disabled = true;
+                mostrarAviso('📱 Este dispositivo no soporta AR. Ábrelo desde un <b>celular</b>: ' +
+                    'Android con Chrome, o iPhone con Safari. Abajo puedes girar el material en 3D.');
+            }
+        }, 700);
+    });
+}
+
+window.activarAR = function() {
+    const visor = document.getElementById('visor');
+    if (visor.canActivateAR) visor.activateAR();
+    else mostrarAviso('📱 Este dispositivo no soporta AR. Prueba desde un celular.');
+};
+
+cargarProducto();
 </script>
 </body>
 </html>
