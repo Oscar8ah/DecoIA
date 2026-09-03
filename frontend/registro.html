@@ -272,7 +272,7 @@ const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { flowType: 'pkce', persistSession: true, detectSessionInUrl: true, autoRefreshToken: true }
 });
 
-const PRECIOS_PLAN = { gratis:'$0/mes', basico:'$700.000/mes', profesional:'$1.200.000/mes', premium:'$1.500.000/mes', corporativo:'$3.000.000/mes' };
+const PRECIOS_PLAN = { gratis:'$0', basico:'$400.000 pago único', profesional:'$700.000 pago único', premium:'$1.000.000 pago único', corporativo:'$3.000.000 pago único' };
 const NOMBRES_PLAN = { gratis:'Gratis', basico:'Básico', profesional:'Profesional', premium:'Premium', corporativo:'Corporativo' };
 
 let tipoActual = 'empresa';
