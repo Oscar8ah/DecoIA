@@ -96,6 +96,18 @@
         .producto-cat { font-size: 11px; color: var(--morado); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
         .producto-nombre { font-size: 15px; font-weight: 700; margin-bottom: 6px; line-height: 1.3; color: #111827; }
         .producto-desc { font-size: 12px; color: #6B7280; margin-bottom: 12px; line-height: 1.5; }
+        /* Colapsada: solo 2 líneas, con degradado abajo para indicar que hay más */
+        .producto-desc.colapsada {
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+            overflow: hidden; margin-bottom: 4px;
+        }
+        .btn-leer-mas {
+            display: flex; align-items: center; gap: 4px; background: none; border: none;
+            color: #7C3AED; font-size: 11.5px; font-weight: 700; cursor: pointer;
+            padding: 2px 0 10px; font-family: inherit;
+        }
+        .btn-leer-mas svg { transition: transform 0.25s; }
+        .btn-leer-mas:hover { color: #6D28D9; }
         .producto-precio-wrap { display: flex; align-items: baseline; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
         .producto-precio { font-size: 20px; font-weight: 900; background: var(--degradado); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .producto-precio-antes { font-size: 13px; color: #9CA3AF; text-decoration: line-through; }
@@ -311,6 +323,7 @@
     <div class="modal-producto" id="modalProductoBox">
         <button class="modal-prod-close" onclick="cerrarModalProducto()">✕</button>
         <div class="modal-prod-img" id="modalProdImg">📦</div>
+        <div id="modalGaleria" style="display:none;gap:8px;padding:10px 16px 0;overflow-x:auto;"></div>
         <div class="modal-prod-body">
             <div class="modal-prod-cat" id="modalProdCat"></div>
             <div class="modal-prod-nombre" id="modalProdNombre"></div>
@@ -478,13 +491,22 @@ function renderProductos(productos, tienda) {
         return;
     }
     const waBase = tienda.whatsapp_contacto ? `https://wa.me/${tienda.whatsapp_contacto}?text=Hola,%20quiero%20comprar:` : '#';
-    grid.innerHTML = productos.map(p => `
+    grid.innerHTML = productos.map(p => {
+        const desc = esc(p.descripcion) || '';
+        const tieneDesc = desc.length > 0;
+        return `
         <div class="producto-card" onclick="abrirModalPorId('${p.id}')" style="cursor:pointer;">
             <div class="producto-img">${p.imagen_url ? `<img src="${esc(p.imagen_url)}" alt="${esc(p.nombre)}" loading="lazy" onerror="this.parentElement.innerHTML='📦'">` : '📦'}</div>
             <div class="producto-body">
                 <div class="producto-cat">${esc(p.categoria) || 'General'}</div>
                 <div class="producto-nombre">${esc(p.nombre)}</div>
-                <div class="producto-desc">${esc(p.descripcion) || ''}</div>
+                ${tieneDesc ? `
+                <div class="producto-desc colapsada" id="desc-${p.id}">${desc}</div>
+                <button class="btn-leer-mas" id="btnleer-${p.id}"
+                        onclick="event.stopPropagation(); toggleDescripcion('${p.id}')">
+                    <span>Leer más</span>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>` : ''}
                 <div class="producto-precio-wrap">
                     <span class="producto-precio">$${Number(p.precio).toLocaleString('es-CO')}</span>
                     ${p.precio_antes ? `<span class="producto-precio-antes">$${Number(p.precio_antes).toLocaleString('es-CO')}</span>` : ''}
@@ -495,8 +517,28 @@ function renderProductos(productos, tienda) {
                     <a href="${waBase} ${encodeURIComponent(p.nombre)}" target="_blank" class="btn-comprar">💬 Pedir</a>
                 </div>
             </div>
-        </div>`).join('');
+        </div>`;
+    }).join('');
 }
+
+// Abre/cierra la descripción sin entrar al producto. La flechita se voltea
+// para indicar el estado, y el clic no abre el modal (stopPropagation).
+window.cambiarFotoModal = function(url, miniatura) {
+    const cont = document.getElementById('modalProdImg');
+    cont.innerHTML = `<img src="${esc(url)}" onerror="this.parentElement.innerHTML='📦'">`;
+    document.querySelectorAll('#modalGaleria img').forEach(img => img.style.border = '2px solid transparent');
+    if (miniatura) miniatura.style.border = '2px solid #7C3AED';
+};
+
+window.toggleDescripcion = function(id) {
+    const desc = document.getElementById('desc-' + id);
+    const btn  = document.getElementById('btnleer-' + id);
+    if (!desc || !btn) return;
+    const abierta = !desc.classList.contains('colapsada');
+    desc.classList.toggle('colapsada', abierta);
+    btn.querySelector('span').textContent = abierta ? 'Leer más' : 'Leer menos';
+    btn.querySelector('svg').style.transform = abierta ? 'rotate(0deg)' : 'rotate(180deg)';
+};
 
 function volverListado() {
     document.getElementById('vistaTienda').style.display  = 'none';
@@ -542,6 +584,21 @@ function abrirModalPorId(prodId) {
 function abrirModalProducto(p, tienda) {
     document.getElementById('modalProdImg').innerHTML = p.imagen_url
         ? `<img src="${esc(p.imagen_url)}" alt="${esc(p.nombre)}" onerror="this.parentElement.innerHTML='📦'">` : '📦';
+
+    // Galería: la principal + las que el vendedor haya subido. Solo aparece
+    // si hay más de una, para no ocupar espacio innecesario.
+    const galeria = document.getElementById('modalGaleria');
+    const todasLasFotos = [p.imagen_url, ...(Array.isArray(p.imagenes_extra) ? p.imagenes_extra : [])].filter(Boolean);
+    if (todasLasFotos.length > 1) {
+        galeria.style.display = 'flex';
+        galeria.innerHTML = todasLasFotos.map((url, i) => `
+            <img src="${esc(url)}" onclick="cambiarFotoModal('${esc(url)}', this)"
+                 style="width:60px;height:60px;object-fit:cover;border-radius:8px;cursor:pointer;flex-shrink:0;
+                        border:2px solid ${i===0 ? '#7C3AED' : 'transparent'};"
+                 onerror="this.style.display='none'">`).join('');
+    } else {
+        galeria.style.display = 'none';
+    }
     document.getElementById('modalProdCat').textContent    = p.categoria || 'General';
     document.getElementById('modalProdNombre').textContent = p.nombre;
     document.getElementById('modalProdDesc').textContent   = p.descripcion || 'Sin descripción disponible.';
