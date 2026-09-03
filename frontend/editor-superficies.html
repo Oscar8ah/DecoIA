@@ -97,6 +97,11 @@
 
     <div class="card" id="cardProductos" style="display:none;">
         <div class="titulo">3 · Elige el material</div>
+        <select id="selTienda" onchange="cambiarTienda(this.value)"
+                style="width:100%;background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);border-radius:10px;padding:10px;color:var(--texto);font-size:13px;margin-bottom:10px;">
+            <option value="">Cargando tiendas...</option>
+        </select>
+        <div id="filtroCats" class="opciones" style="margin-top:0;margin-bottom:4px;"></div>
         <div id="listaProds" class="prods"></div>
         <div class="fila">
             <button onclick="quitarMaterial()">↩️ Quitar material</button>
@@ -195,7 +200,7 @@ async function procesarImagenDesdeBlob(origen){
         mostrarEstado('✅ Listo — toca la superficie que quieres cambiar', 100);
         setTimeout(()=>{ est.style.display='none'; barraWrap.style.display='none'; }, 1600);
         document.getElementById('cardSeleccion').style.display='block';
-        await cargarProductos();
+        await cargarTiendas();
     }catch(e){
         console.error(e);
         mostrarEstado('❌ No se pudo analizar la imagen. Intenta con otra foto.');
@@ -265,18 +270,75 @@ function pintarSeleccion(){
     ctx.putImageData(d,0,0);
 }
 
-// ── Productos de la tienda ───────────────────────────────────────────────
-async function cargarProductos(){
-    const params = new URLSearchParams(location.search);
-    const tiendaId = params.get('tienda');
-    let q = db.from('productos').select('*').eq('activo',true)
-             .in('categoria',['pisos','enchapes','materiales','pintura']).limit(30);
-    if(tiendaId) q = q.eq('tienda_id', tiendaId);
-    const { data } = await q;
-    productos = (data||[]).filter(p=>p.imagen_url);
+// ── Productos: tienda predeterminada + posibilidad de ver otras ──────────
+// Si el cliente llegó desde una tienda (por el link de WhatsApp), esa sale
+// primero. Si es un visitante externo, se muestran todas las tiendas.
+const CATS_SUPERFICIE = ['pisos','enchapes','materiales','pintura'];
+const CATS_OBJETOS    = ['muebles','baños','cocinas','puertas','electrodomesticos','jardineria'];
+let tiendaSel = '', catSel = 'superficies';
 
+async function cargarTiendas(){
+    const params = new URLSearchParams(location.search);
+    const tiendaOrigen = params.get('tienda') || '';
+
+    const { data: tiendas } = await db.from('tiendas')
+        .select('id,nombre').eq('activa',true).neq('plan_nombre','gratis').order('nombre');
+
+    const sel = document.getElementById('selTienda');
+    const lista = tiendas || [];
+
+    let html = '';
+    if (tiendaOrigen) {
+        const propia = lista.find(t => t.id === tiendaOrigen);
+        if (propia) html += `<option value="${esc(propia.id)}">🏪 ${esc(propia.nombre)}</option>`;
+    }
+    html += `<option value="todas">🌐 Todas las tiendas</option>`;
+    html += lista.filter(t => t.id !== tiendaOrigen)
+                 .map(t => `<option value="${esc(t.id)}">🛍️ ${esc(t.nombre)}</option>`).join('');
+    sel.innerHTML = html;
+
+    tiendaSel = tiendaOrigen || 'todas';
+    sel.value = tiendaSel;
+
+    renderFiltroCats();
+    await cargarProductos();
+}
+
+function renderFiltroCats(){
+    document.getElementById('filtroCats').innerHTML = `
+        <button class="op ${catSel==='superficies'?'activo':''}" onclick="cambiarCat('superficies')">🧱 Superficies</button>
+        <button class="op ${catSel==='objetos'?'activo':''}" onclick="cambiarCat('objetos')">🛋️ Objetos</button>`;
+}
+
+window.cambiarCat = async function(c){ catSel = c; renderFiltroCats(); await cargarProductos(); };
+window.cambiarTienda = async function(v){ tiendaSel = v; await cargarProductos(); };
+
+async function cargarProductos(){
     const cont = document.getElementById('listaProds');
-    if(!productos.length){ cont.innerHTML='<div style="font-size:12.5px;color:var(--gris);">No hay materiales disponibles.</div>'; return; }
+    cont.innerHTML = '<div style="font-size:12.5px;color:var(--gris);">Cargando...</div>';
+
+    const cats = catSel === 'superficies' ? CATS_SUPERFICIE : CATS_OBJETOS;
+    let q = db.from('productos').select('*').eq('activo',true).in('categoria',cats).limit(40);
+    if (tiendaSel && tiendaSel !== 'todas') q = q.eq('tienda_id', tiendaSel);
+
+    const { data } = await q;
+    productos = (data || []).filter(p => p.imagen_url);
+
+    if(!productos.length){
+        // Si no hay nada en esas categorías, mostrar CUALQUIER producto con
+        // imagen en vez de dejar la lista vacía — antes salía "no hay
+        // materiales" aunque la tienda sí tuviera productos en otras categorías.
+        let q2 = db.from('productos').select('*').eq('activo',true).limit(40);
+        if (tiendaSel && tiendaSel !== 'todas') q2 = q2.eq('tienda_id', tiendaSel);
+        const { data: d2 } = await q2;
+        productos = (d2 || []).filter(p => p.imagen_url);
+    }
+
+    if(!productos.length){
+        cont.innerHTML = '<div style="font-size:12.5px;color:var(--gris);line-height:1.5;">Esta tienda no tiene productos con foto todavía. Prueba con <b>🌐 Todas las tiendas</b>.</div>';
+        return;
+    }
+
     cont.innerHTML = productos.map((p,i)=>`
         <div class="prod" id="pr${i}" onclick="elegirProducto(${i})">
             <img src="${esc(p.imagen_url)}" alt="${esc(p.nombre)}" crossorigin="anonymous">
