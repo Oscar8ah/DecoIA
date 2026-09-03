@@ -13,6 +13,7 @@ from app.api.catalogo import router as catalogo_router
 from app.api.planos import router as planos_router
 from app.api.cotizacion import router as cotizacion_router
 from app.api.solicitudes import router as solicitudes_router
+from app.api.pedidos import router as pedidos_router
 
 load_dotenv()
 
@@ -54,3 +55,4 @@ app.include_router(catalogo_router)
 app.include_router(planos_router)
 app.include_router(cotizacion_router)
 app.include_router(solicitudes_router)
+app.include_router(pedidos_router)

@@ -250,6 +250,44 @@ async def webhook_wompi(
         if referencia.startswith("SUSC-"):
             return await _procesar_pago_cambio_plan(referencia, monto_cop, metodo, tx_id, cliente_email)
 
+        # ── Compra del MARKETPLACE — marcar el pedido como pagado ─────────
+        # El pedido ya fue creado antes de mandar al cliente a pagar, con el
+        # split calculado (comisión + monto de la tienda). Aquí solo se
+        # confirma. OJO: se valida que el monto cobrado COINCIDA con el del
+        # pedido; si no, se marca para revisión en vez de darlo por bueno.
+        try:
+            supabase = get_supabase()
+            rp = supabase.table("pedidos").select("*").eq("referencia", referencia).maybe_single().execute()
+            if rp.data:
+                pedido = rp.data
+                esperado = float(pedido.get("total") or 0)
+                if abs(esperado - monto_cop) > 1:
+                    logger.error(
+                        f"⚠️ MONTO NO COINCIDE en {referencia}: "
+                        f"esperado {esperado}, cobrado {monto_cop}. Se marca para revisión."
+                    )
+                    supabase.table("pedidos").update({
+                        "estado": "revisar",
+                        "transaccion_id": tx_id,
+                        "metodo_pago": metodo,
+                        "pasarela": "wompi",
+                    }).eq("referencia", referencia).execute()
+                else:
+                    supabase.table("pedidos").update({
+                        "estado": "pagado",
+                        "transaccion_id": tx_id,
+                        "metodo_pago": metodo,
+                        "pasarela": "wompi",
+                        "pagado_at": datetime.now().isoformat(),
+                    }).eq("referencia", referencia).execute()
+                    logger.info(
+                        f"✅ Pedido {referencia} pagado — total {esperado}, "
+                        f"tienda recibe {pedido.get('monto_tienda')}, "
+                        f"comisión {pedido.get('comision_monto')}"
+                    )
+        except Exception as e:
+            logger.error(f"Error actualizando el pedido {referencia}: {e}")
+
         # ── Pago aprobado — buscar la tienda por la referencia ────────────
         # La referencia tiene formato: DECO-{tienda_id_8chars}-{timestamp}
         empresa_id = None

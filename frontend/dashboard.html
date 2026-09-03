@@ -489,6 +489,7 @@
         <!-- Incluido en todos los planes (desde Gratis) -->
         <button class="nav-item active" onclick="mostrarPagina('inicio',this)"><span class="icon">🏠</span> Inicio</button>
         <button class="nav-item" onclick="mostrarPagina('mitienda',this)"><span class="icon">🏪</span> Mi Tienda <span class="dot-amarillo" id="dotTienda"></span></button>
+        <button class="nav-item" onclick="mostrarPagina('ventas',this); cargarVentas();"><span class="icon">💰</span> Mis ventas</button>
         <button class="nav-item" onclick="mostrarPagina('historial',this)"><span class="icon">🖼️</span> Historial</button>
         <button class="nav-item" onclick="window.open('/editor-superficies','_blank')"><span class="icon">🎨</span> Editor de superficies</button>
 
@@ -808,6 +809,15 @@
     </div>
 
     <!-- HISTORIAL -->
+    <div class="page" id="pagina-ventas">
+        <div class="page-header"><h1>💰 Mis ventas</h1><p>Pedidos del marketplace y cuánto te corresponde</p></div>
+        <div id="resumenVentas" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:22px;"></div>
+        <div class="card">
+            <h3 style="font-size:15px;margin-bottom:14px;">Pedidos recibidos</h3>
+            <div id="listaPedidos"><p style="color:var(--gris);font-size:14px;">Cargando...</p></div>
+        </div>
+    </div>
+
     <div class="page" id="pagina-historial">
         <div class="page-header"><h1>🖼️ Historial</h1><p>Imágenes generadas por tus clientes</p></div>
         <div class="historial-grid" id="historialCompleto"><div class="historial-empty"><div class="empty-icon">🏠</div><p>Aún no hay imágenes generadas.</p></div></div>
@@ -1944,6 +1954,82 @@ function renderImagenes(imagenes,contenedorId,limite){const c=document.getElemen
 function mostrarAlerta(id,msg,tipo){const el=document.getElementById(id);if(!el)return;el.textContent=msg;el.className=tipo?`alerta ${tipo}`:'alerta';}
 function checkCampo(input){input.classList.toggle('tiene-valor',!!input.value.trim());}
 function mostrarTab(tabId,btn){document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));document.getElementById(tabId).classList.add('active');if(btn)btn.classList.add('active');}
+// ── MIS VENTAS ────────────────────────────────────────────────────────────
+async function cargarVentas() {
+    const cont = document.getElementById('listaPedidos');
+    const res  = document.getElementById('resumenVentas');
+    cont.innerHTML = '<p style="color:var(--gris);font-size:14px;">Cargando...</p>';
+
+    const { data: { session } } = await db.auth.getSession();
+    if (!session) return;
+
+    // La política RLS ya limita a los pedidos de SU tienda, así que basta con
+    // pedir todo — no hace falta filtrar por tienda desde el navegador.
+    const { data: pedidos, error } = await db.from('pedidos')
+        .select('*').order('created_at', { ascending: false }).limit(100);
+
+    if (error) {
+        cont.innerHTML = `<p style="color:#FCA5A5;font-size:13px;">No se pudieron cargar las ventas: ${esc(error.message)}</p>`;
+        return;
+    }
+
+    const lista   = pedidos || [];
+    const pagados = lista.filter(p => p.estado === 'pagado');
+    const vendido       = pagados.reduce((s,p) => s + Number(p.total||0), 0);
+    const teCorresponde = pagados.reduce((s,p) => s + Number(p.monto_tienda||0), 0);
+    const porRecibir    = pagados.filter(p => !p.liquidado)
+                                 .reduce((s,p) => s + Number(p.monto_tienda||0), 0);
+
+    const tarjeta = (titulo, valor, color) => `
+        <div class="card" style="padding:16px;">
+            <div style="font-size:11.5px;color:var(--gris);text-transform:uppercase;font-weight:700;margin-bottom:6px;">${titulo}</div>
+            <div style="font-size:22px;font-weight:800;color:${color};">$${Number(valor).toLocaleString('es-CO')}</div>
+        </div>`;
+
+    res.innerHTML =
+        tarjeta('Vendido en total', vendido, 'var(--texto)') +
+        tarjeta('Te corresponde', teCorresponde, '#6EE7B7') +
+        tarjeta('Pendiente por recibir', porRecibir, '#FCD34D') +
+        `<div class="card" style="padding:16px;">
+            <div style="font-size:11.5px;color:var(--gris);text-transform:uppercase;font-weight:700;margin-bottom:6px;">Pedidos pagados</div>
+            <div style="font-size:22px;font-weight:800;color:var(--texto);">${pagados.length}</div>
+        </div>`;
+
+    if (!lista.length) {
+        cont.innerHTML = '<p style="color:var(--gris);font-size:14px;">Todavía no tienes pedidos. Cuando alguien compre en tu tienda del marketplace, aparecerá aquí.</p>';
+        return;
+    }
+
+    const colorEstado = { pagado:'#6EE7B7', pendiente:'#FCD34D', fallido:'#FCA5A5', revisar:'#FB923C' };
+    cont.innerHTML = lista.map(p => {
+        const items = Array.isArray(p.items) ? p.items : [];
+        return `
+        <div style="border:1px solid rgba(124,58,237,0.15);border-radius:12px;padding:14px;margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:start;gap:10px;flex-wrap:wrap;">
+                <div>
+                    <div style="font-size:13.5px;font-weight:700;color:var(--texto);">${esc(p.referencia)}</div>
+                    <div style="font-size:11.5px;color:var(--gris);margin-top:2px;">
+                        ${new Date(p.created_at).toLocaleString('es-CO')} · ${items.length} producto(s)
+                    </div>
+                </div>
+                <span style="font-size:11px;font-weight:800;padding:4px 10px;border-radius:20px;
+                      background:rgba(255,255,255,0.06);color:${colorEstado[p.estado]||'var(--gris)'};">
+                    ${esc((p.estado||'').toUpperCase())}
+                </span>
+            </div>
+            <div style="font-size:12px;color:var(--gris);margin-top:8px;line-height:1.7;">
+                ${items.map(i => `• ${esc(i.nombre)} × ${i.cantidad}`).join('<br>')}
+            </div>
+            <div style="display:flex;gap:16px;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.06);flex-wrap:wrap;font-size:12.5px;">
+                <span style="color:var(--gris);">Total: <b style="color:var(--texto);">$${Number(p.total||0).toLocaleString('es-CO')}</b></span>
+                <span style="color:var(--gris);">Comisión (${p.comision_porcentaje}%): <b>$${Number(p.comision_monto||0).toLocaleString('es-CO')}</b></span>
+                <span style="color:var(--gris);">Para ti: <b style="color:#6EE7B7;">$${Number(p.monto_tienda||0).toLocaleString('es-CO')}</b></span>
+                ${p.liquidado ? '<span style="color:#6EE7B7;">✓ Ya transferido</span>' : (p.estado==='pagado' ? '<span style="color:#FCD34D;">⏳ Por transferir</span>' : '')}
+            </div>
+        </div>`;
+    }).join('');
+}
+
 function mostrarPagina(nombre,btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));document.getElementById('pagina-'+nombre).classList.add('active');if(btn)btn.classList.add('active');document.getElementById('sidebar').classList.remove('open');}
 function toggleSidebar(){document.getElementById('sidebar').classList.toggle('open');}
 function cerrarModal(id){document.getElementById(id).classList.remove('open');}

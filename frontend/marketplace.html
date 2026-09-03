@@ -825,11 +825,43 @@ async function pagarConWompi(tiendaId) {
     if (!grupo) return;
     const items = grupo.items.filter(i => i.seleccionado);
     if (!items.length) { mostrarToastCarrito('⚠️ Selecciona al menos un producto'); return; }
-    const subtotal        = carritoTotalTienda(tiendaId);
-    const montoEnCentavos = subtotal * 100;
-    const referencia      = `DECO-${tiendaId.substring(0,8)}-${Date.now()}`;
-    const moneda          = 'COP';
+
     mostrarToastCarrito('💳 Preparando pago...');
+
+    // ── 1. Crear el PEDIDO en el backend ─────────────────────────────────
+    // El backend lee los precios REALES de la base de datos y calcula el
+    // split (comisión de DecoIArte + monto de la tienda). Nunca se confía en
+    // el precio que tiene el navegador: si se confiara, cualquiera podría
+    // editarlo y comprar por $1.
+    let pedido;
+    try {
+        const r = await fetch('https://decoia.onrender.com/crear-pedido', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                tienda_id: tiendaId,
+                items: items.map(i => ({ producto_id: i.prod.id, cantidad: i.qty })),
+                comprador_nombre:   '',
+                comprador_email:    '',
+                comprador_telefono: '',
+            })
+        });
+        pedido = await r.json();
+        if (!r.ok || pedido.status !== 'ok') {
+            mostrarToastCarrito('❌ ' + (pedido.detail || 'No se pudo preparar el pedido.'));
+            return;
+        }
+    } catch(e) {
+        console.error('Error creando el pedido:', e);
+        mostrarToastCarrito('❌ No se pudo conectar. Revisa tu internet e intenta de nuevo.');
+        return;
+    }
+
+    // El monto que se cobra es el que calculó el BACKEND, no el del carrito
+    const referencia      = pedido.referencia;
+    const montoEnCentavos = pedido.total_centavos;
+    const subtotal        = pedido.total;
+    const moneda          = 'COP';
+
     const firma = await generarFirmaWompi(referencia, montoEnCentavos, moneda);
     if (!firma) { mostrarToastCarrito('❌ Error preparando el pago. Intenta de nuevo.'); return; }
     const checkout = new WidgetCheckout({
@@ -841,6 +873,8 @@ async function pagarConWompi(tiendaId) {
     checkout.open((result) => {
         const { transaction } = result;
         if (transaction?.status === 'APPROVED') {
+            // El webhook de Wompi ya marcó el pedido como pagado en la BD y
+            // dejó registrado cuánto le corresponde a la tienda.
             mostrarToastCarrito('✅ ¡Pago aprobado! La tienda coordinará tu pedido.');
             delete carrito[tiendaId]; carritoGuardar(); carritoRenderPanel();
             notificarAdminPedido(grupo, items, subtotal);
