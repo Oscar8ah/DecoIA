@@ -331,6 +331,7 @@
                     <div class="ct-total"><span>Total</span><span id="totalTexto">$0</span></div>
                     <button class="btn-pagar" onclick="irAPagar()">💳 Pagar y desbloquear imagen</button>
                     <button id="btnHablarAsesorCarrito" onclick="hablarConAsesorDesdeCarrito()" style="width:100%;margin-top:8px;background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;padding:10px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">👨‍💼 Prefiero hablar con un asesor</button>
+                    <a id="btnEditorSuperficies" href="#" style="display:none;width:100%;margin-top:8px;background:linear-gradient(135deg,#3B82F6 0%,#7C3AED 100%);color:white;padding:11px;border-radius:10px;font-size:13px;font-weight:800;text-decoration:none;text-align:center;box-sizing:border-box;">🎨 Probar otros materiales (gratis)</a>
                 </div>
             </div>
 
@@ -695,6 +696,14 @@ async function mostrarResultado(url, agregarCarrito) {
     }
 
     moverSlider(50);
+    // Ofrecer el editor de superficies: ahí el cliente puede probar materiales
+    // distintos sobre esta misma imagen, sin gastar otra generación de IA.
+    const btnEd = document.getElementById('btnEditorSuperficies');
+    if (btnEd) {
+        btnEd.style.display = 'block';
+        btnEd.href = `/editor-superficies?img=${encodeURIComponent(url)}&volver=${encodeURIComponent(location.pathname + location.search)}`
+                   + (tiendaActiva && tiendaActiva !== 'todas' ? `&tienda=${encodeURIComponent(tiendaActiva)}` : '');
+    }
     if (agregarCarrito) agregarProductoAlCarrito();
     else renderCarrito();
 }

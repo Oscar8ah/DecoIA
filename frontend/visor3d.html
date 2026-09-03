@@ -385,6 +385,7 @@
     <button class="btn-enviar-cliente" id="btnEnviarCliente" style="display:none;" onclick="enviarAlCliente()">
         💬 Enviar al cliente por WhatsApp
     </button>
+    <a id="btnEditorSuperficiesVisor" href="#" style="display:none;margin:10px auto 0;max-width:420px;padding:13px;border-radius:12px;background:linear-gradient(135deg,#3B82F6 0%,#7C3AED 100%);color:white;font-size:14px;font-weight:800;text-decoration:none;text-align:center;box-sizing:border-box;">🎨 Probar otros materiales sobre esta imagen (gratis)</a>
 </div>
 <!-- EDITOR PLANTA L T U -->
 <div id="vistaPlanta" style="display:none;position:fixed;top:96px;left:0;right:300px;bottom:0;flex-direction:column;background:var(--oscuro);overflow:hidden;">
@@ -2790,6 +2791,14 @@ function cambiarVista(vista) {
     if (vista==='foto' && fotoIaUrl) {
         document.getElementById('fotoIaContenido').innerHTML=`<div class="foto-ia-container"><img src="${esc(fotoIaUrl)}" alt="Foto generada por IA"></div>`;
         document.getElementById('btnEnviarCliente').style.display='flex';
+        // El editor de superficies permite probar materiales sobre esta misma
+        // imagen sin gastar otra generación de IA (que sí cuesta dinero).
+        const btnEd = document.getElementById('btnEditorSuperficiesVisor');
+        if (btnEd) {
+            btnEd.style.display = 'block';
+            btnEd.href = `/editor-superficies?img=${encodeURIComponent(fotoIaUrl)}&volver=${encodeURIComponent('/visor3d')}`
+                       + (tiendaIdPropia ? `&tienda=${encodeURIComponent(tiendaIdPropia)}` : '');
+        }
     }
     if (vista==='planta') iniciarEditorPlanta();
     if (vista==='3d') {
