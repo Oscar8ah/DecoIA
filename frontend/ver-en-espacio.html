@@ -101,11 +101,13 @@
         <model-viewer id="visor"
             ar ar-modes="webxr scene-viewer quick-look"
             ar-placement="floor"
+            ar-scale="fixed"
             camera-controls
             shadow-intensity="1"
             exposure="1.1"
             alt="Vista previa del material">
         </model-viewer>
+        <div id="diagDispositivo" style="font-size:11px;color:var(--gris);margin-top:8px;line-height:1.6;background:rgba(255,255,255,0.03);border-radius:8px;padding:9px;"></div>
 
         <div class="pasos" style="margin-top:14px;">
             <b>Cómo usarlo:</b><br>
@@ -319,15 +321,42 @@ function mostrarAviso(txt) {
 
 function revisarSoporteAR() {
     const visor = document.getElementById('visor');
-    // model-viewer avisa por su cuenta si el dispositivo soporta AR
+    const diag  = document.getElementById('diagDispositivo');
+    const ua    = navigator.userAgent;
+    const esIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const esAndroid = /Android/.test(ua);
+    const esSafari  = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua);
+
+    let sistema = esIOS ? 'iPhone / iPad' : esAndroid ? 'Android' : 'Computador';
+    let navegador = esIOS ? (esSafari ? 'Safari' : 'otro navegador') : (/Chrome/.test(ua) ? 'Chrome' : 'otro');
+
     visor.addEventListener('load', () => {
         setTimeout(() => {
-            if (!visor.canActivateAR) {
-                document.getElementById('btnAR').disabled = true;
-                mostrarAviso('📱 Este dispositivo no soporta AR. Ábrelo desde un <b>celular</b>: ' +
-                    'Android con Chrome, o iPhone con Safari. Abajo puedes girar el material en 3D.');
+            const puede = visor.canActivateAR;
+            diag.innerHTML = `📱 <b>${sistema}</b> · ${navegador} · AR: <b style="color:${puede?'#6EE7B7':'#FCA5A5'}">${puede?'disponible ✓':'no disponible'}</b>`;
+
+            if (puede) return;
+
+            document.getElementById('btnAR').disabled = true;
+            if (esIOS && !esSafari) {
+                mostrarAviso('📱 En iPhone, el AR solo funciona con <b>Safari</b>. ' +
+                    'Copia esta dirección y ábrela en Safari.');
+            } else if (esIOS) {
+                mostrarAviso('📱 Tu iPhone no pudo preparar la vista AR. ' +
+                    'Necesita <b>iOS 12 o más nuevo</b>. Abajo puedes girar el material en 3D.');
+            } else if (esAndroid) {
+                mostrarAviso('📱 Tu Android necesita <b>Google Play Services para RA</b> instalado ' +
+                    '(se descarga gratis desde Play Store) y usar <b>Chrome</b>.');
+            } else {
+                mostrarAviso('💻 El AR funciona desde el <b>celular</b>. ' +
+                    'Abre esta página en tu teléfono para ver el material en tu espacio. ' +
+                    'Aquí puedes girarlo en 3D.');
             }
-        }, 700);
+        }, 900);
+    });
+
+    visor.addEventListener('error', (e) => {
+        diag.innerHTML = `❌ No se pudo cargar la vista 3D. ${esc(e?.detail?.type || '')}`;
     });
 }
 
