@@ -1204,6 +1204,12 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
 renderer.toneMapping          = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure  = 1.15;
+// GESTIÓN DE COLOR — faltaba y es la razón de que todo se viera apagado.
+// ACESFilmic entrega un valor lineal; si no se codifica a sRGB al escribir en
+// pantalla, los medios tonos salen oscuros y sucios. Con esto activado el
+// render sube de brillo, por eso la exposición baja a 1.0.
+renderer.outputEncoding       = THREE.sRGBEncoding;
+renderer.toneMappingExposure  = 1.0;
 renderer.outputColorSpace     = THREE.SRGBColorSpace;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
@@ -1244,7 +1250,8 @@ if (canvasPreviewEl) {
     rendererPreview.setClearColor(0x0F0F1A, 1);
     rendererPreview.outputColorSpace = THREE.SRGBColorSpace;
     rendererPreview.toneMapping = THREE.ACESFilmicToneMapping;
-    rendererPreview.toneMappingExposure = 1.15;
+    rendererPreview.toneMappingExposure = 1.0;
+    rendererPreview.outputEncoding = THREE.sRGBEncoding;
 }
 
 // Renderer de la pantalla en vivo dentro de Entorno 3D (comparte la misma
@@ -1258,7 +1265,8 @@ if (canvasVivoEl) {
     rendererVivo.setClearColor(0x0F0F1A, 1);
     rendererVivo.outputColorSpace = THREE.SRGBColorSpace;
     rendererVivo.toneMapping = THREE.ACESFilmicToneMapping;
-    rendererVivo.toneMappingExposure = 1.15;
+    rendererVivo.toneMappingExposure = 1.0;
+    rendererVivo.outputEncoding = THREE.sRGBEncoding;
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -2425,8 +2433,8 @@ function aplicarProductoPortafolio(prodId) {
         loader.load(prod.imagen_url, (texture) => {
             texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
             if (esPiso) {
-                texture.repeat.set(Math.max(1,estado.ancho/1.2), Math.max(1,estado.largo/1.2));
-                if (meshes.piso) meshes.piso.material = new THREE.MeshStandardMaterial({ map:texture, roughness:0.4, metalness:0.05 });
+                if (meshes.piso) aplicarMaterialFisico(meshes.piso, prod.imagen_url, estado.ancho, estado.largo,
+                                     { pieza: tamanoPieza(prod, 'ceramica'), tipo: 'ceramica' });
                 mostrarToast('🪵 "' + prod.nombre + '" aplicado al piso ✅');
             } else if (esPintura) {
                 texture.repeat.set(1,1);
@@ -2435,8 +2443,8 @@ function aplicarProductoPortafolio(prodId) {
                 });
                 mostrarToast('🎨 "' + prod.nombre + '" aplicado a paredes ✅');
             } else {
-                texture.repeat.set(Math.max(1,estado.ancho/1.2), Math.max(1,estado.largo/1.2));
-                if (meshes.piso) meshes.piso.material = new THREE.MeshStandardMaterial({ map:texture, roughness:0.4 });
+                if (meshes.piso) aplicarMaterialFisico(meshes.piso, prod.imagen_url, estado.ancho, estado.largo,
+                                     { pieza: tamanoPieza(prod, 'ceramica'), tipo: 'ceramica' });
                 mostrarToast('✅ "' + prod.nombre + '" aplicado');
             }
         }, undefined, () => aplicarColorFallback(prod, esPiso, esPintura));
@@ -2507,6 +2515,211 @@ function crearMaterialFachada() {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// MAPEO FÍSICO DE MATERIALES
+// El problema de antes: la textura se estiraba con repeat = ancho/1.2, un
+// 1.2 fijo que no tenía nada que ver con el tamaño real del producto. Una
+// baldosa de 60×60 y un listón de 20×120 salían del mismo tamaño en pantalla.
+// Además llegaba una sola imagen de color, sin relieve ni variación de brillo,
+// así que el piso se veía como una calcomanía plana.
+// Ahora: escala real en metros, y a partir de esa única imagen se derivan el
+// mapa de normales (relieve), el de rugosidad (brillo por zonas) y el de
+// oclusión (las juntas se hunden).
+// ═══════════════════════════════════════════════════════════════════════
+
+// Tamaño de pieza por defecto según el tipo de material, en metros.
+const PIEZA_DEFECTO = {
+    ceramica:    [0.45, 0.45],
+    porcelanato: [0.60, 0.60],
+    marmol:      [0.60, 0.60],
+    madera:      [0.19, 1.20],   // listón de piso laminado
+    vinilo:      [0.18, 1.22],
+    concreto:    [1.50, 1.50],   // vaciado: la "pieza" es solo la escala del ruido
+    pared:       [0.30, 0.60],
+    ladrillo:    [0.24, 0.06],
+};
+
+// Saca el formato del nombre o la descripción: "Porcelanato Bianco 60x120",
+// "Baldosa 33 x 33 cm", "Listón 20X120". Devuelve metros o null.
+function medidasDesdeTexto(texto) {
+    if (!texto) return null;
+    const m = String(texto).match(/(\d{1,3})\s*[xX×]\s*(\d{1,3})/);
+    if (!m) return null;
+    let a = parseInt(m[1], 10), b = parseInt(m[2], 10);
+    if (!a || !b) return null;
+    // Los formatos vienen en cm. Si alguien escribió metros (0.6x0.6) no entra
+    // por el regex, y si escribió milímetros (600x600) se normaliza.
+    if (a > 300 || b > 300) { a /= 10; b /= 10; }
+    if (a < 3 || b < 3 || a > 300 || b > 300) return null;
+    return [a / 100, b / 100];
+}
+
+function tamanoPieza(producto, tipoGenerico) {
+    const delTexto = medidasDesdeTexto(producto?.nombre) || medidasDesdeTexto(producto?.descripcion);
+    if (delTexto) return delTexto;
+    return PIEZA_DEFECTO[tipoGenerico] || PIEZA_DEFECTO.ceramica;
+}
+
+// ── Derivar relieve y brillo desde la única imagen de color ──────────────
+// Se cachean: generar estos mapas cuesta unos milisegundos y no tiene sentido
+// rehacerlos cada vez que se selecciona el mismo producto.
+const _cacheMapas = new Map();
+
+function _mapasDerivados(imagen, clave, fuerzaRelieve, rugosidadBase, contrasteRugosidad) {
+    if (_cacheMapas.has(clave)) return _cacheMapas.get(clave);
+
+    const N = 512;
+    const cnv = document.createElement('canvas');
+    cnv.width = cnv.height = N;
+    const ctx = cnv.getContext('2d');
+    ctx.drawImage(imagen, 0, 0, N, N);
+    const src = ctx.getImageData(0, 0, N, N).data;
+
+    // Campo de altura = luminancia. En un piso real las juntas son lo oscuro
+    // y lo oscuro es lo hundido, así que esta suposición funciona bien.
+    const altura = new Float32Array(N * N);
+    for (let i = 0; i < N * N; i++) {
+        altura[i] = (src[i*4]*0.299 + src[i*4+1]*0.587 + src[i*4+2]*0.114) / 255;
+    }
+    const h = (x, y) => altura[(((y % N) + N) % N) * N + (((x % N) + N) % N)];
+
+    // NORMALES por Sobel. El wrap con módulo evita una costura visible en el
+    // borde de cada baldosa cuando la textura se repite.
+    const cN = document.createElement('canvas'); cN.width = cN.height = N;
+    const ctxN = cN.getContext('2d');
+    const imgN = ctxN.createImageData(N, N);
+    // RUGOSIDAD y OCLUSIÓN salen del mismo campo de altura
+    const cR = document.createElement('canvas'); cR.width = cR.height = N;
+    const ctxR = cR.getContext('2d');
+    const imgR = ctxR.createImageData(N, N);
+    const cO = document.createElement('canvas'); cO.width = cO.height = N;
+    const ctxO = cO.getContext('2d');
+    const imgO = ctxO.createImageData(N, N);
+
+    for (let y = 0; y < N; y++) {
+        for (let x = 0; x < N; x++) {
+            const dx = (h(x+1,y-1) + 2*h(x+1,y) + h(x+1,y+1)) - (h(x-1,y-1) + 2*h(x-1,y) + h(x-1,y+1));
+            const dy = (h(x-1,y+1) + 2*h(x,y+1) + h(x+1,y+1)) - (h(x-1,y-1) + 2*h(x,y-1) + h(x+1,y-1));
+            const nx = -dx * fuerzaRelieve, ny = -dy * fuerzaRelieve, nz = 1;
+            const inv = 1 / Math.sqrt(nx*nx + ny*ny + nz*nz);
+            const i = (y*N + x) * 4;
+            imgN.data[i]   = (nx*inv * 0.5 + 0.5) * 255;
+            imgN.data[i+1] = (ny*inv * 0.5 + 0.5) * 255;
+            imgN.data[i+2] = (nz*inv * 0.5 + 0.5) * 255;
+            imgN.data[i+3] = 255;
+
+            // Lo oscuro (junta, veta, poro) es más rugoso: no brilla igual que
+            // la cara pulida de la pieza. Esto es lo que rompe el aspecto de
+            // "plástico uniforme".
+            const lum = altura[y*N + x];
+            const r = Math.max(0.03, Math.min(1, rugosidadBase + (1 - lum) * contrasteRugosidad));
+            imgR.data[i] = imgR.data[i+1] = imgR.data[i+2] = r * 255;
+            imgR.data[i+3] = 255;
+
+            // Oclusión suave: las juntas se ven hundidas incluso sin luz directa
+            const ao = 0.55 + lum * 0.45;
+            imgO.data[i] = imgO.data[i+1] = imgO.data[i+2] = ao * 255;
+            imgO.data[i+3] = 255;
+        }
+    }
+    ctxN.putImageData(imgN, 0, 0);
+    ctxR.putImageData(imgR, 0, 0);
+    ctxO.putImageData(imgO, 0, 0);
+
+    const res = { normal: cN, rugosidad: cR, oclusion: cO };
+    _cacheMapas.set(clave, res);
+    return res;
+}
+
+// Ajusta wrap, repetición real y anisotropía de una textura.
+// La anisotropía es la que más se nota en un piso: sin ella la textura se
+// convierte en una mancha borrosa hacia el fondo del cuarto, porque se mira
+// muy de canto. Es la diferencia entre "piso" y "papel de colgadura".
+function _ajustarTextura(tex, repX, repY, esColor) {
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(repX, repY);
+    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    tex.generateMipmaps = true;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    // Solo el mapa de color va en sRGB. Normales, rugosidad y oclusión son
+    // datos, no color: si se marcan como sRGB salen mal.
+    if (esColor) tex.encoding = THREE.sRGBEncoding;
+    tex.needsUpdate = true;
+    return tex;
+}
+
+// Los mapas de datos (normal/rough/AO) no deben tener la misma repetición que
+// una textura de pared vertical, así que se pasa explícita.
+function _texturaDesdeCanvas(cnv, repX, repY) {
+    const t = new THREE.CanvasTexture(cnv);
+    return _ajustarTextura(t, repX, repY, false);
+}
+
+// ── FUNCIÓN CENTRAL ──────────────────────────────────────────────────────
+// Aplica un material físico a una superficie plana rectangular.
+//   mesh        : el Mesh de piso (o pared) ya creado
+//   url         : imagen del producto
+//   anchoReal   : metros que mide la superficie en X (o a lo largo del muro)
+//   largoReal   : metros que mide la superficie en la otra dirección
+//   opts.pieza  : [ancho, largo] de la pieza en metros
+//   opts.tipo   : material genérico, para acabado base
+function aplicarMaterialFisico(mesh, url, anchoReal, largoReal, opts = {}) {
+    const [pzA, pzL] = opts.pieza || PIEZA_DEFECTO.ceramica;
+    const repX = Math.max(1, anchoReal / pzA);
+    const repY = Math.max(1, largoReal / pzL);
+    const acabado = ACABADO_MATERIAL[opts.tipo] || ACABADO_MATERIAL.ceramica;
+
+    const loader = new THREE.TextureLoader();
+    loader.crossOrigin = 'anonymous';
+    loader.load(url, (mapaColor) => {
+        _ajustarTextura(mapaColor, repX, repY, true);
+
+        const mat = new THREE.MeshStandardMaterial({
+            map: mapaColor,
+            roughness: acabado.roughness,
+            metalness: acabado.metalness,
+        });
+
+        // El canvas necesita la imagen ya decodificada; TextureLoader la deja
+        // en tex.image, así que aquí ya se puede leer.
+        try {
+            const mapas = _mapasDerivados(mapaColor.image, url, acabado.relieve,
+                                          acabado.roughness, acabado.contrasteRug);
+            mat.normalMap    = _texturaDesdeCanvas(mapas.normal, repX, repY);
+            mat.normalScale  = new THREE.Vector2(acabado.escalaNormal, acabado.escalaNormal);
+            mat.roughnessMap = _texturaDesdeCanvas(mapas.rugosidad, repX, repY);
+            mat.aoMap        = _texturaDesdeCanvas(mapas.oclusion, repX, repY);
+            mat.aoMapIntensity = 0.5;
+            // El aoMap se lee de uv2, no de uv. Sin esto no se ve nada y es el
+            // error clásico al meter oclusión en Three.js.
+            if (mesh.geometry.attributes.uv && !mesh.geometry.attributes.uv2) {
+                mesh.geometry.setAttribute('uv2', mesh.geometry.attributes.uv);
+            }
+        } catch (e) {
+            // Imagen de otro dominio sin CORS: el canvas queda "tainted" y no
+            // se puede leer. Se sigue con el mapa de color solo, que igual
+            // queda a escala real.
+            console.warn('No se pudieron derivar los mapas de relieve:', e);
+        }
+
+        mat.needsUpdate = true;
+        mesh.material = mat;
+    });
+}
+
+// Acabado base por material. roughness es qué tan mate, metalness cuánto
+// refleja como metal (casi siempre 0 en materiales de construcción),
+// relieve/escalaNormal cuánto se marca la textura en el relieve.
+const ACABADO_MATERIAL = {
+    madera:      { roughness:0.55, metalness:0.0,  relieve:2.2, escalaNormal:0.6, contrasteRug:0.30 },
+    ceramica:    { roughness:0.22, metalness:0.02, relieve:3.0, escalaNormal:0.8, contrasteRug:0.55 },
+    porcelanato: { roughness:0.12, metalness:0.03, relieve:2.4, escalaNormal:0.6, contrasteRug:0.50 },
+    marmol:      { roughness:0.09, metalness:0.04, relieve:1.4, escalaNormal:0.35, contrasteRug:0.25 },
+    concreto:    { roughness:0.88, metalness:0.0,  relieve:2.6, escalaNormal:0.7, contrasteRug:0.15 },
+    vinilo:      { roughness:0.45, metalness:0.0,  relieve:1.8, escalaNormal:0.45, contrasteRug:0.25 },
+};
+
 function crearMaterialPiso(tipo) {
     const configs = {
         madera:     {color:0xC4913A,roughness:0.6,metalness:0.0},
@@ -2517,7 +2730,15 @@ function crearMaterialPiso(tipo) {
         porcelanato:{color:0xF0EDE8,roughness:0.15,metalness:0.15},
     };
     const c = configs[tipo]||configs.madera;
-    return new THREE.MeshStandardMaterial({color:c.color,roughness:c.roughness,metalness:c.metalness});
+    // Se toman roughness/metalness de la misma tabla que usan los materiales
+    // con textura real, para que un piso genérico y uno del portafolio
+    // reaccionen igual a la luz y no se note el salto al asignar producto.
+    const acab = ACABADO_MATERIAL[tipo] || {};
+    return new THREE.MeshStandardMaterial({
+        color:     c.color,
+        roughness: acab.roughness ?? c.roughness,
+        metalness: acab.metalness ?? c.metalness,
+    });
 }
 
 function crearMaterialPared(color) {
@@ -2650,34 +2871,58 @@ function configurarLuces() {
     luces={};
     const i = estado.intensidadLuz;
 
-    // Luz ambiente suave
-    const amb = new THREE.AmbientLight(0xFFF5E6, 0.35*i);
+    // Tamaño real de lo que hay en escena — sirve para encuadrar la sombra y
+    // para el alcance de la luz de techo. Antes eran valores fijos: en un
+    // apartamento grande la sombra salía pixelada y en un cuarto chico se
+    // desperdiciaba casi todo el shadow map.
+    const escena = Math.max(4, estado.ancho || 4, estado.largo || 4);
+    const altoEsc = estado.alto || 2.6;
+
+    // Ambiente base, muy bajo: el grueso del relleno lo hace ahora la luz
+    // hemisférica, que es más creíble porque no aplana igual.
+    const amb = new THREE.AmbientLight(0xFFF5E6, 0.14*i);
     scene.add(amb); luces.ambient = amb;
+
+    // HEMISFÉRICA — cielo por arriba, rebote del piso por abajo. Es lo que
+    // hace que un interior deje de verse plano: las caras que miran al techo
+    // reciben distinta luz que las que miran al suelo, como en la realidad.
+    const hemi = new THREE.HemisphereLight(0xE8F0FF, 0xC9B79C, 0.55*i);
+    hemi.position.set(0, altoEsc, 0);
+    scene.add(hemi); luces.hemi = hemi;
 
     // Luz solar principal — sombras suaves PCFSoft
     const dir = new THREE.DirectionalLight(0xFFF8F0, 1.1*i);
-    dir.position.set(6, 10, 5);
+    dir.position.set(escena*0.7, escena*1.1, escena*0.6);
     dir.castShadow = true;
     dir.shadow.radius = 4;                        // suaviza las sombras
     dir.shadow.mapSize.width  = 2048;
     dir.shadow.mapSize.height = 2048;
-    dir.shadow.camera.left   = -15;
-    dir.shadow.camera.right  =  15;
-    dir.shadow.camera.top    =  15;
-    dir.shadow.camera.bottom = -15;
-    dir.shadow.bias = -0.001;
+    const margen = escena * 0.75;
+    dir.shadow.camera.left   = -margen;
+    dir.shadow.camera.right  =  margen;
+    dir.shadow.camera.top    =  margen;
+    dir.shadow.camera.bottom = -margen;
+    dir.shadow.camera.near   = 0.5;
+    dir.shadow.camera.far    = escena * 4;
+    // El bias fijo producía sombras despegadas en planos grandes. normalBias
+    // trabaja en proporción a la geometría y evita el "shadow acne" sin
+    // separar la sombra del objeto que la produce.
+    dir.shadow.bias       = -0.0005;
+    dir.shadow.normalBias = 0.02;
+    dir.shadow.camera.updateProjectionMatrix();
     scene.add(dir); luces.directional = dir;
 
     // Luz de relleno — lado opuesto, más fría y tenue
-    const fill = new THREE.DirectionalLight(0xCCDDFF, 0.3*i);
-    fill.position.set(-5, 6, -4);
+    const fill = new THREE.DirectionalLight(0xCCDDFF, 0.25*i);
+    fill.position.set(-escena*0.6, escena*0.7, -escena*0.5);
     scene.add(fill); luces.fill = fill;
 
     // Luz cenital puntual — simula luz de techo
-    const pt = new THREE.PointLight(0xFFFAE6, 0.5*i, 18);
-    pt.position.set(0, estado.alto-0.3, 0);
+    const pt = new THREE.PointLight(0xFFFAE6, 0.5*i, escena*2.2, 2);
+    pt.position.set(0, altoEsc-0.3, 0);
     pt.castShadow = true;
     pt.shadow.radius = 3;
+    pt.shadow.bias = -0.002;
     scene.add(pt); luces.point = pt;
 
     // Bombilla visible
@@ -2685,7 +2930,7 @@ function configurarLuces() {
         new THREE.SphereGeometry(0.1, 8, 8),
         new THREE.MeshStandardMaterial({ color:0xFFFFCC, emissive:0xFFEE88, emissiveIntensity:0.9 })
     );
-    lamp.position.set(0, estado.alto-0.2, 0);
+    lamp.position.set(0, altoEsc-0.2, 0);
     scene.add(lamp); luces.lampara = lamp;
 }
 
@@ -4548,18 +4793,18 @@ function aplicarProductoASuperficie(prod, superficie) {
         const loader = new THREE.TextureLoader();
         loader.crossOrigin = 'anonymous';
         loader.load(prod.imagen_url, (texture) => {
-            texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-            // Ajustar repetición según la superficie
-            if (superficie === 'piso' || superficie === 'techo') {
-                texture.repeat.set(Math.max(1, estado.ancho/1.2), Math.max(1, estado.largo/1.2));
-            } else if (superficie === 'paredTrasera' || superficie === 'paredFrontal') {
-                texture.repeat.set(Math.max(1, estado.ancho/1.2), Math.max(1, estado.alto/1.2));
-            } else {
-                texture.repeat.set(Math.max(1, estado.largo/1.2), Math.max(1, estado.alto/1.2));
-            }
-            mesh.material = new THREE.MeshStandardMaterial({ map: texture, roughness: superficie==='piso'?0.4:0.85, metalness: 0.0 });
-            // Mantener highlight
-            mesh.material.emissive = new THREE.Color(0x000000);
+            // Cada superficie tiene sus propias dimensiones reales: el piso
+            // mide ancho×largo, las paredes de fondo ancho×alto y las
+            // laterales largo×alto. Antes todas usaban el mismo 1.2 fijo.
+            let dimA, dimB;
+            if (superficie === 'piso' || superficie === 'techo')                     { dimA = estado.ancho; dimB = estado.largo; }
+            else if (superficie === 'paredTrasera' || superficie === 'paredFrontal') { dimA = estado.ancho; dimB = estado.alto;  }
+            else                                                                     { dimA = estado.largo; dimB = estado.alto;  }
+            const tipoSup = superficie === 'piso' ? 'ceramica' : 'concreto';
+            aplicarMaterialFisico(mesh, prod.imagen_url, dimA, dimB, {
+                pieza: tamanoPieza(prod, superficie === 'piso' ? 'ceramica' : 'pared'),
+                tipo:  tipoSup,
+            });
             mostrarToast(`✅ "${prod.nombre}" → ${etiqueta}`);
         }, undefined, () => {
             // Fallback color
@@ -5754,14 +5999,14 @@ function cargarDesdePlano(modelo3d) {
         scene.add(piso);
         pisosRaycastables.push(piso);
 
-        // Si el módulo tiene un piso del portafolio de la tienda asignado, reemplazar por la textura real
+        // Si el módulo tiene un piso del portafolio de la tienda asignado, se
+        // aplica con escala real de pieza y mapas de relieve derivados.
         if (mod.imagen_piso) {
-            const loaderPiso = new THREE.TextureLoader();
-            loaderPiso.crossOrigin = 'anonymous';
-            loaderPiso.load(mod.imagen_piso, (texture) => {
-                texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-                texture.repeat.set(Math.max(1, ancho/1.2), Math.max(1, largo/1.2));
-                piso.material = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.4, metalness: 0.05 });
+            const prod = (typeof todosProductos !== 'undefined' ? todosProductos : [])
+                            .find(p => p.imagen_url === mod.imagen_piso);
+            aplicarMaterialFisico(piso, mod.imagen_piso, ancho, largo, {
+                pieza: tamanoPieza(prod, mat),
+                tipo:  mat,
             });
         }
 
