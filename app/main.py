@@ -46,6 +46,31 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
+
+# ── CHEQUEO DE SALUD ──────────────────────────────────────────────────────
+# Render entra a "/" para confirmar que el servicio está vivo. Sin esta ruta
+# recibía 404, esperaba ~18 minutos y marcaba el deploy como FALLIDO, aunque
+# la aplicación hubiera arrancado perfectamente.
+# También sirve para el ping que mantiene despierto el servicio (y de paso
+# Supabase, porque toca la base de datos).
+@app.get("/")
+@app.head("/")
+async def salud():
+    return {"servicio": "DecoIArte API", "estado": "ok"}
+
+
+@app.get("/salud")
+async def salud_detallada():
+    """Chequeo que además toca la base de datos — ideal para el cron de uptime."""
+    from app.utils.supabase_client import get_supabase
+    try:
+        get_supabase().table("planes").select("id").limit(1).execute()
+        return {"estado": "ok", "base_datos": "conectada"}
+    except Exception as e:
+        logging.error(f"Chequeo de salud falló: {e}")
+        return {"estado": "degradado", "base_datos": "sin conexión"}
+
+
 app.include_router(whatsapp_router)
 app.include_router(notificaciones_router)
 app.include_router(render3d_router)
