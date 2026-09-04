@@ -226,13 +226,58 @@
     <button onclick="agregarModulo('zona')"       style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:#FCA5A5;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">📦 Zona</button>
     <button onclick="agregarModulo('pared')"      style="background:rgba(120,113,108,0.15);border:1px solid rgba(120,113,108,0.3);color:#D6D3D1;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🧱 Pared</button>
     <button onclick="agregarModulo('vidrio')"     style="background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.3);color:#7DD3FC;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🪟 Vidrio</button>
+    <div style="border-top:1px solid rgba(168,162,158,0.2);margin-top:4px;padding-top:8px;display:flex;flex-direction:column;gap:6px;">
+        <div style="font-size:10.5px;font-weight:700;color:#D6D3D1;text-transform:uppercase;letter-spacing:0.05em;">🏗️ Estructura</div>
+        <button onclick="agregarModulo('columna')" style="background:rgba(168,162,158,0.15);border:1px solid rgba(168,162,158,0.35);color:#E7E5E4;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🏛️ Columna</button>
+        <button onclick="agregarModulo('viga')"    style="background:rgba(146,124,88,0.18);border:1px solid rgba(146,124,88,0.4);color:#D9C9A8;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🪵 Viga</button>
+        <div style="font-size:10px;color:var(--gris);line-height:1.5;">La columna va de piso a techo. La viga cuelga: ajusta <b>altura base</b> y <b>peralte</b> en el panel derecho.</div>
+    </div>
     <div style="border-top:1px solid rgba(124,58,237,0.2);margin-top:4px;padding-top:8px;display:flex;flex-direction:column;gap:6px;">
         <button onclick="limpiarPlanta()" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#FCA5A5;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🗑️ Limpiar</button>
         <button onclick="generarDesdePlanta()" style="background:var(--degradado);color:white;border:none;padding:5px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">✨ Generar 3D</button>
     </div>
     <div style="border-top:1px solid rgba(34,197,94,0.2);margin-top:4px;padding-top:8px;">
         <div style="font-size:10.5px;font-weight:700;color:#22C55E;text-transform:uppercase;margin-bottom:4px;">🚪 Vanos</div>
-        <div style="font-size:10.5px;color:var(--gris);line-height:1.5;">Cuando dos zonas se tocan aparece un vano (puerta) de 90cm sobre la pared. Haz clic en la barra verde para moverlo, cambiar su ancho, o agregar otro.</div>
+        <div style="font-size:10.5px;color:var(--gris);line-height:1.5;">Cuando dos zonas se tocan aparece un vano de 90cm sobre la pared. Haz clic en la barra para moverlo, cambiar su ancho, volverlo puerta con hoja, o agregar otro.</div>
+    </div>
+    <!-- ENVOLVENTE: techo interior, fachada exterior y cubierta -->
+    <div style="border-top:1px solid rgba(56,189,248,0.2);margin-top:4px;padding-top:8px;display:flex;flex-direction:column;gap:6px;">
+        <div style="font-size:10.5px;font-weight:700;color:#7DD3FC;text-transform:uppercase;letter-spacing:0.05em;">🏠 Techos y fachada</div>
+
+        <button id="envTechos" onclick="cambiarEnvolvente('techos')" style="background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.3);color:#7DD3FC;padding:5px 10px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;">⬜ Techos: ocultos</button>
+
+        <label style="font-size:10px;color:var(--gris);text-transform:uppercase;">Material del techo</label>
+        <select id="envMaterialTecho" onchange="cambiarEnvolvente('materialTecho', this.value)"
+            style="background:var(--oscuro);border:1px solid rgba(56,189,248,0.25);border-radius:8px;padding:6px 8px;color:var(--texto);font-size:11.5px;outline:none;">
+            <option value="drywall">Drywall pintado</option>
+            <option value="concreto">Losa de concreto</option>
+            <option value="madera">Madera / machimbre</option>
+        </select>
+        <input type="color" id="envColorTecho" value="#F7F7F5" oninput="cambiarEnvolvente('colorTecho', this.value)"
+            style="width:100%;height:28px;background:var(--oscuro);border:1px solid rgba(56,189,248,0.25);border-radius:8px;padding:2px;cursor:pointer;">
+
+        <label style="font-size:11px;color:var(--gris);display:flex;align-items:center;gap:6px;margin-top:4px;cursor:pointer;">
+            <input type="checkbox" id="envFachadaActiva" checked onchange="cambiarEnvolvente('fachada', this.checked)" style="cursor:pointer;">
+            Acabado de fachada en muros exteriores
+        </label>
+        <select id="envMaterialFachada" onchange="cambiarEnvolvente('materialFachada', this.value)"
+            style="background:var(--oscuro);border:1px solid rgba(56,189,248,0.25);border-radius:8px;padding:6px 8px;color:var(--texto);font-size:11.5px;outline:none;">
+            <option value="pintura">Pintura de fachada</option>
+            <option value="ladrillo">Ladrillo a la vista</option>
+            <option value="estuco">Estuco / grano</option>
+            <option value="concreto">Concreto a la vista</option>
+        </select>
+        <input type="color" id="envColorFachada" value="#D9CFC2" oninput="cambiarEnvolvente('colorFachada', this.value)"
+            style="width:100%;height:28px;background:var(--oscuro);border:1px solid rgba(56,189,248,0.25);border-radius:8px;padding:2px;cursor:pointer;">
+
+        <label style="font-size:10px;color:var(--gris);text-transform:uppercase;margin-top:4px;">Cubierta</label>
+        <select id="envCubierta" onchange="cambiarEnvolvente('cubierta', this.value)"
+            style="background:var(--oscuro);border:1px solid rgba(56,189,248,0.25);border-radius:8px;padding:6px 8px;color:var(--texto);font-size:11.5px;outline:none;">
+            <option value="ninguna">Sin cubierta (ver desde arriba)</option>
+            <option value="losa">Placa / terraza</option>
+            <option value="dos_aguas">Teja a dos aguas</option>
+        </select>
+        <div style="font-size:10px;color:var(--gris);line-height:1.5;">Fachada y cubierta cambian la geometría: dale <b>Generar 3D</b> otra vez para verlas.</div>
     </div>
 </div>
 <!-- TOOLBAR RECORRIDO — visible solo en pestaña recorrido -->
@@ -422,6 +467,26 @@
                 <input type="number" id="propAlto" min="2" max="5" step="0.1" value="2.6" oninput="actualizarPropModulo()"
                     style="width:100%;background:var(--oscuro);border:1px solid rgba(124,58,237,0.2);border-radius:8px;padding:8px 12px;color:var(--texto);font-size:14px;margin-top:4px;outline:none;">
             </div>
+            <!-- Solo para VIGA: cuelga del techo, así que necesita a qué altura arranca y cuánto mide de canto -->
+            <div id="contViga" style="display:none;">
+                <label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;">Altura base (m) — cara inferior</label>
+                <input type="number" id="propAlturaBase" min="0" max="5" step="0.05" value="2.2" oninput="actualizarPropModulo()"
+                    style="width:100%;background:var(--oscuro);border:1px solid rgba(146,124,88,0.35);border-radius:8px;padding:8px 12px;color:var(--texto);font-size:14px;margin-top:4px;outline:none;">
+                <label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;margin-top:8px;display:block;">Peralte (m) — canto de la viga</label>
+                <input type="number" id="propPeralte" min="0.1" max="1.5" step="0.05" value="0.4" oninput="actualizarPropModulo()"
+                    style="width:100%;background:var(--oscuro);border:1px solid rgba(146,124,88,0.35);border-radius:8px;padding:8px 12px;color:var(--texto);font-size:14px;margin-top:4px;outline:none;">
+                <div style="font-size:10.5px;color:var(--gris);margin-top:6px;line-height:1.5;">Ancho = sección de la viga. Largo = la luz que cubre. Si base + peralte da igual al alto del piso, queda pegada al techo.</div>
+            </div>
+            <!-- Solo para COLUMNA: sección cuadrada o redonda -->
+            <div id="contColumna" style="display:none;">
+                <label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;">Sección</label>
+                <select id="propFormaColumna" onchange="actualizarPropModulo()"
+                    style="width:100%;background:var(--oscuro);border:1px solid rgba(168,162,158,0.35);border-radius:8px;padding:8px 12px;color:var(--texto);font-size:13px;margin-top:4px;outline:none;">
+                    <option value="cuadrada">Cuadrada / rectangular</option>
+                    <option value="redonda">Redonda</option>
+                </select>
+                <div style="font-size:10.5px;color:var(--gris);margin-top:6px;line-height:1.5;">Va de piso a techo con el "Alto" de arriba. Si es redonda usa el Ancho como diámetro.</div>
+            </div>
             <div>
                 <label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;">Nombre</label>
                 <input type="text" id="propNombreInput" oninput="actualizarNombreModulo()"
@@ -444,7 +509,7 @@
                 <input type="color" id="propColorPared" value="#F5F5F5" oninput="actualizarPropModulo()"
                     style="width:100%;height:36px;background:var(--oscuro);border:1px solid rgba(124,58,237,0.2);border-radius:8px;padding:2px;margin-top:4px;cursor:pointer;">
             </div>
-            <div>
+            <div id="contPortafolioPisoWrap">
                 <label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;">Piso del portafolio de la tienda</label>
                 <div id="propPortafolioPiso" style="margin-top:6px;">
                     <div style="font-size:11px;color:var(--gris);">Cargando...</div>
@@ -2402,6 +2467,46 @@ function aplicarColorFallback(prod, esPiso, esPintura) {
 }
 
 // ── MATERIALES ────────────────────────────────────────────────────────────
+// ── Materiales y visibilidad de la envolvente ────────────────────────────
+// Al entrar con la cámara interior hay que tapar arriba, si no se ve el cielo
+// de la escena desde adentro del cuarto. Antes esto solo funcionaba en el modo
+// de sala rápida (meshes.techo); los planos del Editor Planta se quedaban sin
+// techo porque nunca se creaba uno.
+function mostrarTechosInterior(entrando) {
+    if (meshes.techo) meshes.techo.visible = entrando;
+    if (typeof techosPlanta !== 'undefined' && techosPlanta.length) {
+        // Al salir no se apagan a la fuerza: se vuelve a lo que el usuario
+        // haya dejado marcado en el panel de envolvente.
+        techosPlanta.forEach(t => { t.visible = entrando ? true : !!configEnvolvente.techos; });
+    }
+}
+
+function crearMaterialTecho() {
+    const c = new THREE.Color(configEnvolvente.colorTecho || '#F7F7F5');
+    switch (configEnvolvente.materialTecho) {
+        case 'concreto': // losa a la vista
+            return new THREE.MeshStandardMaterial({ color: c.multiplyScalar(0.82), roughness: 0.95, metalness: 0.0 });
+        case 'madera':   // machimbre / cielo en madera
+            return new THREE.MeshStandardMaterial({ color: 0xB98A55, roughness: 0.7, metalness: 0.0 });
+        default:         // drywall pintado — lo más común en vivienda
+            return new THREE.MeshStandardMaterial({ color: c, roughness: 0.9, metalness: 0.0 });
+    }
+}
+
+function crearMaterialFachada() {
+    const c = new THREE.Color(configEnvolvente.colorFachada || '#D9CFC2');
+    switch (configEnvolvente.materialFachada) {
+        case 'ladrillo': // ladrillo a la vista
+            return new THREE.MeshStandardMaterial({ color: 0xA24F35, roughness: 0.95, metalness: 0.0 });
+        case 'estuco':   // grano fino, un poco más rugoso que la pintura lisa
+            return new THREE.MeshStandardMaterial({ color: c, roughness: 1.0, metalness: 0.0 });
+        case 'concreto':
+            return new THREE.MeshStandardMaterial({ color: 0x9E9A94, roughness: 0.92, metalness: 0.02 });
+        default:         // pintura de fachada
+            return new THREE.MeshStandardMaterial({ color: c, roughness: 0.75, metalness: 0.0 });
+    }
+}
+
 function crearMaterialPiso(tipo) {
     const configs = {
         madera:     {color:0xC4913A,roughness:0.6,metalness:0.0},
@@ -4201,7 +4306,7 @@ function activarCamaraPivote() {
     if(modoMover) desactivarMoverMueble();
     modoPivote=true;
     modoInterior=true;
-    if (meshes.techo) meshes.techo.visible = true;
+    mostrarTechosInterior(true);
     // Cambiar texto del botón
     const btnCam = document.getElementById('btnCamaraInterior');
     if (btnCam) { btnCam.textContent = '🚪 Salir de cámara interior'; btnCam.style.background='rgba(239,68,68,0.12)'; btnCam.style.borderColor='rgba(239,68,68,0.35)'; btnCam.style.color='#FCA5A5'; }
@@ -4278,7 +4383,7 @@ function salirCamaraPivote() {
     modoPivote=false;
     modoInterior=false;
     document.getElementById('camaraPivote').classList.remove('activa');
-    if (meshes.techo) meshes.techo.visible = false;
+    mostrarTechosInterior(false);
     // Restaurar botón
     const btnCamS = document.getElementById('btnCamaraInterior');
     if (btnCamS) { btnCamS.textContent = '📷 Entrar con cámara interior'; btnCamS.style.background='rgba(124,58,237,0.15)'; btnCamS.style.borderColor='rgba(124,58,237,0.3)'; btnCamS.style.color='#A78BFA'; }
@@ -4509,12 +4614,38 @@ let dragOffsetX = 0, dragOffsetZ = 0;
 const ESCALA = 40; // píxeles por metro
 const COLORES_MODULO = {
     sala:'#3B82F6', cocina:'#10B981', habitacion:'#7C3AED',
-    bano:'#F59E0B', pasillo:'#94A3B8', zona:'#EF4444', pared:'#78716C', vidrio:'#38BDF8'
+    bano:'#F59E0B', pasillo:'#94A3B8', zona:'#EF4444', pared:'#78716C', vidrio:'#38BDF8',
+    columna:'#A8A29E', viga:'#927C58'
 };
 const EMOJIS_MODULO = {
     sala:'🛋️', cocina:'🍳', habitacion:'🛏️',
-    bano:'🚿', pasillo:'🚶', zona:'📦', pared:'🧱', vidrio:'🪟'
+    bano:'🚿', pasillo:'🚶', zona:'📦', pared:'🧱', vidrio:'🪟',
+    columna:'🏛️', viga:'🪵'
 };
+// ── ENVOLVENTE: techos interiores + fachada exterior ─────────────────────
+// "Techo" es el cielo raso de cada cuarto (se ve desde adentro).
+// "Fachada" es la cara exterior de los muros perimetrales (se ve desde afuera).
+// "Cubierta" es el remate de arriba del proyecto visto desde afuera.
+// Son tres cosas distintas y por eso se configuran por separado.
+let configEnvolvente = {
+    techos:          false,        // arrancan ocultos para poder ver la planta desde arriba
+    materialTecho:   'drywall',    // 'drywall' | 'concreto' | 'madera'
+    colorTecho:      '#F7F7F5',
+    fachada:         true,         // dar acabado distinto a los muros que dan al exterior
+    materialFachada: 'pintura',    // 'pintura' | 'ladrillo' | 'estuco' | 'concreto'
+    colorFachada:    '#D9CFC2',
+    gruesoFachada:   0.20,         // los muros exteriores son más gruesos que los interiores (10cm)
+    cubierta:        'ninguna',    // 'ninguna' | 'losa' | 'dos_aguas'
+};
+let techosPlanta   = [];   // meshes de cielo raso, para poder mostrarlos/ocultarlos
+let cubiertaPlanta = [];   // meshes de la cubierta exterior
+let puertasPlanta  = [];   // { grupo, pivote, vano, angMax } — hojas abribles
+
+// Tipos que NO son un cuarto: no llevan piso, no abren vanos en el vecino y no
+// suman área habitable. Antes esta lista estaba escrita a mano en 5 sitios
+// distintos; centralizarla evita que columna/viga se cuelen en las estadísticas.
+const TIPOS_NO_CUARTO = ['pared', 'vidrio', 'columna', 'viga'];
+const esCuarto = t => !TIPOS_NO_CUARTO.includes(t);
 
 function iniciarEditorPlanta() {
     const c = document.getElementById('canvasPlanta');
@@ -4554,15 +4685,34 @@ function agregarModulo(tipo) {
     const c  = document.getElementById('canvasPlanta');
     const px = 100 + (modulosPlanta.length % 3) * (4 * ESCALA + 10);
     const pz = 80  + Math.floor(modulosPlanta.length / 3) * (4 * ESCALA + 10);
-    modulosPlanta.push({
+    // Medidas por defecto según el tipo. Columna: 30×30cm de piso a techo
+    // (sección típica de vivienda en Colombia). Viga: 25cm de ancho, 4m de luz,
+    // colgando con 40cm de peralte pegada al techo.
+    const MEDIDAS_DEFECTO = {
+        pasillo: { ancho:1.5,  largo:6.0 },
+        pared:   { ancho:0.15, largo:2.0 },
+        vidrio:  { ancho:0.15, largo:2.0 },
+        columna: { ancho:0.30, largo:0.30 },
+        viga:    { ancho:0.25, largo:4.00 },
+    };
+    const med = MEDIDAS_DEFECTO[tipo] || { ancho:4, largo:4 };
+    const nuevo = {
         id, tipo,
         nombre: EMOJIS_MODULO[tipo] + ' ' + tipo.charAt(0).toUpperCase() + tipo.slice(1),
         x: px / ESCALA, z: pz / ESCALA,   // posición en metros — derivada de px/pz, misma fuente que el dibujo
-        ancho: tipo === 'pasillo' ? 1.5 : (tipo === 'pared' || tipo === 'vidrio') ? 0.15 : 4,
-        largo: tipo === 'pasillo' ? 6   : (tipo === 'pared' || tipo === 'vidrio') ? 2.0 : 4,
+        ancho: med.ancho,
+        largo: med.largo,
         alto:  2.6,
         px, pz,
-    });
+    };
+    if (tipo === 'columna') {
+        nuevo.forma = 'cuadrada';   // 'cuadrada' | 'redonda'
+    }
+    if (tipo === 'viga') {
+        nuevo.peralte     = 0.40;   // alto del elemento (canto de la viga)
+        nuevo.alturaBase  = 2.20;   // desde el piso hasta la cara inferior → 2.20 + 0.40 = 2.60 (pega al techo)
+    }
+    modulosPlanta.push(nuevo);
     seleccionarModulo(id);
     dibujarPlanta();
     actualizarListaModulos();
@@ -4571,6 +4721,12 @@ function agregarModulo(tipo) {
 // ── VANOS: geometría, selección y arrastre ───────────────────────────────
 let vanoSeleccionado = null;
 let vanoArrastrando  = null;
+
+// Hacia dónde queda el interior del módulo A según el lado en que vive el vano.
+// Vectores (x, z) del mundo. Se usa en el plano 2D para el arco de barrido y
+// tiene su equivalente en el 3D (signoDentroLocal), para que la puerta abra
+// hacia el mismo lado en los dos sitios.
+const NORMAL_DENTRO_2D = { norte:[0,1], sur:[0,-1], oeste:[1,0], este:[-1,0] };
 
 // Devuelve las coordenadas en píxeles del vano sobre su pared, para dibujarlo
 // y para detectar clics. El vano vive sobre el lado compartido entre dos
@@ -4631,6 +4787,19 @@ function actualizarVano(campo, valor) {
                                    Math.min(vanoSeleccionado.limFin - mitad, vanoSeleccionado.centro));
     } else if (campo === 'tipo') {
         vanoSeleccionado.tipo = valor;
+        // Al convertirlo en puerta se le dan valores de hoja por defecto si aún no los tiene
+        if (valor === 'puerta') {
+            vanoSeleccionado.bisagra        = vanoSeleccionado.bisagra        || 'izq';
+            vanoSeleccionado.sentido        = vanoSeleccionado.sentido        || 'dentro';
+            vanoSeleccionado.anguloApertura = vanoSeleccionado.anguloApertura ?? 75;
+            if (vanoSeleccionado.abierta === undefined) vanoSeleccionado.abierta = true;
+        }
+    } else if (campo === 'bisagra' || campo === 'sentido') {
+        vanoSeleccionado[campo] = valor;
+    } else if (campo === 'apertura') {
+        const ang = Math.max(0, Math.min(90, parseFloat(valor) || 0));
+        vanoSeleccionado.anguloApertura = ang;
+        vanoSeleccionado.abierta = ang > 0;
     } else if (campo === 'alto') {
         vanoSeleccionado.alto = Math.max(1.6, Math.min(2.5, parseFloat(valor)));
     }
@@ -4666,20 +4835,48 @@ function renderPanelVano() {
     if (!vanoSeleccionado) { panel.style.display = 'none'; return; }
     const v = vanoSeleccionado;
     const maxAncho = (v.limFin - v.limIni).toFixed(2);
+    const btn = (tipo, etiqueta, color) => `
+        <button onclick="actualizarVano('tipo','${tipo}')" style="flex:1;padding:6px 2px;border-radius:6px;font-size:10.5px;font-weight:700;cursor:pointer;border:1px solid ${v.tipo===tipo?color:'rgba(148,163,184,0.3)'};background:${v.tipo===tipo?color+'40':'rgba(255,255,255,0.04)'};color:${v.tipo===tipo?'#fff':'var(--gris)'};">${etiqueta}</button>`;
+    const esPuerta = v.tipo === 'puerta';
+    const llevaDintel = v.tipo === 'vano' || esPuerta;
     panel.style.display = 'block';
     panel.innerHTML = `
         <div style="font-size:11px;font-weight:700;color:#22C55E;text-transform:uppercase;margin-bottom:8px;">🚪 Vano seleccionado</div>
         <label style="font-size:11px;color:var(--gris);">Ancho: <b style="color:var(--texto);">${v.ancho.toFixed(2)} m</b> (máx ${maxAncho})</label>
         <input type="range" min="0.4" max="${maxAncho}" step="0.05" value="${v.ancho}" oninput="actualizarVano('ancho', this.value)" style="width:100%;margin:4px 0 10px;">
         <label style="font-size:11px;color:var(--gris);display:block;margin-bottom:4px;">Tipo</label>
-        <div style="display:flex;gap:5px;margin-bottom:10px;">
-            <button onclick="actualizarVano('tipo','arco')" style="flex:1;padding:6px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid ${v.tipo==='arco'?'#22C55E':'rgba(148,163,184,0.3)'};background:${v.tipo==='arco'?'rgba(34,197,94,0.25)':'rgba(255,255,255,0.04)'};color:${v.tipo==='arco'?'#6EE7B7':'var(--gris)'};">Arco</button>
-            <button onclick="actualizarVano('tipo','puerta')" style="flex:1;padding:6px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid ${v.tipo==='puerta'?'#F59E0B':'rgba(148,163,184,0.3)'};background:${v.tipo==='puerta'?'rgba(245,158,11,0.25)':'rgba(255,255,255,0.04)'};color:${v.tipo==='puerta'?'#FCD34D':'var(--gris)'};">Puerta</button>
+        <div style="display:flex;gap:4px;margin-bottom:6px;">
+            ${btn('arco',   'Arco',   '#22C55E')}
+            ${btn('vano',   'Vano',   '#38BDF8')}
+            ${btn('puerta', 'Puerta', '#F59E0B')}
         </div>
-        ${v.tipo === 'puerta' ? `
-        <label style="font-size:11px;color:var(--gris);">Alto de la puerta: <b style="color:var(--texto);">${(v.alto||2.1).toFixed(2)} m</b></label>
+        <div style="font-size:10px;color:var(--gris);line-height:1.5;margin-bottom:10px;">
+            <b style="color:#6EE7B7;">Arco</b>: paso libre de piso a techo.<br>
+            <b style="color:#7DD3FC;">Vano</b>: hueco con dintel y marco, sin hoja.<br>
+            <b style="color:#FCD34D;">Puerta</b>: marco + hoja que se abre.
+        </div>
+        ${llevaDintel ? `
+        <label style="font-size:11px;color:var(--gris);">Alto del hueco: <b style="color:var(--texto);">${(v.alto||2.1).toFixed(2)} m</b></label>
         <input type="range" min="1.6" max="2.5" step="0.05" value="${v.alto||2.1}" oninput="actualizarVano('alto', this.value)" style="width:100%;margin:4px 0 10px;">` : ''}
-        <div style="font-size:10.5px;color:var(--gris);line-height:1.5;margin-bottom:8px;">Arrástralo sobre la pared para moverlo. Vuelve a generar el 3D para ver el cambio.</div>
+        ${esPuerta ? `
+        <div style="border-top:1px solid rgba(245,158,11,0.25);padding-top:10px;margin-top:4px;">
+            <div style="font-size:10.5px;font-weight:700;color:#FCD34D;text-transform:uppercase;margin-bottom:6px;">Hoja de la puerta</div>
+            <label style="font-size:11px;color:var(--gris);display:block;margin-bottom:4px;">Bisagra</label>
+            <div style="display:flex;gap:5px;margin-bottom:8px;">
+                <button onclick="actualizarVano('bisagra','izq')" style="flex:1;padding:6px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid ${(v.bisagra||'izq')==='izq'?'#F59E0B':'rgba(148,163,184,0.3)'};background:${(v.bisagra||'izq')==='izq'?'rgba(245,158,11,0.25)':'rgba(255,255,255,0.04)'};color:${(v.bisagra||'izq')==='izq'?'#FCD34D':'var(--gris)'};">◀ Izquierda</button>
+                <button onclick="actualizarVano('bisagra','der')" style="flex:1;padding:6px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid ${v.bisagra==='der'?'#F59E0B':'rgba(148,163,184,0.3)'};background:${v.bisagra==='der'?'rgba(245,158,11,0.25)':'rgba(255,255,255,0.04)'};color:${v.bisagra==='der'?'#FCD34D':'var(--gris)'};">Derecha ▶</button>
+            </div>
+            <label style="font-size:11px;color:var(--gris);display:block;margin-bottom:4px;">Abre hacia</label>
+            <div style="display:flex;gap:5px;margin-bottom:8px;">
+                <button onclick="actualizarVano('sentido','dentro')" style="flex:1;padding:6px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid ${(v.sentido||'dentro')==='dentro'?'#F59E0B':'rgba(148,163,184,0.3)'};background:${(v.sentido||'dentro')==='dentro'?'rgba(245,158,11,0.25)':'rgba(255,255,255,0.04)'};color:${(v.sentido||'dentro')==='dentro'?'#FCD34D':'var(--gris)'};">Adentro</button>
+                <button onclick="actualizarVano('sentido','fuera')" style="flex:1;padding:6px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid ${v.sentido==='fuera'?'#F59E0B':'rgba(148,163,184,0.3)'};background:${v.sentido==='fuera'?'rgba(245,158,11,0.25)':'rgba(255,255,255,0.04)'};color:${v.sentido==='fuera'?'#FCD34D':'var(--gris)'};">Afuera</button>
+            </div>
+            <label style="font-size:11px;color:var(--gris);">Apertura: <b style="color:var(--texto);">${v.abierta === false ? 'cerrada' : (v.anguloApertura ?? 75) + '°'}</b></label>
+            <input type="range" min="0" max="90" step="5" value="${v.abierta === false ? 0 : (v.anguloApertura ?? 75)}" oninput="actualizarVano('apertura', this.value)" style="width:100%;margin:4px 0 8px;">
+            <button onclick="actualizarVano('apertura', ${v.abierta === false ? 75 : 0})" style="width:100%;padding:7px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid rgba(245,158,11,0.35);background:rgba(245,158,11,0.12);color:#FCD34D;">${v.abierta === false ? '🚪 Abrir' : '🚪 Dejar cerrada'}</button>
+            <div style="font-size:10px;color:var(--gris);line-height:1.5;margin-top:6px;">En el 3D también puedes hacer clic sobre la hoja para abrirla o cerrarla.</div>
+        </div>` : ''}
+        <div style="font-size:10.5px;color:var(--gris);line-height:1.5;margin:10px 0 8px;">Arrástralo sobre la pared para moverlo. Vuelve a generar el 3D para ver el cambio.</div>
         <div style="display:flex;gap:5px;">
             <button onclick="duplicarVano()" style="flex:1;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.35);color:#6EE7B7;padding:6px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;">➕ Otro vano</button>
             <button onclick="borrarVano()" style="flex:1;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#FCA5A5;padding:6px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;">🗑️ Borrar</button>
@@ -4719,30 +4916,49 @@ function dibujarPlanta() {
         ctx.shadowColor = color;
         ctx.shadowBlur  = selec ? 16 : 6;
 
-        // Fondo
-        ctx.fillStyle = color + (selec ? '40' : '25');
+        // Fondo — la columna se dibuja MACIZA (es un elemento estructural que
+        // ocupa el espacio de verdad, no un área) y la viga con línea punteada
+        // porque va por encima de la cabeza, no toca el piso.
+        const esColumna2D = m.tipo === 'columna';
+        const esViga2D    = m.tipo === 'viga';
+        ctx.fillStyle = esColumna2D ? color + 'CC' : color + (selec ? '40' : '25');
         ctx.beginPath();
-        ctx.roundRect(m.px, m.pz, pw, ph, 6);
+        if (esColumna2D && m.forma === 'redonda') {
+            ctx.ellipse(m.px + pw/2, m.pz + ph/2, pw/2, ph/2, 0, 0, Math.PI*2);
+        } else {
+            ctx.roundRect(m.px, m.pz, pw, ph, esColumna2D || esViga2D ? 2 : 6);
+        }
         ctx.fill();
 
         // Borde
         ctx.strokeStyle = selec ? color : color + '80';
         ctx.lineWidth   = selec ? 3 : 1.5;
+        if (esViga2D) ctx.setLineDash([6, 4]);
         ctx.stroke();
+        ctx.setLineDash([]);
 
         ctx.shadowBlur = 0;
 
-        // Etiqueta
-        ctx.fillStyle    = 'white';
-        ctx.font         = `bold ${Math.min(13, pw/6)}px Segoe UI`;
+        // Etiqueta — en columnas y vigas el rótulo se sale del elemento (una
+        // columna de 30cm son 12px en pantalla), así que va por fuera.
+        const elementoDelgado = pw < 55 || ph < 30;
         ctx.textAlign    = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(m.nombre, m.px + pw/2, m.pz + ph/2 - 8);
-
-        // Dimensiones
-        ctx.fillStyle = 'rgba(255,255,255,0.6)';
-        ctx.font      = `${Math.min(11, pw/7)}px Segoe UI`;
-        ctx.fillText(`${m.ancho}m × ${m.largo}m`, m.px + pw/2, m.pz + ph/2 + 10);
+        if (elementoDelgado) {
+            ctx.fillStyle = color;
+            ctx.font      = 'bold 10px Segoe UI';
+            const etiqueta = esViga2D
+                ? `${m.nombre} · ${m.largo}m · h${(m.alturaBase ?? 2.2).toFixed(2)}`
+                : `${m.nombre} · ${m.ancho}×${m.largo}`;
+            ctx.fillText(etiqueta, m.px + pw/2, m.pz - 9);
+        } else {
+            ctx.fillStyle = 'white';
+            ctx.font      = `bold ${Math.min(13, pw/6)}px Segoe UI`;
+            ctx.fillText(m.nombre, m.px + pw/2, m.pz + ph/2 - 8);
+            ctx.fillStyle = 'rgba(255,255,255,0.6)';
+            ctx.font      = `${Math.min(11, pw/7)}px Segoe UI`;
+            ctx.fillText(`${m.ancho}m × ${m.largo}m`, m.px + pw/2, m.pz + ph/2 + 10);
+        }
 
         // Handle de resize (esquina inf-der) — más grande para facilitar click
         ctx.fillStyle = color;
@@ -4761,7 +4977,8 @@ function dibujarPlanta() {
         const geo = geometriaVanoEnPlano(v);
         if (!geo) return;
         const selec = vanoSeleccionado && vanoSeleccionado.id === v.id;
-        ctx.strokeStyle = v.tipo === 'puerta' ? '#F59E0B' : '#22C55E';
+        const COLOR_VANO = { arco:'#22C55E', vano:'#38BDF8', puerta:'#F59E0B' };
+        ctx.strokeStyle = COLOR_VANO[v.tipo] || '#22C55E';
         ctx.lineWidth   = (selec ? 9 : 6) / zoomPlanta;
         ctx.lineCap     = 'round';
         ctx.beginPath();
@@ -4774,6 +4991,46 @@ function dibujarPlanta() {
             ctx.stroke();
         }
         ctx.lineCap = 'butt';
+
+        // ARCO DE BARRIDO — así se dibuja una puerta en un plano de verdad:
+        // la hoja como una línea desde la bisagra y el cuarto de círculo que
+        // barre al abrirse. Sirve para ver si la puerta choca con un mueble.
+        if (v.tipo === 'puerta') {
+            const anchoPx    = v.ancho * ESCALA;
+            const bisagraIzq = (v.bisagra || 'izq') === 'izq';
+            const hx = bisagraIzq ? geo.x1 : geo.x2;
+            const hz = bisagraIzq ? geo.z1 : geo.z2;
+            // Ángulo de la pared: desde la bisagra hacia el otro extremo del vano.
+            // En el canvas el eje Y crece hacia abajo y coincide con la Z del
+            // mundo, así que atan2(dz, dx) da el mismo ángulo en ambos lados.
+            const dx = bisagraIzq ? geo.x2 - geo.x1 : geo.x1 - geo.x2;
+            const dz = bisagraIzq ? geo.z2 - geo.z1 : geo.z1 - geo.z2;
+            const angBase = Math.atan2(dz, dx);
+            // Normal que apunta hacia ADENTRO del módulo A (el dueño del lado).
+            // Es la misma tabla que usa el 3D, para que el plano y el modelo
+            // muestren la puerta abriendo hacia el mismo lado.
+            const nd = NORMAL_DENTRO_2D[v.lado];
+            const signo = (v.sentido || 'dentro') === 'fuera' ? -1 : 1;
+            let delta = Math.atan2(nd[1]*signo, nd[0]*signo) - angBase;
+            while (delta >  Math.PI) delta -= 2*Math.PI;
+            while (delta < -Math.PI) delta += 2*Math.PI;
+
+            ctx.strokeStyle = 'rgba(245,158,11,0.55)';
+            ctx.lineWidth   = 1.5 / zoomPlanta;
+            ctx.beginPath();
+            ctx.arc(hx, hz, anchoPx, angBase, angBase + delta, delta < 0);
+            ctx.stroke();
+
+            // hoja dibujada en su ángulo real de apertura
+            const t = (v.abierta === false ? 0 : (v.anguloApertura ?? 75)) / 90;
+            const angHoja = angBase + delta * t;
+            ctx.strokeStyle = '#FCD34D';
+            ctx.lineWidth   = 2.5 / zoomPlanta;
+            ctx.beginPath();
+            ctx.moveTo(hx, hz);
+            ctx.lineTo(hx + Math.cos(angHoja) * anchoPx, hz + Math.sin(angHoja) * anchoPx);
+            ctx.stroke();
+        }
     });
 
     // Trazo del recorrido de cámara (Etapa 1b) — se dibuja en el mismo
@@ -4961,8 +5218,34 @@ function seleccionarModulo(id) {
     document.getElementById('propAlto').value              = moduloSeleccionado.alto;
     document.getElementById('propMaterialPiso').value      = moduloSeleccionado.materialPiso || 'ceramica';
     document.getElementById('propColorPared').value        = moduloSeleccionado.colorPared || '#F5F5F5';
+
+    // Campos específicos de estructura. Una viga cuelga (necesita altura base y
+    // peralte); una columna solo necesita saber si es cuadrada o redonda.
+    const esViga    = moduloSeleccionado.tipo === 'viga';
+    const esColumna = moduloSeleccionado.tipo === 'columna';
+    document.getElementById('contViga').style.display    = esViga ? 'block' : 'none';
+    document.getElementById('contColumna').style.display = esColumna ? 'block' : 'none';
+    if (esViga) {
+        document.getElementById('propAlturaBase').value = moduloSeleccionado.alturaBase ?? 2.2;
+        document.getElementById('propPeralte').value    = moduloSeleccionado.peralte    ?? 0.4;
+    }
+    if (esColumna) {
+        document.getElementById('propFormaColumna').value = moduloSeleccionado.forma || 'cuadrada';
+    }
+
     renderPortafolioPisoModulo();
     calcularMaterialModulo();
+    // Columna, viga, pared y vidrio no tienen piso propio — esconder esos campos
+    // para no ofrecer cerámica sobre una viga.
+    if (!esCuarto(moduloSeleccionado.tipo)) {
+        const cg = document.getElementById('contPisoGenerico');
+        const cw = document.getElementById('contPortafolioPisoWrap');
+        if (cg) cg.style.display = 'none';
+        if (cw) cw.style.display = 'none';
+    } else {
+        const cw = document.getElementById('contPortafolioPisoWrap');
+        if (cw) cw.style.display = 'block';
+    }
     dibujarPlanta();
     actualizarListaModulos();
 }
@@ -5111,6 +5394,13 @@ function actualizarPropModulo() {
     moduloSeleccionado.alto         = parseFloat(document.getElementById('propAlto').value)  || 2.6;
     moduloSeleccionado.materialPiso = document.getElementById('propMaterialPiso').value;
     moduloSeleccionado.colorPared   = document.getElementById('propColorPared').value;
+    if (moduloSeleccionado.tipo === 'viga') {
+        moduloSeleccionado.alturaBase = parseFloat(document.getElementById('propAlturaBase').value) || 0;
+        moduloSeleccionado.peralte    = parseFloat(document.getElementById('propPeralte').value)    || 0.4;
+    }
+    if (moduloSeleccionado.tipo === 'columna') {
+        moduloSeleccionado.forma = document.getElementById('propFormaColumna').value;
+    }
     dibujarPlanta();
 }
 
@@ -5177,7 +5467,7 @@ function generarDesdePlanta() {
         for (let j = i+1; j < modulosPlanta.length; j++) {
             const a = modulosPlanta[i];
             const b = modulosPlanta[j];
-            if (a.tipo === 'pared' || b.tipo === 'pared' || a.tipo === 'vidrio' || b.tipo === 'vidrio') continue; // columna/pared/vidrio nunca abre un hueco en el cuarto vecino
+            if (!esCuarto(a.tipo) || !esCuarto(b.tipo)) continue; // pared/vidrio/columna/viga nunca abren un hueco en el cuarto vecino
 
             // Pared norte de A = sur de B (contacto en Z, tramo compartido en X)
             if (Math.abs(a.z - (b.z + b.largo)) < TOL_CONTACTO) {
@@ -5220,8 +5510,15 @@ function generarDesdePlanta() {
             modulo_a: pc.modulo_a, modulo_b: pc.modulo_b, lado: pc.lado,
             centro: (pc.ini + pc.fin) / 2,   // posición a lo largo de la pared, en metros
             ancho: anchoVano,
-            tipo: 'arco',                     // 'arco' = de piso a techo | 'puerta' = 2.1m con pared encima
-            alto: 2.1,                        // solo aplica cuando tipo === 'puerta'
+            // 'arco'   = paso libre de piso a techo
+            // 'vano'   = hueco con dintel y marco, sin hoja
+            // 'puerta' = marco + hoja abrible
+            tipo: 'arco',
+            alto: 2.1,                        // aplica a 'vano' y 'puerta'
+            bisagra: 'izq',                   // 'izq' | 'der' — de qué extremo del vano cuelga
+            sentido: 'dentro',                // 'dentro' | 'fuera' — hacia qué lado barre
+            anguloApertura: 75,               // grados
+            abierta: true,
             limIni: pc.ini, limFin: pc.fin,   // hasta dónde se puede deslizar sobre esa pared
         });
     });
@@ -5245,9 +5542,24 @@ function generarDesdePlanta() {
             material_piso:  m.materialPiso || (m.tipo === 'bano' ? 'ceramica' : 'ceramica'),
             imagen_piso:    m.imagenPisoUrl || null,
             paredes_eliminadas: m.paredesEliminadas || [],
+            // estructura
+            forma:       m.forma       || null,   // columna: 'cuadrada' | 'redonda'
+            altura_base: m.alturaBase  ?? null,   // viga: desde el piso hasta su cara inferior
+            peralte:     m.peralte     ?? null,   // viga: canto
         })),
         paredes_compartidas,
-        vanos: vanosPlanta
+        vanos: vanosPlanta,
+        // Envolvente del proyecto — techos interiores y tratamiento de fachada
+        envolvente: {
+            techos:           configEnvolvente.techos,
+            material_techo:   configEnvolvente.materialTecho,
+            color_techo:      configEnvolvente.colorTecho,
+            fachada:          configEnvolvente.fachada,
+            material_fachada: configEnvolvente.materialFachada,
+            color_fachada:    configEnvolvente.colorFachada,
+            grueso_fachada:   configEnvolvente.gruesoFachada,
+            cubierta:         configEnvolvente.cubierta,
+        }
     };
 
     mostrarToast(`✨ Generando 3D con ${modulosPlanta.length} módulos...`);
@@ -5328,6 +5640,26 @@ function cargarDesdePlano(modelo3d) {
     modulosActuales3D = [];
     paredesInteractivas = [];
     pisosRaycastables = [];
+    techosPlanta   = [];
+    cubiertaPlanta = [];
+    puertasPlanta  = [];
+
+    // Config de envolvente guardada con el plano (si viene de Supabase)
+    if (modelo3d.envolvente) {
+        const e = modelo3d.envolvente;
+        configEnvolvente = {
+            ...configEnvolvente,
+            techos:          e.techos          ?? configEnvolvente.techos,
+            materialTecho:   e.material_techo  || configEnvolvente.materialTecho,
+            colorTecho:      e.color_techo     || configEnvolvente.colorTecho,
+            fachada:         e.fachada         ?? configEnvolvente.fachada,
+            materialFachada: e.material_fachada|| configEnvolvente.materialFachada,
+            colorFachada:    e.color_fachada   || configEnvolvente.colorFachada,
+            gruesoFachada:   e.grueso_fachada  ?? configEnvolvente.gruesoFachada,
+            cubierta:        e.cubierta        || configEnvolvente.cubierta,
+        };
+        sincronizarUIEnvolvente();
+    }
 
     // Construir cada módulo
     modulos.forEach(mod => {
@@ -5338,7 +5670,7 @@ function cargarDesdePlano(modelo3d) {
         const alto   = mod.alto || altoPiso;
         const color  = mod.color_pared || '#F5F5F5';
         const mat    = mod.material_piso || 'ceramica';
-        if (mod.tipo !== 'pared' && mod.tipo !== 'vidrio') {
+        if (esCuarto(mod.tipo)) {
             modulosActuales3D.push({ id: mod.id, nombre: mod.nombre, cx: x, cz: z, ancho, largo, alto, materialPiso: mat, imagenPisoUrl: mod.imagen_piso || null });
         }
 
@@ -5346,22 +5678,58 @@ function cargarDesdePlano(modelo3d) {
             color: new THREE.Color(color), roughness: 0.85, metalness: 0.0
         });
 
-        // ── Módulo tipo "pared" o "vidrio" — bloque sólido (columna, muro fijo, divisor de vidrio), no un cuarto ──
-        if (mod.tipo === 'pared' || mod.tipo === 'vidrio') {
-            const esVidrio = mod.tipo === 'vidrio';
-            const matBloque = esVidrio
-                ? new THREE.MeshStandardMaterial({ color:0xCFE8F0, transparent:true, opacity:0.2, roughness:0.05, metalness:0.9, side:THREE.DoubleSide })
-                : matPared;
-            const bloque = new THREE.Mesh(new THREE.BoxGeometry(ancho, alto, largo), matBloque);
-            bloque.position.set(x, alto/2, z);
+        // ── Elementos que NO son cuartos: pared fija, divisor de vidrio,
+        //    COLUMNA (piso a techo) y VIGA (cuelga del techo) ──────────────
+        if (!esCuarto(mod.tipo)) {
+            const esVidrio  = mod.tipo === 'vidrio';
+            const esColumna = mod.tipo === 'columna';
+            const esViga    = mod.tipo === 'viga';
+
+            let matBloque;
+            if (esVidrio) {
+                matBloque = new THREE.MeshStandardMaterial({ color:0xCFE8F0, transparent:true, opacity:0.2, roughness:0.05, metalness:0.9, side:THREE.DoubleSide });
+            } else if (esColumna) {
+                // concreto a la vista — un poco más oscuro que la pared para que se lea como estructura
+                matBloque = new THREE.MeshStandardMaterial({ color:0xBDB8B2, roughness:0.9, metalness:0.0 });
+            } else if (esViga) {
+                matBloque = new THREE.MeshStandardMaterial({ color:0xC6BFB4, roughness:0.9, metalness:0.0 });
+            } else {
+                matBloque = matPared;
+            }
+
+            // Geometría y altura de montaje según el elemento
+            let geoBloque, yCentro, alturaTope;
+            if (esViga) {
+                const peralte    = mod.peralte     ?? 0.4;
+                const alturaBase = mod.altura_base ?? Math.max(0, alto - peralte);
+                geoBloque  = new THREE.BoxGeometry(ancho, peralte, largo);
+                yCentro    = alturaBase + peralte / 2;
+                alturaTope = alturaBase + peralte;
+            } else if (esColumna && mod.forma === 'redonda') {
+                const radio = Math.max(ancho, largo) / 2;
+                geoBloque  = new THREE.CylinderGeometry(radio, radio, alto, 24);
+                yCentro    = alto / 2;
+                alturaTope = alto;
+            } else {
+                geoBloque  = new THREE.BoxGeometry(ancho, alto, largo);
+                yCentro    = alto / 2;
+                alturaTope = alto;
+            }
+
+            const bloque = new THREE.Mesh(geoBloque, matBloque);
+            bloque.position.set(x, yCentro, z);
             bloque.castShadow = !esVidrio;
             bloque.receiveShadow = true;
+            bloque.userData = { moduloId: mod.id, tipoEstructura: mod.tipo };
             scene.add(bloque);
 
             const canvas2dP = document.createElement('canvas');
             canvas2dP.width = 256; canvas2dP.height = 64;
             const ctxP = canvas2dP.getContext('2d');
-            ctxP.fillStyle = esVidrio ? 'rgba(56,189,248,0.85)' : 'rgba(120,113,108,0.85)';
+            ctxP.fillStyle = esVidrio ? 'rgba(56,189,248,0.85)'
+                           : esColumna ? 'rgba(168,162,158,0.9)'
+                           : esViga    ? 'rgba(146,124,88,0.9)'
+                           : 'rgba(120,113,108,0.85)';
             ctxP.roundRect(4, 4, 248, 56, 12);
             ctxP.fill();
             ctxP.fillStyle = 'white';
@@ -5370,7 +5738,7 @@ function cargarDesdePlano(modelo3d) {
             ctxP.fillText(mod.nombre, 128, 40);
             const texP = new THREE.CanvasTexture(canvas2dP);
             const spriteP = new THREE.Sprite(new THREE.SpriteMaterial({ map: texP, transparent: true }));
-            spriteP.position.set(x, alto + 0.35, z);
+            spriteP.position.set(x, alturaTope + 0.35, z);
             spriteP.scale.set(2.0, 0.5, 1);
             scene.add(spriteP);
             return; // no piso, no paredes huecas, no sigue con el resto del módulo
@@ -5426,25 +5794,75 @@ function cargarDesdePlano(modelo3d) {
             { id:'este',  horizontal:false, ini: z-largo/2, fin: z+largo/2, posPerp: x+ancho/2 },
         ];
 
+        // ── ¿Qué tramos de cada lado dan al EXTERIOR? ────────────────────
+        // Un tramo es interior si otro cuarto lo está tocando (aparece en
+        // paredes_compartidas); todo lo demás da a la calle y por lo tanto
+        // lleva acabado de FACHADA y muro más grueso.
+        const contactoPorLado = { norte:[], sur:[], oeste:[], este:[] };
+        paredes_compartidas.forEach(pc => {
+            const off = (pc.lado === 'norte' || pc.lado === 'sur') ? offsetX : offsetZ;
+            if (pc.modulo_a === mod.id)      contactoPorLado[pc.lado].push([pc.ini - off, pc.fin - off]);
+            else if (pc.modulo_b === mod.id) contactoPorLado[opuestoLado[pc.lado]].push([pc.ini - off, pc.fin - off]);
+        });
+        const dirFuera = { norte:-1, sur:1, oeste:-1, este:1 };
+
         paredesConfig.forEach(p => {
             if ((mod.paredes_eliminadas || []).includes(p.id)) return; // eliminada manualmente por el usuario
-            const segmentos = restarIntervalos(p.ini, p.fin, huecosPorLado[p.id]);
-            segmentos.forEach(([sIni, sFin]) => {
+            const huecos    = huecosPorLado[p.id];
+            const contactos = contactoPorLado[p.id];
+            // interior = lo que toca a otro cuarto, menos los vanos
+            const segInterior = [];
+            contactos.forEach(([cIni, cFin]) => {
+                restarIntervalos(cIni, cFin, huecos).forEach(s => segInterior.push(s));
+            });
+            // exterior = todo el lado, menos los contactos, menos los vanos
+            const segExterior = restarIntervalos(p.ini, p.fin, contactos.concat(huecos));
+
+            const construirSegmento = ([sIni, sFin], esExterior) => {
                 const largoSeg = sFin - sIni;
                 const centro   = (sIni + sFin) / 2;
+                const grueso   = (esExterior && configEnvolvente.fachada)
+                    ? (configEnvolvente.gruesoFachada || 0.20)
+                    : gruesoPared;
+                // Se corre el muro hacia afuera para que la cara INTERIOR del
+                // cuarto quede exactamente donde estaba: el cuarto no se achica
+                // por engrosar la fachada.
+                const desplaz = dirFuera[p.id] * (grueso / 2 - gruesoPared / 2);
+                const posPerp = p.posPerp + desplaz;
                 const geo = p.horizontal
-                    ? new THREE.BoxGeometry(largoSeg, alto, gruesoPared)
-                    : new THREE.BoxGeometry(gruesoPared, alto, largoSeg);
+                    ? new THREE.BoxGeometry(largoSeg, alto, grueso)
+                    : new THREE.BoxGeometry(grueso, alto, largoSeg);
                 const pared = new THREE.Mesh(geo, matPared.clone());
-                if (p.horizontal) pared.position.set(centro, alto/2, p.posPerp);
-                else               pared.position.set(p.posPerp, alto/2, centro);
+                if (p.horizontal) pared.position.set(centro, alto/2, posPerp);
+                else               pared.position.set(posPerp, alto/2, centro);
                 pared.castShadow = true;
                 pared.receiveShadow = true;
-                pared.userData = { esPared: true, moduloId: mod.id, lado: p.id };
+                pared.userData = { esPared: true, moduloId: mod.id, lado: p.id, esExterior };
                 pared.material.emissive = new THREE.Color(0x000000);
                 scene.add(pared);
                 paredesInteractivas.push(pared);
-            });
+
+                // ACABADO DE FACHADA — una lámina delgada pegada a la cara que
+                // da a la calle. Va aparte del muro para no romper el hover ni
+                // el "eliminar muro", que esperan un material simple.
+                if (esExterior && configEnvolvente.fachada) {
+                    const esp = 0.025;
+                    const geoF = p.horizontal
+                        ? new THREE.BoxGeometry(largoSeg, alto, esp)
+                        : new THREE.BoxGeometry(esp, alto, largoSeg);
+                    const revoque = new THREE.Mesh(geoF, crearMaterialFachada());
+                    const perpF = posPerp + dirFuera[p.id] * (grueso / 2 + esp / 2);
+                    if (p.horizontal) revoque.position.set(centro, alto/2, perpF);
+                    else               revoque.position.set(perpF, alto/2, centro);
+                    revoque.castShadow = true;
+                    revoque.receiveShadow = true;
+                    revoque.userData = { esFachada: true, moduloId: mod.id, lado: p.id };
+                    scene.add(revoque);
+                }
+            };
+
+            segInterior.forEach(s => construirSegmento(s, false));
+            segExterior.forEach(s => construirSegmento(s, true));
 
             // DINTEL: los vanos tipo "puerta" llevan un pedazo de pared encima
             // (de 2.1m hasta el techo). Los tipo "arco" van de piso a techo y
@@ -5469,6 +5887,21 @@ function cargarDesdePlano(modelo3d) {
             });
         });
 
+        // ── TECHO (cielo raso) del módulo ────────────────────────────────
+        // Antes el plano se generaba sin techo: al entrar con la cámara
+        // interior se veía el cielo de la escena. Ahora cada cuarto tiene su
+        // losa, oculta por defecto para no tapar la vista en planta.
+        const techo = new THREE.Mesh(
+            new THREE.BoxGeometry(ancho, 0.08, largo),
+            crearMaterialTecho()
+        );
+        techo.position.set(x, alto + 0.04, z);
+        techo.receiveShadow = true;
+        techo.visible = !!configEnvolvente.techos;
+        techo.userData = { esTecho: true, moduloId: mod.id, moduloNombre: mod.nombre };
+        scene.add(techo);
+        techosPlanta.push(techo);
+
         // Etiqueta flotante del nombre del módulo
         // (usamos un sprite simple con canvas)
         const canvas2d = document.createElement('canvas');
@@ -5488,16 +5921,104 @@ function cargarDesdePlano(modelo3d) {
         scene.add(sprite);
     });
 
+    // ── MARCOS Y HOJAS DE PUERTA ─────────────────────────────────────────
+    // Se construyen en una pasada aparte porque un vano pertenece a DOS
+    // módulos: si se hiciera dentro del bucle saldría la puerta duplicada.
+    // El grupo se arma en un eje local (el vano siempre corre sobre +X local)
+    // y luego se rota para pegarlo a la pared que le toca.
+    const signoDentroLocal = { norte:1, sur:-1, oeste:-1, este:1 };
+    vanosDelPlano.forEach(v => {
+        if (v.tipo !== 'puerta' && v.tipo !== 'vano') return;
+        const a = modulos.find(m => m.id === v.modulo_a);
+        if (!a) return;
+
+        const horizontal = (v.lado === 'norte' || v.lado === 'sur');
+        let wx, wz;
+        if (v.lado === 'norte')      { wx = v.centro - offsetX; wz = a.z - offsetZ; }
+        else if (v.lado === 'sur')   { wx = v.centro - offsetX; wz = a.z + a.largo - offsetZ; }
+        else if (v.lado === 'oeste') { wx = a.x - offsetX;      wz = v.centro - offsetZ; }
+        else                         { wx = a.x + a.ancho - offsetX; wz = v.centro - offsetZ; }
+
+        const W = v.ancho;
+        const H = v.alto || 2.1;
+        const grupo = new THREE.Group();
+        grupo.position.set(wx, 0, wz);
+        if (!horizontal) grupo.rotation.y = -Math.PI / 2;   // local +X → world +Z
+        scene.add(grupo);
+
+        // MARCO — dos jambas y el cabezal. Esto es lo que hace que un hueco
+        // se lea como un vano terminado y no como un agujero en el muro.
+        const matMarco = new THREE.MeshStandardMaterial({ color:0x8B6914, roughness:0.55, metalness:0.0 });
+        const espMarco = 0.06, fondoMarco = 0.16;
+        [-1, 1].forEach(s => {
+            const jamba = new THREE.Mesh(new THREE.BoxGeometry(espMarco, H, fondoMarco), matMarco);
+            jamba.position.set(s * (W/2 + espMarco/2), H/2, 0);
+            jamba.castShadow = true;
+            grupo.add(jamba);
+        });
+        const cabezal = new THREE.Mesh(new THREE.BoxGeometry(W + espMarco*2, espMarco, fondoMarco), matMarco);
+        cabezal.position.set(0, H + espMarco/2, 0);
+        cabezal.castShadow = true;
+        grupo.add(cabezal);
+
+        if (v.tipo !== 'puerta') return;   // 'vano' se queda solo con el marco
+
+        // HOJA — cuelga de un pivote puesto en la bisagra, que es lo que
+        // permite abrirla y cerrarla girando el pivote, no la hoja.
+        const bisagraIzq = (v.bisagra || 'izq') === 'izq';
+        const pivote = new THREE.Group();
+        pivote.position.set(bisagraIzq ? -W/2 : W/2, 0, 0);
+        grupo.add(pivote);
+
+        const anchoHoja = W - 0.02;
+        const altoHoja  = H - 0.03;
+        const matHoja   = new THREE.MeshStandardMaterial({ color:0x6B4423, roughness:0.6, metalness:0.0 });
+        const hoja = new THREE.Mesh(new THREE.BoxGeometry(anchoHoja, altoHoja, 0.045), matHoja);
+        hoja.position.set((bisagraIzq ? 1 : -1) * anchoHoja/2, altoHoja/2, 0);
+        hoja.castShadow = true;
+        hoja.receiveShadow = true;
+        pivote.add(hoja);
+
+        // Entrepaños tallados, para que no parezca una tabla lisa
+        const matPanel = new THREE.MeshStandardMaterial({ color:0x5A3A1D, roughness:0.65 });
+        [0.30, 0.68].forEach(f => {
+            const panel = new THREE.Mesh(new THREE.BoxGeometry(anchoHoja*0.66, altoHoja*0.28, 0.008), matPanel);
+            panel.position.set(hoja.position.x, altoHoja*f, 0.024);
+            pivote.add(panel);
+        });
+
+        // Manija sobre el canto libre
+        const matManija = new THREE.MeshStandardMaterial({ color:0xD4AF37, metalness:0.75, roughness:0.28 });
+        const manija = new THREE.Mesh(new THREE.SphereGeometry(0.032, 12, 12), matManija);
+        manija.position.set((bisagraIzq ? 1 : -1) * (anchoHoja - 0.09), 1.02, 0.045);
+        pivote.add(manija);
+
+        // Hacia dónde barre. 'dentro' = hacia el cuarto A (el dueño del lado).
+        const haciaDentro = (v.sentido || 'dentro') !== 'fuera';
+        const signoZ = signoDentroLocal[v.lado] * (haciaDentro ? 1 : -1);
+        const angMax = (bisagraIzq ? -1 : 1) * signoZ * Math.PI / 2;
+
+        const t = (v.abierta === false ? 0 : (v.anguloApertura ?? 75)) / 90;
+        pivote.rotation.y = angMax * t;
+
+        hoja.userData   = { esPuerta: true, vanoId: v.id };
+        manija.userData = { esPuerta: true, vanoId: v.id };
+        puertasPlanta.push({ vanoId: v.id, pivote, angMax, meshes: [hoja, manija] });
+    });
+
+    // ── CUBIERTA (lo que se ve por encima desde afuera) ──────────────────
+    construirCubierta(maxX, maxZ, offsetX, offsetZ, altoPiso, modulos);
+
     // Actualizar estado con dimensiones del plano completo (para cámara)
     estado.ancho = maxX;
     estado.largo = maxZ;
     estado.alto  = altoPiso;
 
     // Estadísticas reales: suma de áreas de módulos + paredes efectivamente construidas (por segmento real)
-    const areaPiso = modulos.reduce((sum, m) => sum + m.ancho * m.largo, 0);
+    const areaPiso = modulos.reduce((sum, m) => sum + (esCuarto(m.tipo) ? m.ancho * m.largo : 0), 0);
     let areaParedes = 0, perimetro = 0;
     modulos.forEach(mod => {
-        if (mod.tipo === 'pared' || mod.tipo === 'vidrio') return;
+        if (!esCuarto(mod.tipo)) return;
         const huecosPorLado = { norte:[], sur:[], oeste:[], este:[] };
         const opuesto = { norte:'sur', sur:'norte', este:'oeste', oeste:'este' };
         paredes_compartidas.forEach(pc => {
@@ -5546,6 +6067,145 @@ function cargarDesdePlano(modelo3d) {
 
     mostrarToast(`🏠 Plano cargado — ${modulos.length} espacios`);
 }
+
+// ── CUBIERTA ─────────────────────────────────────────────────────────────
+// El "techo" es el cielo raso que se ve desde adentro; la CUBIERTA es lo que
+// remata el proyecto por fuera. Se arma sobre la huella real de los cuartos.
+function construirCubierta(maxX, maxZ, offsetX, offsetZ, altoPiso, modulos) {
+    cubiertaPlanta.forEach(m => scene.remove(m));
+    cubiertaPlanta = [];
+    if (configEnvolvente.cubierta === 'ninguna') return;
+
+    const cuartos = modulos.filter(m => esCuarto(m.tipo));
+    if (!cuartos.length) return;
+    const alero = 0.4;
+    const matCub = new THREE.MeshStandardMaterial({
+        color: configEnvolvente.cubierta === 'dos_aguas' ? 0x8C3B2A : 0xA8A29E,
+        roughness: 0.88, metalness: 0.0, side: THREE.DoubleSide
+    });
+
+    if (configEnvolvente.cubierta === 'losa') {
+        // Placa plana sobre cada cuarto — terraza o placa de entrepiso
+        cuartos.forEach(mod => {
+            const alto = mod.alto || altoPiso;
+            const losa = new THREE.Mesh(
+                new THREE.BoxGeometry(mod.ancho + alero, 0.18, mod.largo + alero),
+                matCub
+            );
+            losa.position.set(
+                mod.x - offsetX + mod.ancho/2,
+                alto + 0.17,
+                mod.z - offsetZ + mod.largo/2
+            );
+            losa.castShadow = true;
+            losa.receiveShadow = true;
+            scene.add(losa);
+            cubiertaPlanta.push(losa);
+        });
+        return;
+    }
+
+    // Dos aguas sobre la huella completa del proyecto
+    const ancho = maxX + alero * 2;
+    const largo = maxZ + alero * 2;
+    const altoMax = Math.max(...cuartos.map(m => m.alto || altoPiso));
+    const altoCumbrera = Math.min(2.2, largo * 0.22);
+    const pendiente = Math.atan2(altoCumbrera, largo / 2);
+    const largoFaldon = Math.sqrt((largo/2)**2 + altoCumbrera**2);
+
+    [1, -1].forEach(s => {
+        const faldon = new THREE.Mesh(new THREE.BoxGeometry(ancho, 0.12, largoFaldon), matCub);
+        faldon.position.set(0, altoMax + altoCumbrera/2 + 0.1, s * largo/4);
+        faldon.rotation.x = -s * pendiente;
+        faldon.castShadow = true;
+        faldon.receiveShadow = true;
+        scene.add(faldon);
+        cubiertaPlanta.push(faldon);
+    });
+
+    // Culatas (los triángulos de los extremos que cierran el techo)
+    [1, -1].forEach(s => {
+        const forma = new THREE.Shape();
+        forma.moveTo(-largo/2, 0);
+        forma.lineTo( largo/2, 0);
+        forma.lineTo(0, altoCumbrera);
+        forma.lineTo(-largo/2, 0);
+        const culata = new THREE.Mesh(
+            new THREE.ShapeGeometry(forma),
+            new THREE.MeshStandardMaterial({ color: 0xD9CFC2, roughness: 0.9, side: THREE.DoubleSide })
+        );
+        culata.position.set(s * (maxX/2), altoMax, 0);
+        culata.rotation.y = Math.PI/2;
+        scene.add(culata);
+        cubiertaPlanta.push(culata);
+    });
+}
+
+// ── CONTROLES DE ENVOLVENTE ──────────────────────────────────────────────
+function cambiarEnvolvente(campo, valor) {
+    if (campo === 'techos')  configEnvolvente.techos  = !configEnvolvente.techos;
+    else                     configEnvolvente[campo]  = valor;
+
+    if (campo === 'techos') {
+        techosPlanta.forEach(t => { t.visible = configEnvolvente.techos; });
+        mostrarToast(configEnvolvente.techos ? '⬜ Techos visibles' : '👁️ Techos ocultos — vista en planta');
+    } else if (campo === 'materialTecho' || campo === 'colorTecho') {
+        techosPlanta.forEach(t => { t.material = crearMaterialTecho(); });
+    } else {
+        // Fachada, grosor y cubierta cambian la geometría: hay que rearmar
+        mostrarToast('🔄 Vuelve a generar el 3D para aplicar el cambio de fachada');
+    }
+    sincronizarUIEnvolvente();
+}
+
+function sincronizarUIEnvolvente() {
+    const set = (id, prop, val) => { const el = document.getElementById(id); if (el) el[prop] = val; };
+    set('envTechos', 'textContent', configEnvolvente.techos ? '⬜ Techos: visibles' : '⬜ Techos: ocultos');
+    set('envMaterialTecho',   'value', configEnvolvente.materialTecho);
+    set('envColorTecho',      'value', configEnvolvente.colorTecho);
+    set('envFachadaActiva',   'checked', !!configEnvolvente.fachada);
+    set('envMaterialFachada', 'value', configEnvolvente.materialFachada);
+    set('envColorFachada',    'value', configEnvolvente.colorFachada);
+    set('envCubierta',        'value', configEnvolvente.cubierta);
+}
+
+// ── ABRIR/CERRAR PUERTAS TOCÁNDOLAS EN EL 3D ─────────────────────────────
+function animarPuerta(p, destino) {
+    const inicio = p.pivote.rotation.y;
+    const t0 = performance.now();
+    const DUR = 420;
+    (function paso(now) {
+        const k = Math.min(1, (now - t0) / DUR);
+        const suave = k < 0.5 ? 2*k*k : 1 - Math.pow(-2*k + 2, 2) / 2;  // ease in-out
+        p.pivote.rotation.y = inicio + (destino - inicio) * suave;
+        if (k < 1) requestAnimationFrame(paso);
+    })(t0);
+}
+
+function togglePuerta(vanoId) {
+    const p = puertasPlanta.find(x => x.vanoId === vanoId);
+    if (!p) return;
+    const v = vanosPlanta.find(x => x.id === vanoId);
+    const estabaAbierta = Math.abs(p.pivote.rotation.y) > 0.05;
+    const ang = v ? (v.anguloApertura ?? 75) : 75;
+    animarPuerta(p, estabaAbierta ? 0 : p.angMax * (ang / 90));
+    if (v) v.abierta = !estabaAbierta;
+    mostrarToast(estabaAbierta ? '🚪 Puerta cerrada' : '🚪 Puerta abierta');
+    if (vanoSeleccionado && vanoSeleccionado.id === vanoId) renderPanelVano();
+}
+
+canvas.addEventListener('click', (e) => {
+    // No interferir con los modos que ya usan el clic (elegir/eliminar muro,
+    // mover mueble, dibujar recorrido)
+    if (modoElegirPared || modoEliminarPared || modoMover || modoDibujo3D || modoArrastrarCamara) return;
+    if (!puertasPlanta.length) return;
+    const r = canvas.getBoundingClientRect();
+    mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    raycaster.setFromCamera(mouse, camera);
+    const objetivos = puertasPlanta.flatMap(p => p.meshes);
+    const hits = raycaster.intersectObjects(objetivos, false);
+    if (hits.length) togglePuerta(hits[0].object.userData.vanoId);
+});
 
 // Verificar si hay ?plano=ID en la URL al cargar
 (async () => {
