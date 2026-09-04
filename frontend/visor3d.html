@@ -217,7 +217,40 @@
 </div>
 <!-- TOOLBAR EDITOR PLANTA — visible solo en pestaña planta -->
 <div id="toolbarPlanta" style="display:none;position:fixed;top:100px;left:0;width:200px;height:auto;flex-direction:column;z-index:500;background:var(--oscuro2);border-right:1px solid rgba(124,58,237,0.2);padding:12px;gap:8px;overflow-y:auto;max-height:calc(100vh - 100px);">
-    <div style="font-size:11px;font-weight:700;color:#A78BFA;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;padding-bottom:8px;border-bottom:1px solid rgba(124,58,237,0.2);">➕ Módulos</div>
+    <!-- NIVEL -->
+    <div style="padding-bottom:8px;border-bottom:1px solid rgba(124,58,237,0.2);">
+        <div style="font-size:11px;font-weight:700;color:#A78BFA;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">🏢 Nivel</div>
+        <div style="display:flex;gap:4px;align-items:center;">
+            <button onclick="cambiarNivel(-1)" style="padding:5px 9px;border-radius:7px;background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;font-size:12px;font-weight:700;cursor:pointer;">◀</button>
+            <div id="nivelEtiqueta" style="flex:1;text-align:center;font-size:11.5px;font-weight:700;color:var(--texto);">Piso 1 de 1</div>
+            <button onclick="cambiarNivel(1)" style="padding:5px 9px;border-radius:7px;background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;font-size:12px;font-weight:700;cursor:pointer;">▶</button>
+        </div>
+        <div style="display:flex;gap:4px;margin-top:5px;">
+            <button onclick="agregarNivel()" style="flex:1;padding:5px;border-radius:7px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);color:#6EE7B7;font-size:10.5px;font-weight:700;cursor:pointer;">➕ Piso</button>
+            <button onclick="duplicarNivel()" style="flex:1;padding:5px;border-radius:7px;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.3);color:#7DD3FC;font-size:10.5px;font-weight:700;cursor:pointer;">⧉ Copiar</button>
+        </div>
+        <label style="font-size:10px;color:var(--gris);text-transform:uppercase;margin-top:6px;display:block;">Altura entre pisos (m)</label>
+        <input type="number" id="inpEntrepiso" min="2" max="6" step="0.1" value="2.8" oninput="alturaEntrepiso = parseFloat(this.value) || 2.8"
+            style="width:100%;background:var(--oscuro);border:1px solid rgba(124,58,237,0.2);border-radius:7px;padding:5px 8px;color:var(--texto);font-size:12px;margin-top:3px;outline:none;">
+    </div>
+
+    <!-- CAPA -->
+    <div style="display:flex;gap:4px;padding-bottom:8px;border-bottom:1px solid rgba(124,58,237,0.2);">
+        <button id="capaPlanta" onclick="cambiarCapa('planta')" style="flex:1;padding:6px 2px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid #7C3AED;background:rgba(124,58,237,0.3);color:#fff;">📐 Planta</button>
+        <button id="capaTecho"  onclick="cambiarCapa('techo')"  style="flex:1;padding:6px 2px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid rgba(148,163,184,0.3);background:rgba(255,255,255,0.04);color:var(--gris);">⬜ Techo</button>
+    </div>
+
+    <!-- FIGURAS DE TECHO — solo visibles en la capa de techo -->
+    <div id="grupoTecho" style="display:none;flex-direction:column;gap:6px;">
+        <div style="font-size:11px;font-weight:700;color:#C084FC;text-transform:uppercase;letter-spacing:0.05em;">⬜ Figuras de cielo raso</div>
+        <button onclick="agregarPlafon('rect')"    style="background:rgba(192,132,252,0.15);border:1px solid rgba(192,132,252,0.35);color:#E9D5FF;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">▭ Bandeja rectangular</button>
+        <button onclick="agregarPlafon('circulo')" style="background:rgba(192,132,252,0.15);border:1px solid rgba(192,132,252,0.35);color:#E9D5FF;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">⬤ Plafón redondo</button>
+        <button onclick="agregarPlafon('L')"       style="background:rgba(192,132,252,0.15);border:1px solid rgba(192,132,252,0.35);color:#E9D5FF;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">⌐ Figura en L</button>
+        <div style="font-size:10px;color:var(--gris);line-height:1.5;">Arrástralos y estíralos igual que un cuarto. El <b>descuelgue</b> es cuánto bajan del techo.</div>
+    </div>
+
+    <div id="grupoPlanta" style="display:flex;flex-direction:column;gap:8px;">
+    <div style="font-size:11px;font-weight:700;color:#A78BFA;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">➕ Módulos</div>
     <button onclick="rotarModulo()" style="background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🔄 Rotar</button>
     <button onclick="agregarModulo('sala')"       style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#93C5FD;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🛋️ Sala</button>
     <button onclick="agregarModulo('cocina')"     style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:#6EE7B7;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🍳 Cocina</button>
@@ -241,6 +274,7 @@
         <div style="font-size:10.5px;font-weight:700;color:#22C55E;text-transform:uppercase;margin-bottom:4px;">🚪 Vanos</div>
         <div style="font-size:10.5px;color:var(--gris);line-height:1.5;">Cuando dos zonas se tocan aparece un vano de 90cm sobre la pared. Haz clic en la barra para moverlo, cambiar su ancho, volverlo puerta con hoja, o agregar otro.</div>
     </div>
+    </div><!-- /grupoPlanta -->
     <!-- ENVOLVENTE: techo interior, fachada exterior y cubierta -->
     <div style="border-top:1px solid rgba(56,189,248,0.2);margin-top:4px;padding-top:8px;display:flex;flex-direction:column;gap:6px;">
         <div style="font-size:10.5px;font-weight:700;color:#7DD3FC;text-transform:uppercase;letter-spacing:0.05em;">🏠 Techos y fachada</div>
@@ -477,6 +511,19 @@
                 <input type="number" id="propPeralte" min="0.1" max="1.5" step="0.05" value="0.4" oninput="actualizarPropModulo()"
                     style="width:100%;background:var(--oscuro);border:1px solid rgba(146,124,88,0.35);border-radius:8px;padding:8px 12px;color:var(--texto);font-size:14px;margin-top:4px;outline:none;">
                 <div style="font-size:10.5px;color:var(--gris);margin-top:6px;line-height:1.5;">Ancho = sección de la viga. Largo = la luz que cubre. Si base + peralte da igual al alto del piso, queda pegada al techo.</div>
+            </div>
+            <!-- Solo para PLAFÓN: cuánto baja del techo -->
+            <div id="contPlafon" style="display:none;">
+                <label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;">Descuelgue (m)</label>
+                <input type="number" id="propDescuelgue" min="0.05" max="1.2" step="0.05" value="0.25" oninput="actualizarPropModulo()"
+                    style="width:100%;background:var(--oscuro);border:1px solid rgba(192,132,252,0.35);border-radius:8px;padding:8px 12px;color:var(--texto);font-size:14px;margin-top:4px;outline:none;">
+                <label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;margin-top:8px;display:block;">Figura</label>
+                <select id="propFormaPlafon" onchange="actualizarPropModulo()"
+                    style="width:100%;background:var(--oscuro);border:1px solid rgba(192,132,252,0.35);border-radius:8px;padding:8px 12px;color:var(--texto);font-size:13px;margin-top:4px;outline:none;">
+                    <option value="rect">Rectangular</option>
+                    <option value="circulo">Redondo</option>
+                    <option value="L">En L</option>
+                </select>
             </div>
             <!-- Solo para COLUMNA: sección cuadrada o redonda -->
             <div id="contColumna" style="display:none;">
@@ -5110,15 +5157,35 @@ let moduloSeleccionado = null;
 let dragging = false;
 let dragOffsetX = 0, dragOffsetZ = 0;
 const ESCALA = 40; // píxeles por metro
+// ── NIVELES Y CAPAS ──────────────────────────────────────────────────────
+// Un proyecto puede tener varios pisos (nivel 0, 1, 2...) y cada nivel tiene
+// dos capas de dibujo: la PLANTA (cuartos, muros, estructura) y el TECHO
+// (plafones y bandejas de cielo raso). Los elementos de techo viven en el
+// mismo arreglo modulosPlanta, así que heredan gratis el arrastre, el
+// redimensionar, el panel de propiedades y el borrar que ya funcionaban.
+let nivelActivo     = 0;
+let capaActiva      = 'planta';   // 'planta' | 'techo'
+let nivelesTotales  = 1;
+let alturaEntrepiso = 2.80;       // alto libre + espesor de losa, en metros
+
+function capaDe(m)  { return m.capa  || 'planta'; }
+function nivelDe(m) { return m.nivel || 0; }
+
+// Lo que se puede tocar ahora mismo: solo la capa y el nivel activos. Sin
+// esto, arrastrar en el piso 2 movería cosas del piso 1 que están debajo.
+function modulosEditables() {
+    return modulosPlanta.filter(m => capaDe(m) === capaActiva && nivelDe(m) === nivelActivo);
+}
+
 const COLORES_MODULO = {
     sala:'#3B82F6', cocina:'#10B981', habitacion:'#7C3AED',
     bano:'#F59E0B', pasillo:'#94A3B8', zona:'#EF4444', pared:'#78716C', vidrio:'#38BDF8',
-    columna:'#A8A29E', viga:'#927C58'
+    columna:'#A8A29E', viga:'#927C58', plafon:'#C084FC'
 };
 const EMOJIS_MODULO = {
     sala:'🛋️', cocina:'🍳', habitacion:'🛏️',
     bano:'🚿', pasillo:'🚶', zona:'📦', pared:'🧱', vidrio:'🪟',
-    columna:'🏛️', viga:'🪵'
+    columna:'🏛️', viga:'🪵', plafon:'⬜'
 };
 // ── ENVOLVENTE: techos interiores + fachada exterior ─────────────────────
 // "Techo" es el cielo raso de cada cuarto (se ve desde adentro).
@@ -5142,7 +5209,7 @@ let puertasPlanta  = [];   // { grupo, pivote, vano, angMax } — hojas abribles
 // Tipos que NO son un cuarto: no llevan piso, no abren vanos en el vecino y no
 // suman área habitable. Antes esta lista estaba escrita a mano en 5 sitios
 // distintos; centralizarla evita que columna/viga se cuelen en las estadísticas.
-const TIPOS_NO_CUARTO = ['pared', 'vidrio', 'columna', 'viga'];
+const TIPOS_NO_CUARTO = ['pared', 'vidrio', 'columna', 'viga', 'plafon'];
 const esCuarto = t => !TIPOS_NO_CUARTO.includes(t);
 
 function iniciarEditorPlanta() {
@@ -5177,6 +5244,79 @@ function iniciarEditorPlanta() {
         };
 }
 
+window.cambiarCapa = function(capa) {
+    capaActiva = capa;
+    moduloSeleccionado = null;
+    vanoSeleccionado   = null;
+    renderPanelVano();
+    document.getElementById('panelPropiedades').style.display = 'none';
+    const on  = (b) => { b.style.border='1px solid #7C3AED'; b.style.background='rgba(124,58,237,0.3)'; b.style.color='#fff'; };
+    const off = (b) => { b.style.border='1px solid rgba(148,163,184,0.3)'; b.style.background='rgba(255,255,255,0.04)'; b.style.color='var(--gris)'; };
+    const bp = document.getElementById('capaPlanta'), bt = document.getElementById('capaTecho');
+    capa === 'planta' ? (on(bp), off(bt)) : (on(bt), off(bp));
+    document.getElementById('grupoPlanta').style.display = capa === 'planta' ? 'flex' : 'none';
+    document.getElementById('grupoTecho').style.display  = capa === 'techo'  ? 'flex' : 'none';
+    dibujarPlanta();
+    actualizarListaModulos();
+};
+
+window.cambiarNivel = function(delta) {
+    const nuevo = nivelActivo + delta;
+    if (nuevo < 0) { mostrarToast('Ya estás en el primer piso'); return; }
+    if (nuevo >= nivelesTotales) { mostrarToast('No hay más pisos — usa "➕ Piso"'); return; }
+    nivelActivo = nuevo;
+    moduloSeleccionado = null;
+    document.getElementById('panelPropiedades').style.display = 'none';
+    refrescarEtiquetaNivel();
+    dibujarPlanta();
+    actualizarListaModulos();
+};
+
+window.agregarNivel = function() {
+    nivelesTotales++;
+    nivelActivo = nivelesTotales - 1;
+    refrescarEtiquetaNivel();
+    dibujarPlanta();
+    actualizarListaModulos();
+    mostrarToast(`🏢 Piso ${nivelActivo+1} creado — el de abajo se ve punteado para alinear`);
+};
+
+// Copiar el piso actual al siguiente. En un edificio los pisos tipo se
+// repiten, así que rehacerlos a mano sería absurdo.
+window.duplicarNivel = function() {
+    const origen = modulosPlanta.filter(m => nivelDe(m) === nivelActivo);
+    if (!origen.length) { mostrarToast('⚠️ Este piso está vacío'); return; }
+    nivelesTotales++;
+    const destino = nivelesTotales - 1;
+    origen.forEach(m => {
+        const copia = JSON.parse(JSON.stringify(m));
+        copia.id = Date.now() + Math.floor(Math.random()*10000);
+        copia.nivel = destino;
+        modulosPlanta.push(copia);
+    });
+    nivelActivo = destino;
+    refrescarEtiquetaNivel();
+    dibujarPlanta();
+    actualizarListaModulos();
+    mostrarToast(`⧉ Piso ${destino+1} copiado del ${destino} — ${origen.length} elementos`);
+};
+
+function refrescarEtiquetaNivel() {
+    const el = document.getElementById('nivelEtiqueta');
+    if (el) el.textContent = `Piso ${nivelActivo+1} de ${nivelesTotales}`;
+}
+
+window.agregarPlafon = function(forma) {
+    agregarModulo('plafon');
+    const m = modulosPlanta[modulosPlanta.length-1];
+    m.forma  = forma;
+    m.nombre = '⬜ ' + (forma === 'circulo' ? 'Plafón redondo' : forma === 'L' ? 'Plafón en L' : 'Bandeja');
+    if (forma === 'circulo') { m.ancho = 1.6; m.largo = 1.6; }
+    seleccionarModulo(m.id);
+    dibujarPlanta();
+    actualizarListaModulos();
+};
+
 function agregarModulo(tipo) {
     document.getElementById('plantaInstruccion').style.display = 'none';
     const id = Date.now();
@@ -5192,6 +5332,7 @@ function agregarModulo(tipo) {
         vidrio:  { ancho:0.15, largo:2.0 },
         columna: { ancho:0.30, largo:0.30 },
         viga:    { ancho:0.25, largo:4.00 },
+        plafon:  { ancho:2.50, largo:2.50 },
     };
     const med = MEDIDAS_DEFECTO[tipo] || { ancho:4, largo:4 };
     const nuevo = {
@@ -5202,7 +5343,14 @@ function agregarModulo(tipo) {
         largo: med.largo,
         alto:  2.6,
         px, pz,
+        nivel: nivelActivo,
+        capa:  tipo === 'plafon' ? 'techo' : 'planta',
     };
+    if (tipo === 'plafon') {
+        nuevo.forma      = 'rect';   // 'rect' | 'circulo' | 'L'
+        nuevo.descuelgue = 0.25;     // cuánto baja respecto al techo, en metros
+        nuevo.colorPared = '#F7F7F5';
+    }
     if (tipo === 'columna') {
         nuevo.forma = 'cuadrada';   // 'cuadrada' | 'redonda'
     }
@@ -5403,8 +5551,52 @@ function dibujarPlanta() {
         ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();
     }
 
-    // Módulos
+    // Trazar la silueta de un módulo según su forma. Los cuartos y la
+    // estructura son rectángulos; un plafón puede ser redondo o en L.
+    function trazarForma(m, pw, ph) {
+        ctx.beginPath();
+        if (m.forma === 'circulo') {
+            ctx.ellipse(m.px + pw/2, m.pz + ph/2, pw/2, ph/2, 0, 0, Math.PI*2);
+        } else if (m.forma === 'L') {
+            const cx = pw*0.5, cy = ph*0.5;
+            ctx.moveTo(m.px, m.pz);
+            ctx.lineTo(m.px + pw, m.pz);
+            ctx.lineTo(m.px + pw, m.pz + cy);
+            ctx.lineTo(m.px + cx, m.pz + cy);
+            ctx.lineTo(m.px + cx, m.pz + ph);
+            ctx.lineTo(m.px, m.pz + ph);
+            ctx.closePath();
+        } else if (m.tipo === 'columna' && m.forma === 'redonda') {
+            ctx.ellipse(m.px + pw/2, m.pz + ph/2, pw/2, ph/2, 0, 0, Math.PI*2);
+        } else {
+            ctx.roundRect(m.px, m.pz, pw, ph,
+                (m.tipo === 'columna' || m.tipo === 'viga') ? 2 : 6);
+        }
+    }
+
+    // FANTASMAS — lo que NO se está editando ahora se dibuja tenue, para poder
+    // alinearse contra ello sin poder tocarlo por accidente. Son dos cosas:
+    // el nivel de abajo (esencial para que los muros de un piso caigan sobre
+    // los del otro) y la otra capa del mismo nivel.
     modulosPlanta.forEach(m => {
+        const esActivo = capaDe(m) === capaActiva && nivelDe(m) === nivelActivo;
+        if (esActivo) return;
+        const esAbajo  = capaDe(m) === 'planta' && nivelDe(m) === nivelActivo - 1;
+        const esOtraCapa = nivelDe(m) === nivelActivo;
+        if (!esAbajo && !esOtraCapa) return;
+        const pw = m.ancho * ESCALA, ph = m.largo * ESCALA;
+        ctx.save();
+        ctx.globalAlpha = esAbajo ? 0.30 : 0.18;
+        ctx.strokeStyle = esAbajo ? '#94A3B8' : (COLORES_MODULO[m.tipo] || '#7C3AED');
+        ctx.lineWidth   = 1.5;
+        ctx.setLineDash(esAbajo ? [5, 4] : [2, 3]);
+        trazarForma(m, pw, ph);
+        ctx.stroke();
+        ctx.restore();
+    });
+
+    // Módulos de la capa y el nivel activos
+    modulosEditables().forEach(m => {
         const pw = m.ancho * ESCALA;
         const ph = m.largo * ESCALA;
         const selec = moduloSeleccionado && moduloSeleccionado.id === m.id;
@@ -5420,12 +5612,7 @@ function dibujarPlanta() {
         const esColumna2D = m.tipo === 'columna';
         const esViga2D    = m.tipo === 'viga';
         ctx.fillStyle = esColumna2D ? color + 'CC' : color + (selec ? '40' : '25');
-        ctx.beginPath();
-        if (esColumna2D && m.forma === 'redonda') {
-            ctx.ellipse(m.px + pw/2, m.pz + ph/2, pw/2, ph/2, 0, 0, Math.PI*2);
-        } else {
-            ctx.roundRect(m.px, m.pz, pw, ph, esColumna2D || esViga2D ? 2 : 6);
-        }
+        trazarForma(m, pw, ph);
         ctx.fill();
 
         // Borde
@@ -5455,7 +5642,10 @@ function dibujarPlanta() {
             ctx.fillText(m.nombre, m.px + pw/2, m.pz + ph/2 - 8);
             ctx.fillStyle = 'rgba(255,255,255,0.6)';
             ctx.font      = `${Math.min(11, pw/7)}px Segoe UI`;
-            ctx.fillText(`${m.ancho}m × ${m.largo}m`, m.px + pw/2, m.pz + ph/2 + 10);
+            const sub = m.tipo === 'plafon'
+                ? `${m.ancho}m × ${m.largo}m · baja ${(m.descuelgue ?? 0.25).toFixed(2)}m`
+                : `${m.ancho}m × ${m.largo}m`;
+            ctx.fillText(sub, m.px + pw/2, m.pz + ph/2 + 10);
         }
 
         // Handle de resize (esquina inf-der) — más grande para facilitar click
@@ -5471,7 +5661,9 @@ function dibujarPlanta() {
     // ── VANOS (puertas / pasos entre zonas) ──────────────────────────────
     // Se dibujan como una barra sobre la pared donde están. Verde = arco
     // (de piso a techo), naranja = puerta (con dintel encima).
-    vanosPlanta.forEach(v => {
+    (capaActiva === 'planta' ? vanosPlanta : []).forEach(v => {
+        const a = modulosPlanta.find(m => m.id === v.modulo_a);
+        if (a && nivelDe(a) !== nivelActivo) return;
         const geo = geometriaVanoEnPlano(v);
         if (!geo) return;
         const selec = vanoSeleccionado && vanoSeleccionado.id === v.id;
@@ -5592,7 +5784,7 @@ function onPlantaMouseDown(e) {
 
     // ¿Clic sobre un VANO? Se revisa ANTES que los módulos, porque el vano
     // vive sobre el borde de una zona y si no tendría prioridad el módulo.
-    const vanoClic = vanoEnPunto(mx, my);
+    const vanoClic = capaActiva === 'planta' ? vanoEnPunto(mx, my) : null;
     if (vanoClic) {
         seleccionarVano(vanoClic);
         vanoArrastrando = vanoClic;
@@ -5600,8 +5792,9 @@ function onPlantaMouseDown(e) {
     }
 
     // Verificar si clickeó el handle de resize (esquina inf-der)
-    for (let i = modulosPlanta.length - 1; i >= 0; i--) {
-        const m  = modulosPlanta[i];
+    const editables = modulosEditables();
+    for (let i = editables.length - 1; i >= 0; i--) {
+        const m  = editables[i];
         const pw = m.ancho * ESCALA;
         const ph = m.largo * ESCALA;
         const hx = m.px + pw;
@@ -5615,8 +5808,8 @@ function onPlantaMouseDown(e) {
     }
 
     // Buscar módulo clickeado
-    for (let i = modulosPlanta.length - 1; i >= 0; i--) {
-        const m  = modulosPlanta[i];
+    for (let i = editables.length - 1; i >= 0; i--) {
+        const m  = editables[i];
         const pw = m.ancho * ESCALA;
         const ph = m.largo * ESCALA;
         if (mx >= m.px && mx <= m.px + pw && my >= m.pz && my <= m.pz + ph) {
@@ -5680,7 +5873,7 @@ function onPlantaMouseMove(e) {
     // Cambiar cursor cerca del handle de resize
     const c = document.getElementById('canvasPlanta');
     let nearHandle = false;
-    for (const m of modulosPlanta) {
+    for (const m of modulosEditables()) {
         const hx = m.px + m.ancho * ESCALA;
         const hy = m.pz + m.largo * ESCALA;
         if (Math.abs(mx - hx) < 12 && Math.abs(my - hy) < 12) {
@@ -5721,8 +5914,14 @@ function seleccionarModulo(id) {
     // peralte); una columna solo necesita saber si es cuadrada o redonda.
     const esViga    = moduloSeleccionado.tipo === 'viga';
     const esColumna = moduloSeleccionado.tipo === 'columna';
+    const esPlafon  = moduloSeleccionado.tipo === 'plafon';
     document.getElementById('contViga').style.display    = esViga ? 'block' : 'none';
     document.getElementById('contColumna').style.display = esColumna ? 'block' : 'none';
+    document.getElementById('contPlafon').style.display  = esPlafon ? 'block' : 'none';
+    if (esPlafon) {
+        document.getElementById('propDescuelgue').value  = moduloSeleccionado.descuelgue ?? 0.25;
+        document.getElementById('propFormaPlafon').value = moduloSeleccionado.forma || 'rect';
+    }
     if (esViga) {
         document.getElementById('propAlturaBase').value = moduloSeleccionado.alturaBase ?? 2.2;
         document.getElementById('propPeralte').value    = moduloSeleccionado.peralte    ?? 0.4;
@@ -5786,9 +5985,52 @@ function calcularCementoArena(areaM2, espesorCm, proporcion) {
     return { bultosCemento, arenaM3: volumenArena };
 }
 
+// Concreto y acero de un elemento estructural. Las cuantías son las de una
+// vivienda de 1 a 3 pisos en Colombia; para algo más grande esto lo define un
+// calculista, así que se avisa.
+function calcularMaterialEstructura(m) {
+    const esViga = m.tipo === 'viga';
+    const altoEl = esViga ? (m.peralte ?? 0.40) : (m.alto || 2.6);
+    const esRedonda = !esViga && m.forma === 'redonda';
+    const seccion = esRedonda
+        ? Math.PI * Math.pow(Math.max(m.ancho, m.largo) / 2, 2)
+        : m.ancho * (esViga ? m.ancho : m.largo);
+    const volumen = esRedonda ? seccion * altoEl : seccion * (esViga ? m.largo : altoEl);
+
+    // Concreto de 3000 psi, dosificación 1:2:3 por volumen
+    const FACTOR = 1.54;                        // esponjamiento del material suelto
+    const bultos = Math.ceil(volumen * FACTOR / 6 * 1 / 0.04);
+    const arena  = volumen * FACTOR * 2 / 6;
+    const grava  = volumen * FACTOR * 3 / 6;
+    // Cuantía de acero típica: 80 kg/m³ en columnas, 110 en vigas
+    const acero  = volumen * (esViga ? 110 : 80);
+    // Formaleta: superficie lateral a encofrar
+    const perim  = esRedonda ? Math.PI * Math.max(m.ancho, m.largo) : 2 * (m.ancho + (esViga ? m.ancho : m.largo));
+    const formaleta = perim * (esViga ? m.largo : altoEl);
+    return { volumen, bultos, arena, grava, acero, formaleta };
+}
+
 function calcularMaterialModulo() {
     const cont = document.getElementById('calculoMaterialPiso');
     if (!cont || !moduloSeleccionado) return;
+
+    // Columnas y vigas no llevan piso: lo suyo es concreto, acero y formaleta.
+    if (moduloSeleccionado.tipo === 'columna' || moduloSeleccionado.tipo === 'viga') {
+        const r = calcularMaterialEstructura(moduloSeleccionado);
+        const esViga = moduloSeleccionado.tipo === 'viga';
+        cont.innerHTML = `
+            <div style="background:rgba(168,162,158,0.1);border:1px solid rgba(168,162,158,0.3);border-radius:10px;padding:10px;font-size:12px;">
+                <div style="font-weight:700;color:#D6D3D1;margin-bottom:4px;">🏗️ Material de ${esViga ? 'la viga' : 'la columna'}</div>
+                <div style="color:var(--texto);">Volumen de concreto: <b>${r.volumen.toFixed(3)} m³</b></div>
+                <div style="color:var(--texto);">Cemento: <b>${r.bultos} bulto${r.bultos===1?'':'s'} de 50kg</b></div>
+                <div style="color:var(--texto);">Arena: <b>${r.arena.toFixed(3)} m³</b> · Grava: <b>${r.grava.toFixed(3)} m³</b></div>
+                <div style="color:var(--texto);">Acero de refuerzo: <b>${r.acero.toFixed(1)} kg</b></div>
+                <div style="color:var(--texto);">Formaleta: <b>${r.formaleta.toFixed(2)} m²</b></div>
+                <div style="color:var(--gris);font-size:10px;margin-top:6px;line-height:1.5;">Concreto 3000 psi en dosificación 1:2:3 y cuantía de acero de ${esViga?'110':'80'} kg/m³, valores usuales en vivienda de 1 a 3 pisos. <b>El refuerzo real lo define un ingeniero calculista</b>; esto sirve para presupuestar, no para construir.</div>
+            </div>`;
+        return;
+    }
+
     const prodId = moduloSeleccionado.imagenPisoId;
     if (!prodId) { cont.innerHTML = ''; return; }
     const prod = (todosProductos || []).find(p => p.id === prodId);
@@ -5899,6 +6141,10 @@ function actualizarPropModulo() {
     if (moduloSeleccionado.tipo === 'columna') {
         moduloSeleccionado.forma = document.getElementById('propFormaColumna').value;
     }
+    if (moduloSeleccionado.tipo === 'plafon') {
+        moduloSeleccionado.descuelgue = parseFloat(document.getElementById('propDescuelgue').value) || 0.25;
+        moduloSeleccionado.forma      = document.getElementById('propFormaPlafon').value;
+    }
     dibujarPlanta();
 }
 
@@ -5921,8 +6167,10 @@ function eliminarModuloSeleccionado() {
 }
 
 function actualizarListaModulos() {
+    // Se recorta a lo que se está editando; ver la lista completa del edificio
+    // en un piso concreto solo confunde.
     const lista = document.getElementById('listaModulos');
-    lista.innerHTML = modulosPlanta.map(m => `
+    lista.innerHTML = modulosEditables().map(m => `
         <button onclick="seleccionarModulo(${m.id})"
             style="background:${moduloSeleccionado?.id===m.id?'rgba(124,58,237,0.3)':'rgba(124,58,237,0.1)'};
             border:1px solid rgba(124,58,237,${moduloSeleccionado?.id===m.id?'0.6':'0.25'});
@@ -5965,7 +6213,8 @@ function generarDesdePlanta() {
         for (let j = i+1; j < modulosPlanta.length; j++) {
             const a = modulosPlanta[i];
             const b = modulosPlanta[j];
-            if (!esCuarto(a.tipo) || !esCuarto(b.tipo)) continue; // pared/vidrio/columna/viga nunca abren un hueco en el cuarto vecino
+            if (!esCuarto(a.tipo) || !esCuarto(b.tipo)) continue; // pared/vidrio/columna/viga/plafón nunca abren un hueco en el cuarto vecino
+            if (nivelDe(a) !== nivelDe(b)) continue;               // dos cuartos en pisos distintos no comparten pared
 
             // Pared norte de A = sur de B (contacto en Z, tramo compartido en X)
             if (Math.abs(a.z - (b.z + b.largo)) < TOL_CONTACTO) {
@@ -6006,6 +6255,7 @@ function generarDesdePlanta() {
         vanosPlanta.push({
             id: 'v_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
             modulo_a: pc.modulo_a, modulo_b: pc.modulo_b, lado: pc.lado,
+            nivel: nivelDe(modulosPlanta.find(m => m.id === pc.modulo_a)) || 0,
             centro: (pc.ini + pc.fin) / 2,   // posición a lo largo de la pared, en metros
             ancho: anchoVano,
             // 'arco'   = paso libre de piso a techo
@@ -6041,10 +6291,15 @@ function generarDesdePlanta() {
             imagen_piso:    m.imagenPisoUrl || null,
             paredes_eliminadas: m.paredesEliminadas || [],
             // estructura
-            forma:       m.forma       || null,   // columna: 'cuadrada' | 'redonda'
+            forma:       m.forma       || null,   // columna: 'cuadrada'|'redonda' — plafón: 'rect'|'circulo'|'L'
             altura_base: m.alturaBase  ?? null,   // viga: desde el piso hasta su cara inferior
             peralte:     m.peralte     ?? null,   // viga: canto
+            descuelgue:  m.descuelgue  ?? null,   // plafón: cuánto baja del techo
+            nivel:       nivelDe(m),
+            capa:        capaDe(m),
         })),
+        niveles:          nivelesTotales,
+        altura_entrepiso: alturaEntrepiso,
         paredes_compartidas,
         vanos: vanosPlanta,
         // Envolvente del proyecto — techos interiores y tratamiento de fachada
@@ -6131,6 +6386,10 @@ function cargarDesdePlano(modelo3d) {
     const altoPiso = modelo3d.alto_piso || 2.6;
     const paredes_compartidas = modelo3d.paredes_compartidas || [];
     const vanosDelPlano       = modelo3d.vanos || [];
+    const hEntrepiso          = modelo3d.altura_entrepiso || 2.80;
+    // Cada nivel se levanta sobre el anterior. Todo lo que se dibuje de un
+    // módulo se desplaza por este valor, incluidas puertas y plafones.
+    const baseNivel = (mod) => (mod.nivel || 0) * hEntrepiso;
 
     // Calcular centro del plano para centrar en Three.js
     let maxX = 0, maxZ = 0;
@@ -6173,13 +6432,51 @@ function cargarDesdePlano(modelo3d) {
         const alto   = mod.alto || altoPiso;
         const color  = mod.color_pared || '#F5F5F5';
         const mat    = mod.material_piso || 'ceramica';
+        const baseY  = baseNivel(mod);
         if (esCuarto(mod.tipo)) {
-            modulosActuales3D.push({ id: mod.id, nombre: mod.nombre, cx: x, cz: z, ancho, largo, alto, materialPiso: mat, imagenPisoUrl: mod.imagen_piso || null });
+            modulosActuales3D.push({ id: mod.id, nombre: mod.nombre, cx: x, cz: z, ancho, largo, alto, baseY, nivel: mod.nivel || 0, materialPiso: mat, imagenPisoUrl: mod.imagen_piso || null });
         }
 
         const matPared = new THREE.MeshStandardMaterial({
             color: new THREE.Color(color), roughness: 0.85, metalness: 0.0
         });
+
+        // ── PLAFÓN / BANDEJA DE CIELO RASO ───────────────────────────────
+        // Cuelga del techo del cuarto que tenga debajo. Va aparte de la losa
+        // porque su gracia es justamente descolgarse de ella.
+        if (mod.tipo === 'plafon') {
+            const esp  = 0.10;
+            const desc = mod.descuelgue ?? 0.25;
+            const yBase = baseY + alto - desc;   // cara inferior del plafón
+            const matPlafon = new THREE.MeshStandardMaterial({
+                color: new THREE.Color(mod.color_pared || '#F7F7F5'),
+                roughness: 0.92, metalness: 0.0,
+            });
+            const grupoP = new THREE.Group();
+            if (mod.forma === 'circulo') {
+                const r = Math.max(ancho, largo) / 2;
+                const cil = new THREE.Mesh(new THREE.CylinderGeometry(r, r, esp, 40), matPlafon);
+                cil.position.set(0, 0, 0);
+                grupoP.add(cil);
+            } else if (mod.forma === 'L') {
+                // La L se arma con dos cajas: es más robusto que extruir una
+                // forma y basta para una bandeja de cielo raso.
+                const a1 = new THREE.Mesh(new THREE.BoxGeometry(ancho, esp, largo/2), matPlafon);
+                a1.position.set(0, 0, -largo/4);
+                const a2 = new THREE.Mesh(new THREE.BoxGeometry(ancho/2, esp, largo/2), matPlafon);
+                a2.position.set(-ancho/4, 0, largo/4);
+                grupoP.add(a1); grupoP.add(a2);
+            } else {
+                grupoP.add(new THREE.Mesh(new THREE.BoxGeometry(ancho, esp, largo), matPlafon));
+            }
+            grupoP.position.set(x, yBase + esp/2, z);
+            grupoP.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+            grupoP.userData = { tipoEstructura: 'plafon', moduloId: mod.id };
+            grupoP.visible = !!configEnvolvente.techos;
+            scene.add(grupoP);
+            techosPlanta.push(grupoP);
+            return;
+        }
 
         // ── Elementos que NO son cuartos: pared fija, divisor de vidrio,
         //    COLUMNA (piso a techo) y VIGA (cuelga del techo) ──────────────
@@ -6220,7 +6517,7 @@ function cargarDesdePlano(modelo3d) {
             }
 
             const bloque = new THREE.Mesh(geoBloque, matBloque);
-            bloque.position.set(x, yCentro, z);
+            bloque.position.set(x, baseY + yCentro, z);
             bloque.castShadow = !esVidrio;
             bloque.receiveShadow = true;
             bloque.userData = { moduloId: mod.id, tipoEstructura: mod.tipo };
@@ -6241,7 +6538,7 @@ function cargarDesdePlano(modelo3d) {
             ctxP.fillText(mod.nombre, 128, 40);
             const texP = new THREE.CanvasTexture(canvas2dP);
             const spriteP = new THREE.Sprite(new THREE.SpriteMaterial({ map: texP, transparent: true }));
-            spriteP.position.set(x, alturaTope + 0.35, z);
+            spriteP.position.set(x, baseY + alturaTope + 0.35, z);
             spriteP.scale.set(2.0, 0.5, 1);
             scene.add(spriteP);
             return; // no piso, no paredes huecas, no sigue con el resto del módulo
@@ -6251,7 +6548,7 @@ function cargarDesdePlano(modelo3d) {
 
         // Piso del módulo
         const piso = new THREE.Mesh(new THREE.BoxGeometry(ancho, 0.1, largo), matPiso);
-        piso.position.set(x, -0.05, z);
+        piso.position.set(x, baseY - 0.05, z);
         piso.receiveShadow = true;
         piso.userData = { moduloId: mod.id, moduloNombre: mod.nombre };
         scene.add(piso);
@@ -6336,8 +6633,8 @@ function cargarDesdePlano(modelo3d) {
                     ? new THREE.BoxGeometry(largoSeg, alto, grueso)
                     : new THREE.BoxGeometry(grueso, alto, largoSeg);
                 const pared = new THREE.Mesh(geo, matPared.clone());
-                if (p.horizontal) pared.position.set(centro, alto/2, posPerp);
-                else               pared.position.set(posPerp, alto/2, centro);
+                if (p.horizontal) pared.position.set(centro, baseY + alto/2, posPerp);
+                else               pared.position.set(posPerp, baseY + alto/2, centro);
                 pared.castShadow = true;
                 pared.receiveShadow = true;
                 pared.userData = { esPared: true, moduloId: mod.id, lado: p.id, esExterior };
@@ -6355,8 +6652,8 @@ function cargarDesdePlano(modelo3d) {
                         : new THREE.BoxGeometry(esp, alto, largoSeg);
                     const revoque = new THREE.Mesh(geoF, crearMaterialFachada());
                     const perpF = posPerp + dirFuera[p.id] * (grueso / 2 + esp / 2);
-                    if (p.horizontal) revoque.position.set(centro, alto/2, perpF);
-                    else               revoque.position.set(perpF, alto/2, centro);
+                    if (p.horizontal) revoque.position.set(centro, baseY + alto/2, perpF);
+                    else               revoque.position.set(perpF, baseY + alto/2, centro);
                     revoque.castShadow = true;
                     revoque.receiveShadow = true;
                     revoque.userData = { esFachada: true, moduloId: mod.id, lado: p.id };
@@ -6379,7 +6676,7 @@ function cargarDesdePlano(modelo3d) {
                     ? new THREE.BoxGeometry(largoD, altoDintel, gruesoPared)
                     : new THREE.BoxGeometry(gruesoPared, altoDintel, largoD);
                 const dintel = new THREE.Mesh(geoD, matPared.clone());
-                const yD = d.altoVano + altoDintel/2;
+                const yD = baseY + d.altoVano + altoDintel/2;
                 if (p.horizontal) dintel.position.set(centroD, yD, p.posPerp);
                 else               dintel.position.set(p.posPerp, yD, centroD);
                 dintel.castShadow = true;
@@ -6398,7 +6695,7 @@ function cargarDesdePlano(modelo3d) {
             new THREE.BoxGeometry(ancho, 0.08, largo),
             crearMaterialTecho()
         );
-        techo.position.set(x, alto + 0.04, z);
+        techo.position.set(x, baseY + alto + 0.04, z);
         techo.receiveShadow = true;
         techo.visible = !!configEnvolvente.techos;
         techo.userData = { esTecho: true, moduloId: mod.id, moduloNombre: mod.nombre };
@@ -6419,7 +6716,7 @@ function cargarDesdePlano(modelo3d) {
         ctx2d.fillText(mod.nombre, 128, 40);
         const tex = new THREE.CanvasTexture(canvas2d);
         const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
-        sprite.position.set(x, alto * 0.5, z);
+        sprite.position.set(x, baseY + alto * 0.5, z);
         sprite.scale.set(2.0, 0.5, 1);
         scene.add(sprite);
     });
@@ -6445,7 +6742,7 @@ function cargarDesdePlano(modelo3d) {
         const W = v.ancho;
         const H = v.alto || 2.1;
         const grupo = new THREE.Group();
-        grupo.position.set(wx, 0, wz);
+        grupo.position.set(wx, baseNivel(a), wz);
         if (!horizontal) grupo.rotation.y = -Math.PI / 2;   // local +X → world +Z
         scene.add(grupo);
 
@@ -6516,6 +6813,8 @@ function cargarDesdePlano(modelo3d) {
     estado.ancho = maxX;
     estado.largo = maxZ;
     estado.alto  = altoPiso;
+    const nivelesEnPlano = Math.max(1, ...modulos.map(m => (m.nivel || 0) + 1));
+    const altoTotal = (nivelesEnPlano - 1) * hEntrepiso + altoPiso;
 
     // Estadísticas reales: suma de áreas de módulos + paredes efectivamente construidas (por segmento real)
     const areaPiso = modulos.reduce((sum, m) => sum + (esCuarto(m.tipo) ? m.ancho * m.largo : 0), 0);
@@ -6550,9 +6849,9 @@ function cargarDesdePlano(modelo3d) {
     document.getElementById('panelPlanoInfo').style.display = 'block';
 
     // Centrar cámara sobre el plano completo
-    const distCam = Math.max(maxX, maxZ) * 1.5;
+    const distCam = Math.max(maxX, maxZ, altoTotal) * 1.5;
     camera.position.set(0, distCam * 0.8, distCam);
-    controls.target.set(0, altoPiso * 0.4, 0);
+    controls.target.set(0, altoTotal * 0.4, 0);
     controls.update();
 
     // Colocar la CÁMARA DE VIDEO dentro del primer módulo, visible de una vez
@@ -6579,8 +6878,13 @@ function construirCubierta(maxX, maxZ, offsetX, offsetZ, altoPiso, modulos) {
     cubiertaPlanta = [];
     if (configEnvolvente.cubierta === 'ninguna') return;
 
-    const cuartos = modulos.filter(m => esCuarto(m.tipo));
+    const nivelTope = Math.max(0, ...modulos.map(m => m.nivel || 0));
+    const hEnt = alturaEntrepiso || 2.80;
+    // Solo se cubre el último piso: una cubierta sobre cada nivel taparía los
+    // de arriba.
+    const cuartos = modulos.filter(m => esCuarto(m.tipo) && (m.nivel || 0) === nivelTope);
     if (!cuartos.length) return;
+    const baseTope = nivelTope * hEnt;
     const alero = 0.4;
     const matCub = new THREE.MeshStandardMaterial({
         color: configEnvolvente.cubierta === 'dos_aguas' ? 0x8C3B2A : 0xA8A29E,
@@ -6597,7 +6901,7 @@ function construirCubierta(maxX, maxZ, offsetX, offsetZ, altoPiso, modulos) {
             );
             losa.position.set(
                 mod.x - offsetX + mod.ancho/2,
-                alto + 0.17,
+                baseTope + alto + 0.17,
                 mod.z - offsetZ + mod.largo/2
             );
             losa.castShadow = true;
@@ -6611,7 +6915,7 @@ function construirCubierta(maxX, maxZ, offsetX, offsetZ, altoPiso, modulos) {
     // Dos aguas sobre la huella completa del proyecto
     const ancho = maxX + alero * 2;
     const largo = maxZ + alero * 2;
-    const altoMax = Math.max(...cuartos.map(m => m.alto || altoPiso));
+    const altoMax = baseTope + Math.max(...cuartos.map(m => m.alto || altoPiso));
     const altoCumbrera = Math.min(2.2, largo * 0.22);
     const pendiente = Math.atan2(altoCumbrera, largo / 2);
     const largoFaldon = Math.sqrt((largo/2)**2 + altoCumbrera**2);
