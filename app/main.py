@@ -14,6 +14,8 @@ from app.api.planos import router as planos_router
 from app.api.cotizacion import router as cotizacion_router
 from app.api.solicitudes import router as solicitudes_router
 from app.api.pedidos import router as pedidos_router
+from app.api.video_ia import router as video_ia_router
+from app.api.modelo3d import router as modelo3d_router
 
 load_dotenv()
 
@@ -81,3 +83,5 @@ app.include_router(planos_router)
 app.include_router(cotizacion_router)
 app.include_router(solicitudes_router)
 app.include_router(pedidos_router)
+app.include_router(video_ia_router)
+app.include_router(modelo3d_router)

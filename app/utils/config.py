@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     stability_api_key: str
     imgbb_api_key: str
     anthropic_api_key: str = ""
+    runway_api_key: str = ""
+    meshy_api_key:  str = ""
 
     whatsapp_token: str
     whatsapp_phone_number_id: str
