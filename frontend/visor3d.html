@@ -309,9 +309,33 @@
         <select id="envCubierta" onchange="cambiarEnvolvente('cubierta', this.value)"
             style="background:var(--oscuro);border:1px solid rgba(56,189,248,0.25);border-radius:8px;padding:6px 8px;color:var(--texto);font-size:11.5px;outline:none;">
             <option value="ninguna">Sin cubierta (ver desde arriba)</option>
-            <option value="losa">Placa / terraza</option>
-            <option value="dos_aguas">Teja a dos aguas</option>
+            <option value="losa">Plana / terraza</option>
+            <option value="un_agua">Un agua (inclinada)</option>
+            <option value="dos_aguas">Dos aguas</option>
+            <option value="cuatro_aguas">Cuatro aguas (a la holandesa)</option>
+            <option value="piramidal">Piramidal</option>
+            <option value="mariposa">Mariposa (invertida)</option>
+            <option value="mansarda">Mansarda</option>
+            <option value="gambrel">Gambrel / holandesa</option>
+            <option value="saltbox">Saltbox (faldones desiguales)</option>
+            <option value="en_m">En M (dos dos-aguas)</option>
         </select>
+        <div style="display:flex;gap:6px;">
+            <div style="flex:1;">
+                <label style="font-size:10px;color:var(--gris);text-transform:uppercase;">Pendiente %</label>
+                <input type="number" id="envPendiente" min="5" max="120" step="5" value="35" oninput="cambiarEnvolvente('pendiente', parseFloat(this.value))"
+                    style="width:100%;background:var(--oscuro);border:1px solid rgba(56,189,248,0.25);border-radius:7px;padding:5px 8px;color:var(--texto);font-size:11px;outline:none;">
+            </div>
+            <div style="flex:1;">
+                <label style="font-size:10px;color:var(--gris);text-transform:uppercase;">Alero (m)</label>
+                <input type="number" id="envAlero" min="0" max="2" step="0.1" value="0.5" oninput="cambiarEnvolvente('alero', parseFloat(this.value))"
+                    style="width:100%;background:var(--oscuro);border:1px solid rgba(56,189,248,0.25);border-radius:7px;padding:5px 8px;color:var(--texto);font-size:11px;outline:none;">
+            </div>
+        </div>
+        <label style="font-size:11px;color:var(--gris);display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <input type="checkbox" id="envGirarCubierta" onchange="cambiarEnvolvente('girarCubierta', this.checked)" style="cursor:pointer;">
+            Girar la cumbrera 90°
+        </label>
         <div style="font-size:10px;color:var(--gris);line-height:1.5;">Fachada y cubierta cambian la geometría: dale <b>Generar 3D</b> otra vez para verlas.</div>
     </div>
 </div>
@@ -516,6 +540,9 @@
             <div id="contPlafon" style="display:none;">
                 <label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;">Descuelgue (m)</label>
                 <input type="number" id="propDescuelgue" min="0.05" max="1.2" step="0.05" value="0.25" oninput="actualizarPropModulo()"
+                    style="width:100%;background:var(--oscuro);border:1px solid rgba(192,132,252,0.35);border-radius:8px;padding:8px 12px;color:var(--texto);font-size:14px;margin-top:4px;outline:none;">
+                <label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;margin-top:8px;display:block;">Espesor (m)</label>
+                <input type="number" id="propEspesor" min="0.02" max="0.6" step="0.01" value="0.10" oninput="actualizarPropModulo()"
                     style="width:100%;background:var(--oscuro);border:1px solid rgba(192,132,252,0.35);border-radius:8px;padding:8px 12px;color:var(--texto);font-size:14px;margin-top:4px;outline:none;">
                 <label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;margin-top:8px;display:block;">Figura</label>
                 <select id="propFormaPlafon" onchange="actualizarPropModulo()"
@@ -5200,7 +5227,10 @@ let configEnvolvente = {
     materialFachada: 'pintura',    // 'pintura' | 'ladrillo' | 'estuco' | 'concreto'
     colorFachada:    '#D9CFC2',
     gruesoFachada:   0.20,         // los muros exteriores son más gruesos que los interiores (10cm)
-    cubierta:        'ninguna',    // 'ninguna' | 'losa' | 'dos_aguas'
+    cubierta:        'ninguna',    // ver el selector: 10 formas paramétricas
+    pendiente:       35,           // % de inclinación de los faldones
+    alero:           0.5,          // vuelo por fuera del muro, en metros
+    girarCubierta:   false,        // cumbrera en el otro sentido
 };
 let techosPlanta   = [];   // meshes de cielo raso, para poder mostrarlos/ocultarlos
 let cubiertaPlanta = [];   // meshes de la cubierta exterior
@@ -5349,6 +5379,7 @@ function agregarModulo(tipo) {
     if (tipo === 'plafon') {
         nuevo.forma      = 'rect';   // 'rect' | 'circulo' | 'L'
         nuevo.descuelgue = 0.25;     // cuánto baja respecto al techo, en metros
+        nuevo.espesor    = 0.10;     // tercer eje: el canto de la bandeja
         nuevo.colorPared = '#F7F7F5';
     }
     if (tipo === 'columna') {
@@ -5921,6 +5952,7 @@ function seleccionarModulo(id) {
     if (esPlafon) {
         document.getElementById('propDescuelgue').value  = moduloSeleccionado.descuelgue ?? 0.25;
         document.getElementById('propFormaPlafon').value = moduloSeleccionado.forma || 'rect';
+        document.getElementById('propEspesor').value     = moduloSeleccionado.espesor ?? 0.10;
     }
     if (esViga) {
         document.getElementById('propAlturaBase').value = moduloSeleccionado.alturaBase ?? 2.2;
@@ -6144,6 +6176,7 @@ function actualizarPropModulo() {
     if (moduloSeleccionado.tipo === 'plafon') {
         moduloSeleccionado.descuelgue = parseFloat(document.getElementById('propDescuelgue').value) || 0.25;
         moduloSeleccionado.forma      = document.getElementById('propFormaPlafon').value;
+        moduloSeleccionado.espesor    = parseFloat(document.getElementById('propEspesor').value) || 0.10;
     }
     dibujarPlanta();
 }
@@ -6295,6 +6328,7 @@ function generarDesdePlanta() {
             altura_base: m.alturaBase  ?? null,   // viga: desde el piso hasta su cara inferior
             peralte:     m.peralte     ?? null,   // viga: canto
             descuelgue:  m.descuelgue  ?? null,   // plafón: cuánto baja del techo
+            espesor:     m.espesor     ?? null,   // plafón: canto
             nivel:       nivelDe(m),
             capa:        capaDe(m),
         })),
@@ -6312,6 +6346,9 @@ function generarDesdePlanta() {
             color_fachada:    configEnvolvente.colorFachada,
             grueso_fachada:   configEnvolvente.gruesoFachada,
             cubierta:         configEnvolvente.cubierta,
+            pendiente:        configEnvolvente.pendiente,
+            alero:            configEnvolvente.alero,
+            girar_cubierta:   configEnvolvente.girarCubierta,
         }
     };
 
@@ -6419,6 +6456,9 @@ function cargarDesdePlano(modelo3d) {
             colorFachada:    e.color_fachada   || configEnvolvente.colorFachada,
             gruesoFachada:   e.grueso_fachada  ?? configEnvolvente.gruesoFachada,
             cubierta:        e.cubierta        || configEnvolvente.cubierta,
+            pendiente:       e.pendiente       ?? configEnvolvente.pendiente,
+            alero:           e.alero           ?? configEnvolvente.alero,
+            girarCubierta:   e.girar_cubierta  ?? configEnvolvente.girarCubierta,
         };
         sincronizarUIEnvolvente();
     }
@@ -6445,7 +6485,7 @@ function cargarDesdePlano(modelo3d) {
         // Cuelga del techo del cuarto que tenga debajo. Va aparte de la losa
         // porque su gracia es justamente descolgarse de ella.
         if (mod.tipo === 'plafon') {
-            const esp  = 0.10;
+            const esp  = mod.espesor ?? 0.10;
             const desc = mod.descuelgue ?? 0.25;
             const yBase = baseY + alto - desc;   // cara inferior del plafón
             const matPlafon = new THREE.MeshStandardMaterial({
@@ -6876,76 +6916,126 @@ function cargarDesdePlano(modelo3d) {
 function construirCubierta(maxX, maxZ, offsetX, offsetZ, altoPiso, modulos) {
     cubiertaPlanta.forEach(m => scene.remove(m));
     cubiertaPlanta = [];
-    if (configEnvolvente.cubierta === 'ninguna') return;
+    const tipo = configEnvolvente.cubierta;
+    if (tipo === 'ninguna') return;
 
     const nivelTope = Math.max(0, ...modulos.map(m => m.nivel || 0));
     const hEnt = alturaEntrepiso || 2.80;
-    // Solo se cubre el último piso: una cubierta sobre cada nivel taparía los
-    // de arriba.
     const cuartos = modulos.filter(m => esCuarto(m.tipo) && (m.nivel || 0) === nivelTope);
     if (!cuartos.length) return;
     const baseTope = nivelTope * hEnt;
-    const alero = 0.4;
-    const matCub = new THREE.MeshStandardMaterial({
-        color: configEnvolvente.cubierta === 'dos_aguas' ? 0x8C3B2A : 0xA8A29E,
-        roughness: 0.88, metalness: 0.0, side: THREE.DoubleSide
-    });
+    const alero = configEnvolvente.alero ?? 0.5;
+    const y0 = baseTope + Math.max(...cuartos.map(m => m.alto || altoPiso));
 
-    if (configEnvolvente.cubierta === 'losa') {
-        // Placa plana sobre cada cuarto — terraza o placa de entrepiso
+    const matTeja = new THREE.MeshStandardMaterial({ color:0x8C3B2A, roughness:0.9, side:THREE.DoubleSide });
+    const matLosa = new THREE.MeshStandardMaterial({ color:0xA8A29E, roughness:0.9, side:THREE.DoubleSide });
+    const matCulata = new THREE.MeshStandardMaterial({ color:0xD9CFC2, roughness:0.9, side:THREE.DoubleSide });
+    const add = (m) => { m.castShadow = true; m.receiveShadow = true; scene.add(m); cubiertaPlanta.push(m); };
+
+    if (tipo === 'losa') {
         cuartos.forEach(mod => {
-            const alto = mod.alto || altoPiso;
-            const losa = new THREE.Mesh(
-                new THREE.BoxGeometry(mod.ancho + alero, 0.18, mod.largo + alero),
-                matCub
-            );
-            losa.position.set(
-                mod.x - offsetX + mod.ancho/2,
-                baseTope + alto + 0.17,
-                mod.z - offsetZ + mod.largo/2
-            );
-            losa.castShadow = true;
-            losa.receiveShadow = true;
-            scene.add(losa);
-            cubiertaPlanta.push(losa);
+            const losa = new THREE.Mesh(new THREE.BoxGeometry(mod.ancho + alero, 0.18, mod.largo + alero), matLosa);
+            losa.position.set(mod.x - offsetX + mod.ancho/2, baseTope + (mod.alto||altoPiso) + 0.17, mod.z - offsetZ + mod.largo/2);
+            add(losa);
         });
         return;
     }
 
-    // Dos aguas sobre la huella completa del proyecto
-    const ancho = maxX + alero * 2;
-    const largo = maxZ + alero * 2;
-    const altoMax = baseTope + Math.max(...cuartos.map(m => m.alto || altoPiso));
-    const altoCumbrera = Math.min(2.2, largo * 0.22);
-    const pendiente = Math.atan2(altoCumbrera, largo / 2);
-    const largoFaldon = Math.sqrt((largo/2)**2 + altoCumbrera**2);
+    // Huella del último piso, más el alero. La cumbrera se puede girar 90°
+    // porque en un lote la orientación del techo la manda la calle, no la forma.
+    const girar = !!configEnvolvente.girarCubierta;
+    const AN = (girar ? maxZ : maxX) + alero*2;   // a lo ancho de los faldones
+    const LA = (girar ? maxX : maxZ) + alero*2;   // en la dirección de la pendiente
+    const pend = Math.max(0.05, (configEnvolvente.pendiente ?? 35) / 100);
+    const espesor = 0.12;
 
-    [1, -1].forEach(s => {
-        const faldon = new THREE.Mesh(new THREE.BoxGeometry(ancho, 0.12, largoFaldon), matCub);
-        faldon.position.set(0, altoMax + altoCumbrera/2 + 0.1, s * largo/4);
-        faldon.rotation.x = -s * pendiente;
-        faldon.castShadow = true;
-        faldon.receiveShadow = true;
-        scene.add(faldon);
-        cubiertaPlanta.push(faldon);
-    });
+    // Un faldón es un plano inclinado: se hace una caja fina y se rota. Con
+    // el ancho, el desplazamiento y el ángulo correctos salen casi todas las
+    // formas del catálogo de techos.
+    function faldon(anchoF, largoPlano, subida, cx, cz, cy, ejeZ, signo) {
+        const largoInclinado = Math.hypot(largoPlano, subida);
+        const ang = Math.atan2(subida, largoPlano);
+        const g = ejeZ
+            ? new THREE.BoxGeometry(anchoF, espesor, largoInclinado)
+            : new THREE.BoxGeometry(largoInclinado, espesor, anchoF);
+        const m = new THREE.Mesh(g, matTeja);
+        m.position.set(cx, cy, cz);
+        if (ejeZ) m.rotation.x = -signo * ang;
+        else      m.rotation.z =  signo * ang;
+        add(m);
+        return m;
+    }
+    // Todo se arma con la cumbrera sobre el eje X y luego, si toca, se gira
+    // el conjunto entero: así una sola construcción sirve para las dos
+    // orientaciones y no hay que duplicar la matemática.
+    const R = (m) => { if (girar) { const x = m.position.x; m.position.x = m.position.z; m.position.z = x; m.rotation.y += Math.PI/2; } };
 
-    // Culatas (los triángulos de los extremos que cierran el techo)
-    [1, -1].forEach(s => {
+    function culata(puntos, x) {
         const forma = new THREE.Shape();
-        forma.moveTo(-largo/2, 0);
-        forma.lineTo( largo/2, 0);
-        forma.lineTo(0, altoCumbrera);
-        forma.lineTo(-largo/2, 0);
-        const culata = new THREE.Mesh(
-            new THREE.ShapeGeometry(forma),
-            new THREE.MeshStandardMaterial({ color: 0xD9CFC2, roughness: 0.9, side: THREE.DoubleSide })
-        );
-        culata.position.set(s * (maxX/2), altoMax, 0);
-        culata.rotation.y = Math.PI/2;
-        scene.add(culata);
-        cubiertaPlanta.push(culata);
-    });
+        forma.moveTo(puntos[0][0], puntos[0][1]);
+        puntos.slice(1).forEach(pt => forma.lineTo(pt[0], pt[1]));
+        forma.closePath();
+        const m = new THREE.Mesh(new THREE.ShapeGeometry(forma), matCulata);
+        m.position.set(x, y0, 0);
+        m.rotation.y = Math.PI/2;
+        add(m); R(m);
+    }
+
+    const mitad = LA/2;
+    if (tipo === 'un_agua') {
+        const subida = LA * pend;
+        const m = faldon(AN, LA, subida, 0, 0, y0 + subida/2, true, 1); R(m);
+        [1,-1].forEach(s => culata([[-mitad,0],[mitad,0],[mitad,subida]], s*(AN/2 - alero)));
+    } else if (tipo === 'dos_aguas') {
+        const subida = mitad * pend;
+        [1,-1].forEach(s => { const m = faldon(AN, mitad, subida, 0, s*mitad/2, y0 + subida/2, true, s); R(m); });
+        [1,-1].forEach(s => culata([[-mitad,0],[mitad,0],[0,subida]], s*(AN/2 - alero)));
+    } else if (tipo === 'saltbox') {
+        // Dos aguas con faldones de distinto largo: la cumbrera queda corrida
+        const corto = LA*0.35, largo = LA*0.65, subida = corto * pend * 1.6;
+        const m1 = faldon(AN, corto, subida, 0, -(LA/2 - corto/2), y0 + subida/2, true, -1); R(m1);
+        const m2 = faldon(AN, largo, subida, 0,  (LA/2 - largo/2), y0 + subida/2, true, 1); R(m2);
+        [1,-1].forEach(s => culata([[-mitad,0],[mitad,0],[-mitad+corto,subida]], s*(AN/2 - alero)));
+    } else if (tipo === 'mariposa') {
+        // Invertida: el agua cae al centro. Cada vez más común en obra nueva.
+        const subida = mitad * pend;
+        [1,-1].forEach(s => { const m = faldon(AN, mitad, subida, 0, s*mitad/2, y0 + subida/2, true, -s); R(m); });
+        [1,-1].forEach(s => culata([[-mitad,subida],[0,0],[mitad,subida]], s*(AN/2 - alero)));
+    } else if (tipo === 'gambrel' || tipo === 'mansarda') {
+        // Dos pendientes por faldón: abajo muy inclinada, arriba suave. Es lo
+        // que permite habitar el ático, que es para lo que existen estas dos.
+        const q = mitad/2;
+        const subBaja = q * pend * 2.2, subAlta = q * pend * 0.55;
+        [1,-1].forEach(s => {
+            const b = faldon(AN, q, subBaja, 0, s*(mitad - q/2), y0 + subBaja/2, true, s); R(b);
+            const a = faldon(AN, q, subAlta, 0, s*(q/2), y0 + subBaja + subAlta/2, true, s); R(a);
+        });
+        [1,-1].forEach(s => culata(
+            [[-mitad,0],[mitad,0],[q,subBaja],[0,subBaja+subAlta],[-q,subBaja]], s*(AN/2 - alero)));
+    } else if (tipo === 'en_m') {
+        // Dos techos a dos aguas pegados, con lima hoya en el centro
+        const c = mitad/2, subida = c * pend;
+        [1,-1].forEach(s => {
+            [0.5,1.5].forEach(k => {
+                const m = faldon(AN, c, subida, 0, s*(k*c - (k>1?c/2:0) - c/2 + c*k), y0 + subida/2, true, (k<1?s:-s));
+                R(m);
+            });
+        });
+        [1,-1].forEach(s => culata([[-mitad,0],[-c,subida],[0,0],[c,subida],[mitad,0]], s*(AN/2 - alero)));
+    } else if (tipo === 'cuatro_aguas' || tipo === 'piramidal') {
+        // Agua por los cuatro lados. En la piramidal la cumbrera es un punto;
+        // en la de cuatro aguas es una línea, así que se deja un caballete.
+        const anchoMitad = AN/2;
+        const subida = Math.min(mitad, anchoMitad) * pend;
+        const caballete = tipo === 'piramidal' ? 0 : Math.max(0, LA - AN);
+        const corrido = (LA - caballete)/2;
+        [1,-1].forEach(s => { const m = faldon(AN, corrido, subida, 0, s*(caballete/2 + corrido/2), y0 + subida/2, true, s); R(m); });
+        [1,-1].forEach(s => { const m = faldon(LA, anchoMitad, subida, s*(anchoMitad/2), 0, y0 + subida/2, false, -s); R(m); });
+        if (caballete > 0.05) {
+            const cab = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.14, caballete), matTeja);
+            cab.position.set(0, y0 + subida, 0); add(cab); R(cab);
+        }
+    }
 }
 
 // ── CONTROLES DE ENVOLVENTE ──────────────────────────────────────────────
@@ -6974,6 +7064,9 @@ function sincronizarUIEnvolvente() {
     set('envMaterialFachada', 'value', configEnvolvente.materialFachada);
     set('envColorFachada',    'value', configEnvolvente.colorFachada);
     set('envCubierta',        'value', configEnvolvente.cubierta);
+    set('envPendiente',       'value', configEnvolvente.pendiente);
+    set('envAlero',           'value', configEnvolvente.alero);
+    set('envGirarCubierta',   'checked', !!configEnvolvente.girarCubierta);
 }
 
 // ── ABRIR/CERRAR PUERTAS TOCÁNDOLAS EN EL 3D ─────────────────────────────
