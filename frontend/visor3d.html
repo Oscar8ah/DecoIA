@@ -6,6 +6,7 @@
     <title>Visor 3D — DecoIArte</title>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
@@ -714,6 +715,43 @@
         <div style="font-size:10.5px;color:var(--gris);margin-top:6px;line-height:1.5;">Los muros que se toquen al pasar el mouse se iluminan en rojo; haz click para eliminarlo.</div>
     </div>
 
+    <!-- ── EDITAR EN 3D: mover, rotar, escalar ── -->
+    <div class="panel-section">
+        <div class="panel-titulo">🔧 Editar en 3D</div>
+        <button id="btnTransformar" onclick="toggleModoTransformar()"
+            style="width:100%;padding:9px;border-radius:8px;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.35);color:#7DD3FC;font-size:12px;font-weight:700;cursor:pointer;font-family:'Segoe UI',sans-serif;">🔧 Activar edición (tocar para elegir)</button>
+        <div id="panelTransformar" style="display:none;margin-top:8px;">
+            <div id="tfObjeto" style="font-size:11px;color:#7DD3FC;font-weight:700;margin-bottom:6px;">Nada seleccionado</div>
+            <div style="display:flex;gap:4px;margin-bottom:6px;">
+                <button id="tfMover"  onclick="modoGizmo('translate')" style="flex:1;padding:6px 2px;border-radius:6px;font-size:10.5px;font-weight:700;cursor:pointer;border:1px solid rgba(148,163,184,0.3);background:rgba(255,255,255,0.04);color:var(--gris);">✥ Mover</button>
+                <button id="tfRotar"  onclick="modoGizmo('rotate')"    style="flex:1;padding:6px 2px;border-radius:6px;font-size:10.5px;font-weight:700;cursor:pointer;border:1px solid rgba(148,163,184,0.3);background:rgba(255,255,255,0.04);color:var(--gris);">⟳ Rotar</button>
+                <button id="tfEscalar" onclick="modoGizmo('scale')"    style="flex:1;padding:6px 2px;border-radius:6px;font-size:10.5px;font-weight:700;cursor:pointer;border:1px solid rgba(148,163,184,0.3);background:rgba(255,255,255,0.04);color:var(--gris);">⤢ Escalar</button>
+            </div>
+            <div id="tfAnclaje" style="display:none;">
+                <label style="font-size:10px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;">Al escalar, qué lado queda fijo</label>
+                <select id="tfAnclajeSel" onchange="anclajeEscala = this.value"
+                    style="width:100%;background:var(--oscuro);border:1px solid rgba(56,189,248,0.25);border-radius:8px;padding:6px 8px;color:var(--texto);font-size:11px;margin-top:4px;outline:none;">
+                    <option value="centro">Centro (crece a los dos lados)</option>
+                    <option value="-x">Cara izquierda (crece a la derecha)</option>
+                    <option value="+x">Cara derecha (crece a la izquierda)</option>
+                    <option value="-z">Cara de atrás (crece al frente)</option>
+                    <option value="+z">Cara de adelante (crece atrás)</option>
+                    <option value="-y">Piso (crece hacia arriba)</option>
+                </select>
+                <label style="font-size:11px;color:var(--gris);display:flex;align-items:center;gap:6px;margin-top:6px;cursor:pointer;">
+                    <input type="checkbox" id="tfProporcional" onchange="escalaProporcional = this.checked" style="cursor:pointer;">
+                    Escalar proporcional (los tres ejes juntos)
+                </label>
+            </div>
+            <div style="display:flex;gap:4px;margin-top:8px;">
+                <button onclick="reiniciarTransformacion()" style="flex:1;padding:6px;border-radius:6px;font-size:10.5px;font-weight:700;cursor:pointer;border:1px solid rgba(148,163,184,0.3);background:rgba(255,255,255,0.04);color:var(--gris);">↺ Deshacer</button>
+                <button onclick="soltarTransformar()" style="flex:1;padding:6px;border-radius:6px;font-size:10.5px;font-weight:700;cursor:pointer;border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.12);color:#FCA5A5;">✕ Soltar</button>
+            </div>
+            <div id="tfMedidas" style="font-size:10.5px;color:var(--gris);margin-top:8px;line-height:1.6;"></div>
+        </div>
+        <div style="font-size:10.5px;color:var(--gris);margin-top:6px;line-height:1.5;">Atajos: <b>W</b> mover, <b>E</b> rotar, <b>R</b> escalar, <b>Esc</b> salir. Con la tecla <b>Shift</b> se mueve libre, sin ajustar a la cuadrícula.</div>
+    </div>
+
     <!-- ── MOBILIARIO con controles de movimiento ── -->
     <div class="panel-section">
         <div class="panel-titulo">🛋️ Mobiliario</div>
@@ -1230,6 +1268,216 @@ controls.minDistance   = 2;
 controls.maxDistance   = 25;
 controls.maxPolarAngle = Math.PI / 1.8;
 controls.target.set(0, 1.4, 0);
+
+// ═══════════════════════════════════════════════════════════════════════
+// EDICIÓN EN 3D — mover, rotar y escalar con gizmo
+// Hasta ahora, una vez generado el 3D no se podía corregir nada: tocaba
+// volver al Editor Planta, cambiar el número y regenerar todo. Esto usa
+// TransformControls, que viene en los ejemplos de Three.js.
+// ═══════════════════════════════════════════════════════════════════════
+let gizmo             = null;
+let modoTransformar   = false;
+let objetoTransformar = null;
+let anclajeEscala     = 'centro';   // qué cara queda quieta al escalar
+let escalaProporcional = false;
+
+function iniciarGizmo() {
+    if (gizmo) return true;
+    if (typeof THREE.TransformControls === 'undefined') {
+        mostrarToast('⚠️ No se pudo cargar el control de edición 3D');
+        return false;
+    }
+    gizmo = new THREE.TransformControls(camera, renderer.domElement);
+    // Ajuste a cuadrícula: 5cm, 15° y 5%. Sin esto es imposible dejar dos
+    // muebles alineados a ojo.
+    gizmo.setTranslationSnap(0.05);
+    gizmo.setRotationSnap(THREE.MathUtils.degToRad(15));
+    gizmo.setScaleSnap(0.05);
+    // Mientras se arrastra el gizmo hay que soltar la órbita, si no la cámara
+    // se mueve al mismo tiempo y no se puede apuntar.
+    gizmo.addEventListener('dragging-changed', e => { controls.enabled = !e.value; });
+    gizmo.addEventListener('objectChange', alTransformar);
+    scene.add(gizmo);
+    return true;
+}
+
+function objetoEditableDesde(obj) {
+    // Se sube por el árbol hasta encontrar algo que tenga sentido editar
+    // entero: un mueble completo, una columna, una viga, una puerta.
+    let o = obj;
+    while (o && o !== scene) {
+        if (o.userData && o.userData.tipoEstructura) return o;
+        if (o.userData && o.userData.esPuerta && o.parent) return o.parent.parent || o.parent;
+        if (typeof mobiliarioMeshes !== 'undefined' && Object.values(mobiliarioMeshes).includes(o)) return o;
+        o = o.parent;
+    }
+    return null;
+}
+
+window.toggleModoTransformar = function() {
+    modoTransformar ? salirModoTransformar() : activarModoTransformar();
+};
+
+function activarModoTransformar() {
+    if (!salaConstruida) { mostrarToast('⚠️ Primero genera un modelo 3D'); return; }
+    if (!iniciarGizmo()) return;
+    if (modoMover) desactivarMoverMueble();
+    salirModosPared();
+    modoTransformar = true;
+    canvas.style.cursor = 'pointer';
+    const b = document.getElementById('btnTransformar');
+    b.textContent = '✕ Salir de edición';
+    b.style.background = 'rgba(239,68,68,0.12)';
+    b.style.borderColor = 'rgba(239,68,68,0.35)';
+    b.style.color = '#FCA5A5';
+    document.getElementById('panelTransformar').style.display = 'block';
+    modoGizmo('translate');
+    mostrarToast('🔧 Toca una columna, viga, puerta o mueble para editarlo');
+}
+
+function salirModoTransformar() {
+    modoTransformar = false;
+    soltarTransformar();
+    canvas.style.cursor = 'default';
+    const b = document.getElementById('btnTransformar');
+    b.textContent = '🔧 Activar edición (tocar para elegir)';
+    b.style.background = 'rgba(56,189,248,0.12)';
+    b.style.borderColor = 'rgba(56,189,248,0.35)';
+    b.style.color = '#7DD3FC';
+    document.getElementById('panelTransformar').style.display = 'none';
+}
+
+window.soltarTransformar = function() {
+    if (gizmo) gizmo.detach();
+    objetoTransformar = null;
+    document.getElementById('tfObjeto').textContent = 'Nada seleccionado';
+    document.getElementById('tfMedidas').innerHTML = '';
+};
+
+function seleccionarParaTransformar(obj) {
+    objetoTransformar = obj;
+    // Se guarda el estado de partida: sirve para el "deshacer" y para calcular
+    // el anclaje al escalar, que necesita saber dónde estaba cada cara.
+    const escalaPrevia = obj.scale.clone();
+    obj.scale.set(1, 1, 1);
+    obj.updateMatrixWorld(true);
+    const caja = new THREE.Box3().setFromObject(obj);
+    caja.min.sub(obj.position);
+    caja.max.sub(obj.position);
+    obj.scale.copy(escalaPrevia);
+    obj.updateMatrixWorld(true);
+
+    obj.userData._tf = {
+        posicion: obj.position.clone(),
+        rotacion: obj.rotation.clone(),
+        escala:   escalaPrevia,
+        caja,
+    };
+    gizmo.attach(obj);
+    const nombre = obj.userData.tipoEstructura || obj.userData.nombreMueble || obj.name || 'elemento';
+    document.getElementById('tfObjeto').textContent = '▸ ' + nombre;
+    mostrarMedidasTF();
+}
+
+function alTransformar() {
+    const o = objetoTransformar;
+    if (!o || !o.userData._tf) return;
+    const b = o.userData._tf;
+
+    if (gizmo.getMode() === 'scale') {
+        if (escalaProporcional) {
+            // Manda el eje que más se movió, y los otros dos lo siguen
+            const ejes = ['x','y','z'];
+            const delta = ejes.map(e => Math.abs(o.scale[e] - b.escala[e]));
+            const eje = ejes[delta.indexOf(Math.max(...delta))];
+            const k = o.scale[eje] / (b.escala[eje] || 1);
+            o.scale.set(b.escala.x*k, b.escala.y*k, b.escala.z*k);
+        }
+        if (anclajeEscala !== 'centro') {
+            // Ensanchar "de un solo lado": el gizmo siempre escala desde el
+            // centro, así que se recoloca el objeto para que la cara elegida
+            // quede exactamente donde estaba. La fórmula es absoluta, no
+            // acumulativa, para que no se vaya derivando al arrastrar.
+            const eje   = anclajeEscala.slice(1);
+            const signo = anclajeEscala[0] === '+' ? 1 : -1;
+            const borde = signo > 0 ? b.caja.max[eje] : b.caja.min[eje];
+            const caraOriginal = b.posicion[eje] + borde * b.escala[eje];
+            o.position[eje] = caraOriginal - borde * o.scale[eje];
+        }
+    }
+    mostrarMedidasTF();
+}
+
+function mostrarMedidasTF() {
+    const o = objetoTransformar, el = document.getElementById('tfMedidas');
+    if (!o || !o.userData._tf || !el) return;
+    const c = o.userData._tf.caja;
+    const m = (eje, i) => ((c.max[eje] - c.min[eje]) * o.scale[eje]).toFixed(2);
+    el.innerHTML =
+        `Ancho <b style="color:var(--texto);">${m('x')} m</b> · ` +
+        `Alto <b style="color:var(--texto);">${m('y')} m</b> · ` +
+        `Fondo <b style="color:var(--texto);">${m('z')} m</b><br>` +
+        `Giro <b style="color:var(--texto);">${Math.round(o.rotation.y * 180 / Math.PI)}°</b>`;
+}
+
+window.modoGizmo = function(modo) {
+    if (!gizmo) return;
+    gizmo.setMode(modo);
+    [['tfMover','translate'],['tfRotar','rotate'],['tfEscalar','scale']].forEach(([id, m]) => {
+        const b = document.getElementById(id);
+        const on = m === modo;
+        b.style.background  = on ? 'rgba(56,189,248,0.25)' : 'rgba(255,255,255,0.04)';
+        b.style.borderColor = on ? '#38BDF8' : 'rgba(148,163,184,0.3)';
+        b.style.color       = on ? '#fff' : 'var(--gris)';
+    });
+    document.getElementById('tfAnclaje').style.display = modo === 'scale' ? 'block' : 'none';
+};
+
+window.reiniciarTransformacion = function() {
+    const o = objetoTransformar;
+    if (!o || !o.userData._tf) { mostrarToast('⚠️ No hay nada seleccionado'); return; }
+    const b = o.userData._tf;
+    o.position.copy(b.posicion);
+    o.rotation.copy(b.rotacion);
+    o.scale.copy(b.escala);
+    mostrarMedidasTF();
+    mostrarToast('↺ Elemento devuelto a su posición original');
+};
+
+// Selección por clic
+canvas.addEventListener('click', (e) => {
+    if (!modoTransformar || !gizmo || gizmo.dragging) return;
+    const r = canvas.getBoundingClientRect();
+    mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    raycaster.setFromCamera(mouse, camera);
+    const hits = raycaster.intersectObjects(scene.children, true);
+    for (const h of hits) {
+        if (gizmo && (h.object === gizmo || gizmo.getObjectById(h.object.id))) continue;
+        const obj = objetoEditableDesde(h.object);
+        if (obj) { seleccionarParaTransformar(obj); return; }
+    }
+    mostrarToast('Ese elemento no se puede editar por ahora — prueba con una columna, viga, puerta o mueble');
+});
+
+// Atajos de teclado. Shift suelta el ajuste a cuadrícula mientras se mantiene.
+document.addEventListener('keydown', (e) => {
+    if (!modoTransformar || !gizmo) return;
+    if (['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName)) return;
+    if (e.key === 'w' || e.key === 'W') modoGizmo('translate');
+    if (e.key === 'e' || e.key === 'E') modoGizmo('rotate');
+    if (e.key === 'r' || e.key === 'R') modoGizmo('scale');
+    if (e.key === 'Escape') salirModoTransformar();
+    if (e.key === 'Shift') {
+        gizmo.setTranslationSnap(null); gizmo.setRotationSnap(null); gizmo.setScaleSnap(null);
+    }
+});
+document.addEventListener('keyup', (e) => {
+    if (e.key === 'Shift' && gizmo) {
+        gizmo.setTranslationSnap(0.05);
+        gizmo.setRotationSnap(THREE.MathUtils.degToRad(15));
+        gizmo.setScaleSnap(0.05);
+    }
+});
 
 // ── RAYCASTER para drag & drop ────────────────────────────────────────────
 const raycaster  = new THREE.Raycaster();
@@ -2784,7 +3032,12 @@ function construirHabitacion() {
     if (_vacioEl) _vacioEl.style.display = 'none';
     const _mobiliarioGuardado = capturarEstadoMobiliario();
     const aEliminar = [];
-    scene.traverse(obj => { if (obj.isMesh || obj.isGroup || obj.isSprite) aEliminar.push(obj); });
+    scene.traverse(obj => {
+        // El gizmo de edición vive en la escena: si entra aquí se borra al
+        // regenerar y quedan listeners apuntando a un objeto muerto.
+        if (obj === gizmo || (obj.parent && obj.parent === gizmo)) return;
+        if (obj.isMesh || obj.isGroup || obj.isSprite) aEliminar.push(obj);
+    });
     aEliminar.forEach(obj => scene.remove(obj));
     meshes = {};
     // Limpiar luces de techo
@@ -5863,7 +6116,12 @@ function cargarDesdePlano(modelo3d) {
 
     // Limpiar escena actual
     const aEliminar = [];
-    scene.traverse(obj => { if (obj.isMesh || obj.isGroup || obj.isSprite) aEliminar.push(obj); });
+    scene.traverse(obj => {
+        // El gizmo de edición vive en la escena: si entra aquí se borra al
+        // regenerar y quedan listeners apuntando a un objeto muerto.
+        if (obj === gizmo || (obj.parent && obj.parent === gizmo)) return;
+        if (obj.isMesh || obj.isGroup || obj.isSprite) aEliminar.push(obj);
+    });
     aEliminar.forEach(obj => scene.remove(obj));
     meshes = {};
     mobiliarioMeshes = {};
@@ -6443,6 +6701,7 @@ canvas.addEventListener('click', (e) => {
     // No interferir con los modos que ya usan el clic (elegir/eliminar muro,
     // mover mueble, dibujar recorrido)
     if (modoElegirPared || modoEliminarPared || modoMover || modoDibujo3D || modoArrastrarCamara) return;
+    if (modoTransformar) return;   // en modo edición el clic sirve para seleccionar, no para abrir
     if (!puertasPlanta.length) return;
     const r = canvas.getBoundingClientRect();
     mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
