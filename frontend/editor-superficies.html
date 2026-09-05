@@ -604,8 +604,18 @@ async function aplicarMaterial(){
         const lum=new Float32Array(w*h);
         for(let i=0;i<w*h;i++)
             lum[i]=(base.data[i*4]*0.299+base.data[i*4+1]*0.587+base.data[i*4+2]*0.114)/255;
-        const radio=Math.max(6, Math.round(Math.min(w,h)*0.045));
-        const suave=desenfoqueCaja(lum,w,h,radio);
+        // TRES BANDAS, no dos. Con un solo desenfoque grande, la sombra que
+        // proyecta la pata de una cama se difumina junto con la iluminación
+        // general y se pierde más de la mitad de su contraste: el mueble
+        // queda flotando sobre el piso nuevo. Eso era lo que hacía que se
+        // viera pegado por más que la perspectiva estuviera bien.
+        //   banda 1 (desenfoque grande) = luz del cuarto, se transfiere
+        //   banda 2 (grande / pequeño)  = sombras de contacto, se transfieren
+        //   banda 3 (lo que queda)      = juntas y veta del piso viejo, se bota
+        const rGrande=Math.max(10, Math.round(Math.min(w,h)*0.090));
+        const rChico =Math.max(3,  Math.round(Math.min(w,h)*0.012));
+        const suave  =desenfoqueCaja(lum,w,h,rGrande);
+        const medio  =desenfoqueCaja(lum,w,h,rChico);
 
         const muestras=[];
         for(let i=0;i<w*h;i++) if(mascaraElegida[i]) muestras.push(suave[i]);
@@ -626,6 +636,20 @@ async function aplicarMaterial(){
             const rumbo=Math.atan2(L.y,L.x)*180/Math.PI;
             const elev=Math.asin(L.z)*180/Math.PI;
             info.textContent=`Luz detectada: ${rumbo.toFixed(0)}° de rumbo, ${elev.toFixed(0)}° de altura. Las juntas se sombrean de ese lado.`;
+        }
+
+        // Borde de la máscara suavizado. Un contorno duro de píxel entero
+        // delata el recorte y es de lo primero que ve el ojo.
+        const borde=new Float32Array(w*h);
+        for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+            const i=y*w+x;
+            if(!mascaraElegida[i]) continue;
+            let vecinos=0;
+            if(x>0   && mascaraElegida[i-1]) vecinos++;
+            if(x<w-1 && mascaraElegida[i+1]) vecinos++;
+            if(y>0   && mascaraElegida[i-w]) vecinos++;
+            if(y<h-1 && mascaraElegida[i+w]) vecinos++;
+            borde[i]=vecinos===4 ? 1 : 0.5;
         }
 
         for(let y=0;y<h;y++){
@@ -664,8 +688,13 @@ async function aplicarMaterial(){
                 const tx=Math.min(T-1,(fu*T)|0), ty=Math.min(T-1,(fv*T)|0);
                 const ti=(ty*T+tx)*4;
 
-                // ── 4) SOMBRA RELATIVA ──────────────────────────────────
-                const sombra=Math.max(0.30, Math.min(1.85, suave[i]/refSeguro));
+                // ── 4) LUZ DEL CUARTO + SOMBRAS DE CONTACTO ─────────────
+                const ilum=Math.max(0.30, Math.min(1.85, suave[i]/refSeguro));
+                // Solo puede oscurecer (tope 1.0): una sombra oscurece, y lo
+                // que aclara a esta escala es brillo especular, que se
+                // devuelve aparte más abajo.
+                const contacto=Math.max(0.30, Math.min(1.0, medio[i]/Math.max(0.02, suave[i])));
+                const sombra=ilum*contacto;
 
                 // ── 5) RELIEVE: N·L ─────────────────────────────────────
                 // Lo mismo que hace un motor 3D con un normal map, solo que
@@ -699,12 +728,21 @@ async function aplicarMaterial(){
                     r+=brillo; g+=brillo; b+=brillo;
                 }
 
+                // Mezcla con el píxel original en el borde
+                const a=borde[i];
+                if(a<1){
+                    r=r*a+base.data[i*4]  *(1-a);
+                    g=g*a+base.data[i*4+1]*(1-a);
+                    b=b*a+base.data[i*4+2]*(1-a);
+                }
                 salida.data[i*4]  =r>255?255:r;
                 salida.data[i*4+1]=g>255?255:g;
                 salida.data[i*4+2]=b>255?255:b;
             }
         }
         ctx.putImageData(salida,0,0);
+        const av=document.getElementById('planoInfo');
+        if(av && !Hinv) av.innerHTML='<span style="color:#FCD34D;">⚠️ Sin plano marcado: la textura sale sin perspectiva y el área es inventada. Marca los 4 puntos arriba.</span>';
         calcularCosto();
     }catch(e){
         console.error(e);
