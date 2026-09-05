@@ -150,10 +150,21 @@
                     style="width:100%;background:#0F1117;border:1px solid rgba(148,163,184,0.25);border-radius:7px;padding:6px 8px;color:#E5E7EB;font-size:12px;outline:none;">
             </div>
         </div>
+        <label style="font-size:10.5px;color:#9CA3AF;margin-top:8px;display:block;">Acabado</label>
+        <select id="acabadoMat" onchange="aplicarMaterial()"
+            style="width:100%;background:#0F1117;border:1px solid rgba(148,163,184,0.25);border-radius:7px;padding:6px 8px;color:#E5E7EB;font-size:12px;outline:none;margin-top:3px;">
+            <option value="pulido">Pulido / brillante (porcelanato, mármol)</option>
+            <option value="satinado" selected>Satinado (cerámica, vinilo)</option>
+            <option value="mate">Mate (madera, cemento)</option>
+            <option value="rugoso">Rugoso (piedra, antideslizante)</option>
+        </select>
+        <label style="font-size:10.5px;color:#9CA3AF;margin-top:8px;display:block;">Relieve de las juntas: <b id="lblRelieve">medio</b></label>
+        <input type="range" id="rngRelieve" min="0" max="100" value="55" step="5" oninput="document.getElementById('lblRelieve').textContent=this.value<20?'ninguno':this.value<45?'suave':this.value<75?'medio':'marcado'" onchange="aplicarMaterial()" style="width:100%;margin-top:4px;">
         <label style="font-size:11px;color:#9CA3AF;display:flex;align-items:center;gap:6px;margin-top:8px;cursor:pointer;">
             <input type="checkbox" id="chkBrillo" checked onchange="aplicarMaterial()" style="cursor:pointer;">
             Conservar reflejos y brillos de la foto
         </label>
+        <div id="infoLuz" style="font-size:10.5px;color:#6EE7B7;margin-top:7px;line-height:1.5;"></div>
     </div>
 
     <div class="card" id="cardCosto" style="display:none;">
@@ -572,12 +583,10 @@ async function aplicarMaterial(){
         const resp = await fetch(productoSel.imagen_url, {mode:'cors'});
         const bmp = await createImageBitmap(await resp.blob());
 
-        // La textura se lee una sola vez a un buffer propio
-        const TX=256;
-        const aux=document.createElement('canvas'); aux.width=aux.height=TX;
-        const auxCtx=aux.getContext('2d');
-        auxCtx.drawImage(bmp,0,0,TX,TX);
-        const tex=auxCtx.getImageData(0,0,TX,TX).data;
+        // Pirámide de la textura + normales del nivel más detallado
+        const MIPS=piramideTextura(bmp, 5);
+        const TX=MIPS[0].t, tex=MIPS[0].d;
+        const NRM=normalesTextura(tex, TX);
 
         ctx.drawImage(imgLimpia,0,0);
         const base=ctx.getImageData(0,0,w,h);
@@ -607,6 +616,17 @@ async function aplicarMaterial(){
         const conBrillo=document.getElementById('chkBrillo')?.checked !== false;
         const pzA=(parseFloat(document.getElementById('piezaAncho')?.value)||60)/100;
         const pzL=(parseFloat(document.getElementById('piezaLargo')?.value)||60)/100;
+        const acab=ACABADOS[document.getElementById('acabadoMat')?.value || 'satinado'];
+        const fuerzaRelieve=(parseFloat(document.getElementById('rngRelieve')?.value)||55)/100 * acab.relieve;
+
+        // ¿De dónde viene la luz de ESTA foto?
+        const L=estimarDireccionLuz(suave, mascaraElegida, w, h);
+        const info=document.getElementById('infoLuz');
+        if(info){
+            const rumbo=Math.atan2(L.y,L.x)*180/Math.PI;
+            const elev=Math.asin(L.z)*180/Math.PI;
+            info.textContent=`Luz detectada: ${rumbo.toFixed(0)}° de rumbo, ${elev.toFixed(0)}° de altura. Las juntas se sombrean de ese lado.`;
+        }
 
         for(let y=0;y<h;y++){
             for(let x=0;x<w;x++){
@@ -629,13 +649,41 @@ async function aplicarMaterial(){
                 }
                 let fu=(u/pzA)%1; if(fu<0) fu+=1;
                 let fv=(v/pzL)%1; if(fv<0) fv+=1;
-                const tx=Math.min(TX-1,(fu*TX)|0), ty=Math.min(TX-1,(fv*TX)|0);
-                const ti=(ty*TX+tx)*4;
 
-                // ── 3) SOMBRA RELATIVA ──────────────────────────────────
+                // ── 3) NIVEL DE DETALLE SEGÚN LA DISTANCIA ──────────────
+                // Al fondo del cuarto un píxel abarca varios centímetros de
+                // baldosa. Tomar un solo texel ahí produce ruido. Se baja de
+                // nivel en la pirámide, igual que un mipmap.
+                let mip=0;
+                if(Hinv){
+                    const huella=Math.sqrt(areaDePixel(Hinv,x+0.5,y+0.5));  // metros por píxel
+                    const texelesPorPixel=huella/pzA*TX;
+                    mip=Math.max(0, Math.min(MIPS.length-1, Math.round(Math.log2(Math.max(1,texelesPorPixel)))));
+                }
+                const M=MIPS[mip], T=M.t;
+                const tx=Math.min(T-1,(fu*T)|0), ty=Math.min(T-1,(fv*T)|0);
+                const ti=(ty*T+tx)*4;
+
+                // ── 4) SOMBRA RELATIVA ──────────────────────────────────
                 const sombra=Math.max(0.30, Math.min(1.85, suave[i]/refSeguro));
 
-                let r=tex[ti]*sombra, g=tex[ti+1]*sombra, b=tex[ti+2]*sombra;
+                // ── 5) RELIEVE: N·L ─────────────────────────────────────
+                // Lo mismo que hace un motor 3D con un normal map, solo que
+                // la luz no se puso a mano: se dedujo de la propia foto. El
+                // resultado es relativo a una superficie plana, así que 1.0
+                // significa "sin cambio" y las juntas se hunden o brillan
+                // según de dónde venga la luz.
+                let relieve=1;
+                if(fuerzaRelieve>0.01){
+                    const ni=(Math.min(TX-1,(fv*TX)|0)*TX+Math.min(TX-1,(fu*TX)|0));
+                    const nx=-NRM.nx[ni]*fuerzaRelieve*1.6, ny=-NRM.ny[ni]*fuerzaRelieve*1.6;
+                    const inv=1/Math.sqrt(nx*nx+ny*ny+1);
+                    const ndl=(nx*L.x+ny*L.y+L.z)*inv;
+                    relieve=Math.max(0.35, Math.min(1.6, ndl/L.z));
+                }
+
+                const f=sombra*relieve;
+                let r=M.d[ti]*f, g=M.d[ti+1]*f, b=M.d[ti+2]*f;
 
                 // ── 4) REFLEJOS ─────────────────────────────────────────
                 // Lo que le faltaba para verse pulido. Un brillo especular
@@ -644,8 +692,10 @@ async function aplicarMaterial(){
                 // aparte y se suma encima, que es como se comporta un
                 // reflejo de verdad: no tiñe, se agrega.
                 if(conBrillo){
+                    // Cuánto reflejo se devuelve depende del acabado: un
+                    // porcelanato pulido refleja la lámpara, un cemento no.
                     const especular=Math.max(0, lum[i]-suave[i]);
-                    const brillo=especular*255*1.35;
+                    const brillo=especular*255*acab.especular;
                     r+=brillo; g+=brillo; b+=brillo;
                 }
 
@@ -661,6 +711,87 @@ async function aplicarMaterial(){
         alert('No se pudo aplicar este material. Puede ser un problema con la imagen del producto.');
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// DE DÓNDE VIENE LA LUZ
+// En un motor 3D la posición de la luz se conoce porque la pusiste tú. En una
+// foto hay que deducirla. Se ajusta un plano al brillo dentro de la máscara,
+// en coordenadas MÉTRICAS (no en píxeles, que están deformados por la
+// perspectiva): el gradiente apunta hacia donde está la fuente.
+// Es lo que permite que las juntas se sombreen del lado correcto. Si el
+// relieve se ilumina al revés, el cerebro lo detecta al instante.
+// ═══════════════════════════════════════════════════════════════════════
+function estimarDireccionLuz(suave, mascara, w, h){
+    let su=0, sv=0, sl=0, n=0;
+    const pts=[];
+    const paso = Math.max(1, Math.round(Math.min(w,h)/220));   // muestreo, no hace falta cada píxel
+    for(let y=0;y<h;y+=paso) for(let x=0;x<w;x+=paso){
+        const i=y*w+x;
+        if(!mascara[i]) continue;
+        let u,v;
+        if(Hinv){ const wp=Hinv.g*x+Hinv.h*y+1;
+            u=(Hinv.a*x+Hinv.b*y+Hinv.c)/wp; v=(Hinv.d*x+Hinv.e*y+Hinv.f)/wp; }
+        else { u=x; v=y; }
+        pts.push([u,v,suave[i]]); su+=u; sv+=v; sl+=suave[i]; n++;
+    }
+    if(n<12) return {x:0.4, y:0.4, z:0.82};   // sin datos: luz cenital ladeada
+    const mu=su/n, mv=sv/n, ml=sl/n;
+    // Mínimos cuadrados sobre L = a*u + b*v + c
+    let Suu=0,Svv=0,Suv=0,Sul=0,Svl=0;
+    for(const [u,v,l] of pts){
+        const du=u-mu, dv=v-mv, dl=l-ml;
+        Suu+=du*du; Svv+=dv*dv; Suv+=du*dv; Sul+=du*dl; Svl+=dv*dl;
+    }
+    const det=Suu*Svv-Suv*Suv;
+    let a=0,b=0;
+    if(Math.abs(det)>1e-12){ a=(Sul*Svv-Svl*Suv)/det; b=(Svl*Suu-Sul*Suv)/det; }
+    // El gradiente apunta hacia lo más iluminado = hacia la luz
+    const mag=Math.hypot(a,b);
+    if(mag<1e-9) return {x:0, y:0, z:1};
+    // Elevación: si el brillo varía poco, la luz está más arriba (cenital)
+    const inclinacion=Math.min(0.75, mag*2.2);
+    const lx=a/mag*inclinacion, ly=b/mag*inclinacion;
+    const lz=Math.sqrt(Math.max(0.05, 1-lx*lx-ly*ly));
+    return {x:lx, y:ly, z:lz};
+}
+
+// Pirámide de la textura: copias cada vez más pequeñas. Sirve para que las
+// baldosas del fondo, donde un píxel abarca media pieza, no salgan con
+// ruido de aliasing. Es lo mismo que hacen los mipmaps de la GPU, pero aquí
+// hay que hacerlo a mano porque el muestreo lo hace JavaScript.
+function piramideTextura(bmp, niveles){
+    const p=[];
+    for(let k=0;k<niveles;k++){
+        const t=Math.max(8, 256>>k);
+        const c=document.createElement('canvas'); c.width=c.height=t;
+        const cx=c.getContext('2d');
+        cx.imageSmoothingEnabled=true; cx.imageSmoothingQuality='high';
+        cx.drawImage(bmp,0,0,t,t);
+        p.push({t, d:cx.getImageData(0,0,t,t).data});
+    }
+    return p;
+}
+
+// Normales de la textura por Sobel sobre su luminancia. Lo oscuro se toma
+// como hundido, que en un piso es cierto: las juntas son la parte oscura.
+function normalesTextura(datos, T){
+    const alt=new Float32Array(T*T);
+    for(let i=0;i<T*T;i++) alt[i]=(datos[i*4]*0.299+datos[i*4+1]*0.587+datos[i*4+2]*0.114)/255;
+    const hh=(x,y)=>alt[(((y%T)+T)%T)*T+(((x%T)+T)%T)];
+    const nx=new Float32Array(T*T), ny=new Float32Array(T*T);
+    for(let y=0;y<T;y++) for(let x=0;x<T;x++){
+        nx[y*T+x]=(hh(x+1,y-1)+2*hh(x+1,y)+hh(x+1,y+1))-(hh(x-1,y-1)+2*hh(x-1,y)+hh(x-1,y+1));
+        ny[y*T+x]=(hh(x-1,y+1)+2*hh(x,y+1)+hh(x+1,y+1))-(hh(x-1,y-1)+2*hh(x,y-1)+hh(x+1,y-1));
+    }
+    return {nx, ny};
+}
+
+const ACABADOS = {
+    pulido:   { especular: 2.10, relieve: 0.55 },
+    satinado: { especular: 1.35, relieve: 1.00 },
+    mate:     { especular: 0.55, relieve: 1.25 },
+    rugoso:   { especular: 0.20, relieve: 1.70 },
+};
 
 // Desenfoque de caja separable: dos pasadas 1D en vez de una 2D. Con radio 45
 // un desenfoque directo serían ~8000 operaciones por pixel; así son 4.
