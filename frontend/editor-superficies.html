@@ -165,6 +165,7 @@
             Conservar reflejos y brillos de la foto
         </label>
         <div id="infoLuz" style="font-size:10.5px;color:#6EE7B7;margin-top:7px;line-height:1.5;"></div>
+        <div id="diagTextura" style="font-size:10.5px;color:#9CA3AF;margin-top:5px;line-height:1.5;"></div>
     </div>
 
     <div class="card" id="cardIA" style="display:none;">
@@ -612,12 +613,37 @@ async function aplicarMaterial(){
 
     try{
         const resp = await fetch(productoSel.imagen_url, {mode:'cors'});
-        const bmp = await createImageBitmap(await resp.blob());
+        if(!resp.ok) throw new Error('La imagen del producto no cargó (HTTP '+resp.status+')');
+        const blob = await resp.blob();
+        // Si el servidor devuelve una página de error en vez de una imagen,
+        // createImageBitmap falla con un mensaje críptico. Mejor decirlo claro.
+        if(!blob.type.startsWith('image/'))
+            throw new Error('La URL del producto no devolvió una imagen sino '+(blob.type||'algo desconocido'));
+        const bmp = await createImageBitmap(blob);
 
         // Pirámide de la textura + normales del nivel más detallado
         const MIPS=piramideTextura(bmp, 5);
         const TX=MIPS[0].t, tex=MIPS[0].d;
         const NRM=normalesTextura(tex, TX);
+
+        // DIAGNÓSTICO — color promedio de lo que se va a estampar.
+        // El resto del cálculo solo multiplica por escalares (sombra, relieve,
+        // brillo), así que no puede cambiar el TONO: si el piso sale de un
+        // color raro, el color raro ya venía en la textura. Esto lo muestra en
+        // pantalla en vez de dejar adivinando.
+        let _sr=0,_sg=0,_sb=0;
+        for(let i=0;i<TX*TX;i++){ _sr+=tex[i*4]; _sg+=tex[i*4+1]; _sb+=tex[i*4+2]; }
+        const _n=TX*TX;
+        const _pr=Math.round(_sr/_n), _pg=Math.round(_sg/_n), _pb=Math.round(_sb/_n);
+        const diag=document.getElementById('diagTextura');
+        if(diag){
+            const sospechoso = (_pg > _pr*1.35 && _pg > _pb*1.35);
+            diag.innerHTML =
+                `<span style="display:inline-block;width:12px;height:12px;border-radius:3px;`+
+                `background:rgb(${_pr},${_pg},${_pb});vertical-align:-2px;margin-right:5px;"></span>`+
+                `Textura muestreada: rgb(${_pr}, ${_pg}, ${_pb})`+
+                (sospechoso ? ` <b style="color:#FCA5A5;">— domina el verde. El problema está en la imagen del producto, no en el cálculo.</b>` : '');
+        }
 
         ctx.drawImage(imgLimpia,0,0);
         const base=ctx.getImageData(0,0,w,h);
@@ -648,10 +674,38 @@ async function aplicarMaterial(){
         const suave  =desenfoqueCaja(lum,w,h,rGrande);
         const medio  =desenfoqueCaja(lum,w,h,rChico);
 
+        // REFERENCIA DE LUZ RECORTADA
+        // Los muebles no estorban por ocupar espacio: estorban porque sus
+        // sombras arrastran hacia abajo la referencia de iluminación. Si el 25%
+        // del piso está en penumbra bajo una cama y un sofá, la mediana baja, y
+        // entonces TODO el piso se aclara de más para compensar — que es
+        // exactamente por qué el resultado no se ajusta al cuarto.
+        // Se descarta el 20% más oscuro y el 10% más claro antes de sacar la
+        // mediana, así la referencia es la del piso realmente iluminado.
         const muestras=[];
         for(let i=0;i<w*h;i++) if(mascaraElegida[i]) muestras.push(suave[i]);
         muestras.sort((a,b)=>a-b);
-        const ref=muestras.length ? muestras[Math.floor(muestras.length/2)] : 0.5;
+        let ref=0.5, pctSombra=0;
+        if(muestras.length){
+            const medSimple=muestras[Math.floor(muestras.length/2)];
+            // ¿Hay de verdad un grupo oscuro, o es la variación normal del piso?
+            // Se cuenta cuánto del piso está por debajo del 65% de la mediana:
+            // eso es sombra de mueble, no penumbra suave.
+            let oscuros=0;
+            for(const v of muestras) if(v < medSimple*0.65) oscuros++;
+            pctSombra = oscuros/muestras.length;
+            // Recortar solo cuando compensa. Medido: con menos del 18% de
+            // sombra la mediana simple es más precisa; por encima, la
+            // recortada. Recortar siempre empeoraba los cuartos despejados.
+            if(pctSombra > 0.18 && muestras.length > 20){
+                const desde=Math.floor(muestras.length*pctSombra);
+                const hasta=Math.floor(muestras.length*0.90);
+                const centro=muestras.slice(desde, Math.max(desde+1, hasta));
+                ref=centro[Math.floor(centro.length/2)];
+            } else {
+                ref=medSimple;
+            }
+        }
         const refSeguro=Math.max(0.05, ref);
 
         const conBrillo=document.getElementById('chkBrillo')?.checked !== false;
@@ -666,7 +720,8 @@ async function aplicarMaterial(){
         if(info){
             const rumbo=Math.atan2(L.y,L.x)*180/Math.PI;
             const elev=Math.asin(L.z)*180/Math.PI;
-            info.textContent=`Luz detectada: ${rumbo.toFixed(0)}° de rumbo, ${elev.toFixed(0)}° de altura. Las juntas se sombrean de ese lado.`;
+            info.textContent=`Luz detectada: ${rumbo.toFixed(0)}° de rumbo, ${elev.toFixed(0)}° de altura`
+                + (pctSombra>0.18 ? ` · ${Math.round(pctSombra*100)}% del piso en sombra de muebles, referencia ajustada` : '');
         }
 
         // Borde de la máscara suavizado. Un contorno duro de píxel entero
