@@ -35,7 +35,7 @@ import httpx
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from app.utils.config import OPENAI_API_KEY
+from app.utils.config import get_settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/superficies", tags=["superficies"])
@@ -83,8 +83,9 @@ async def refinar_superficie(data: RefinarRequest, request: Request):
     Devuelve una imagen de referencia de iluminación. El navegador NO la
     muestra tal cual: le extrae la luz y la aplica sobre su propio compuesto.
     """
-    if not OPENAI_API_KEY:
-        raise HTTPException(status_code=503, detail="Falta configurar OPENAI_API_KEY")
+    settings = get_settings()
+    if not settings.openai_api_key:
+        raise HTTPException(status_code=503, detail="Falta configurar la clave de OpenAI")
 
     try:
         imagen = base64.b64decode(data.imagen_base64)
@@ -99,7 +100,7 @@ async def refinar_superficie(data: RefinarRequest, request: Request):
         async with httpx.AsyncClient(timeout=TIEMPO_LIMITE) as cliente:
             respuesta = await cliente.post(
                 "https://api.openai.com/v1/images/edits",
-                headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+                headers={"Authorization": f"Bearer {settings.openai_api_key}"},
                 files={
                     "image": ("escena.png", imagen, "image/png"),
                     "mask": ("mascara.png", mascara, "image/png"),
