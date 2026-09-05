@@ -1240,8 +1240,10 @@ function clickEnPared() {
     const { moduloId, lado } = paredHovered.userData;
 
     if (modoEliminarPared) {
-        // Eliminar visualmente y marcar para que no se reconstruya al regenerar
-        scene.remove(paredHovered);
+        // Eliminar visualmente y marcar para que no se reconstruya al regenerar.
+        // Se quita de su padre real (el grupo del cuarto), no de la escena:
+        // scene.remove() sobre un nieto no hace nada y el muro se quedaría.
+        (paredHovered.parent || scene).remove(paredHovered);
         paredesInteractivas = paredesInteractivas.filter(p => p !== paredHovered);
         const modOriginal = modulosPlanta.find(m => m.id === moduloId);
         if (modOriginal) {
@@ -1497,7 +1499,13 @@ function seleccionarParaTransformar(obj) {
         caja,
     };
     gizmo.attach(obj);
-    const nombre = obj.userData.tipoEstructura || obj.userData.nombreMueble || obj.name || 'elemento';
+    const ETIQUETA = { cuarto:'🏠 Cuarto', cubierta:'🏠 Cubierta', plafon:'⬜ Plafón',
+                       camara:'🎥 Cámara', columna:'🏛️ Columna', viga:'🪵 Viga',
+                       pared:'🧱 Pared', vidrio:'🪟 Vidrio' };
+    const t = obj.userData.tipoEstructura;
+    const nombre = obj.userData.moduloNombre
+                || (t ? (ETIQUETA[t] || t) : null)
+                || obj.userData.nombreMueble || obj.name || 'elemento';
     document.getElementById('tfObjeto').textContent = '▸ ' + nombre;
     mostrarMedidasTF();
 }
@@ -1780,6 +1788,10 @@ function actualizarEstelaCamara(t) {
 }
 marcadorCamara.visible = false;
 marcarPersistente(marcadorCamara);
+// La cámara es el tercer objeto de la escena que el usuario querrá mover a
+// mano: se marca para que el gizmo la agarre como a cualquier otro.
+marcadorCamara.userData.tipoEstructura = 'camara';
+marcadorCamara.userData.moduloNombre   = '🎥 Cámara';
 scene.add(marcadorCamara);
 const planoArrastre = new THREE.Plane(new THREE.Vector3(0,1,0), 0); // plano Y=0
 const puntoArrastre = new THREE.Vector3();
@@ -4475,6 +4487,9 @@ canvas.addEventListener('mouseup', () => {
 });
 
 function actualizarCamaraMientrasDibuja() {
+    // Si el usuario está colocando la cámara a mano con el gizmo, el recorrido
+    // no debe arrebatársela a mitad del arrastre.
+    if (objetoTransformar === marcadorCamara) return;
     // Muestra la camarita EN LA PUNTA del trazo mientras dibujas, mirando
     // hacia donde te estás moviendo — así sabes de una vez hacia dónde va a
     // quedar mirando la grabación, sin tener que adivinar con solo la línea.
@@ -6634,6 +6649,24 @@ function restarIntervalos(ini, fin, huecos) {
     return segmentos.filter(([a,b]) => (b - a) > 0.05);
 }
 
+// Toma todo lo que se acaba de añadir a la escena y lo mete en un Group con
+// el pivote en el centro que se le indique. Sin esto, un cuarto son ocho o
+// diez mallas sueltas colgando de la escena: se ve como un cuarto pero no se
+// puede agarrar como un cuarto. Con el pivote propio, girarlo lo gira sobre
+// su centro y no sobre el origen del mundo, que es lo que uno espera.
+function agruparEnPivote(desdeIndice, centro, datos) {
+    const nuevos = scene.children.slice(desdeIndice);
+    if (!nuevos.length) return null;
+    const g = new THREE.Group();
+    g.position.copy(centro);
+    // add() reparenta solo; hay que pasar las posiciones a coordenadas
+    // locales restando el centro, si no todo salta al doble de distancia.
+    nuevos.forEach(o => { o.position.sub(centro); g.add(o); });
+    g.userData = datos;
+    scene.add(g);
+    return g;
+}
+
 function cargarDesdePlano(modelo3d) {
     if (!modelo3d || !modelo3d.modulos || !modelo3d.modulos.length) {
         mostrarToast('⚠️ El plano no tiene módulos válidos');
@@ -6718,6 +6751,9 @@ function cargarDesdePlano(modelo3d) {
         const color  = mod.color_pared || '#F5F5F5';
         const mat    = mod.material_piso || 'ceramica';
         const baseY  = baseNivel(mod);
+        // Marca de dónde empieza este módulo, para poder agrupar al final
+        // todo lo que se le añada: piso, muros, revoques, dinteles y techo.
+        const marcaEscena = scene.children.length;
         if (esCuarto(mod.tipo)) {
             modulosActuales3D.push({ id: mod.id, nombre: mod.nombre, cx: x, cz: z, ancho, largo, alto, baseY, nivel: mod.nivel || 0, materialPiso: mat, imagenPisoUrl: mod.imagen_piso || null });
         }
@@ -7079,6 +7115,16 @@ function cargarDesdePlano(modelo3d) {
         sprite.position.set(x, baseY + alto * 0.5, z);
         sprite.scale.set(2.0, 0.5, 1);
         scene.add(sprite);
+
+        // El cuarto queda como UN objeto con pivote en su centro, a media
+        // altura. Así el gizmo lo agarra completo y girarlo lo gira sobre sí
+        // mismo. Los muros siguen en paredesInteractivas y el piso en
+        // pisosRaycastables: el raycast usa matrices de mundo, así que
+        // cambiarles el padre no rompe ni el hover de muros ni el dibujo del
+        // recorrido sobre el piso.
+        agruparEnPivote(marcaEscena,
+            new THREE.Vector3(x, baseY + alto/2, z),
+            { tipoEstructura: 'cuarto', moduloId: mod.id, moduloNombre: mod.nombre });
     });
 
     // ── MARCOS Y HOJAS DE PUERTA ─────────────────────────────────────────
