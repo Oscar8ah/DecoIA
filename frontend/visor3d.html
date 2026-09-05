@@ -247,6 +247,13 @@
         <button onclick="agregarPlafon('circulo')" style="background:rgba(192,132,252,0.15);border:1px solid rgba(192,132,252,0.35);color:#E9D5FF;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">⬤ Plafón redondo</button>
         <button onclick="agregarPlafon('L')"       style="background:rgba(192,132,252,0.15);border:1px solid rgba(192,132,252,0.35);color:#E9D5FF;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">⌐ Figura en L</button>
         <div style="font-size:10px;color:var(--gris);line-height:1.5;">Arrástralos y estíralos igual que un cuarto. El <b>descuelgue</b> es cuánto bajan del techo.</div>
+
+        <div style="font-size:11px;font-weight:700;color:#FB923C;text-transform:uppercase;letter-spacing:0.05em;margin-top:8px;padding-top:8px;border-top:1px solid rgba(249,115,22,0.25);">🏠 Cubiertas</div>
+        <button onclick="agregarCubierta('rect')"      style="background:rgba(249,115,22,0.15);border:1px solid rgba(249,115,22,0.35);color:#FDBA74;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">▭ Rectángulo</button>
+        <button onclick="agregarCubierta('cuadrado')"  style="background:rgba(249,115,22,0.15);border:1px solid rgba(249,115,22,0.35);color:#FDBA74;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">◻ Cuadrado</button>
+        <button onclick="agregarCubierta('triangulo')" style="background:rgba(249,115,22,0.15);border:1px solid rgba(249,115,22,0.35);color:#FDBA74;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">△ Triángulo</button>
+        <button onclick="agregarCubierta('hexagono')"  style="background:rgba(249,115,22,0.15);border:1px solid rgba(249,115,22,0.35);color:#FDBA74;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">⬡ Hexágono</button>
+        <div style="font-size:10px;color:var(--gris);line-height:1.5;">Pon <b>dos figuras que se crucen</b> y sale un techo en L, en T o en cruz. Cada una lleva su propia pendiente y orientación.</div>
     </div>
 
     <div id="grupoPlanta" style="display:flex;flex-direction:column;gap:8px;">
@@ -551,6 +558,46 @@
                     <option value="circulo">Redondo</option>
                     <option value="L">En L</option>
                 </select>
+            </div>
+            <!-- Solo para CUBIERTA -->
+            <div id="contCubierta" style="display:none;">
+                <label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;">Tipo de techo</label>
+                <select id="propTipoTecho" onchange="actualizarPropModulo()"
+                    style="width:100%;background:var(--oscuro);border:1px solid rgba(249,115,22,0.35);border-radius:8px;padding:8px 12px;color:var(--texto);font-size:13px;margin-top:4px;outline:none;">
+                    <option value="plana">Plana</option>
+                    <option value="un_agua">A una agua (shed)</option>
+                    <option value="dos_aguas">A dos aguas</option>
+                    <option value="cuatro_aguas">A cuatro aguas</option>
+                    <option value="piramidal">Piramidal</option>
+                </select>
+                <div style="display:flex;gap:6px;margin-top:8px;">
+                    <div style="flex:1;">
+                        <label style="font-size:10px;color:var(--gris);text-transform:uppercase;">Inclinación %</label>
+                        <input type="number" id="propPendiente" min="0" max="150" step="5" value="35" oninput="actualizarPropModulo()"
+                            style="width:100%;background:var(--oscuro);border:1px solid rgba(249,115,22,0.3);border-radius:7px;padding:6px 8px;color:var(--texto);font-size:12px;outline:none;">
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-size:10px;color:var(--gris);text-transform:uppercase;">Voladizo (m)</label>
+                        <input type="number" id="propVoladizo" min="0" max="3" step="0.1" value="0.5" oninput="actualizarPropModulo()"
+                            style="width:100%;background:var(--oscuro);border:1px solid rgba(249,115,22,0.3);border-radius:7px;padding:6px 8px;color:var(--texto);font-size:12px;outline:none;">
+                    </div>
+                </div>
+                <div style="display:flex;gap:6px;margin-top:6px;">
+                    <div style="flex:1;">
+                        <label style="font-size:10px;color:var(--gris);text-transform:uppercase;">Altura base (m)</label>
+                        <input type="number" id="propAlturaCub" min="0" max="30" step="0.1" value="2.6" oninput="actualizarPropModulo()"
+                            style="width:100%;background:var(--oscuro);border:1px solid rgba(249,115,22,0.3);border-radius:7px;padding:6px 8px;color:var(--texto);font-size:12px;outline:none;">
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-size:10px;color:var(--gris);text-transform:uppercase;">Orientación</label>
+                        <select id="propOrientacion" onchange="actualizarPropModulo()"
+                            style="width:100%;background:var(--oscuro);border:1px solid rgba(249,115,22,0.3);border-radius:7px;padding:6px 8px;color:var(--texto);font-size:12px;outline:none;">
+                            <option value="0">0°</option><option value="90">90°</option>
+                            <option value="180">180°</option><option value="270">270°</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="infoCubierta" style="font-size:10.5px;color:var(--gris);margin-top:8px;line-height:1.6;"></div>
             </div>
             <!-- Solo para COLUMNA: sección cuadrada o redonda -->
             <div id="contColumna" style="display:none;">
@@ -1730,6 +1777,7 @@ function actualizarEstelaCamara(t) {
     scene.add(grupo);
 }
 marcadorCamara.visible = false;
+marcarPersistente(marcadorCamara);
 scene.add(marcadorCamara);
 const planoArrastre = new THREE.Plane(new THREE.Vector3(0,1,0), 0); // plano Y=0
 const puntoArrastre = new THREE.Vector3();
@@ -3110,6 +3158,9 @@ function construirHabitacion() {
         // El gizmo de edición vive en la escena: si entra aquí se borra al
         // regenerar y quedan listeners apuntando a un objeto muerto.
         if (obj === gizmo || (obj.parent && obj.parent === gizmo)) return;
+        // El recorrido, las trayectorias grabadas y el marcador de cámara son
+        // trabajo del usuario: sobreviven a regenerar el plano.
+        if (esPersistente(obj)) return;
         if (obj.isMesh || obj.isGroup || obj.isSprite) aEliminar.push(obj);
     });
     aEliminar.forEach(obj => scene.remove(obj));
@@ -4301,6 +4352,7 @@ function toggleDibujo3D() {
         btn.textContent = '✋ Salir del modo dibujo';
         btn.style.background = 'rgba(245,158,11,0.3)';
         controls.enabled = false; // el arrastre dibuja, no orbita, mientras esté activo
+        apartarTechosParaRecorrido(true);
         trazo3D = [];
         if (lineaTrazo3DObj) { scene.remove(lineaTrazo3DObj); lineaTrazo3DObj = null; }
         document.getElementById('btnUsarTrazo3D').style.display = 'none';
@@ -4308,6 +4360,7 @@ function toggleDibujo3D() {
         btn.textContent = '🎯 Dibujar recorrido sobre el modelo';
         btn.style.background = 'rgba(245,158,11,0.15)';
         controls.enabled = true;
+        apartarTechosParaRecorrido(false);
         marcadorCamara.visible = false;
     }
 }
@@ -4369,6 +4422,7 @@ function toggleArrastrarCamara() {
         btn.textContent = '✋ Salir del modo cámara';
         btn.style.background = 'rgba(34,211,238,0.35)';
         controls.enabled = false;
+        apartarTechosParaRecorrido(true);
         trazo3D = [];
         // Colocar la cámara en el centro del primer módulo para empezar
         const primero = modulosActuales3D[0];
@@ -4455,6 +4509,62 @@ document.addEventListener('keydown', (e) => {
     document.getElementById('btnUsarTrazo3D').style.display = 'block';
 });
 
+// ═══════════════════════════════════════════════════════════════════════
+// OBJETOS PERSISTENTES
+// La limpieza de escena barría TODO lo que fuera Mesh, Group o Sprite. Eso
+// incluía el recorrido de cámara, las trayectorias ya grabadas y el propio
+// marcador de la cámara: al regenerar el 3D desaparecían de la pantalla
+// aunque los datos siguieran en memoria. Peor con el marcador, que después
+// se le seguía asignando posición y visibilidad estando ya fuera de la
+// escena, así que no volvía nunca hasta recargar la página.
+// El recorrido es trabajo del usuario, no geometría del plano: no se borra
+// cuando se reconstruye el plano.
+// ═══════════════════════════════════════════════════════════════════════
+function marcarPersistente(obj) {
+    if (!obj) return obj;
+    obj.userData = obj.userData || {};
+    obj.userData.persistente = true;
+    return obj;
+}
+
+function esPersistente(obj) {
+    let o = obj;
+    while (o) {
+        if (o.userData && o.userData.persistente) return true;
+        o = o.parent;
+    }
+    return false;
+}
+
+// Si algo persistente quedó huérfano por una limpieza vieja, se devuelve a
+// la escena. Así se recupera solo, sin obligar a recargar.
+function garantizarPersistentes() {
+    [marcadorCamara, lineaTrazo3DObj, ...lineasGrabadas].forEach(o => {
+        if (o && o.parent !== scene) scene.add(o);
+    });
+}
+
+// Techos y cubierta se apartan mientras se trabaja el recorrido, y vuelven a
+// como estaban al terminar. Aunque el trazo ya se ve por encima de todo, con
+// la losa puesta no se distingue el piso ni las zonas por donde se pasa.
+let _techosAntesDeDibujar = null;
+function apartarTechosParaRecorrido(activar) {
+    if (activar) {
+        if (_techosAntesDeDibujar === null) {
+            _techosAntesDeDibujar = {
+                techos: techosPlanta.map(t => t.visible),
+                cubierta: cubiertaPlanta.map(c => c.visible),
+            };
+        }
+        techosPlanta.forEach(t => { t.visible = false; });
+        cubiertaPlanta.forEach(c => { c.visible = false; });
+    } else if (_techosAntesDeDibujar) {
+        techosPlanta.forEach((t, i) => { t.visible = _techosAntesDeDibujar.techos[i] ?? false; });
+        cubiertaPlanta.forEach((c, i) => { c.visible = _techosAntesDeDibujar.cubierta[i] ?? true; });
+        _techosAntesDeDibujar = null;
+    }
+}
+
 function dibujarLineaTrazo3D() {
     if (lineaTrazo3DObj) scene.remove(lineaTrazo3DObj);
     if (trazo3D.length < 2) return;
@@ -4465,8 +4575,13 @@ function dibujarLineaTrazo3D() {
     const curva = new THREE.CatmullRomCurve3(puntos);
     const segmentos = Math.max(12, puntos.length * 4);
     const geo = new THREE.TubeGeometry(curva, segmentos, 0.35, 12, false);
-    const mat = new THREE.MeshBasicMaterial({ color: 0x22D3EE });
+    // depthTest en false = se dibuja encima de todo. Es lo que hace que el
+    // recorrido siga viéndose con el techo puesto, en vez de quedar tapado
+    // por la losa que está justo encima de él.
+    const mat = new THREE.MeshBasicMaterial({ color: 0x22D3EE, depthTest: false, depthWrite: false });
     lineaTrazo3DObj = new THREE.Mesh(geo, mat);
+    lineaTrazo3DObj.renderOrder = 999;
+    marcarPersistente(lineaTrazo3DObj);
     scene.add(lineaTrazo3DObj);
 }
 
@@ -4646,12 +4761,14 @@ function convertirTrazo3DARecorrido() {
     // grabación — así ves todas las trayectorias grabadas a la vez y sabes
     // cuál es cuál (antes se borraba al convertir y se perdía la referencia).
     if (lineaTrazo3DObj) {
-        lineaTrazo3DObj.material = new THREE.MeshBasicMaterial({ color: colorGrabacion });
+        lineaTrazo3DObj.material = new THREE.MeshBasicMaterial({ color: colorGrabacion, depthTest: false, depthWrite: false });
+        lineaTrazo3DObj.renderOrder = 999;
         lineasGrabadas.push(lineaTrazo3DObj);
         lineaTrazo3DObj = null;
     }
     document.getElementById('btnUsarTrazo3D').style.display = 'none';
     modoDibujo3D = false;
+    apartarTechosParaRecorrido(false);
     marcadorCamara.visible = false;
     document.getElementById('btnDibujar3D').textContent = '🎯 Dibujar recorrido sobre el modelo';
     document.getElementById('btnDibujar3D').style.background = 'rgba(245,158,11,0.15)';
@@ -5207,12 +5324,12 @@ function modulosEditables() {
 const COLORES_MODULO = {
     sala:'#3B82F6', cocina:'#10B981', habitacion:'#7C3AED',
     bano:'#F59E0B', pasillo:'#94A3B8', zona:'#EF4444', pared:'#78716C', vidrio:'#38BDF8',
-    columna:'#A8A29E', viga:'#927C58', plafon:'#C084FC'
+    columna:'#A8A29E', viga:'#927C58', plafon:'#C084FC', cubierta:'#F97316'
 };
 const EMOJIS_MODULO = {
     sala:'🛋️', cocina:'🍳', habitacion:'🛏️',
     bano:'🚿', pasillo:'🚶', zona:'📦', pared:'🧱', vidrio:'🪟',
-    columna:'🏛️', viga:'🪵', plafon:'⬜'
+    columna:'🏛️', viga:'🪵', plafon:'⬜', cubierta:'🏠'
 };
 // ── ENVOLVENTE: techos interiores + fachada exterior ─────────────────────
 // "Techo" es el cielo raso de cada cuarto (se ve desde adentro).
@@ -5239,7 +5356,7 @@ let puertasPlanta  = [];   // { grupo, pivote, vano, angMax } — hojas abribles
 // Tipos que NO son un cuarto: no llevan piso, no abren vanos en el vecino y no
 // suman área habitable. Antes esta lista estaba escrita a mano en 5 sitios
 // distintos; centralizarla evita que columna/viga se cuelen en las estadísticas.
-const TIPOS_NO_CUARTO = ['pared', 'vidrio', 'columna', 'viga', 'plafon'];
+const TIPOS_NO_CUARTO = ['pared', 'vidrio', 'columna', 'viga', 'plafon', 'cubierta'];
 const esCuarto = t => !TIPOS_NO_CUARTO.includes(t);
 
 function iniciarEditorPlanta() {
@@ -5336,6 +5453,38 @@ function refrescarEtiquetaNivel() {
     if (el) el.textContent = `Piso ${nivelActivo+1} de ${nivelesTotales}`;
 }
 
+// Altura de cumbrera resultante: es el dato que el usuario necesita ver para
+// saber si el techo le cabe o se le pasa de altura permitida.
+function infoDeCubierta() {
+    const m = moduloSeleccionado, el = document.getElementById('infoCubierta');
+    if (!m || !el) return;
+    const p = (m.pendiente ?? 35) / 100;
+    const t = m.tipoTecho || 'dos_aguas';
+    const g = (m.orientacion ?? 0) % 180 !== 0;
+    const luz = g ? m.largo : m.ancho, otro = g ? m.ancho : m.largo;
+    let sube = 0;
+    if (t === 'un_agua')            sube = otro * p;
+    else if (t === 'dos_aguas')     sube = (otro/2) * p;
+    else if (t === 'cuatro_aguas' || t === 'piramidal') sube = (Math.min(luz, otro)/2) * p;
+    const grados = Math.atan(p) * 180 / Math.PI;
+    el.innerHTML = t === 'plana'
+        ? `Techo plano a <b style="color:var(--texto);">${(m.alturaBase ?? 2.6).toFixed(2)} m</b>.`
+        : `Cumbrera a <b style="color:var(--texto);">${((m.alturaBase ?? 2.6) + sube).toFixed(2)} m</b> · sube ${sube.toFixed(2)} m · ${grados.toFixed(1)}°`;
+}
+
+window.agregarCubierta = function(forma) {
+    if (capaActiva !== 'techo') cambiarCapa('techo');
+    agregarModulo('cubierta');
+    const m = modulosPlanta[modulosPlanta.length-1];
+    m.forma  = forma;
+    m.nombre = '🏠 ' + ({rect:'Cubierta', cuadrado:'Cubierta cuadrada', triangulo:'Cubierta triangular', hexagono:'Cubierta hexagonal'}[forma]);
+    if (forma === 'cuadrado' || forma === 'hexagono') { m.ancho = 7; m.largo = 7; }
+    if (forma === 'triangulo') { m.tipoTecho = 'dos_aguas'; }
+    seleccionarModulo(m.id);
+    dibujarPlanta();
+    actualizarListaModulos();
+};
+
 window.agregarPlafon = function(forma) {
     agregarModulo('plafon');
     const m = modulosPlanta[modulosPlanta.length-1];
@@ -5362,7 +5511,8 @@ function agregarModulo(tipo) {
         vidrio:  { ancho:0.15, largo:2.0 },
         columna: { ancho:0.30, largo:0.30 },
         viga:    { ancho:0.25, largo:4.00 },
-        plafon:  { ancho:2.50, largo:2.50 },
+        plafon:   { ancho:2.50, largo:2.50 },
+        cubierta: { ancho:8.00, largo:6.00 },
     };
     const med = MEDIDAS_DEFECTO[tipo] || { ancho:4, largo:4 };
     const nuevo = {
@@ -5376,6 +5526,16 @@ function agregarModulo(tipo) {
         nivel: nivelActivo,
         capa:  tipo === 'plafon' ? 'techo' : 'planta',
     };
+    if (tipo === 'cubierta') {
+        // Los parámetros clave del diagrama: inclinación, altura, voladizo y
+        // orientación. Con esos cuatro y la figura, sale cualquier techo.
+        nuevo.forma       = 'rect';        // 'rect' | 'cuadrado' | 'triangulo' | 'hexagono'
+        nuevo.tipoTecho   = 'dos_aguas';
+        nuevo.pendiente   = 35;            // %
+        nuevo.alturaBase  = 2.60;          // dónde arranca el alero sobre el piso del nivel
+        nuevo.voladizo    = 0.50;          // vuelo por fuera de la figura
+        nuevo.orientacion = 0;             // grados: gira la cumbrera
+    }
     if (tipo === 'plafon') {
         nuevo.forma      = 'rect';   // 'rect' | 'circulo' | 'L'
         nuevo.descuelgue = 0.25;     // cuánto baja respecto al techo, en metros
@@ -5597,6 +5757,19 @@ function dibujarPlanta() {
             ctx.lineTo(m.px + cx, m.pz + ph);
             ctx.lineTo(m.px, m.pz + ph);
             ctx.closePath();
+        } else if (m.forma === 'triangulo') {
+            ctx.moveTo(m.px + pw/2, m.pz);
+            ctx.lineTo(m.px + pw, m.pz + ph);
+            ctx.lineTo(m.px, m.pz + ph);
+            ctx.closePath();
+        } else if (m.forma === 'hexagono') {
+            for (let k = 0; k < 6; k++) {
+                const a = Math.PI/6 + k * Math.PI/3;
+                const px = m.px + pw/2 + Math.cos(a)*pw/2;
+                const pz = m.pz + ph/2 + Math.sin(a)*ph/2;
+                k ? ctx.lineTo(px, pz) : ctx.moveTo(px, pz);
+            }
+            ctx.closePath();
         } else if (m.tipo === 'columna' && m.forma === 'redonda') {
             ctx.ellipse(m.px + pw/2, m.pz + ph/2, pw/2, ph/2, 0, 0, Math.PI*2);
         } else {
@@ -5653,6 +5826,43 @@ function dibujarPlanta() {
         ctx.stroke();
         ctx.setLineDash([]);
 
+        // LIMATESAS Y CUMBRERA — así se lee un techo en un plano de verdad:
+        // por dónde caen las aguas. Sin estas líneas dos cubiertas distintas
+        // se ven idénticas en planta.
+        if (m.tipo === 'cubierta') {
+            const g = (m.orientacion ?? 0) % 180 !== 0;   // ¿cumbrera girada?
+            const x0 = m.px, z0 = m.pz, x1 = m.px + pw, z1 = m.pz + ph;
+            const cx = x0 + pw/2, cz = z0 + ph/2;
+            ctx.save();
+            ctx.strokeStyle = '#FDBA74';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            const t = m.tipoTecho || 'dos_aguas';
+            if (t === 'dos_aguas') {
+                g ? (ctx.moveTo(cx, z0), ctx.lineTo(cx, z1))
+                  : (ctx.moveTo(x0, cz), ctx.lineTo(x1, cz));
+            } else if (t === 'cuatro_aguas') {
+                const d = Math.min(pw, ph)/2;
+                if (g) { ctx.moveTo(cx, z0+d); ctx.lineTo(cx, z1-d); }
+                else   { ctx.moveTo(x0+d, cz); ctx.lineTo(x1-d, cz); }
+                ctx.moveTo(x0,z0); ctx.lineTo(g?cx:x0+d, g?z0+d:cz);
+                ctx.moveTo(x1,z0); ctx.lineTo(g?cx:x1-d, g?z0+d:cz);
+                ctx.moveTo(x0,z1); ctx.lineTo(g?cx:x0+d, g?z1-d:cz);
+                ctx.moveTo(x1,z1); ctx.lineTo(g?cx:x1-d, g?z1-d:cz);
+            } else if (t === 'piramidal') {
+                [[x0,z0],[x1,z0],[x1,z1],[x0,z1]].forEach(([a,b])=>{ ctx.moveTo(a,b); ctx.lineTo(cx,cz); });
+            } else if (t === 'un_agua') {
+                // Flecha en el sentido de la caída
+                const ang = (m.orientacion ?? 0) * Math.PI/180;
+                const dx = Math.cos(ang), dz = Math.sin(ang), L = Math.min(pw,ph)*0.32;
+                ctx.moveTo(cx - dx*L, cz - dz*L); ctx.lineTo(cx + dx*L, cz + dz*L);
+                ctx.moveTo(cx + dx*L, cz + dz*L); ctx.lineTo(cx + dx*L - (dx+dz)*L*0.35, cz + dz*L - (dz-dx)*L*0.35);
+                ctx.moveTo(cx + dx*L, cz + dz*L); ctx.lineTo(cx + dx*L - (dx-dz)*L*0.35, cz + dz*L - (dz+dx)*L*0.35);
+            }
+            ctx.stroke();
+            ctx.restore();
+        }
+
         ctx.shadowBlur = 0;
 
         // Etiqueta — en columnas y vigas el rótulo se sale del elemento (una
@@ -5673,7 +5883,9 @@ function dibujarPlanta() {
             ctx.fillText(m.nombre, m.px + pw/2, m.pz + ph/2 - 8);
             ctx.fillStyle = 'rgba(255,255,255,0.6)';
             ctx.font      = `${Math.min(11, pw/7)}px Segoe UI`;
-            const sub = m.tipo === 'plafon'
+            const sub = m.tipo === 'cubierta'
+                ? `${m.ancho}×${m.largo}m · ${(m.pendiente ?? 35)}% · vuelo ${(m.voladizo ?? 0.5)}m`
+                : m.tipo === 'plafon'
                 ? `${m.ancho}m × ${m.largo}m · baja ${(m.descuelgue ?? 0.25).toFixed(2)}m`
                 : `${m.ancho}m × ${m.largo}m`;
             ctx.fillText(sub, m.px + pw/2, m.pz + ph/2 + 10);
@@ -5949,6 +6161,16 @@ function seleccionarModulo(id) {
     document.getElementById('contViga').style.display    = esViga ? 'block' : 'none';
     document.getElementById('contColumna').style.display = esColumna ? 'block' : 'none';
     document.getElementById('contPlafon').style.display  = esPlafon ? 'block' : 'none';
+    const esCub = moduloSeleccionado.tipo === 'cubierta';
+    document.getElementById('contCubierta').style.display = esCub ? 'block' : 'none';
+    if (esCub) {
+        document.getElementById('propTipoTecho').value   = moduloSeleccionado.tipoTecho   || 'dos_aguas';
+        document.getElementById('propPendiente').value   = moduloSeleccionado.pendiente   ?? 35;
+        document.getElementById('propVoladizo').value    = moduloSeleccionado.voladizo    ?? 0.5;
+        document.getElementById('propAlturaCub').value   = moduloSeleccionado.alturaBase  ?? 2.6;
+        document.getElementById('propOrientacion').value = String(moduloSeleccionado.orientacion ?? 0);
+        infoDeCubierta();
+    }
     if (esPlafon) {
         document.getElementById('propDescuelgue').value  = moduloSeleccionado.descuelgue ?? 0.25;
         document.getElementById('propFormaPlafon').value = moduloSeleccionado.forma || 'rect';
@@ -6173,6 +6395,14 @@ function actualizarPropModulo() {
     if (moduloSeleccionado.tipo === 'columna') {
         moduloSeleccionado.forma = document.getElementById('propFormaColumna').value;
     }
+    if (moduloSeleccionado.tipo === 'cubierta') {
+        moduloSeleccionado.tipoTecho   = document.getElementById('propTipoTecho').value;
+        moduloSeleccionado.pendiente   = parseFloat(document.getElementById('propPendiente').value) || 0;
+        moduloSeleccionado.voladizo    = parseFloat(document.getElementById('propVoladizo').value)  || 0;
+        moduloSeleccionado.alturaBase  = parseFloat(document.getElementById('propAlturaCub').value) || 2.6;
+        moduloSeleccionado.orientacion = parseInt(document.getElementById('propOrientacion').value, 10) || 0;
+        infoDeCubierta();
+    }
     if (moduloSeleccionado.tipo === 'plafon') {
         moduloSeleccionado.descuelgue = parseFloat(document.getElementById('propDescuelgue').value) || 0.25;
         moduloSeleccionado.forma      = document.getElementById('propFormaPlafon').value;
@@ -6328,6 +6558,10 @@ function generarDesdePlanta() {
             altura_base: m.alturaBase  ?? null,   // viga: desde el piso hasta su cara inferior
             peralte:     m.peralte     ?? null,   // viga: canto
             descuelgue:  m.descuelgue  ?? null,   // plafón: cuánto baja del techo
+            tipo_techo:  m.tipoTecho   || null,   // cubierta
+            pendiente:   m.pendiente   ?? null,
+            voladizo:    m.voladizo    ?? null,
+            orientacion: m.orientacion ?? null,
             espesor:     m.espesor     ?? null,   // plafón: canto
             nivel:       nivelDe(m),
             capa:        capaDe(m),
@@ -6412,6 +6646,9 @@ function cargarDesdePlano(modelo3d) {
         // El gizmo de edición vive en la escena: si entra aquí se borra al
         // regenerar y quedan listeners apuntando a un objeto muerto.
         if (obj === gizmo || (obj.parent && obj.parent === gizmo)) return;
+        // El recorrido, las trayectorias grabadas y el marcador de cámara son
+        // trabajo del usuario: sobreviven a regenerar el plano.
+        if (esPersistente(obj)) return;
         if (obj.isMesh || obj.isGroup || obj.isSprite) aEliminar.push(obj);
     });
     aEliminar.forEach(obj => scene.remove(obj));
@@ -6480,6 +6717,76 @@ function cargarDesdePlano(modelo3d) {
         const matPared = new THREE.MeshStandardMaterial({
             color: new THREE.Color(color), roughness: 0.85, metalness: 0.0
         });
+
+        // ── CUBIERTA DIBUJADA COMO FIGURA ────────────────────────────────
+        // Cada figura del lienzo se convierte en un techo con su propia
+        // pendiente y orientación. Poner dos que se crucen da un techo en L,
+        // en T o en cruz sin tener que programar cada caso: se cruzan solos.
+        if (mod.tipo === 'cubierta') {
+            const vol   = mod.voladizo ?? 0.5;
+            const pend  = Math.max(0, (mod.pendiente ?? 35) / 100);
+            const yArr  = baseY + (mod.altura_base ?? 2.6);   // arranque del alero
+            const AN = ancho + vol*2, LA = largo + vol*2;
+            const t  = mod.tipo_techo || 'dos_aguas';
+            const esp = 0.12;
+            const matT = new THREE.MeshStandardMaterial({ color:0x8C3B2A, roughness:0.9, side:THREE.DoubleSide });
+            const matC = new THREE.MeshStandardMaterial({ color:0xD9CFC2, roughness:0.9, side:THREE.DoubleSide });
+            const g = new THREE.Group();
+
+            // Un faldón = una caja fina inclinada. `ejeZ` dice si la pendiente
+            // corre en Z o en X; `signo` hacia qué lado sube.
+            const faldon = (anchoF, corrida, subida, cx, cz, cy, ejeZ, signo) => {
+                const L = Math.hypot(corrida, subida);
+                const ang = Math.atan2(subida, corrida);
+                const geo = ejeZ ? new THREE.BoxGeometry(anchoF, esp, L)
+                                 : new THREE.BoxGeometry(L, esp, anchoF);
+                const m = new THREE.Mesh(geo, matT);
+                m.position.set(cx, cy, cz);
+                if (ejeZ) m.rotation.x = -signo * ang; else m.rotation.z = signo * ang;
+                g.add(m);
+            };
+            const culata = (pts, x) => {
+                const f = new THREE.Shape();
+                f.moveTo(pts[0][0], pts[0][1]);
+                pts.slice(1).forEach(q => f.lineTo(q[0], q[1]));
+                f.closePath();
+                const m = new THREE.Mesh(new THREE.ShapeGeometry(f), matC);
+                m.position.set(x, 0, 0); m.rotation.y = Math.PI/2;
+                g.add(m);
+            };
+
+            const mLA = LA/2, mAN = AN/2;
+            if (t === 'plana') {
+                const m = new THREE.Mesh(new THREE.BoxGeometry(AN, 0.18, LA), matT);
+                m.position.set(0, 0.09, 0); g.add(m);
+            } else if (t === 'un_agua') {
+                const sub = LA * pend;
+                faldon(AN, LA, sub, 0, 0, sub/2, true, 1);
+                [1,-1].forEach(sg => culata([[-mLA,0],[mLA,0],[mLA,sub]], sg*mAN));
+            } else if (t === 'dos_aguas') {
+                const sub = mLA * pend;
+                [1,-1].forEach(sg => faldon(AN, mLA, sub, 0, sg*mLA/2, sub/2, true, sg));
+                [1,-1].forEach(sg => culata([[-mLA,0],[mLA,0],[0,sub]], sg*mAN));
+            } else if (t === 'cuatro_aguas' || t === 'piramidal') {
+                const sub = Math.min(mLA, mAN) * pend;
+                const cab = t === 'piramidal' ? 0 : Math.max(0, LA - AN);
+                const corr = (LA - cab)/2;
+                [1,-1].forEach(sg => faldon(AN, corr, sub, 0, sg*(cab/2 + corr/2), sub/2, true, sg));
+                [1,-1].forEach(sg => faldon(LA, mAN, sub, sg*(mAN/2), 0, sub/2, false, -sg));
+                if (cab > 0.05) {
+                    const c = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.14, cab), matT);
+                    c.position.set(0, sub, 0); g.add(c);
+                }
+            }
+
+            g.position.set(x, yArr, z);
+            g.rotation.y = -(mod.orientacion ?? 0) * Math.PI/180;
+            g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+            g.userData = { tipoEstructura: 'cubierta', moduloId: mod.id };
+            scene.add(g);
+            cubiertaPlanta.push(g);
+            return;
+        }
 
         // ── PLAFÓN / BANDEJA DE CIELO RASO ───────────────────────────────
         // Cuelga del techo del cuarto que tenga debajo. Va aparte de la losa
@@ -6897,10 +7204,21 @@ function cargarDesdePlano(modelo3d) {
     // Colocar la CÁMARA DE VIDEO dentro del primer módulo, visible de una vez
     if (modulosActuales3D.length) {
         const m0 = modulosActuales3D[0];
-        marcadorCamara.position.set(m0.cx, ALTURA_CAMARA_RECORRIDO, m0.cz);
-        marcadorCamara.rotation.set(0, 0, 0);
+        // Solo se recoloca la cámara al primer módulo si el usuario NO tenía
+        // ya un recorrido dibujado. Antes se movía siempre, así que regenerar
+        // el 3D le tiraba la cámara al origen aunque llevara media ruta hecha.
+        if (!trazo3D.length) {
+            marcadorCamara.position.set(m0.cx, ALTURA_CAMARA_RECORRIDO, m0.cz);
+            marcadorCamara.rotation.set(0, 0, 0);
+        }
         marcadorCamara.visible = (vistaActual === '3d');
     }
+
+    // Devolver a la escena todo lo persistente y volver a dibujar el
+    // recorrido, que sigue en memoria aunque su malla se hubiera perdido.
+    garantizarPersistentes();
+    if (trazo3D.length > 1) dibujarLineaTrazo3D();
+    if (trazo3D.length)     actualizarCamaraMientrasDibuja();
 
     configurarLuces();
 
@@ -6914,10 +7232,19 @@ function cargarDesdePlano(modelo3d) {
 // El "techo" es el cielo raso que se ve desde adentro; la CUBIERTA es lo que
 // remata el proyecto por fuera. Se arma sobre la huella real de los cuartos.
 function construirCubierta(maxX, maxZ, offsetX, offsetZ, altoPiso, modulos) {
-    cubiertaPlanta.forEach(m => scene.remove(m));
-    cubiertaPlanta = [];
+    // Solo se limpian las cubiertas globales; las dibujadas ya se
+    // construyeron en el bucle de módulos y no deben perderse aquí.
+    cubiertaPlanta.filter(m => m.userData?.tipoEstructura !== 'cubierta')
+                  .forEach(m => scene.remove(m));
+    cubiertaPlanta = cubiertaPlanta.filter(m => m.userData?.tipoEstructura === 'cubierta');
     const tipo = configEnvolvente.cubierta;
     if (tipo === 'ninguna') return;
+    // Si el usuario dibujó cubiertas como figuras, mandan esas: el desplegable
+    // global es solo el atajo para cuando no se quiere dibujar nada.
+    if (modulos.some(m => m.tipo === 'cubierta')) {
+        mostrarToast('🏠 Se usan las cubiertas dibujadas en la capa de Techo');
+        return;
+    }
 
     const nivelTope = Math.max(0, ...modulos.map(m => m.nivel || 0));
     const hEnt = alturaEntrepiso || 2.80;
@@ -7044,6 +7371,16 @@ function cambiarEnvolvente(campo, valor) {
     else                     configEnvolvente[campo]  = valor;
 
     if (campo === 'techos') {
+        // Si se está dibujando el recorrido, el cambio se guarda pero no se
+        // aplica todavía: se vería tapado el trazo. Se aplica al salir.
+        if (_techosAntesDeDibujar) {
+            _techosAntesDeDibujar.techos = techosPlanta.map(() => configEnvolvente.techos);
+            mostrarToast(configEnvolvente.techos
+                ? '⬜ Techos quedan activados — se ven al salir del modo recorrido'
+                : '👁️ Techos ocultos');
+            sincronizarUIEnvolvente();
+            return;
+        }
         techosPlanta.forEach(t => { t.visible = configEnvolvente.techos; });
         mostrarToast(configEnvolvente.techos ? '⬜ Techos visibles' : '👁️ Techos ocultos — vista en planta');
     } else if (campo === 'materialTecho' || campo === 'colorTecho') {
