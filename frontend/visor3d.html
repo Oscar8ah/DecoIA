@@ -1427,6 +1427,8 @@ function objetoEditableDesde(obj) {
     // entero: un mueble completo, una columna, una viga, una puerta.
     let o = obj;
     while (o && o !== scene) {
+        // Plafones y cubiertas son Groups con varias mallas dentro: hay que
+        // subir hasta el grupo para moverlos completos y no una sola cara.
         if (o.userData && o.userData.tipoEstructura) return o;
         if (o.userData && o.userData.esPuerta && o.parent) return o.parent.parent || o.parent;
         if (typeof mobiliarioMeshes !== 'undefined' && Object.values(mobiliarioMeshes).includes(o)) return o;
@@ -1577,7 +1579,7 @@ canvas.addEventListener('click', (e) => {
         const obj = objetoEditableDesde(h.object);
         if (obj) { seleccionarParaTransformar(obj); return; }
     }
-    mostrarToast('Ese elemento no se puede editar por ahora — prueba con una columna, viga, puerta o mueble');
+    mostrarToast('Eso no se puede editar — prueba con una cubierta, un plafón, una columna, una viga, una puerta o un mueble');
 });
 
 // Atajos de teclado. Shift suelta el ajuste a cuadrícula mientras se mantiene.
@@ -4553,13 +4555,16 @@ function apartarTechosParaRecorrido(activar) {
         if (_techosAntesDeDibujar === null) {
             _techosAntesDeDibujar = {
                 techos: techosPlanta.map(t => t.visible),
+                plafones: plafonesPlanta.map(t => t.visible),
                 cubierta: cubiertaPlanta.map(c => c.visible),
             };
         }
         techosPlanta.forEach(t => { t.visible = false; });
+        plafonesPlanta.forEach(t => { t.visible = false; });
         cubiertaPlanta.forEach(c => { c.visible = false; });
     } else if (_techosAntesDeDibujar) {
         techosPlanta.forEach((t, i) => { t.visible = _techosAntesDeDibujar.techos[i] ?? false; });
+        plafonesPlanta.forEach((t, i) => { t.visible = _techosAntesDeDibujar.plafones[i] ?? true; });
         cubiertaPlanta.forEach((c, i) => { c.visible = _techosAntesDeDibujar.cubierta[i] ?? true; });
         _techosAntesDeDibujar = null;
     }
@@ -5315,10 +5320,15 @@ let alturaEntrepiso = 2.80;       // alto libre + espesor de losa, en metros
 function capaDe(m)  { return m.capa  || 'planta'; }
 function nivelDe(m) { return m.nivel || 0; }
 
-// Lo que se puede tocar ahora mismo: solo la capa y el nivel activos. Sin
-// esto, arrastrar en el piso 2 movería cosas del piso 1 que están debajo.
+// Todo lo del piso actual se ve y se toca en el MISMO lienzo: cuartos,
+// estructura, plafones y cubiertas juntos. Antes se filtraba también por
+// capa, y al pasar a Techo parecía que se abría otro lienzo en blanco porque
+// los cuartos se iban a fantasma. El interruptor Planta/Techo ahora solo
+// cambia qué botones se muestran, no qué se puede editar.
+// El filtro por NIVEL sí se queda: arrastrar en el piso 2 no debe mover
+// cosas del piso 1 que están justo debajo.
 function modulosEditables() {
-    return modulosPlanta.filter(m => capaDe(m) === capaActiva && nivelDe(m) === nivelActivo);
+    return modulosPlanta.filter(m => nivelDe(m) === nivelActivo);
 }
 
 const COLORES_MODULO = {
@@ -5349,7 +5359,8 @@ let configEnvolvente = {
     alero:           0.5,          // vuelo por fuera del muro, en metros
     girarCubierta:   false,        // cumbrera en el otro sentido
 };
-let techosPlanta   = [];   // meshes de cielo raso, para poder mostrarlos/ocultarlos
+let techosPlanta   = [];   // losas automáticas de cada cuarto (se ocultan/muestran)
+let plafonesPlanta = [];   // figuras de cielo raso dibujadas por el usuario: siempre visibles
 let cubiertaPlanta = [];   // meshes de la cubierta exterior
 let puertasPlanta  = [];   // { grupo, pivote, vano, angMax } — hojas abribles
 
@@ -5391,12 +5402,10 @@ function iniciarEditorPlanta() {
         };
 }
 
+// Cambiar de "capa" ya NO oculta nada del lienzo: solo cambia qué paleta de
+// botones se ve, para no tener veinte botones apilados.
 window.cambiarCapa = function(capa) {
     capaActiva = capa;
-    moduloSeleccionado = null;
-    vanoSeleccionado   = null;
-    renderPanelVano();
-    document.getElementById('panelPropiedades').style.display = 'none';
     const on  = (b) => { b.style.border='1px solid #7C3AED'; b.style.background='rgba(124,58,237,0.3)'; b.style.color='#fff'; };
     const off = (b) => { b.style.border='1px solid rgba(148,163,184,0.3)'; b.style.background='rgba(255,255,255,0.04)'; b.style.color='var(--gris)'; };
     const bp = document.getElementById('capaPlanta'), bt = document.getElementById('capaTecho');
@@ -5782,18 +5791,16 @@ function dibujarPlanta() {
     // alinearse contra ello sin poder tocarlo por accidente. Son dos cosas:
     // el nivel de abajo (esencial para que los muros de un piso caigan sobre
     // los del otro) y la otra capa del mismo nivel.
+    // El único fantasma que queda es el PISO DE ABAJO, que sirve para alinear
+    // muros y columnas entre niveles. Todo lo del piso actual se dibuja sólido.
     modulosPlanta.forEach(m => {
-        const esActivo = capaDe(m) === capaActiva && nivelDe(m) === nivelActivo;
-        if (esActivo) return;
-        const esAbajo  = capaDe(m) === 'planta' && nivelDe(m) === nivelActivo - 1;
-        const esOtraCapa = nivelDe(m) === nivelActivo;
-        if (!esAbajo && !esOtraCapa) return;
+        if (nivelDe(m) !== nivelActivo - 1) return;
         const pw = m.ancho * ESCALA, ph = m.largo * ESCALA;
         ctx.save();
-        ctx.globalAlpha = esAbajo ? 0.30 : 0.18;
-        ctx.strokeStyle = esAbajo ? '#94A3B8' : (COLORES_MODULO[m.tipo] || '#7C3AED');
+        ctx.globalAlpha = 0.30;
+        ctx.strokeStyle = '#94A3B8';
         ctx.lineWidth   = 1.5;
-        ctx.setLineDash(esAbajo ? [5, 4] : [2, 3]);
+        ctx.setLineDash([5, 4]);
         trazarForma(m, pw, ph);
         ctx.stroke();
         ctx.restore();
@@ -5904,7 +5911,7 @@ function dibujarPlanta() {
     // ── VANOS (puertas / pasos entre zonas) ──────────────────────────────
     // Se dibujan como una barra sobre la pared donde están. Verde = arco
     // (de piso a techo), naranja = puerta (con dintel encima).
-    (capaActiva === 'planta' ? vanosPlanta : []).forEach(v => {
+    vanosPlanta.forEach(v => {
         const a = modulosPlanta.find(m => m.id === v.modulo_a);
         if (a && nivelDe(a) !== nivelActivo) return;
         const geo = geometriaVanoEnPlano(v);
@@ -6027,7 +6034,7 @@ function onPlantaMouseDown(e) {
 
     // ¿Clic sobre un VANO? Se revisa ANTES que los módulos, porque el vano
     // vive sobre el borde de una zona y si no tendría prioridad el módulo.
-    const vanoClic = capaActiva === 'planta' ? vanoEnPunto(mx, my) : null;
+    const vanoClic = vanoEnPunto(mx, my);
     if (vanoClic) {
         seleccionarVano(vanoClic);
         vanoArrastrando = vanoClic;
@@ -6677,6 +6684,7 @@ function cargarDesdePlano(modelo3d) {
     paredesInteractivas = [];
     pisosRaycastables = [];
     techosPlanta   = [];
+    plafonesPlanta = [];
     cubiertaPlanta = [];
     puertasPlanta  = [];
 
@@ -6742,7 +6750,10 @@ function cargarDesdePlano(modelo3d) {
                                  : new THREE.BoxGeometry(L, esp, anchoF);
                 const m = new THREE.Mesh(geo, matT);
                 m.position.set(cx, cy, cz);
-                if (ejeZ) m.rotation.x = -signo * ang; else m.rotation.z = signo * ang;
+                // El signo iba invertido: dejaba los aleros arriba y la cumbrera
+                // pegada al piso, o sea el techo al revés. Con signo positivo el
+                // borde de adentro sube (cumbrera) y el de afuera baja (alero).
+                if (ejeZ) m.rotation.x = signo * ang; else m.rotation.z = signo * ang;
                 g.add(m);
             };
             const culata = (pts, x) => {
@@ -6782,7 +6793,7 @@ function cargarDesdePlano(modelo3d) {
             g.position.set(x, yArr, z);
             g.rotation.y = -(mod.orientacion ?? 0) * Math.PI/180;
             g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-            g.userData = { tipoEstructura: 'cubierta', moduloId: mod.id };
+            g.userData = { tipoEstructura: 'cubierta', moduloId: mod.id, moduloNombre: mod.nombre };
             scene.add(g);
             cubiertaPlanta.push(g);
             return;
@@ -6818,10 +6829,12 @@ function cargarDesdePlano(modelo3d) {
             }
             grupoP.position.set(x, yBase + esp/2, z);
             grupoP.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-            grupoP.userData = { tipoEstructura: 'plafon', moduloId: mod.id };
-            grupoP.visible = !!configEnvolvente.techos;
+            grupoP.userData = { tipoEstructura: 'plafon', moduloId: mod.id, moduloNombre: mod.nombre };
+            // Un plafón lo dibujó el usuario a propósito: se ve siempre, y por
+            // eso se puede tocar con el gizmo sin tener que activar nada antes.
+            grupoP.visible = true;
             scene.add(grupoP);
-            techosPlanta.push(grupoP);
+            plafonesPlanta.push(grupoP);
             return;
         }
 
@@ -7287,7 +7300,10 @@ function construirCubierta(maxX, maxZ, offsetX, offsetZ, altoPiso, modulos) {
             : new THREE.BoxGeometry(largoInclinado, espesor, anchoF);
         const m = new THREE.Mesh(g, matTeja);
         m.position.set(cx, cy, cz);
-        if (ejeZ) m.rotation.x = -signo * ang;
+        // El signo iba invertido: dejaba los aleros arriba y la cumbrera
+                // pegada al piso, o sea el techo al revés. Con signo positivo el
+                // borde de adentro sube (cumbrera) y el de afuera baja (alero).
+                if (ejeZ) m.rotation.x = signo * ang;
         else      m.rotation.z =  signo * ang;
         add(m);
         return m;
