@@ -3382,9 +3382,10 @@ function cargarHabitacion(tipo,btn) {
     document.querySelector('input[oninput*="ancho"]').value=c.ancho;
     document.querySelector('input[oninput*="largo"]').value=c.largo;
     document.querySelector('input[oninput*="alto"]').value=c.alto;
-    document.getElementById('valAncho').textContent=c.ancho.toFixed(1)+'m';
-    document.getElementById('valLargo').textContent=c.largo.toFixed(1)+'m';
-    document.getElementById('valAlto').textContent=c.alto.toFixed(1)+'m';
+    const _v=(id,t)=>{const e=document.getElementById(id); if(e) e.textContent=t;};
+    _v('valAncho', c.ancho.toFixed(1)+'m');
+    _v('valLargo', c.largo.toFixed(1)+'m');
+    _v('valAlto',  c.alto.toFixed(1)+'m');
     construirHabitacion(); configurarLuces(); centrarCamara();
     mostrarToast(`${tipo.charAt(0).toUpperCase()+tipo.slice(1)} cargada ✅`);
 }
@@ -4819,6 +4820,7 @@ function convertirTrazo3DARecorrido() {
 function toggleDibujoRecorrido() {
     modoDibujoRecorrido = !modoDibujoRecorrido;
     const btn = document.getElementById('btnDibujarRecorrido');
+    if (!btn) return;   // el botón ya no existe en el HTML; sin este guarda, explota
     const c   = document.getElementById('canvasPlanta');
     if (modoDibujoRecorrido) {
         btn.textContent = '✋ Salir del modo dibujo';
@@ -6060,7 +6062,7 @@ function onPlantaMouseDown(e) {
     if (modoDibujoRecorrido) {
         dibujandoTrazo = true;
         trazoRecorridoPlanta = [{ px: mx, pz: my }];
-        document.getElementById('btnUsarTrazo').style.display = 'none';
+        document.getElementById('btnUsarTrazo')?.style && (document.getElementById('btnUsarTrazo').style.display = 'none');
         dibujarPlanta();
         return;
     }
@@ -6170,7 +6172,7 @@ function onPlantaMouseUp() {
     if (modoDibujoRecorrido) {
         dibujandoTrazo = false;
         if (trazoRecorridoPlanta.length > 1) {
-            document.getElementById('btnUsarTrazo').style.display = 'block';
+            document.getElementById('btnUsarTrazo')?.style && (document.getElementById('btnUsarTrazo').style.display = 'block');
         }
         return;
     }

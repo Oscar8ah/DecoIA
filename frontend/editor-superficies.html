@@ -167,6 +167,37 @@
         <div id="infoLuz" style="font-size:10.5px;color:#6EE7B7;margin-top:7px;line-height:1.5;"></div>
     </div>
 
+    <div class="card" id="cardIA" style="display:none;">
+        <div style="font-size:13px;font-weight:700;margin-bottom:6px;">✨ ¿No te convence cómo quedó?</div>
+        <div style="font-size:11.5px;color:#9CA3AF;line-height:1.5;margin-bottom:8px;">
+            La IA revisa la foto y corrige la iluminación y las sombras.
+            <b>No puede cambiar tu material ni mover nada del cuarto</b>: de su
+            respuesta solo se toma la luz, y esa restricción está en el código,
+            no en lo que se le pide.
+        </div>
+        <button id="btnIA" onclick="refinarConIA()" style="width:100%;padding:9px;border-radius:8px;background:rgba(168,85,247,0.18);border:1px solid rgba(168,85,247,0.4);color:#D8B4FE;font-size:12.5px;font-weight:700;cursor:pointer;">✨ Mejorar la iluminación con IA</button>
+        <div style="display:flex;gap:6px;margin-top:6px;align-items:center;">
+            <button onclick="ajustarFuerzaIA(-1)" style="flex:1;padding:6px;border-radius:7px;background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.25);color:#9CA3AF;font-size:11px;font-weight:700;cursor:pointer;">− Menos</button>
+            <div id="lblFuerzaIA" style="flex:1;text-align:center;font-size:11px;color:#D8B4FE;font-weight:700;">70%</div>
+            <button onclick="ajustarFuerzaIA(1)" style="flex:1;padding:6px;border-radius:7px;background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.25);color:#9CA3AF;font-size:11px;font-weight:700;cursor:pointer;">+ Más</button>
+        </div>
+        <button onclick="quitarIA()" style="width:100%;margin-top:6px;padding:7px;border-radius:7px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#FCA5A5;font-size:11px;font-weight:700;cursor:pointer;">↺ Volver al cálculo puro</button>
+        <div id="estadoIA" style="font-size:11px;color:#9CA3AF;margin-top:7px;line-height:1.5;"></div>
+    </div>
+
+    <div class="card" id="cardAmbiente" style="display:none;">
+        <div style="font-size:13px;font-weight:700;margin-bottom:6px;">🏛️ Guardar como ambiente</div>
+        <div style="font-size:11.5px;color:#9CA3AF;line-height:1.5;margin-bottom:8px;">
+            Guarda esta escena ya calibrada: la máscara, el plano y la capa de
+            luz. Después cualquiera elige un material y sale perfecto al primer
+            intento, sin volver a marcar nada.
+        </div>
+        <input id="nombreAmbiente" type="text" placeholder="Alcoba principal — luz de tarde"
+            style="width:100%;background:#0F1117;border:1px solid rgba(148,163,184,0.25);border-radius:7px;padding:7px 9px;color:#E5E7EB;font-size:12px;outline:none;margin-bottom:6px;">
+        <button onclick="guardarAmbiente()" style="width:100%;padding:8px;border-radius:8px;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.35);color:#6EE7B7;font-size:12px;font-weight:700;cursor:pointer;">💾 Guardar ambiente calibrado</button>
+        <div id="estadoAmbiente" style="font-size:11px;color:#6EE7B7;margin-top:6px;"></div>
+    </div>
+
     <div class="card" id="cardCosto" style="display:none;">
         <div class="titulo">4 · Estimado</div>
         <div id="detalleCosto" class="costo"></div>
@@ -1066,10 +1097,12 @@ function calcularCosto(){
     const info=document.getElementById('planoInfo');
     if(info) info.textContent = exacto ? `Área medida: ${m2.toFixed(2)} m²` : '';
 
-    document.getElementById('cardPieza').style.display='block';
-    document.getElementById('cardIA').style.display='block';
-    document.getElementById('cardAmbiente').style.display='block';
-    document.getElementById('cardCosto').style.display='block';
+    // Defensivo a propósito: si una tarjeta falta en el HTML, antes esto
+    // lanzaba y se caía TODO el cálculo del costo, no solo esa tarjeta.
+    ['cardPieza','cardIA','cardAmbiente','cardCosto'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'block';
+    });
     document.getElementById('detalleCosto').innerHTML=`
         Material: <b>${esc(productoSel.nombre)}</b><br>
         Precio: <b>$${Number(productoSel.precio||0).toLocaleString('es-CO')}</b> por ${esc(productoSel.unidad||'m²')}<br>
