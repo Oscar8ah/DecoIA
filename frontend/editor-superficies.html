@@ -876,6 +876,161 @@ window.descargarResultado = function(){
 
 // Estimado MUY aproximado: la foto no da medidas reales, así que se avisa
 // claramente que es solo una referencia.
+// ═══════════════════════════════════════════════════════════════════════
+// REFINADO CON IA — pero la IA no dibuja el resultado
+// De lo que devuelve el modelo se extrae ÚNICAMENTE la luminancia suavizada,
+// y eso se usa como multiplicador sobre el compuesto calculado. Si el modelo
+// decide cambiar la baldosa, mover la cama o inventar un rodapié, ese cambio
+// muere aquí: un multiplicador escalar no puede aportar patrón, y el
+// desenfoque borra cualquier detalle que la IA haya inventado.
+// La restricción es estructural. Un prompt se puede desobedecer; esto no.
+// ═══════════════════════════════════════════════════════════════════════
+let capaLuzIA   = null;   // Float32Array de factores, uno por píxel
+let fuerzaIA    = 0.70;
+
+window.ajustarFuerzaIA = function(d){
+    fuerzaIA = Math.max(0, Math.min(1, fuerzaIA + d*0.15));
+    document.getElementById('lblFuerzaIA').textContent = Math.round(fuerzaIA*100)+'%';
+    if (capaLuzIA) pintarConIA();
+};
+
+window.quitarIA = function(){
+    capaLuzIA = null;
+    document.getElementById('estadoIA').textContent = 'Volviste al resultado calculado.';
+    aplicarMaterial();
+};
+
+// Máscara en el formato que espera el endpoint: transparente donde la IA
+// puede trabajar, opaco donde no debe meterse.
+function mascaraParaIA(w,h){
+    const c=document.createElement('canvas'); c.width=w; c.height=h;
+    const cx=c.getContext('2d');
+    const d=cx.createImageData(w,h);
+    for(let i=0;i<w*h;i++){
+        d.data[i*4]=d.data[i*4+1]=d.data[i*4+2]=0;
+        d.data[i*4+3]= mascaraElegida[i] ? 0 : 255;   // alfa 0 = editable
+    }
+    cx.putImageData(d,0,0);
+    return c.toDataURL('image/png').split(',')[1];
+}
+
+window.refinarConIA = async function(){
+    if(!productoSel || !mascaraElegida){ alert('Primero elige un material.'); return; }
+    const btn=document.getElementById('btnIA'), est=document.getElementById('estadoIA');
+    btn.disabled=true; btn.textContent='✨ Analizando la iluminación…';
+    est.textContent='Esto puede tardar hasta un minuto.';
+    const lienzo=document.getElementById('lienzo'), w=lienzo.width, h=lienzo.height;
+    try{
+        const resp = await fetch('/api/superficies/refinar', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({
+                imagen_base64:  lienzo.toDataURL('image/png').split(',')[1],
+                mascara_base64: mascaraParaIA(w,h),
+                producto_url:    productoSel.imagen_url || null,
+                producto_nombre: productoSel.nombre || null,
+                superficie: 'piso',
+            })
+        });
+        if(!resp.ok) throw new Error((await resp.json()).detail || 'El servicio no respondió');
+        const j = await resp.json();
+        const src = j.imagen_base64 ? 'data:image/png;base64,'+j.imagen_base64 : j.url;
+        if(!src) throw new Error('La IA no devolvió imagen');
+
+        const bmp = await createImageBitmap(await (await fetch(src)).blob());
+        const aux=document.createElement('canvas'); aux.width=w; aux.height=h;
+        const ax=aux.getContext('2d');
+        ax.drawImage(bmp,0,0,w,h);
+        const px=ax.getImageData(0,0,w,h).data;
+
+        // Compuesto propio, como referencia para comparar
+        aplicarMaterial();
+        await new Promise(r=>setTimeout(r,60));
+        const mio=lienzo.getContext('2d').getImageData(0,0,w,h).data;
+
+        // SOLO LUMINANCIA. Aquí es donde se descarta todo lo que la IA haya
+        // querido cambiar que no sea luz.
+        const lIA=new Float32Array(w*h), lMio=new Float32Array(w*h);
+        for(let i=0;i<w*h;i++){
+            lIA [i]=(px [i*4]*0.299+px [i*4+1]*0.587+px [i*4+2]*0.114)/255;
+            lMio[i]=(mio[i*4]*0.299+mio[i*4+1]*0.587+mio[i*4+2]*0.114)/255;
+        }
+        // Desenfoque del cociente: si la IA metió un patrón nuevo, es alta
+        // frecuencia y desaparece aquí. Solo sobrevive la forma de la luz.
+        const razon=new Float32Array(w*h);
+        for(let i=0;i<w*h;i++) razon[i]= mascaraElegida[i] ? lIA[i]/Math.max(0.02,lMio[i]) : 1;
+        capaLuzIA = desenfoqueCaja(razon, w, h, Math.max(4, Math.round(Math.min(w,h)*0.018)));
+        pintarConIA();
+        est.innerHTML='<span style="color:#6EE7B7;">✓ Iluminación mejorada. Tu material quedó intacto: de la IA solo se tomó la luz.</span>';
+    }catch(e){
+        console.error(e);
+        est.innerHTML='<span style="color:#FCA5A5;">No se pudo: '+e.message+'. El resultado calculado sigue ahí.</span>';
+    }finally{
+        btn.disabled=false; btn.textContent='✨ Mejorar la iluminación con IA';
+    }
+};
+
+function pintarConIA(){
+    if(!capaLuzIA) return;
+    const lienzo=document.getElementById('lienzo'), ctx=lienzo.getContext('2d');
+    const w=lienzo.width, h=lienzo.height;
+    const img=ctx.getImageData(0,0,w,h);
+    for(let i=0;i<w*h;i++){
+        if(!mascaraElegida[i]) continue;
+        // Se mezcla con 1.0 según la fuerza, y se acota para que ni el peor
+        // resultado del modelo pueda quemar o apagar la imagen.
+        const f=Math.max(0.45, Math.min(1.9, 1 + (capaLuzIA[i]-1)*fuerzaIA));
+        for(let k=0;k<3;k++){
+            const v=img.data[i*4+k]*f;
+            img.data[i*4+k]= v>255?255:v;
+        }
+    }
+    ctx.putImageData(img,0,0);
+}
+
+// ── AMBIENTES CALIBRADOS ────────────────────────────────────────────────
+// Es lo que hace Roomvo: la escena se prepara UNA vez —máscara, plano y capa
+// de luz— y a partir de ahí cambiar de material es solo re-teselar. Guardar
+// aquí convierte este editor en la herramienta de autoría de esa biblioteca.
+window.guardarAmbiente = async function(){
+    const est=document.getElementById('estadoAmbiente');
+    const nombre=document.getElementById('nombreAmbiente').value.trim();
+    if(!nombre){ est.textContent='Ponle un nombre para poder encontrarlo después.'; return; }
+    if(!mascaraElegida){ est.textContent='Falta seleccionar la superficie.'; return; }
+    const lienzo=document.getElementById('lienzo');
+    // La máscara se guarda comprimida por longitudes: son millones de ceros y
+    // unos seguidos, y en crudo pesaría varios megas por escena.
+    const rle=[]; let actual=mascaraElegida[0]?1:0, cuenta=0;
+    for(let i=0;i<mascaraElegida.length;i++){
+        const v=mascaraElegida[i]?1:0;
+        if(v===actual) cuenta++; else { rle.push(cuenta); actual=v; cuenta=1; }
+    }
+    rle.push(cuenta);
+    const ambiente={
+        nombre,
+        imagen_url: imagenUrl,
+        ancho: lienzo.width, largo: lienzo.height,
+        mascara_rle: rle, mascara_inicia_en: mascaraElegida[0]?1:0,
+        plano_puntos: puntosPlano,
+        plano_ancho_m: parseFloat(document.getElementById('planoAncho').value)||null,
+        plano_largo_m: parseFloat(document.getElementById('planoLargo').value)||null,
+        pieza_ancho_cm: parseFloat(document.getElementById('piezaAncho').value)||60,
+        pieza_largo_cm: parseFloat(document.getElementById('piezaLargo').value)||60,
+        acabado: document.getElementById('acabadoMat').value,
+        relieve: parseFloat(document.getElementById('rngRelieve').value),
+        creado: new Date().toISOString(),
+    };
+    try{
+        const r=await fetch('/api/superficies/ambientes',{method:'POST',
+            headers:{'Content-Type':'application/json'}, body:JSON.stringify(ambiente)});
+        if(!r.ok) throw new Error('El servidor no lo aceptó');
+        est.textContent='✓ Ambiente guardado. Ya se puede reutilizar sin recalibrar.';
+    }catch(e){
+        // Sin backend todavía: al menos no se pierde el trabajo
+        localStorage.setItem('ambiente_'+Date.now(), JSON.stringify(ambiente));
+        est.innerHTML='<span style="color:#FCD34D;">Guardado en este navegador. Falta crear la tabla en Supabase para compartirlo.</span>';
+    }
+};
+
 function calcularCosto(){
     if(!productoSel || !mascaraElegida) return;
     const lienzo=document.getElementById('lienzo');
@@ -912,6 +1067,8 @@ function calcularCosto(){
     if(info) info.textContent = exacto ? `Área medida: ${m2.toFixed(2)} m²` : '';
 
     document.getElementById('cardPieza').style.display='block';
+    document.getElementById('cardIA').style.display='block';
+    document.getElementById('cardAmbiente').style.display='block';
     document.getElementById('cardCosto').style.display='block';
     document.getElementById('detalleCosto').innerHTML=`
         Material: <b>${esc(productoSel.nombre)}</b><br>
