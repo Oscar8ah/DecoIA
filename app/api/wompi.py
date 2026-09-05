@@ -179,6 +179,85 @@ async def _procesar_pago_cambio_plan(referencia: str, monto_cop: float, metodo: 
 
 
 # ── WEBHOOK WOMPI ─────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────
+# LINK DE PAGO DE UN PEDIDO DEL MARKETPLACE
+# Era el único eslabón que faltaba: el pedido ya se creaba con su split
+# calculado y guardado, y el webhook ya sabía confirmarlo. Pero no había
+# forma de mandar al comprador a pagar.
+#
+# El monto se lee SIEMPRE de la base de datos, nunca de lo que mande el
+# navegador. Si viniera del cliente, cualquiera podría pagar $1.000 por un
+# pedido de $2.000.000 editando la petición. Con el monto sacado del pedido
+# guardado, la firma de integridad de Wompi cuadra solo con ese valor.
+# ─────────────────────────────────────────────────────────────────────────
+class CheckoutPedidoResponse(BaseModel):
+    llave_publica: str
+    referencia: str
+    monto_centavos: int
+    moneda: str
+    firma: str
+    url_redireccion: str
+    tienda: str
+    total: float
+
+
+@router.get("/checkout-pedido/{referencia}", response_model=CheckoutPedidoResponse)
+async def checkout_pedido(
+    referencia: str,
+    request: Request,
+    settings: Settings = Depends(get_settings)
+):
+    """
+    Devuelve todo lo que necesita el Widget de Wompi para cobrar un pedido.
+    El comprador nunca ve la comisión: el desglose se queda en la base.
+    """
+    if not settings.wompi_llave_publica or not settings.wompi_secreto_integridad:
+        raise HTTPException(status_code=503, detail="La pasarela de pago no está configurada todavía.")
+
+    supabase = get_supabase()
+    r = supabase.table("pedidos") \
+        .select("referencia, total, estado, tiendas(nombre)") \
+        .eq("referencia", referencia).maybe_single().execute()
+
+    if not r.data:
+        raise HTTPException(status_code=404, detail="Ese pedido no existe.")
+
+    pedido = r.data
+
+    # No dejar pagar dos veces el mismo pedido
+    if pedido.get("estado") in ("pagado", "enviado", "entregado"):
+        raise HTTPException(status_code=409, detail="Este pedido ya fue pagado.")
+
+    total = float(pedido.get("total") or 0)
+    if total <= 0:
+        raise HTTPException(status_code=400, detail="El pedido no tiene un total válido.")
+
+    # Wompi cobra en centavos y en entero
+    monto_centavos = int(round(total * 100))
+    moneda = "COP"
+
+    # Misma fórmula que /firma: SHA256(referencia + monto + moneda + secreto)
+    cadena = f"{referencia}{monto_centavos}{moneda}{settings.wompi_secreto_integridad}"
+    firma = hashlib.sha256(cadena.encode()).hexdigest()
+
+    # A dónde vuelve el comprador después de pagar
+    origen = str(request.base_url).rstrip("/")
+    url_redireccion = f"{origen}/pedido?ref={referencia}"
+
+    logger.info(f"Checkout generado para pedido {referencia} — ${total:,.0f}")
+
+    return CheckoutPedidoResponse(
+        llave_publica=settings.wompi_llave_publica,
+        referencia=referencia,
+        monto_centavos=monto_centavos,
+        moneda=moneda,
+        firma=firma,
+        url_redireccion=url_redireccion,
+        tienda=(pedido.get("tiendas") or {}).get("nombre") or "Tienda",
+        total=total,
+    )
+
+
 @router.post("/webhook")
 async def webhook_wompi(
     request: Request,
