@@ -526,21 +526,33 @@ async def procesar_imagen_background(
             url_generada = await generar_imagen_remodelada(imagen_bytes, "moderno")
             if empresa_id: await descontar_foto(empresa_id)
 
-            from app.services.imagen_service import subir_imagen_a_imgbb
-            settings_obj = get_settings()
-            url_original = await subir_imagen_a_imgbb(imagen_bytes, settings_obj.imgbb_api_key)
-
-            await registrar_imagen_generada(
-                empresa_id, url_generada, sender,
-                tipo_espacio=tipo_espacio, estilo="moderno",
-                url_original=url_original,
-            )
-
+            # PRIMERO SE ENTREGA. Antes se subía la foto original a imgbb antes
+            # de mandar el resultado, y como esa subida lanza excepción al
+            # fallar, se llevaba el flujo entero por delante: la imagen ya
+            # estaba generada y pagada a OpenAI, pero el cliente recibía
+            # "Hubo un error". Guardar una copia de referencia jamás puede
+            # costar la entrega de lo que el cliente está esperando.
             await enviar_imagen_whatsapp(
                 sender, url_generada,
                 f"✨ ¡Así podría quedar tu {tipo_espacio}!\n"
                 f"Diseño moderno con acabados premium 🏠",
                 settings, pid_envio
+            )
+
+            # Copia de la foto original, solo para referencia del asesor.
+            # Si imgbb falla se sigue sin ella: es opcional, no bloqueante.
+            url_original = None
+            try:
+                from app.services.imagen_service import subir_imagen_a_imgbb
+                settings_obj = get_settings()
+                url_original = await subir_imagen_a_imgbb(imagen_bytes, settings_obj.imgbb_api_key)
+            except Exception as e:
+                logger.warning(f"No se pudo guardar la foto original en imgbb: {e}")
+
+            await registrar_imagen_generada(
+                empresa_id, url_generada, sender,
+                tipo_espacio=tipo_espacio, estilo="moderno",
+                url_original=url_original,
             )
 
             # Mismo fix que en el flujo de plano: token aleatorio real.

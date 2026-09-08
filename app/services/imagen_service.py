@@ -32,16 +32,59 @@ async def descargar_imagen_whatsapp(image_id: str, token: str) -> bytes:
         return img_response.content
 
 
+async def subir_imagen_a_supabase(imagen_bytes: bytes, carpeta: str = "whatsapp") -> str:
+    """
+    Respaldo cuando imgbb falla. Se usa el mismo bucket 'portafolio' y el mismo
+    patrón que render3d.py, que ya funciona en producción.
+    """
+    from app.utils.supabase_client import get_supabase
+    import uuid as _uuid
+    supabase = get_supabase()
+    ruta = f"{carpeta}/{_uuid.uuid4()}.png"
+    supabase.storage.from_("portafolio").upload(
+        ruta, imagen_bytes, {"content-type": "image/png", "upsert": "true"}
+    )
+    return supabase.storage.from_("portafolio").get_public_url(ruta)
+
+
 async def subir_imagen_a_imgbb(imagen_bytes: bytes, imgbb_key: str) -> str:
+    """
+    Sube una imagen y devuelve su URL pública.
+
+    Dos cambios respecto a la versión anterior, los dos por el mismo incidente:
+    una foto se generó bien en OpenAI, imgbb devolvió 400, y el cliente recibió
+    "Hubo un error" — con la imagen ya generada y pagada.
+
+    1. El error de imgbb se registra con su cuerpo. Antes se lanzaba un
+       RuntimeError seco que descartaba justo lo único que explica el fallo
+       (clave inválida, imagen muy pesada, límite de la cuenta...), y por eso
+       había que adivinar.
+    2. Si imgbb falla se cae a Supabase Storage en vez de reventar. Una imagen
+       ya generada y cobrada NO se puede perder porque un servicio externo
+       gratuito esté de mal humor.
+    """
+    if not imgbb_key:
+        logger.warning("No hay clave de imgbb configurada — se usa Supabase Storage")
+        return await subir_imagen_a_supabase(imagen_bytes)
+
     imagen_base64 = base64.b64encode(imagen_bytes).decode("utf-8")
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.post(
-            "https://api.imgbb.com/1/upload",
-            data={"key": imgbb_key, "image": imagen_base64}
-        )
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                "https://api.imgbb.com/1/upload",
+                data={"key": imgbb_key, "image": imagen_base64}
+            )
         if response.status_code == 200:
             return response.json()["data"]["url"]
-        raise RuntimeError("Error subiendo a imgbb")
+        logger.error(
+            f"imgbb devolvió {response.status_code} "
+            f"(imagen de {len(imagen_bytes)/1024:.0f} KB): {response.text[:400]}"
+        )
+    except Exception as e:
+        logger.error(f"imgbb no respondió: {type(e).__name__} — {e}")
+
+    logger.info("Cayendo a Supabase Storage para no perder la imagen")
+    return await subir_imagen_a_supabase(imagen_bytes)
 
 
 def buffer_desde_mascara(mascara: Image.Image) -> bytes:
