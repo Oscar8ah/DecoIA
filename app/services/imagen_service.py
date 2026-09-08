@@ -130,6 +130,10 @@ async def generar_imagen_remodelada(imagen_bytes: bytes, estilo: str = "moderno"
             },
             data={
                 "model":   "gpt-image-1",
+                # Sin esto queda en "auto" (lo más estricto) y bloquea fotos de
+                # obra normales con un "moderation_blocked / other" que no
+                # explica nada. "low" sigue filtrando lo que de verdad importa.
+                "moderation": "low",
                 "prompt":  prompt,
                 "n":       "1",
                 "size":    "1024x1024",
@@ -222,6 +226,10 @@ async def generar_imagen_con_producto(
             files=archivos,
             data={
                 "model":   "gpt-image-1",
+                # Sin esto queda en "auto" (lo más estricto) y bloquea fotos de
+                # obra normales con un "moderation_blocked / other" que no
+                # explica nada. "low" sigue filtrando lo que de verdad importa.
+                "moderation": "low",
                 "prompt":  prompt,
                 "n":       "1",
                 "size":    "1024x1024",
@@ -326,6 +334,10 @@ async def generar_vista_isometrica(imagen_bytes: bytes, info_plano: dict) -> str
             },
             data={
                 "model":   "gpt-image-1",
+                # Sin esto queda en "auto" (lo más estricto) y bloquea fotos de
+                # obra normales con un "moderation_blocked / other" que no
+                # explica nada. "low" sigue filtrando lo que de verdad importa.
+                "moderation": "low",
                 "prompt":  prompt,
                 "n":       "1",
                 "size":    "1024x1024",
