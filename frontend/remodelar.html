@@ -317,6 +317,14 @@
                 <div style="font-size:11px;color:var(--gris);text-align:center;margin-top:8px;line-height:1.5;">La imagen generada se bloqueará hasta completar la compra</div>
             </div>
 
+            <div id="bandejaAsesor" style="display:none;background:rgba(15,15,26,0.6);border:1px solid rgba(124,58,237,0.25);border-radius:12px;padding:12px;margin-top:14px;">
+                <div style="font-size:13px;font-weight:700;color:#A78BFA;margin-bottom:4px;">📥 Remodelaciones de tus clientes</div>
+                <div style="font-size:11px;color:var(--gris);line-height:1.5;margin-bottom:8px;">Lo que la IA le generó a quienes escribieron a tu WhatsApp.</div>
+                <div id="bandejaLista"></div>
+            </div>
+            <div style="display:none;">
+            </div>
+
             <div class="panel-section" id="seccionCarrito">
                 <div class="panel-titulo">Tu carrito</div>
                 <div class="carrito-items" id="carritoItems">
@@ -471,11 +479,54 @@ async function verificarAcceso() {
     return true;
 }
 
+let empresaIdActual = null;   // la empresa dueña de la generación
+
 async function verificarRol() {
     const { data:{ session } } = await db.auth.getSession();
-    if (!session) { rolUsuario = null; return; }
+    if (!session) { rolUsuario = null; empresaIdActual = null; return; }
     const { data:empresa } = await db.from('empresas').select('id').eq('email',session.user.email).maybeSingle();
     rolUsuario = empresa ? 'empresa' : 'consumidor';
+    // A quién se le carga la generación. Antes iba `empresa_id: null` escrito
+    // a mano y el backend rechazaba la petición entera: nadie podía generar
+    // desde esta página. Si es una empresa se le carga a ella; si es un
+    // visitante con cuenta de consumidor, queda sin empresa y el pago de la
+    // imagen es lo que cubre el costo.
+    empresaIdActual = empresa ? empresa.id : null;
+    if (rolUsuario === 'empresa') cargarBandejaAsesor();
+}
+
+// ── BANDEJA DEL ASESOR (plan Básico) ───────────────────────────────────
+// Su único dashboard: las remodelaciones que la IA le generó a sus clientes
+// por WhatsApp, con el teléfono de cada uno para poder contactarlos.
+async function cargarBandejaAsesor() {
+    const caja = document.getElementById('bandejaAsesor');
+    if (!caja || !empresaIdActual) return;
+    caja.style.display = 'block';
+    const lista = document.getElementById('bandejaLista');
+    lista.innerHTML = '<div style="font-size:12px;color:var(--gris);">Cargando…</div>';
+    try {
+        const r = await fetch(`https://decoia.onrender.com/api/superficies/bandeja/${empresaIdActual}`);
+        if (!r.ok) throw new Error('No se pudo cargar');
+        const { items } = await r.json();
+        if (!items.length) {
+            lista.innerHTML = '<div style="font-size:12px;color:var(--gris);line-height:1.6;">Todavía no hay remodelaciones. Cuando un cliente le mande una foto a tu WhatsApp, el resultado aparece aquí con su número.</div>';
+            return;
+        }
+        lista.innerHTML = items.map(it => {
+            const tel = it.telefono ? String(it.telefono).replace(/\D/g,'') : '';
+            const fecha = it.creado_en ? new Date(it.creado_en).toLocaleString('es-CO',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+            return `<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid rgba(148,163,184,0.15);">
+                <img src="${it.url_generada}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;flex-shrink:0;" loading="lazy">
+                <div style="flex:1;min-width:0;">
+                    <div style="font-size:12px;font-weight:700;color:var(--texto);">${it.producto || it.tipo_espacio || 'Remodelación'}</div>
+                    <div style="font-size:11px;color:var(--gris);">${fecha}</div>
+                    ${tel ? `<a href="https://wa.me/${tel}" target="_blank" style="font-size:11.5px;color:#6EE7B7;text-decoration:none;font-weight:700;">💬 Escribirle al ${tel}</a>` : ''}
+                </div>
+            </div>`;
+        }).join('');
+    } catch (e) {
+        lista.innerHTML = '<div style="font-size:12px;color:#FCA5A5;">No se pudo cargar la bandeja. Intenta recargar la página.</div>';
+    }
 }
 
 // ── CACHE ───────────────────────────────────────────────────────────────
@@ -651,7 +702,7 @@ async function generarRender() {
             body: JSON.stringify({
                 imagen_base64: fotoBase64,
                 prompt,
-                empresa_id: null,
+                empresa_id: empresaIdActual,
                 producto_imagen_url: productoActivo.imagen_url || null,
                 categoria_producto:  productoActivo.categoria || null,
                 producto_nombre:     productoActivo.nombre || null,

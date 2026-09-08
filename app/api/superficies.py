@@ -135,3 +135,28 @@ async def refinar_superficie(data: RefinarRequest, request: Request):
     except Exception as e:
         logger.exception("Error refinando superficie")
         raise HTTPException(status_code=500, detail=f"Error inesperado: {e}")
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# BANDEJA DEL ASESOR — plan Básico
+# El plan Básico no da acceso al dashboard completo (Editor Planta, Entorno
+# 3D, etc.), así que esta lista ES su dashboard: aquí ve las remodelaciones
+# que la IA le generó a sus clientes por WhatsApp, con el teléfono de cada
+# uno para poder contactarlos.
+# ─────────────────────────────────────────────────────────────────────────
+@router.get("/bandeja/{empresa_id}")
+async def bandeja_asesor(empresa_id: str, limite: int = 40):
+    """Últimas imágenes generadas para los clientes de esta empresa."""
+    if limite < 1 or limite > 200:
+        limite = 40
+    try:
+        supabase = get_supabase()
+        r = supabase.table("imagenes") \
+            .select("id, url_generada, url_original, tipo_espacio, estilo, telefono, producto, origen, creado_en") \
+            .eq("empresa_id", empresa_id) \
+            .order("creado_en", desc=True) \
+            .limit(limite).execute()
+        return {"ok": True, "items": r.data or []}
+    except Exception as e:
+        logger.exception("Error leyendo la bandeja del asesor")
+        raise HTTPException(status_code=500, detail=f"No se pudo leer la bandeja: {e}")

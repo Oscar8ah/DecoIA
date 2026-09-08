@@ -22,6 +22,43 @@ from app.utils.supabase_client import get_supabase
 from datetime import datetime
 import json
 
+
+async def registrar_imagen_generada(empresa_id, url_generada, telefono,
+                                     tipo_espacio, estilo, url_original=None,
+                                     producto=None):
+    """
+    Deja constancia de cada imagen que el bot genera.
+
+    Sin esto el asesor de la tienda no tiene qué mirar: la imagen se le mandaba
+    al cliente por chat y se perdía. El plan Básico no da acceso al dashboard
+    completo, así que esta tabla ES el dashboard del asesor — de aquí sale su
+    bandeja en /remodelar.
+
+    Se guarda el teléfono porque de nada sirve ver una remodelación bonita si
+    no se sabe a quién llamar.
+
+    Si el registro falla NO se rompe la conversación: el cliente ya tiene su
+    imagen en el chat, y perder una fila de historial es mucho menos grave que
+    dejarlo sin respuesta.
+    """
+    if not empresa_id or not url_generada:
+        return
+    try:
+        supabase = get_supabase()
+        supabase.table("imagenes").insert({
+            "empresa_id":   empresa_id,
+            "url_generada": url_generada,
+            "url_original": url_original,
+            "tipo_espacio": tipo_espacio,
+            "estilo":       estilo,
+            "telefono":     telefono,
+            "origen":       "whatsapp",
+            "producto":     producto,
+        }).execute()
+        logger.info(f"Imagen registrada para empresa {empresa_id} — cliente {telefono}")
+    except Exception as e:
+        logger.error(f"No se pudo registrar la imagen (la conversación sigue): {e}")
+
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/webhook", tags=["whatsapp"])
 
@@ -250,6 +287,12 @@ async def esperar_seleccion_y_procesar(
                             seleccion["nombre"], seleccion.get("categoria", "material"),
                         )
                         if empresa_id: await descontar_foto(empresa_id)
+                        await registrar_imagen_generada(
+                            empresa_id, url_resultado, sender,
+                            tipo_espacio="producto_aplicado",
+                            estilo=seleccion.get("categoria", "material"),
+                            producto=seleccion.get("nombre"),
+                        )
             except Exception as e:
                 logger.error(f"Error aplicando producto: {e}")
 
@@ -486,6 +529,12 @@ async def procesar_imagen_background(
             from app.services.imagen_service import subir_imagen_a_imgbb
             settings_obj = get_settings()
             url_original = await subir_imagen_a_imgbb(imagen_bytes, settings_obj.imgbb_api_key)
+
+            await registrar_imagen_generada(
+                empresa_id, url_generada, sender,
+                tipo_espacio=tipo_espacio, estilo="moderno",
+                url_original=url_original,
+            )
 
             await enviar_imagen_whatsapp(
                 sender, url_generada,

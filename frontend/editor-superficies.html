@@ -480,6 +480,83 @@ window.verMascara = function(nivel){
 };
 
 // Verde translúcido para que se vea qué quedó seleccionado
+// ═══════════════════════════════════════════════════════════════════════
+// SEPARACIÓN EN CAPAS  (la idea de Oscar)
+//
+//   capa 1 — PLACA: el piso solo, sin objetos encima
+//   capa 2 — OBJETOS: los muebles recortados de la foto original
+//
+// Se trata la placa (con cálculo o con IA) y después se vuelven a poner los
+// objetos ENCIMA, tomados de la foto original. Tres cosas se arreglan solas:
+//
+//  1. Si SAM se comió un pedazo de la pata de la cama, ese pedazo lo tapa la
+//     capa de objetos al recomponer. El derrame de la máscara deja de importar.
+//  2. La IA no puede mover ni cambiar un mueble, porque los muebles no están
+//     en lo que se le manda. Ni siquiera los ve.
+//  3. Las sombras que los muebles proyectan SOBRE el piso viven en la placa,
+//     así que se conservan y siguen anclando los muebles al suelo.
+// ═══════════════════════════════════════════════════════════════════════
+let capaObjetos   = null;   // ImageData con los objetos y alfa
+let mascaraPlaca  = null;   // máscara ya encogida, la que de verdad se pinta
+
+// Encoger la máscara unos píxeles hacia adentro. Los bordes que da SAM se
+// montan sobre lo que tocan; al encoger, el material nuevo nunca invade un
+// mueble, y la franja que queda la cubre la capa de objetos.
+function encogerMascara(m, w, h, pasos){
+    let act = m;
+    for(let k=0;k<pasos;k++){
+        const sig = new Uint8Array(w*h);
+        for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+            const i=y*w+x;
+            if(!act[i]) continue;
+            const arriba  = y>0   ? act[i-w] : 0;
+            const abajo   = y<h-1 ? act[i+w] : 0;
+            const izq     = x>0   ? act[i-1] : 0;
+            const der     = x<w-1 ? act[i+1] : 0;
+            if(arriba && abajo && izq && der) sig[i]=1;
+        }
+        act = sig;
+    }
+    return act;
+}
+
+// Recorta de la foto original todo lo que NO es la superficie elegida.
+// Se guarda una sola vez por selección y se reutiliza en cada composición.
+function prepararCapas(){
+    const lienzo=document.getElementById('lienzo'), ctx=lienzo.getContext('2d');
+    const w=lienzo.width, h=lienzo.height;
+    ctx.drawImage(imgLimpia,0,0);
+    const orig=ctx.getImageData(0,0,w,h);
+
+    mascaraPlaca = encogerMascara(mascaraElegida, w, h, 2);
+
+    capaObjetos = ctx.createImageData(w,h);
+    for(let i=0;i<w*h;i++){
+        // Es objeto todo lo que quedó fuera de la placa encogida
+        const esObjeto = !mascaraPlaca[i];
+        capaObjetos.data[i*4]   = orig.data[i*4];
+        capaObjetos.data[i*4+1] = orig.data[i*4+1];
+        capaObjetos.data[i*4+2] = orig.data[i*4+2];
+        capaObjetos.data[i*4+3] = esObjeto ? 255 : 0;
+    }
+    return {w,h,orig};
+}
+
+// Pega la capa de objetos encima de lo que haya en el lienzo.
+function recomponerObjetos(){
+    if(!capaObjetos) return;
+    const lienzo=document.getElementById('lienzo'), ctx=lienzo.getContext('2d');
+    const w=lienzo.width, h=lienzo.height;
+    const actual=ctx.getImageData(0,0,w,h);
+    for(let i=0;i<w*h;i++){
+        if(capaObjetos.data[i*4+3]===0) continue;   // ahí va la placa tratada
+        actual.data[i*4]   = capaObjetos.data[i*4];
+        actual.data[i*4+1] = capaObjetos.data[i*4+1];
+        actual.data[i*4+2] = capaObjetos.data[i*4+2];
+    }
+    ctx.putImageData(actual,0,0);
+}
+
 function pintarSeleccion(){
     const lienzo=document.getElementById('lienzo'), ctx=lienzo.getContext('2d');
     ctx.drawImage(imgLimpia,0,0);
@@ -724,24 +801,28 @@ async function aplicarMaterial(){
                 + (pctSombra>0.18 ? ` · ${Math.round(pctSombra*100)}% del piso en sombra de muebles, referencia ajustada` : '');
         }
 
+        // Capas: placa encogida + objetos recortados de la foto original
+        prepararCapas();
+        const mascaraPintar = mascaraPlaca || mascaraElegida;
+
         // Borde de la máscara suavizado. Un contorno duro de píxel entero
         // delata el recorte y es de lo primero que ve el ojo.
         const borde=new Float32Array(w*h);
         for(let y=0;y<h;y++) for(let x=0;x<w;x++){
             const i=y*w+x;
-            if(!mascaraElegida[i]) continue;
+            if(!mascaraPintar[i]) continue;
             let vecinos=0;
-            if(x>0   && mascaraElegida[i-1]) vecinos++;
-            if(x<w-1 && mascaraElegida[i+1]) vecinos++;
-            if(y>0   && mascaraElegida[i-w]) vecinos++;
-            if(y<h-1 && mascaraElegida[i+w]) vecinos++;
+            if(x>0   && mascaraPintar[i-1]) vecinos++;
+            if(x<w-1 && mascaraPintar[i+1]) vecinos++;
+            if(y>0   && mascaraPintar[i-w]) vecinos++;
+            if(y<h-1 && mascaraPintar[i+w]) vecinos++;
             borde[i]=vecinos===4 ? 1 : 0.5;
         }
 
         for(let y=0;y<h;y++){
             for(let x=0;x<w;x++){
                 const i=y*w+x;
-                if(!mascaraElegida[i]) continue;
+                if(!mascaraPintar[i]) continue;
 
                 // ── 2) PERSPECTIVA ──────────────────────────────────────
                 // Se invierte la proyección: de un pixel de la foto se pasa
@@ -827,6 +908,8 @@ async function aplicarMaterial(){
             }
         }
         ctx.putImageData(salida,0,0);
+        // Los muebles vuelven encima, tomados de la foto original
+        recomponerObjetos();
         const av=document.getElementById('planoInfo');
         if(av && !Hinv) av.innerHTML='<span style="color:#FCD34D;">⚠️ Sin plano marcado: la textura sale sin perspectiva y el área es inventada. Marca los 4 puntos arriba.</span>';
         calcularCosto();
@@ -989,12 +1072,15 @@ window.quitarIA = function(){
 // Máscara en el formato que espera el endpoint: transparente donde la IA
 // puede trabajar, opaco donde no debe meterse.
 function mascaraParaIA(w,h){
+    // Se le entrega la PLACA encogida, no la selección cruda. Así la IA no
+    // puede tocar ni el borde donde la máscara rozaba un mueble.
+    const m = mascaraPlaca || mascaraElegida;
     const c=document.createElement('canvas'); c.width=w; c.height=h;
     const cx=c.getContext('2d');
     const d=cx.createImageData(w,h);
     for(let i=0;i<w*h;i++){
         d.data[i*4]=d.data[i*4+1]=d.data[i*4+2]=0;
-        d.data[i*4+3]= mascaraElegida[i] ? 0 : 255;   // alfa 0 = editable
+        d.data[i*4+3]= m[i] ? 0 : 255;   // alfa 0 = editable
     }
     cx.putImageData(d,0,0);
     return c.toDataURL('image/png').split(',')[1];
@@ -1043,10 +1129,11 @@ window.refinarConIA = async function(){
         // Desenfoque del cociente: si la IA metió un patrón nuevo, es alta
         // frecuencia y desaparece aquí. Solo sobrevive la forma de la luz.
         const razon=new Float32Array(w*h);
-        for(let i=0;i<w*h;i++) razon[i]= mascaraElegida[i] ? lIA[i]/Math.max(0.02,lMio[i]) : 1;
+        const mPlaca=mascaraPlaca || mascaraElegida;
+        for(let i=0;i<w*h;i++) razon[i]= mPlaca[i] ? lIA[i]/Math.max(0.02,lMio[i]) : 1;
         capaLuzIA = desenfoqueCaja(razon, w, h, Math.max(4, Math.round(Math.min(w,h)*0.018)));
         pintarConIA();
-        est.innerHTML='<span style="color:#6EE7B7;">✓ Iluminación mejorada. Tu material quedó intacto: de la IA solo se tomó la luz.</span>';
+        est.innerHTML='<span style="color:#6EE7B7;">✓ Iluminación mejorada. De la IA solo se tomó la luz, y los muebles se restauraron de tu foto original.</span>';
     }catch(e){
         console.error(e);
         est.innerHTML='<span style="color:#FCA5A5;">No se pudo: '+e.message+'. El resultado calculado sigue ahí.</span>';
@@ -1059,9 +1146,10 @@ function pintarConIA(){
     if(!capaLuzIA) return;
     const lienzo=document.getElementById('lienzo'), ctx=lienzo.getContext('2d');
     const w=lienzo.width, h=lienzo.height;
+    const m=mascaraPlaca || mascaraElegida;
     const img=ctx.getImageData(0,0,w,h);
     for(let i=0;i<w*h;i++){
-        if(!mascaraElegida[i]) continue;
+        if(!m[i]) continue;
         // Se mezcla con 1.0 según la fuerza, y se acota para que ni el peor
         // resultado del modelo pueda quemar o apagar la imagen.
         const f=Math.max(0.45, Math.min(1.9, 1 + (capaLuzIA[i]-1)*fuerzaIA));
@@ -1071,6 +1159,9 @@ function pintarConIA(){
         }
     }
     ctx.putImageData(img,0,0);
+    // Los muebles se restauran desde la foto original DESPUÉS de la IA. Aunque
+    // el modelo hubiera movido la cama, aquí vuelve la de verdad.
+    recomponerObjetos();
 }
 
 // ── AMBIENTES CALIBRADOS ────────────────────────────────────────────────
