@@ -286,7 +286,23 @@ Catálogo a analizar:
         raise HTTPException(status_code=502, detail="Error consultando la IA de extracción.")
 
     data = response.json()
-    texto_resp = (data.get("content") or [{}])[0].get("text", "{}")
+
+    # Se junta el texto de TODOS los bloques de tipo "text", no solo el primero.
+    # Antes se hacía content[0].get("text", "{}"): si el modelo devolvía otro
+    # tipo de bloque antes del texto, el primero no traía campo "text", se
+    # tomaba el "{}" por defecto, y la respuesta real se perdía entera. El log
+    # lo mostraba clarísimo: 973 tokens generados y respuesta cruda "{}".
+    bloques = data.get("content") or []
+    texto_resp = "".join(
+        b.get("text", "") for b in bloques if isinstance(b, dict) and b.get("type") == "text"
+    ).strip()
+    if not texto_resp:
+        # Respaldo por si algún bloque de texto viniera sin el campo "type"
+        texto_resp = "".join(
+            b.get("text", "") for b in bloques if isinstance(b, dict) and b.get("text")
+        ).strip() or "{}"
+        logger.warning(f"Ningún bloque marcado como 'text'. Tipos recibidos: "
+                       f"{[b.get('type') for b in bloques if isinstance(b, dict)]}")
 
     # Diagnóstico: sin esto, cuando la IA devuelve cero productos no hay forma
     # de saber si fue porque no entendió el catálogo, porque se le cortó la
