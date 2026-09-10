@@ -999,7 +999,11 @@ async function cargarDatos(user) {
     // defecto expulsaría del dashboard a un cliente Corporativo que sí pagó.
     // Solo se redirige cuando la base dice explícitamente que es Básico.
     const planLeido = (empresa.planes?.nombre || '').toLowerCase().replace('á','a');
-    if (planLeido === 'basico') {
+    // Solo se manda a /remodelar si además YA PAGÓ. Quien está en
+    // pendiente_pago se queda en el dashboard, que es donde está el botón para
+    // completar el pago — mandarlo a la herramienta sería darle el producto
+    // gratis, porque /remodelar no verifica estado.
+    if (planLeido === 'basico' && (empresa.estado || '') === 'activo') {
         window.location.replace('/remodelar');
         return;
     }

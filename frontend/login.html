@@ -43,15 +43,17 @@ async function detectarRol() {
     // al panel completo y encontraba todas las pestañas con candado, lo que se
     // siente a castigo en vez de a producto.
     const { data:empresa } = await db.from('empresas')
-        .select('id, planes(nombre)').eq('email', email).maybeSingle();
+        .select('id, estado, planes(nombre)').eq('email', email).maybeSingle();
     if (empresa) {
-        const plan = (empresa.planes?.nombre || '').toLowerCase();
+        const plan = (empresa.planes?.nombre || '').toLowerCase().replace('á','a');
+        const pagado = (empresa.estado || '') === 'activo';
         // El plan Básico no incluye Editor Planta ni Entorno 3D: su herramienta
         // ES /remodelar, y ahí mismo ve las remodelaciones que la IA le generó
         // a los clientes que le escribieron por WhatsApp.
-        const destino = (plan === 'basico' || plan === 'básico')
-            ? '/remodelar'
-            : '/dashboard';
+        // Un Básico que todavía no ha pagado va al dashboard, donde está el
+        // botón para completar el pago. /remodelar no verifica estado, así que
+        // mandarlo allá sería entregarle el producto sin cobrar.
+        const destino = (plan === 'basico' && pagado) ? '/remodelar' : '/dashboard';
         // Si venía de una página concreta, se respeta esa intención
         const guardado = sessionStorage.getItem('redirect_after_login');
         if (guardado) sessionStorage.removeItem('redirect_after_login');
