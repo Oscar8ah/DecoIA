@@ -1356,7 +1356,7 @@ async function guardarTienda() {
     let error;
     if (tiendaId) { ({error}=await db.from('tiendas').update(datos).eq('id',tiendaId)); }
     else { const slug=nombre.toLowerCase().replace(/[^a-z0-9]+/g,'-')+'-'+Date.now(); const{data,error:err}=await db.from('tiendas').insert({...datos,empresa_id:empresaId,slug}).select().single(); error=err; if(data) tiendaId=data.id; }
-    if (error) { mostrarAlerta('tiendaAlerta','❌ Error guardando.','error'); }
+    if (error) { mostrarAlerta('tiendaAlerta','❌ No se pudo guardar: ' + (error?.message || 'error desconocido'),'error'); }
     else { mostrarAlerta('tiendaAlerta','✅ ¡Tienda guardada!','exito'); document.getElementById('dotTienda').className='dot-verde'; document.getElementById('btnVerTienda').style.display='inline'; document.getElementById('btnGuardarTienda').textContent='💾 Actualizar tienda'; }
     btn.disabled=false; btn.innerHTML='💾 Actualizar tienda';
 }
@@ -2167,7 +2167,9 @@ const UNIDADES_PROD = ['m2','unidad','kg','litro','caja'];
 function renderPreviewIA(){
     const lista = document.getElementById('previewLista');
     const sinPrecio = productosIA.filter(p => !p.precio).length;
-    document.getElementById('previewTitulo').textContent = `🤖 ${productosIA.length} productos detectados`;
+    const aceptados = productosIA.filter(p => p._aceptado).length;
+    document.getElementById('previewTitulo').textContent =
+        `🤖 ${productosIA.length} detectados · ${aceptados} se van a publicar`;
     document.getElementById('previewProductos').style.display = 'block';
 
     // Aviso de precios en cero + aplicar precio en bloque. Con 40 productos,
@@ -2198,10 +2200,17 @@ function renderPreviewIA(){
 
 function tarjetaVista(p){
     const cero = !p.precio;
-    return `<div class="preview-item ${p._aceptado?'aceptado':'rechazado'}" id="preview-${p._id}">
+    // Antes solo cambiaba el color del borde y no se entendía cuál estaba
+    // aceptado. Ahora el rechazado se atenúa y se tacha, y el botón activo
+    // queda relleno — se ve de un vistazo qué se va a publicar.
+    const ok = p._aceptado;
+    const estilo = ok
+        ? ''
+        : 'opacity:0.45;filter:grayscale(0.7);';
+    return `<div class="preview-item ${ok?'aceptado':'rechazado'}" id="preview-${p._id}" style="${estilo}">
         ${p.imagen_url ? `<img src="${esc(p.imagen_url)}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;margin-right:10px;flex-shrink:0;">` : ''}
         <div class="preview-item-info">
-            <div class="preview-item-nombre">${esc(p.nombre)}${p.referencia?` <span style="color:#888;font-weight:400;">(Ref: ${esc(p.referencia)})</span>`:''}</div>
+            <div class="preview-item-nombre" style="${ok?'':'text-decoration:line-through;'}">${esc(p.nombre)}${p.referencia?` <span style="color:#888;font-weight:400;">(Ref: ${esc(p.referencia)})</span>`:''}</div>
             <div class="preview-item-precio" style="${cero?'color:#FCD34D;':''}">
                 $${Number(p.precio||0).toLocaleString('es-CO')} / ${esc(p.unidad)||'m²'}
                 ${cero?' <span style="font-size:11.5px;font-weight:400;">— falta ponerle precio</span>':''}
@@ -2210,9 +2219,14 @@ function tarjetaVista(p){
             <div style="margin-top:6px;font-size:12px;color:#A78BFA;">📂 ${esc(p.categoria)||'Sin categoría'}${p.modelo_3d_tipo?` · 🧊 Modelo 3D: ${esc(p.modelo_3d_tipo)}`:''}</div>
         </div>
         <div class="preview-item-acciones">
-            <button onclick="editarPreviewItem(${p._id})" style="background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.35);color:#A78BFA;padding:6px 10px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">✏️ Editar</button>
-            <button class="btn-exito"   onclick="togglePreviewItem(${p._id},true)">✅</button>
-            <button class="btn-peligro" onclick="togglePreviewItem(${p._id},false)">❌</button>
+            <button onclick="editarPreviewItem(${p._id})" style="background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.35);color:#A78BFA;padding:6px 10px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">✏️ Editar</button>
+            <button onclick="togglePreviewItem(${p._id}, ${!ok})" title="${ok?'Se va a publicar — clic para excluirlo':'Excluido — clic para incluirlo'}"
+                style="padding:6px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;
+                       background:${ok?'#10B981':'rgba(148,163,184,0.12)'};
+                       border:1px solid ${ok?'#10B981':'rgba(148,163,184,0.3)'};
+                       color:${ok?'#04231A':'var(--gris)'};">
+                ${ok ? '✓ Se publica' : '＋ Incluir'}
+            </button>
         </div>
     </div>`;
 }
@@ -2300,7 +2314,15 @@ function aplicarPrecioMasivo(){
     mostrarAlerta('importarAlerta', `✅ Precio aplicado a ${n} producto${n===1?'':'s'}. Puedes ajustar los que sean distintos.`, 'exito');
 }
 
-function togglePreviewItem(id,a){const p=productosIA.find(x=>x._id===id);if(p){p._aceptado=a;const el=document.getElementById(`preview-${id}`);if(el)el.className=`preview-item ${a?'aceptado':'rechazado'}`;}}
+function togglePreviewItem(id, a) {
+    const p = productosIA.find(x => x._id === id);
+    if (!p) return;
+    p._aceptado = a;
+    // Antes solo se cambiaba la clase CSS del contenedor. El botón, el tachado
+    // y el contador de arriba se quedaban igual, así que parecía que el clic no
+    // hacía nada. Hay que volver a dibujar para que el estado se vea.
+    renderPreviewIA();
+}
 function aceptarTodos(){productosIA.forEach(p=>p._aceptado=true);renderPreviewIA();}
 function rechazarTodos(){productosIA.forEach(p=>p._aceptado=false);renderPreviewIA();}
 
