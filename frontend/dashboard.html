@@ -668,10 +668,20 @@
             <div id="importarDisponible">
                 <div class="form-card"><h3>🤖 Importar productos con IA</h3><p>Sube tu catálogo en PDF, Excel o CSV, o pega el link de tu tienda si ya vendes en otro lado. La IA extraerá automáticamente nombres, precios, fotos y descripciones.</p></div>
                 <div class="alerta" id="importarAlerta"></div>
+                <div id="progresoImport" style="display:none;background:rgba(124,58,237,0.06);border:1px solid rgba(124,58,237,0.25);border-radius:12px;padding:14px 16px;margin-bottom:16px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;">
+                        <span id="progresoEtapa" style="font-size:13px;font-weight:700;color:var(--texto);">Preparando…</span>
+                        <span id="progresoTiempo" style="font-size:11.5px;color:var(--gris);font-variant-numeric:tabular-nums;">0s</span>
+                    </div>
+                    <div style="height:8px;background:rgba(255,255,255,0.07);border-radius:20px;overflow:hidden;">
+                        <div id="progresoBarra" style="height:100%;width:0%;background:var(--degradado);border-radius:20px;transition:width 0.4s ease;"></div>
+                    </div>
+                    <div id="progresoDetalle" style="font-size:11.5px;color:var(--gris);margin-top:8px;line-height:1.6;"></div>
+                </div>
                 <label class="upload-zone" for="inputArchivo">
                     <div class="upload-icon">📄</div>
                     <h3>Arrastra tu archivo aquí</h3>
-                    <p>PDF, Excel (.xlsx) o CSV · Máximo 10MB</p>
+                    <p>PDF, Excel (.xlsx) o CSV<br><span style="font-size:12.5px;">Los PDF grandes se parten solos: sube tu catálogo completo aunque tenga 80 páginas</span></p>
                     <input type="file" id="inputArchivo" accept=".pdf,.xlsx,.csv,.xls" onchange="procesarArchivo(this)">
                     <div style="margin-top:16px;"><span style="background:var(--degradado);color:white;padding:10px 24px;border-radius:50px;font-size:14px;font-weight:700;">Seleccionar archivo</span></div>
                 </label>
@@ -1635,31 +1645,209 @@ async function toggleProducto(prodId,activo) {
 }
 
 // ── IMPORTAR IA ───────────────────────────────────────────────────────────
-async function procesarArchivo(input) {
-    const file=input.files[0];
-    if (!file) return;
-    if (!tiendaId) { mostrarAlerta('importarAlerta','⚠️ Primero crea tu tienda.','error'); return; }
-    mostrarAlerta('importarAlerta','🤖 La IA está analizando tu archivo (puede tardar hasta 1 minuto si tiene fotos)...','info');
-    document.getElementById('previewProductos').style.display='none';
+// Un catálogo de ferretería tiene 80 páginas y pesa 40MB. Render en plan
+// gratuito tiene 512MB de memoria y corta las peticiones largas, así que
+// mandarlo entero no funciona: se muere a mitad y el usuario se queda mirando
+// una pantalla quieta.
+//
+// La solución es partir el PDF AQUÍ, en el navegador del ferretero, y mandarlo
+// por tandas. Cada tanda es pequeña, Render la digiere sin problema, y de paso
+// se puede mostrar avance de verdad ("tanda 3 de 6, 47 productos") en vez de un
+// "espere un minuto" a ciegas.
+//
+// Esto sigue sirviendo el día que se compre Render de pago: no es un parche.
+
+const TANDA_PAGINAS   = 12;                 // páginas por envío
+const TANDA_MAX_BYTES = 6 * 1024 * 1024;    // si una tanda pesa más, se parte en dos
+const ESPERA_TANDA_MS = 180000;             // 3 min por tanda antes de rendirse
+
+let _pdfLibListo = null;
+function cargarPdfLib() {
+    // Se carga solo cuando hace falta, para no pesar la carga del dashboard
+    if (_pdfLibListo) return _pdfLibListo;
+    _pdfLibListo = new Promise((ok, mal) => {
+        if (window.PDFLib) return ok(window.PDFLib);
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+        s.onload  = () => ok(window.PDFLib);
+        s.onerror = () => mal(new Error('No se pudo cargar el lector de PDF. Revisa tu conexión.'));
+        document.head.appendChild(s);
+    });
+    return _pdfLibListo;
+}
+
+// fetch con tiempo límite. Sin esto el navegador se queda colgado para siempre
+// si Render está dormido o se cayó — que es justo lo que pasaba.
+async function fetchConEspera(url, opciones, ms) {
+    const ctrl = new AbortController();
+    const reloj = setTimeout(() => ctrl.abort(), ms);
     try {
-        const formData = new FormData();
-        formData.append('archivo', file);
-        formData.append('tienda_id', tiendaId);
-        const response = await fetch('https://decoia.onrender.com/procesar-catalogo', {
-            method: 'POST',
-            body: formData
-        });
-        if (!response.ok) {
-            const err = await response.json().catch(()=>({detail:'Error procesando el archivo.'}));
-            throw new Error(err.detail || 'Error procesando el archivo.');
+        return await fetch(url, { ...opciones, signal: ctrl.signal });
+    } catch (e) {
+        if (e.name === 'AbortError')
+            throw new Error('El servidor tardó demasiado. Puede estar despertando — intenta otra vez en un minuto.');
+        throw e;
+    } finally {
+        clearTimeout(reloj);
+    }
+}
+
+// ── Progreso ──────────────────────────────────────────────────────────────
+let _relojProgreso = null;
+function progresoIniciar(etapa) {
+    const caja = document.getElementById('progresoImport');
+    caja.style.display = 'block';
+    document.getElementById('progresoEtapa').textContent = etapa;
+    document.getElementById('progresoBarra').style.width = '0%';
+    document.getElementById('progresoDetalle').textContent = '';
+    const t0 = Date.now();
+    clearInterval(_relojProgreso);
+    _relojProgreso = setInterval(() => {
+        const seg = Math.floor((Date.now() - t0) / 1000);
+        const el = document.getElementById('progresoTiempo');
+        if (el) el.textContent = seg < 60 ? `${seg}s` : `${Math.floor(seg/60)}m ${seg%60}s`;
+    }, 1000);
+}
+function progresoPaso(etapa, pct, detalle) {
+    const e = document.getElementById('progresoEtapa');
+    const b = document.getElementById('progresoBarra');
+    const d = document.getElementById('progresoDetalle');
+    if (e && etapa)   e.textContent = etapa;
+    if (b && pct != null) b.style.width = Math.min(100, Math.max(0, pct)) + '%';
+    if (d && detalle != null) d.innerHTML = detalle;
+}
+function progresoCerrar() {
+    clearInterval(_relojProgreso);
+    setTimeout(() => {
+        const c = document.getElementById('progresoImport');
+        if (c) c.style.display = 'none';
+    }, 2500);
+}
+
+// ── Partir el PDF ─────────────────────────────────────────────────────────
+// Devuelve una lista de Blobs, cada uno un PDF válido con un puñado de
+// páginas. Si una tanda queda muy pesada (catálogos con fotos grandes) se
+// parte en dos hasta que quepa.
+async function partirPDF(PDFLib, documento, indices) {
+    const nuevo = await PDFLib.PDFDocument.create();
+    const paginas = await nuevo.copyPages(documento, indices);
+    paginas.forEach(pg => nuevo.addPage(pg));
+    const bytes = await nuevo.save();
+    if (bytes.length > TANDA_MAX_BYTES && indices.length > 1) {
+        const mitad = Math.ceil(indices.length / 2);
+        return [
+            ...await partirPDF(PDFLib, documento, indices.slice(0, mitad)),
+            ...await partirPDF(PDFLib, documento, indices.slice(mitad)),
+        ];
+    }
+    return [{ blob: new Blob([bytes], { type: 'application/pdf' }), paginas: indices.length }];
+}
+
+async function enviarTanda(blob, nombre) {
+    const fd = new FormData();
+    fd.append('archivo', new File([blob], nombre, { type: blob.type || 'application/pdf' }));
+    fd.append('tienda_id', tiendaId);
+    const r = await fetchConEspera('https://decoia.onrender.com/procesar-catalogo',
+                                   { method: 'POST', body: fd }, ESPERA_TANDA_MS);
+    if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.detail || `El servidor respondió ${r.status}`);
+    }
+    return (await r.json()).productos || [];
+}
+
+async function procesarArchivo(input) {
+    const file = input.files[0];
+    if (!file) return;
+    if (!tiendaId) { mostrarAlerta('importarAlerta','⚠️ Primero crea tu tienda.','error'); input.value=''; return; }
+
+    const esPDF = file.name.toLowerCase().endsWith('.pdf');
+    document.getElementById('previewProductos').style.display = 'none';
+    mostrarAlerta('importarAlerta','','');
+
+    try {
+        let crudos = [];
+
+        if (!esPDF) {
+            // Excel y CSV son livianos: van de una, sin partir
+            if (file.size > 15 * 1024 * 1024)
+                throw new Error('Ese archivo supera los 15MB. Divídelo o conviértelo a CSV.');
+            progresoIniciar('Subiendo el archivo…');
+            progresoPaso(null, 30, `${file.name} · ${(file.size/1024/1024).toFixed(1)} MB`);
+            crudos = await enviarTanda(file, file.name);
+            progresoPaso('Listo', 100, `${crudos.length} productos encontrados`);
+        } else {
+            progresoIniciar('Abriendo el PDF…');
+            const PDFLib = await cargarPdfLib();
+            const doc = await PDFLib.PDFDocument.load(await file.arrayBuffer(), { ignoreEncryption: true });
+            const total = doc.getPageCount();
+
+            progresoPaso('Partiendo el catálogo…', 8,
+                `${total} página${total===1?'':'s'} · ${(file.size/1024/1024).toFixed(1)} MB`);
+
+            const grupos = [];
+            for (let i = 0; i < total; i += TANDA_PAGINAS)
+                grupos.push([...Array(Math.min(TANDA_PAGINAS, total - i))].map((_, k) => i + k));
+
+            const tandas = [];
+            for (const g of grupos) tandas.push(...await partirPDF(PDFLib, doc, g));
+
+            progresoPaso(`Analizando con IA…`, 12,
+                `${total} páginas divididas en ${tandas.length} tanda${tandas.length===1?'':'s'}`);
+
+            const fallidas = [];
+            for (let i = 0; i < tandas.length; i++) {
+                progresoPaso(`Analizando con IA — tanda ${i+1} de ${tandas.length}`,
+                    12 + (i / tandas.length) * 85,
+                    `${crudos.length} productos encontrados hasta ahora`);
+                try {
+                    const p = await enviarTanda(tandas[i].blob, `parte_${i+1}_${file.name}`);
+                    crudos = crudos.concat(p);
+                } catch (e) {
+                    // Una tanda que falla NO bota las demás: se anota y se sigue
+                    console.error(`Tanda ${i+1}:`, e);
+                    fallidas.push(i + 1);
+                }
+            }
+
+            let detalle = `${crudos.length} productos encontrados`;
+            if (fallidas.length) {
+                detalle += `<br><span style="color:#FCD34D;">No se pudieron leer las tandas ${fallidas.join(', ')} `
+                         + `de ${tandas.length}. Los demás productos sí quedaron.</span>`;
+            }
+            progresoPaso('Listo', 100, detalle);
         }
-        const parsed = await response.json();
-        productosIA=(parsed.productos||[]).map((p,i)=>({...p,_id:i,_aceptado:true}));
-        if(productosIA.length===0){mostrarAlerta('importarAlerta','⚠️ No se encontraron productos.','error');return;}
-        mostrarAlerta('importarAlerta',`✅ ¡La IA detectó ${productosIA.length} productos!`,'exito');
+
+        // Un producto puede repetirse si aparece en dos páginas seguidas
+        const vistos = new Set();
+        const productos = crudos.filter(p => {
+            const clave = `${(p.nombre||'').toLowerCase().trim()}|${p.precio||''}`;
+            if (vistos.has(clave)) return false;
+            vistos.add(clave);
+            return true;
+        });
+
+        progresoCerrar();
+
+        if (!productos.length) {
+            mostrarAlerta('importarAlerta','⚠️ No se encontraron productos en ese archivo. Revisa que tenga nombres y precios legibles.','error');
+            return;
+        }
+
+        const repetidos = crudos.length - productos.length;
+        productosIA = productos.map((p,i) => ({ ...p, _id:i, _aceptado:true }));
+        mostrarAlerta('importarAlerta',
+            `✅ La IA detectó ${productos.length} productos`
+            + (repetidos ? ` (se quitaron ${repetidos} repetidos)` : '')
+            + '. Revísalos antes de guardar.', 'exito');
         renderPreviewIA();
-    }catch(e){console.error(e);mostrarAlerta('importarAlerta',`❌ ${e.message||'Error procesando el archivo.'}`,'error');}
-    input.value='';
+
+    } catch (e) {
+        console.error(e);
+        progresoCerrar();
+        mostrarAlerta('importarAlerta', `❌ ${e.message || 'Error procesando el archivo.'}`, 'error');
+    }
+    input.value = '';
 }
 
 async function procesarUrlTienda() {

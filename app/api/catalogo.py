@@ -65,7 +65,8 @@ CATEGORIAS_VALIDAS = [
     "muebles", "electrodomesticos", "electronica", "jardineria", "seguridad", "otros",
 ]
 
-MAX_PAGINAS_PDF   = 20   # límite de páginas a leer de un PDF (catálogos muy largos se truncan)
+MAX_PAGINAS_PDF   = 20   # por PETICIÓN. El navegador parte los catálogos largos
+                         # en tandas de 12 páginas, así que ninguna llega a este tope.
 MAX_IMAGENES_PDF  = 25   # límite de imágenes a extraer y subir por catálogo
 MAX_CHARS_TEXTO   = 12000  # límite de texto a mandar a la IA (antes eran solo 3000)
 
@@ -359,8 +360,13 @@ async def procesar_catalogo(request: Request, archivo: UploadFile = File(...), t
     _verificar_limite_ip(request)
     settings = get_settings()
     contenido = await archivo.read()
+    # El mensaje decía 10MB pero se validaban 15: quien subía un archivo de 12MB
+    # veía un error que contradecía lo que acababa de pasar.
     if len(contenido) > 15 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="El archivo supera el máximo de 10MB.")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Esta parte del archivo pesa {len(contenido)/1024/1024:.1f} MB y el máximo es 15 MB."
+        )
     nombre_archivo = (archivo.filename or "").lower()
 
     try:
