@@ -287,12 +287,41 @@ Catálogo a analizar:
 
     data = response.json()
     texto_resp = (data.get("content") or [{}])[0].get("text", "{}")
+
+    # Diagnóstico: sin esto, cuando la IA devuelve cero productos no hay forma
+    # de saber si fue porque no entendió el catálogo, porque se le cortó la
+    # respuesta, o porque el JSON venía mal formado. Se registra qué se le
+    # mandó y qué contestó.
+    razon_fin = data.get("stop_reason")
+    uso = data.get("usage") or {}
+    logger.info(
+        f"IA extracción — texto enviado: {len(texto)} chars · "
+        f"tokens entrada: {uso.get('input_tokens')} salida: {uso.get('output_tokens')} · "
+        f"stop_reason: {razon_fin}"
+    )
+    if razon_fin == "max_tokens":
+        logger.warning("La respuesta de la IA se cortó por límite de tokens: el JSON queda incompleto.")
+
     try:
         parsed = json.loads(texto_resp)
     except json.JSONDecodeError:
         inicio = texto_resp.find("{")
         fin = texto_resp.rfind("}")
-        parsed = json.loads(texto_resp[inicio:fin + 1]) if inicio != -1 and fin != -1 else {"productos": []}
+        try:
+            parsed = json.loads(texto_resp[inicio:fin + 1]) if inicio != -1 and fin != -1 else {"productos": []}
+        except json.JSONDecodeError:
+            # Antes esta segunda pasada podía lanzar y tumbar la petición entera
+            logger.error(f"No se pudo interpretar el JSON de la IA. Respondió: {texto_resp[:600]}")
+            return {"productos": []}
+
+    n = len(parsed.get("productos") or [])
+    if n == 0:
+        logger.warning(
+            f"La IA devolvió CERO productos. Respuesta cruda: {texto_resp[:600]}\n"
+            f"Primeros 400 chars de lo que se le mandó: {texto[:400]}"
+        )
+    else:
+        logger.info(f"La IA extrajo {n} productos")
     return parsed
 
 
