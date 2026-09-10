@@ -1692,6 +1692,25 @@ async function fetchConEspera(url, opciones, ms) {
     }
 }
 
+// Render en plan gratuito duerme el servicio a los 15 minutos y tarda hasta
+// 3 minutos en despertar. Si se le manda la primera tanda estando dormido, el
+// navegador se rinde antes de que alcance a contestar — y el usuario ve un
+// error que no tiene nada que ver con su archivo.
+// Se le toca la puerta primero y se espera a que conteste.
+async function despertarServidor() {
+    const INTENTOS = 20, PAUSA = 6000;   // hasta 2 minutos
+    for (let i = 0; i < INTENTOS; i++) {
+        try {
+            const r = await fetchConEspera('https://decoia.onrender.com/', { method:'GET' }, 8000);
+            if (r.ok) return true;
+        } catch (_) { /* sigue dormido */ }
+        progresoPaso('Despertando el servidor…', 2 + i,
+            'El servidor estaba inactivo. Esto solo pasa la primera vez del día.');
+        await new Promise(r => setTimeout(r, PAUSA));
+    }
+    return false;
+}
+
 // ── Progreso ──────────────────────────────────────────────────────────────
 let _relojProgreso = null;
 function progresoIniciar(etapa) {
@@ -1765,19 +1784,24 @@ async function procesarArchivo(input) {
     document.getElementById('previewProductos').style.display = 'none';
     mostrarAlerta('importarAlerta','','');
 
+    let totalTandas = 0, tandasFallidas = 0;
     try {
         let crudos = [];
+
+        progresoIniciar('Conectando con el servidor…');
+        if (!await despertarServidor())
+            throw new Error('El servidor no responde. Espera un minuto y vuelve a intentar.');
 
         if (!esPDF) {
             // Excel y CSV son livianos: van de una, sin partir
             if (file.size > 15 * 1024 * 1024)
                 throw new Error('Ese archivo supera los 15MB. Divídelo o conviértelo a CSV.');
-            progresoIniciar('Subiendo el archivo…');
+            progresoPaso('Subiendo el archivo…', 5, `${file.name} · ${(file.size/1024/1024).toFixed(1)} MB`);
             progresoPaso(null, 30, `${file.name} · ${(file.size/1024/1024).toFixed(1)} MB`);
             crudos = await enviarTanda(file, file.name);
             progresoPaso('Listo', 100, `${crudos.length} productos encontrados`);
         } else {
-            progresoIniciar('Abriendo el PDF…');
+            progresoPaso('Abriendo el PDF…', 5);
             const PDFLib = await cargarPdfLib();
             const doc = await PDFLib.PDFDocument.load(await file.arrayBuffer(), { ignoreEncryption: true });
             const total = doc.getPageCount();
@@ -1796,6 +1820,7 @@ async function procesarArchivo(input) {
                 `${total} páginas divididas en ${tandas.length} tanda${tandas.length===1?'':'s'}`);
 
             const fallidas = [];
+            totalTandas = tandas.length;
             for (let i = 0; i < tandas.length; i++) {
                 progresoPaso(`Analizando con IA — tanda ${i+1} de ${tandas.length}`,
                     12 + (i / tandas.length) * 85,
@@ -1807,6 +1832,7 @@ async function procesarArchivo(input) {
                     // Una tanda que falla NO bota las demás: se anota y se sigue
                     console.error(`Tanda ${i+1}:`, e);
                     fallidas.push(i + 1);
+                    tandasFallidas++;
                 }
             }
 
@@ -1830,7 +1856,17 @@ async function procesarArchivo(input) {
         progresoCerrar();
 
         if (!productos.length) {
-            mostrarAlerta('importarAlerta','⚠️ No se encontraron productos en ese archivo. Revisa que tenga nombres y precios legibles.','error');
+            // Culpar al archivo cuando lo que falló fue la conexión hace que el
+            // usuario rehaga su catálogo para nada. Hay que decir la verdad.
+            if (totalTandas > 0 && tandasFallidas === totalTandas) {
+                mostrarAlerta('importarAlerta',
+                    '❌ No se pudo procesar ninguna parte del archivo — el servidor no respondió. '
+                    + 'Tu catálogo está bien; vuelve a intentar en un minuto.', 'error');
+            } else {
+                mostrarAlerta('importarAlerta',
+                    '⚠️ Se leyó el archivo pero la IA no reconoció productos. '
+                    + 'Revisa que las páginas tengan nombres de producto legibles.', 'error');
+            }
             return;
         }
 
