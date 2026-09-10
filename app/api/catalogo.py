@@ -232,7 +232,7 @@ async def _extraer_url(url: str):
     return texto_final, imagenes_bytes
 
 
-async def _llamar_ia_extraccion(texto: str, tiene_imagenes: bool, settings) -> dict:
+async def _llamar_ia_extraccion(texto: str, tiene_imagenes: bool, settings, categoria_sugerida: str = "") -> dict:
     if not settings.anthropic_api_key:
         raise HTTPException(
             status_code=500,
@@ -248,6 +248,16 @@ async def _llamar_ia_extraccion(texto: str, tiene_imagenes: bool, settings) -> d
         "Este catálogo no tiene imágenes adjuntas; deja \"imagen_index\" en null siempre."
     )
 
+    # La tienda puede decir de qué es el catálogo, pero es una PISTA. Si el
+    # catálogo viene mezclado — sanitarios y pisos juntos, muy común en Corona
+    # o Corona-Mansfield — forzar una sola categoría empeoraría el resultado.
+    pista_categoria = (
+        f". La tienda indicó que este catálogo es principalmente de \"{categoria_sugerida}\": "
+        f"úsala cuando encaje, pero si un producto claramente pertenece a otra categoría de la "
+        f"lista, pon la que de verdad corresponde"
+        if categoria_sugerida in CATEGORIAS_VALIDAS else ""
+    )
+
     prompt = f"""Eres un asistente que extrae productos de catálogos de tiendas de materiales de construcción, acabados y muebles para un marketplace de remodelación con IA.
 
 Para cada producto que encuentres, extrae:
@@ -255,7 +265,7 @@ Para cada producto que encuentres, extrae:
 - referencia: código o referencia del fabricante si aparece (si no hay, usa "")
 - precio: número, sin símbolos de moneda ni puntos de miles (0 si no aparece)
 - descripcion: 1-2 frases describiendo material, color, acabado, medidas si las hay
-- categoria: EXACTAMENTE una de estas opciones: {', '.join(CATEGORIAS_VALIDAS)}
+- categoria: EXACTAMENTE una de estas opciones: {', '.join(CATEGORIAS_VALIDAS)}{pista_categoria}
 - unidad: m2, unidad, kg, litro o caja
 - rendimiento_m2: si el catálogo menciona cuántos m² cubre una caja/unidad (ej: "1.44 m²/caja"), pon ese número. Si no aparece esa información, usa null — NO inventes un número.
 - modelo_3d_tipo: SOLO si el producto tiene sentido VERLO ubicado dentro de un cuarto en un render 3D (muebles, electrodomésticos grandes como nevera/lavadora/tv/microondas, ventanas, puertas, tapetes, luces). Si aplica, usa exactamente uno de estos IDs: {', '.join(MODELOS_3D_DISPONIBLES)}. Para TODO lo demás (tornillos, cables, herramientas, materiales sueltos, pisos, enchapes, pintura, perfiles metálicos, varillas, accesorios pequeños) usa null — la mayoría de productos de un catálogo de ferretería NO necesitan modelo 3D, solo se venden con su foto real en el marketplace. Si es un mueble/objeto pero ninguno de la lista se parece razonablemente, usa null — NUNCA inventes un id que no esté en la lista.
@@ -395,7 +405,12 @@ async def _post_procesar_productos(productos: list, imagenes: list, settings) ->
 
 
 @router.post("/procesar-catalogo")
-async def procesar_catalogo(request: Request, archivo: UploadFile = File(...), tienda_id: str = Form(...)):
+async def procesar_catalogo(
+    request: Request,
+    archivo: UploadFile = File(...),
+    tienda_id: str = Form(...),
+    categoria_sugerida: str = Form(""),
+):
     """
     Recibe un catálogo (PDF, XLSX o CSV), extrae productos con IA (texto + fotos
     reales si es PDF), sube las fotos detectadas a imgbb, y mapea cada producto
@@ -433,7 +448,8 @@ async def procesar_catalogo(request: Request, archivo: UploadFile = File(...), t
     if not texto.strip():
         raise HTTPException(status_code=400, detail="No se encontró texto en el archivo.")
 
-    parsed = await _llamar_ia_extraccion(texto, tiene_imagenes=bool(imagenes), settings=settings)
+    parsed = await _llamar_ia_extraccion(texto, tiene_imagenes=bool(imagenes),
+                                         settings=settings, categoria_sugerida=categoria_sugerida)
     productos = parsed.get("productos", [])
     return await _post_procesar_productos(productos, imagenes, settings)
 

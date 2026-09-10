@@ -596,6 +596,11 @@
                             <option value="pintura">🎨 Pintura</option>
                             <option value="puertas">🚪 Puertas</option>
                         </select>
+                        <div style="margin-top:10px;">
+                            <label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;font-weight:700;">También vendo</label>
+                            <div style="font-size:11.5px;color:var(--gris);line-height:1.5;margin:4px 0 8px;">Una ferretería vende pisos, sanitarios, cemento y tornillos. Marca todo lo que manejes: así apareces en más búsquedas del marketplace.</div>
+                            <div id="tiendaCategoriasExtra" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+                        </div>
                     </div>
                     <div class="form-campo"><label>Ciudad</label><input type="text" id="tiendaCiudad" placeholder="Ej: Bucaramanga"></div>
                 </div>
@@ -677,6 +682,13 @@
                         <div id="progresoBarra" style="height:100%;width:0%;background:var(--degradado);border-radius:20px;transition:width 0.4s ease;"></div>
                     </div>
                     <div id="progresoDetalle" style="font-size:11.5px;color:var(--gris);margin-top:8px;line-height:1.6;"></div>
+                </div>
+                <div style="margin-bottom:14px;">
+                    <label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;font-weight:700;">¿De qué es este catálogo?</label>
+                    <select id="categoriaImport" style="width:100%;background:var(--oscuro);border:1px solid rgba(124,58,237,0.25);border-radius:10px;padding:9px 12px;color:var(--texto);font-size:13px;margin-top:5px;outline:none;">
+                        <option value="">Que la IA lo decida por producto</option>
+                    </select>
+                    <div style="font-size:11.5px;color:var(--gris);line-height:1.5;margin-top:5px;">Es una sugerencia, no una regla: si la IA ve que un producto es de otra categoría, manda la IA. Así un catálogo mezclado no se daña.</div>
                 </div>
                 <label class="upload-zone" for="inputArchivo">
                     <div class="upload-icon">📄</div>
@@ -1293,6 +1305,7 @@ function renderMiTienda(tienda) {
     document.getElementById('tiendaNombre').value    = tienda.nombre||'';
     document.getElementById('tiendaDesc').value      = tienda.descripcion||'';
     document.getElementById('tiendaCategoria').value = tienda.categoria_principal||'';
+    montarSelectoresCategoria(tienda.categorias_extra || []);
     document.getElementById('tiendaCiudad').value    = tienda.ciudad||'';
     document.getElementById('tiendaWa').value        = tienda.whatsapp_contacto||'';
     document.getElementById('btnVerTienda').style.display = 'inline';
@@ -1337,7 +1350,7 @@ async function guardarTienda() {
     const btn=document.getElementById('btnGuardarTienda');
     btn.disabled=true; btn.innerHTML='<span class="spinner-btn"></span>Guardando...';
     const logoUrlActual = document.getElementById('tiendaLogoUrl').value;
-    const datos={ nombre, descripcion:document.getElementById('tiendaDesc').value.trim(), categoria_principal:categoria, ciudad:document.getElementById('tiendaCiudad').value.trim(), whatsapp_contacto:document.getElementById('tiendaWa').value.trim(), activa:true };
+    const datos={ nombre, descripcion:document.getElementById('tiendaDesc').value.trim(), categoria_principal:categoria, categorias_extra:categoriasExtraMarcadas(), ciudad:document.getElementById('tiendaCiudad').value.trim(), whatsapp_contacto:document.getElementById('tiendaWa').value.trim(), activa:true };
     // Solo incluir logo_url si tiene valor, para no borrar el logo existente
     if (logoUrlActual) datos.logo_url = logoUrlActual;
     let error;
@@ -1766,6 +1779,8 @@ async function enviarTanda(blob, nombre) {
     const fd = new FormData();
     fd.append('archivo', new File([blob], nombre, { type: blob.type || 'application/pdf' }));
     fd.append('tienda_id', tiendaId);
+    const catSugerida = document.getElementById('categoriaImport')?.value;
+    if (catSugerida) fd.append('categoria_sugerida', catSugerida);
     const r = await fetchConEspera('https://decoia.onrender.com/procesar-catalogo',
                                    { method: 'POST', body: fd }, ESPERA_TANDA_MS);
     if (!r.ok) {
@@ -2112,11 +2127,214 @@ async function cargarCotizacionesRecientes() {
 }
 
 
-function renderPreviewIA(){const lista=document.getElementById('previewLista');document.getElementById('previewTitulo').textContent=`🤖 ${productosIA.length} productos detectados`;document.getElementById('previewProductos').style.display='block';lista.innerHTML=productosIA.map(p=>`<div class="preview-item ${p._aceptado?'aceptado':'rechazado'}" id="preview-${p._id}">${p.imagen_url?`<img src="${esc(p.imagen_url)}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;margin-right:10px;flex-shrink:0;">`:''}<div class="preview-item-info"><div class="preview-item-nombre">${esc(p.nombre)}${p.referencia?` <span style="color:#888;font-weight:400;">(Ref: ${esc(p.referencia)})</span>`:''}</div><div class="preview-item-precio">$${Number(p.precio||0).toLocaleString('es-CO')} / ${esc(p.unidad)||'m²'}</div><div class="preview-item-desc">${esc(p.descripcion)||''}</div><div style="margin-top:6px;font-size:12px;color:#A78BFA;">📂 ${esc(p.categoria)||'Sin categoría'}${p.modelo_3d_tipo?` · 🧊 Modelo 3D: ${esc(p.modelo_3d_tipo)}`:''}</div></div><div class="preview-item-acciones"><button class="btn-exito" onclick="togglePreviewItem(${p._id},true)">✅</button><button class="btn-peligro" onclick="togglePreviewItem(${p._id},false)">❌</button></div></div>`).join('');}
-function togglePreviewItem(id,a){const p=productosIA.find(x=>x._id===id);if(p){p._aceptado=a;document.getElementById(`preview-${id}`).className=`preview-item ${a?'aceptado':'rechazado'}`;}}
-function aceptarTodos(){productosIA.forEach(p=>{p._aceptado=true;document.getElementById(`preview-${p._id}`).className='preview-item aceptado';});}
-function rechazarTodos(){productosIA.forEach(p=>{p._aceptado=false;document.getElementById(`preview-${p._id}`).className='preview-item rechazado';});}
-async function publicarAceptados(){const a=productosIA.filter(p=>p._aceptado);if(a.length===0){mostrarAlerta('importarAlerta','⚠️ No hay productos aceptados.','error');return;}const btn=document.getElementById('btnPublicar');btn.disabled=true;btn.innerHTML='<span class="spinner-btn"></span>Publicando...';const{error}=await db.from('productos').insert(a.map(p=>({tienda_id:tiendaId,nombre:p.nombre,referencia:p.referencia||null,descripcion:p.descripcion||'',precio:p.precio||0,categoria:p.categoria||'materiales',unidad:p.unidad||'m2',stock:0,activo:true,imagen_url:p.imagen_url||null,modelo_3d_tipo:p.modelo_3d_tipo||'ninguno',rendimiento_m2:p.rendimiento_m2||null,desperdicio_pct:10})));if(error){mostrarAlerta('importarAlerta','❌ Error publicando.','error');}else{mostrarAlerta('importarAlerta',`🎉 ¡${a.length} productos publicados!`,'exito');document.getElementById('previewProductos').style.display='none';productosIA=[];await cargarProductosTienda();mostrarTab('tab-productos',document.querySelectorAll('.tab-btn')[2]);}btn.disabled=false;btn.innerHTML='🚀 Publicar aceptados';}
+// Cada producto se puede editar ANTES de publicar. Sin esto, un catálogo de
+// fabricante entra con precio 0 en todos — y un producto en cero pesos no se
+// puede vender. La edición es obligatoria, no un lujo.
+const CATEGORIAS_PROD = ['pisos','enchapes','cocinas','baños','materiales','estructuras',
+    'ferreteria','electricos','cables','plomeria','pintura','puertas','muebles',
+    'electrodomesticos','electronica','jardineria','seguridad','otros'];
+const EMOJI_CAT = { pisos:'🪵', enchapes:'🧱', cocinas:'🍳', 'baños':'🚿', materiales:'🏗️',
+    estructuras:'🏛️', ferreteria:'🔧', electricos:'💡', cables:'🔌', plomeria:'🚰',
+    pintura:'🎨', puertas:'🚪', muebles:'🛋️', electrodomesticos:'🔌', electronica:'📺',
+    jardineria:'🌿', seguridad:'🔒', otros:'📦' };
+
+// Se llenan al cargar: la lista de categorías vivía duplicada en el HTML y se
+// desincronizaba con la del backend.
+function montarSelectoresCategoria(extras) {
+    const sel = document.getElementById('categoriaImport');
+    if (sel && sel.options.length <= 1) {
+        CATEGORIAS_PROD.forEach(c => {
+            const o = document.createElement('option');
+            o.value = c; o.textContent = `${EMOJI_CAT[c]||'📦'} ${c.charAt(0).toUpperCase()+c.slice(1)}`;
+            sel.appendChild(o);
+        });
+    }
+    const caja = document.getElementById('tiendaCategoriasExtra');
+    if (caja) {
+        const marcadas = new Set(extras || []);
+        caja.innerHTML = CATEGORIAS_PROD.map(c => `
+            <label style="display:inline-flex;align-items:center;gap:5px;background:${marcadas.has(c)?'rgba(124,58,237,0.22)':'rgba(255,255,255,0.04)'};border:1px solid ${marcadas.has(c)?'#7C3AED':'rgba(148,163,184,0.22)'};border-radius:20px;padding:5px 11px;font-size:12px;cursor:pointer;color:${marcadas.has(c)?'#fff':'var(--gris)'};">
+                <input type="checkbox" value="${c}" ${marcadas.has(c)?'checked':''} onchange="this.closest('label').style.background=this.checked?'rgba(124,58,237,0.22)':'rgba(255,255,255,0.04)';this.closest('label').style.borderColor=this.checked?'#7C3AED':'rgba(148,163,184,0.22)';this.closest('label').style.color=this.checked?'#fff':'var(--gris)';" style="cursor:pointer;">
+                ${EMOJI_CAT[c]||'📦'} ${c.charAt(0).toUpperCase()+c.slice(1)}
+            </label>`).join('');
+    }
+}
+function categoriasExtraMarcadas() {
+    return [...document.querySelectorAll('#tiendaCategoriasExtra input:checked')].map(i => i.value);
+}
+const UNIDADES_PROD = ['m2','unidad','kg','litro','caja'];
+
+function renderPreviewIA(){
+    const lista = document.getElementById('previewLista');
+    const sinPrecio = productosIA.filter(p => !p.precio).length;
+    document.getElementById('previewTitulo').textContent = `🤖 ${productosIA.length} productos detectados`;
+    document.getElementById('previewProductos').style.display = 'block';
+
+    // Aviso de precios en cero + aplicar precio en bloque. Con 40 productos,
+    // ponerlos uno por uno es inviable; y casi siempre varios comparten precio.
+    const barra = sinPrecio ? `
+        <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.35);border-radius:12px;padding:12px 14px;margin-bottom:14px;">
+            <div style="font-size:13px;font-weight:700;color:#FCD34D;margin-bottom:4px;">
+                ⚠️ ${sinPrecio} producto${sinPrecio===1?'':'s'} sin precio
+            </div>
+            <div style="font-size:12px;color:var(--gris);line-height:1.6;margin-bottom:10px;">
+                Los catálogos de fabricante no traen precios — cada tienda pone el suyo.
+                Edítalos uno por uno, o aplica un precio a todos los que estén en cero.
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <input id="precioMasivo" type="number" min="0" step="100" placeholder="Ej: 89900"
+                    style="flex:1;min-width:130px;background:var(--oscuro);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:8px 10px;color:var(--texto);font-size:13px;outline:none;">
+                <button onclick="aplicarPrecioMasivo()" style="background:rgba(245,158,11,0.18);border:1px solid rgba(245,158,11,0.4);color:#FCD34D;padding:8px 14px;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;">
+                    Aplicar a los ${sinPrecio} en cero
+                </button>
+            </div>
+        </div>` : '';
+
+    lista.innerHTML = barra + productosIA.map(p => p._editando
+        ? tarjetaEdicion(p)
+        : tarjetaVista(p)
+    ).join('');
+}
+
+function tarjetaVista(p){
+    const cero = !p.precio;
+    return `<div class="preview-item ${p._aceptado?'aceptado':'rechazado'}" id="preview-${p._id}">
+        ${p.imagen_url ? `<img src="${esc(p.imagen_url)}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;margin-right:10px;flex-shrink:0;">` : ''}
+        <div class="preview-item-info">
+            <div class="preview-item-nombre">${esc(p.nombre)}${p.referencia?` <span style="color:#888;font-weight:400;">(Ref: ${esc(p.referencia)})</span>`:''}</div>
+            <div class="preview-item-precio" style="${cero?'color:#FCD34D;':''}">
+                $${Number(p.precio||0).toLocaleString('es-CO')} / ${esc(p.unidad)||'m²'}
+                ${cero?' <span style="font-size:11.5px;font-weight:400;">— falta ponerle precio</span>':''}
+            </div>
+            <div class="preview-item-desc">${esc(p.descripcion)||''}</div>
+            <div style="margin-top:6px;font-size:12px;color:#A78BFA;">📂 ${esc(p.categoria)||'Sin categoría'}${p.modelo_3d_tipo?` · 🧊 Modelo 3D: ${esc(p.modelo_3d_tipo)}`:''}</div>
+        </div>
+        <div class="preview-item-acciones">
+            <button onclick="editarPreviewItem(${p._id})" style="background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.35);color:#A78BFA;padding:6px 10px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">✏️ Editar</button>
+            <button class="btn-exito"   onclick="togglePreviewItem(${p._id},true)">✅</button>
+            <button class="btn-peligro" onclick="togglePreviewItem(${p._id},false)">❌</button>
+        </div>
+    </div>`;
+}
+
+function tarjetaEdicion(p){
+    const campo = (etq, id, valor, tipo='text', extra='') => `
+        <div style="flex:1;min-width:140px;">
+            <label style="font-size:10.5px;color:var(--gris);text-transform:uppercase;font-weight:700;">${etq}</label>
+            <input id="ed_${id}_${p._id}" type="${tipo}" value="${esc(String(valor??''))}" ${extra}
+                style="width:100%;background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);border-radius:8px;padding:8px 10px;color:var(--texto);font-size:13px;margin-top:3px;outline:none;">
+        </div>`;
+    const opciones = (lista, sel) => lista.map(v =>
+        `<option value="${v}" ${v===sel?'selected':''}>${v}</option>`).join('');
+    return `<div class="preview-item aceptado" id="preview-${p._id}" style="flex-direction:column;align-items:stretch;">
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;">
+            ${p.imagen_url ? `<img src="${esc(p.imagen_url)}" style="width:48px;height:48px;object-fit:cover;border-radius:8px;">` : ''}
+            <span style="font-size:13px;font-weight:700;color:#A78BFA;">✏️ Editando</span>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+            ${campo('Nombre','nombre',p.nombre)}
+            ${campo('Referencia','referencia',p.referencia)}
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+            ${campo('Precio','precio',p.precio||'', 'number', 'min="0" step="100"')}
+            <div style="flex:1;min-width:110px;">
+                <label style="font-size:10.5px;color:var(--gris);text-transform:uppercase;font-weight:700;">Unidad</label>
+                <select id="ed_unidad_${p._id}" style="width:100%;background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);border-radius:8px;padding:8px 10px;color:var(--texto);font-size:13px;margin-top:3px;outline:none;">
+                    ${opciones(UNIDADES_PROD, p.unidad||'m2')}
+                </select>
+            </div>
+            <div style="flex:1;min-width:130px;">
+                <label style="font-size:10.5px;color:var(--gris);text-transform:uppercase;font-weight:700;">Categoría</label>
+                <select id="ed_categoria_${p._id}" style="width:100%;background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);border-radius:8px;padding:8px 10px;color:var(--texto);font-size:13px;margin-top:3px;outline:none;">
+                    ${opciones(CATEGORIAS_PROD, p.categoria||'otros')}
+                </select>
+            </div>
+        </div>
+        <div style="margin-bottom:8px;">
+            <label style="font-size:10.5px;color:var(--gris);text-transform:uppercase;font-weight:700;">Descripción — color, medidas, acabado</label>
+            <textarea id="ed_descripcion_${p._id}" rows="2"
+                style="width:100%;background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);border-radius:8px;padding:8px 10px;color:var(--texto);font-size:13px;margin-top:3px;outline:none;resize:vertical;">${esc(p.descripcion||'')}</textarea>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+            ${campo('URL de la foto','imagen_url',p.imagen_url)}
+            ${campo('Rinde m² por unidad','rendimiento_m2',p.rendimiento_m2||'', 'number', 'min="0" step="0.01"')}
+        </div>
+        <div style="display:flex;gap:8px;">
+            <button onclick="guardarEdicionItem(${p._id})" style="flex:1;background:rgba(16,185,129,0.18);border:1px solid rgba(16,185,129,0.4);color:#6EE7B7;padding:9px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">💾 Guardar cambios</button>
+            <button onclick="cancelarEdicionItem(${p._id})" style="flex:1;background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.25);color:var(--gris);padding:9px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">Cancelar</button>
+        </div>
+    </div>`;
+}
+
+function editarPreviewItem(id){
+    const p = productosIA.find(x => x._id === id);
+    if (p) { p._editando = true; renderPreviewIA(); }
+}
+function cancelarEdicionItem(id){
+    const p = productosIA.find(x => x._id === id);
+    if (p) { p._editando = false; renderPreviewIA(); }
+}
+function guardarEdicionItem(id){
+    const p = productosIA.find(x => x._id === id);
+    if (!p) return;
+    const v = campo => document.getElementById(`ed_${campo}_${id}`)?.value ?? '';
+    p.nombre      = v('nombre').trim() || p.nombre;
+    p.referencia  = v('referencia').trim();
+    p.precio      = parseFloat(v('precio')) || 0;
+    p.unidad      = v('unidad');
+    p.categoria   = v('categoria');
+    p.descripcion = v('descripcion').trim();
+    p.imagen_url  = v('imagen_url').trim() || null;
+    const r = parseFloat(v('rendimiento_m2'));
+    p.rendimiento_m2 = (r > 0) ? r : null;
+    p._editando = false;
+    p._aceptado = true;
+    renderPreviewIA();
+}
+function aplicarPrecioMasivo(){
+    const val = parseFloat(document.getElementById('precioMasivo')?.value);
+    if (!(val > 0)) { mostrarAlerta('importarAlerta','⚠️ Escribe un precio mayor que cero.','error'); return; }
+    let n = 0;
+    productosIA.forEach(p => { if (!p.precio) { p.precio = val; n++; } });
+    renderPreviewIA();
+    mostrarAlerta('importarAlerta', `✅ Precio aplicado a ${n} producto${n===1?'':'s'}. Puedes ajustar los que sean distintos.`, 'exito');
+}
+
+function togglePreviewItem(id,a){const p=productosIA.find(x=>x._id===id);if(p){p._aceptado=a;const el=document.getElementById(`preview-${id}`);if(el)el.className=`preview-item ${a?'aceptado':'rechazado'}`;}}
+function aceptarTodos(){productosIA.forEach(p=>p._aceptado=true);renderPreviewIA();}
+function rechazarTodos(){productosIA.forEach(p=>p._aceptado=false);renderPreviewIA();}
+
+async function publicarAceptados(){
+    const a = productosIA.filter(p => p._aceptado);
+    if (a.length === 0) { mostrarAlerta('importarAlerta','⚠️ No hay productos aceptados.','error'); return; }
+
+    // Avisar antes de publicar productos que nadie va a poder comprar
+    const enCero = a.filter(p => !p.precio).length;
+    if (enCero && !confirm(
+        `${enCero} de los ${a.length} productos quedarían con precio $0 y no se podrán vender.\n\n`
+        + `¿Publicarlos igual? Podrás ponerles precio después desde "Mis productos".`)) return;
+
+    const btn = document.getElementById('btnPublicar');
+    btn.disabled = true; btn.innerHTML = '<span class="spinner-btn"></span>Publicando...';
+    const { error } = await db.from('productos').insert(a.map(p => ({
+        tienda_id: tiendaId, nombre: p.nombre, referencia: p.referencia || null,
+        descripcion: p.descripcion || '', precio: p.precio || 0,
+        categoria: p.categoria || 'materiales', unidad: p.unidad || 'm2',
+        stock: 0, activo: true, imagen_url: p.imagen_url || null,
+        modelo_3d_tipo: p.modelo_3d_tipo || 'ninguno',
+        rendimiento_m2: p.rendimiento_m2 || null, desperdicio_pct: 10,
+    })));
+    if (error) {
+        mostrarAlerta('importarAlerta', `❌ Error publicando: ${esc(error.message)}`, 'error');
+    } else {
+        mostrarAlerta('importarAlerta', `🎉 ¡${a.length} productos publicados!`, 'exito');
+        document.getElementById('previewProductos').style.display = 'none';
+        productosIA = [];
+        await cargarProductosTienda();
+        mostrarTab('tab-productos', document.querySelectorAll('.tab-btn')[2]);
+    }
+    btn.disabled = false; btn.innerHTML = '🚀 Publicar aceptados';
+}
 function cancelarImportacion(){productosIA=[];document.getElementById('previewProductos').style.display='none';mostrarAlerta('importarAlerta','','');}
 
 // ── WHATSAPP ──────────────────────────────────────────────────────────────
