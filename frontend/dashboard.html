@@ -989,6 +989,20 @@ async function cargarDatos(user) {
 }
     empresaId     = empresa.id;
     planActual    = empresa.planes?.nombre || 'basico';
+
+    // El plan Básico no tiene dashboard: su herramienta es /remodelar, donde
+    // ve las remodelaciones que la IA le generó a sus clientes de WhatsApp.
+    // Sin este guarda, bastaba escribir la URL para entrar a un panel lleno de
+    // candados — que es peor experiencia que no verlo.
+    // OJO: se compara contra el valor LEÍDO, no contra planActual — que cae a
+    // 'basico' por defecto. Si la consulta del plan fallara, usar el valor por
+    // defecto expulsaría del dashboard a un cliente Corporativo que sí pagó.
+    // Solo se redirige cuando la base dice explícitamente que es Básico.
+    const planLeido = (empresa.planes?.nombre || '').toLowerCase().replace('á','a');
+    if (planLeido === 'basico') {
+        window.location.replace('/remodelar');
+        return;
+    }
     planIdActual  = empresa.plan_id;
     empresaEstado = empresa.estado || 'pendiente_pago';
     const [imagenesRes, tiendaRes, planesRes, solicitudRes] = await Promise.all([

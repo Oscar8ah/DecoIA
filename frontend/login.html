@@ -38,10 +38,26 @@ async function detectarRol() {
 
     const email = session.user.email;
 
-    // ¿Es empresa?
+    // ¿Es empresa? Se trae también el plan, porque cada plan tiene su propia
+    // casa. Antes todas iban a /dashboard: una empresa de plan Básico entraba
+    // al panel completo y encontraba todas las pestañas con candado, lo que se
+    // siente a castigo en vez de a producto.
     const { data:empresa } = await db.from('empresas')
-        .select('id').eq('email', email).maybeSingle();
-    if (empresa) { window.location.href = '/dashboard'; return; }
+        .select('id, planes(nombre)').eq('email', email).maybeSingle();
+    if (empresa) {
+        const plan = (empresa.planes?.nombre || '').toLowerCase();
+        // El plan Básico no incluye Editor Planta ni Entorno 3D: su herramienta
+        // ES /remodelar, y ahí mismo ve las remodelaciones que la IA le generó
+        // a los clientes que le escribieron por WhatsApp.
+        const destino = (plan === 'basico' || plan === 'básico')
+            ? '/remodelar'
+            : '/dashboard';
+        // Si venía de una página concreta, se respeta esa intención
+        const guardado = sessionStorage.getItem('redirect_after_login');
+        if (guardado) sessionStorage.removeItem('redirect_after_login');
+        window.location.href = guardado || destino;
+        return;
+    }
 
     // ¿Es consumidor?
     const { data:consumidor } = await db.from('consumidores')
