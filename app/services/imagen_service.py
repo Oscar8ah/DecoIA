@@ -32,6 +32,44 @@ async def descargar_imagen_whatsapp(image_id: str, token: str) -> bytes:
         return img_response.content
 
 
+# Errores que NO son culpa del usuario ni de la imagen: son caídas pasajeras
+# del proveedor. Un 500 de OpenAI mataba la conversación entera y el cliente
+# veía "Hubo un error, intenta de nuevo" — si eso le pasa al cliente de un
+# ferretero, se va. Se reintenta solo, sin que se entere.
+ESTADOS_REINTENTABLES = {429, 500, 502, 503, 504}
+
+
+async def _post_con_reintentos(client, url, *, headers, files=None, data=None,
+                               intentos=3, espera_base=2.0, etiqueta="OpenAI"):
+    """
+    Reintenta solo ante fallos pasajeros del servidor, con espera creciente.
+    Un 400 (imagen inválida, moderación) NO se reintenta: sería gastar dinero
+    repitiendo algo que va a fallar igual.
+    """
+    import asyncio
+    ultima = None
+    for intento in range(1, intentos + 1):
+        try:
+            r = await client.post(url, headers=headers, files=files, data=data)
+        except (httpx.TimeoutException, httpx.TransportError) as e:
+            ultima = e
+            logger.warning(f"{etiqueta}: intento {intento}/{intentos} falló por red — {type(e).__name__}")
+            if intento == intentos:
+                raise
+            await asyncio.sleep(espera_base * intento)
+            continue
+
+        if r.status_code in ESTADOS_REINTENTABLES and intento < intentos:
+            logger.warning(
+                f"{etiqueta}: {r.status_code} (caída pasajera del proveedor). "
+                f"Reintento {intento}/{intentos - 1} en {espera_base * intento:.0f}s"
+            )
+            await asyncio.sleep(espera_base * intento)
+            continue
+        return r
+    return ultima if isinstance(ultima, httpx.Response) else r
+
+
 async def subir_imagen_a_supabase(imagen_bytes: bytes, carpeta: str = "whatsapp") -> str:
     """
     Respaldo cuando imgbb falla. Se usa el mismo bucket 'portafolio' y el mismo
@@ -164,9 +202,11 @@ async def generar_imagen_remodelada(imagen_bytes: bytes, estilo: str = "moderno"
     )
 
     async with httpx.AsyncClient(timeout=120.0) as client:
-        response = await client.post(
+        response = await _post_con_reintentos(
+            client,
             "https://api.openai.com/v1/images/edits",
             headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+            etiqueta="gpt-image-1",
             files={
                 "image": ("room.png", imagen_png,  "image/png"),
                 "mask":  ("mask.png", mascara_png, "image/png"),
@@ -263,9 +303,11 @@ async def generar_imagen_con_producto(
         archivos.append(("mask", ("mask.png", mascara_png, "image/png")))
 
     async with httpx.AsyncClient(timeout=120.0) as client:
-        response = await client.post(
+        response = await _post_con_reintentos(
+            client,
             "https://api.openai.com/v1/images/edits",
             headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+            etiqueta="gpt-image-1 producto",
             files=archivos,
             data={
                 "model":   "gpt-image-1",
@@ -369,9 +411,11 @@ async def generar_vista_isometrica(imagen_bytes: bytes, info_plano: dict) -> str
     imagen_png = imagen_a_png_1024(imagen_bytes)
 
     async with httpx.AsyncClient(timeout=120.0) as client:
-        response = await client.post(
+        response = await _post_con_reintentos(
+            client,
             "https://api.openai.com/v1/images/edits",
             headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+            etiqueta="gpt-image-1",
             files={
                 "image": ("plano.png", imagen_png, "image/png"),
             },
