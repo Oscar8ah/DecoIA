@@ -146,7 +146,7 @@ async def refinar_superficie(data: RefinarRequest, request: Request):
 # uno para poder contactarlos.
 # ─────────────────────────────────────────────────────────────────────────
 @router.get("/bandeja/{empresa_id}")
-async def bandeja_asesor(empresa_id: str, limite: int = 40):
+async def bandeja_asesor(empresa_id: str, limite: int = 40, solo_clientes: bool = True):
     """Últimas imágenes generadas para los clientes de esta empresa."""
     if limite < 1 or limite > 200:
         limite = 40
@@ -164,6 +164,11 @@ async def bandeja_asesor(empresa_id: str, limite: int = 40):
         try:
             sel = f"{campos}, {col}" if col else campos
             q = supabase.table("imagenes").select(sel).eq("empresa_id", empresa_id)
+            # La bandeja es lo que le llegó de SUS CLIENTES. Mezclar ahí los
+            # renders que la propia tienda hizo en el visor 3D es ruido: el
+            # asesor busca a quién llamar, no su propio trabajo.
+            if solo_clientes:
+                q = q.eq("origen", "whatsapp")
             if col:
                 q = q.order(col, desc=True)
             r = q.limit(limite).execute()
