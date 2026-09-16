@@ -131,15 +131,63 @@ def buffer_desde_mascara(mascara: Image.Image) -> bytes:
     return buffer.getvalue()
 
 
+# gpt-image-1 solo acepta tres formatos de salida. Se elige el que más se
+# parezca a la foto del cliente para no deformarla.
+TAMANOS_GPT_IMAGE = {
+    "cuadrado": (1024, 1024),
+    "vertical": (1024, 1536),
+    "apaisado": (1536, 1024),
+}
+
+
+def tamano_para(imagen_bytes: bytes):
+    """
+    Devuelve (ancho, alto, texto) del formato más cercano a la foto original.
+
+    Antes todo se forzaba a 1024x1024 con un resize directo, SIN conservar la
+    proporción: una foto apaisada de 1600x900 se aplastaba a un cuadrado. La IA
+    veía una sala achatada, generaba sobre eso, y el resultado volvía deformado
+    — muebles estirados y bordes perdidos.
+    """
+    img = Image.open(io.BytesIO(imagen_bytes))
+    w, h = img.size
+    prop = w / h if h else 1.0
+    if prop >= 1.25:
+        clave = "apaisado"
+    elif prop <= 0.8:
+        clave = "vertical"
+    else:
+        clave = "cuadrado"
+    ancho, alto = TAMANOS_GPT_IMAGE[clave]
+    return ancho, alto, f"{ancho}x{alto}"
+
+
+def ajustar_a_lienzo(img: Image.Image, ancho: int, alto: int) -> Image.Image:
+    """
+    Encaja la imagen en el lienzo CONSERVANDO su proporción, y rellena lo que
+    sobre replicando el borde. Nada se estira y nada se recorta: el cliente ve
+    su espacio completo, no una versión achatada.
+    """
+    img = img.convert("RGBA")
+    escala = min(ancho / img.width, alto / img.height)
+    nuevo = img.resize((max(1, int(img.width * escala)),
+                        max(1, int(img.height * escala))), Image.LANCZOS)
+    # El relleno toma el color del borde en vez de negro: un marco negro haría
+    # que la IA lo interprete como parte de la escena y genere sombras falsas.
+    borde = nuevo.resize((1, 1), Image.LANCZOS).getpixel((0, 0))
+    lienzo = Image.new("RGBA", (ancho, alto), borde)
+    lienzo.paste(nuevo, ((ancho - nuevo.width) // 2, (alto - nuevo.height) // 2), nuevo)
+    return lienzo
+
+
 def crear_mascara_piso_paredes(imagen_bytes: bytes) -> bytes:
     """
     Máscara PNG con canal alpha:
     - Transparente (alpha=0)  → EDITABLE (piso + paredes sin decoración)
     - Opaco (alpha=255)       → PROTEGIDO (muebles, cuadros, ventanas, objetos)
     """
-    img = Image.open(io.BytesIO(imagen_bytes)).convert("RGBA")
-    img = img.resize((1024, 1024), Image.LANCZOS)
-    ancho, alto = 1024, 1024
+    ancho, alto, _ = tamano_para(imagen_bytes)
+    img = ajustar_a_lienzo(Image.open(io.BytesIO(imagen_bytes)), ancho, alto)
 
     mascara = Image.new("RGBA", (ancho, alto), (0, 0, 0, 255))
     draw = ImageDraw.Draw(mascara)
@@ -170,9 +218,12 @@ def crear_mascara_piso_paredes(imagen_bytes: bytes) -> bytes:
 
 
 def imagen_a_png_1024(imagen_bytes: bytes) -> bytes:
-    """Convierte imagen a PNG 1024x1024 que requiere gpt-image-1"""
-    img = Image.open(io.BytesIO(imagen_bytes)).convert("RGBA")
-    img = img.resize((1024, 1024), Image.LANCZOS)
+    """
+    Prepara la foto para gpt-image-1 respetando su proporción.
+    (El nombre queda por compatibilidad; ya no siempre es 1024x1024.)
+    """
+    ancho, alto, _ = tamano_para(imagen_bytes)
+    img = ajustar_a_lienzo(Image.open(io.BytesIO(imagen_bytes)), ancho, alto)
     buffer = io.BytesIO()
     img.save(buffer, format="PNG")
     return buffer.getvalue()
@@ -201,6 +252,7 @@ async def generar_imagen_remodelada(imagen_bytes: bytes, estilo: str = "moderno"
         f"Photorealistic lighting. Do not move or add any furniture."
     )
 
+    _, _, tamano_salida = tamano_para(imagen_bytes)
     async with httpx.AsyncClient(timeout=120.0) as client:
         response = await _post_con_reintentos(
             client,
@@ -219,7 +271,7 @@ async def generar_imagen_remodelada(imagen_bytes: bytes, estilo: str = "moderno"
                 "moderation": "low",
                 "prompt":  prompt,
                 "n":       "1",
-                "size":    "1024x1024",
+                "size":    tamano_salida,
                 "quality": "medium",
             }
         )
@@ -302,6 +354,7 @@ async def generar_imagen_con_producto(
         mascara_png = crear_mascara_piso_paredes(foto_bytes)
         archivos.append(("mask", ("mask.png", mascara_png, "image/png")))
 
+    _, _, tamano_salida = tamano_para(foto_bytes)
     async with httpx.AsyncClient(timeout=120.0) as client:
         response = await _post_con_reintentos(
             client,
@@ -317,7 +370,7 @@ async def generar_imagen_con_producto(
                 "moderation": "low",
                 "prompt":  prompt,
                 "n":       "1",
-                "size":    "1024x1024",
+                "size":    tamano_salida,
                 "quality": "high",
             }
         )
@@ -410,6 +463,7 @@ async def generar_vista_isometrica(imagen_bytes: bytes, info_plano: dict) -> str
 
     imagen_png = imagen_a_png_1024(imagen_bytes)
 
+    _, _, tamano_salida = tamano_para(imagen_bytes)
     async with httpx.AsyncClient(timeout=120.0) as client:
         response = await _post_con_reintentos(
             client,
@@ -427,7 +481,7 @@ async def generar_vista_isometrica(imagen_bytes: bytes, info_plano: dict) -> str
                 "moderation": "low",
                 "prompt":  prompt,
                 "n":       "1",
-                "size":    "1024x1024",
+                "size":    tamano_salida,
                 "quality": "high",
             }
         )
