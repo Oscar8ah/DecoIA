@@ -24,6 +24,53 @@ import json
 from urllib.parse import quote
 
 
+# Categorías del catálogo que sirven para cada superficie detectada. Se
+# consulta el catálogo REAL de la tienda en vez de inventar un estilo: mostrarle
+# a un cliente un piso de madera cuando la ferretería solo vende porcelanato no
+# vende nada — decepciona cuando abre el catálogo y no lo encuentra.
+CATEGORIAS_POR_SUPERFICIE = {
+    "piso":   ["pisos", "enchapes", "materiales"],
+    "pared":  ["enchapes", "pintura", "materiales"],
+    "cocina": ["pisos", "enchapes", "cocinas"],
+    "baño":   ["pisos", "enchapes", "baños"],
+}
+
+
+async def elegir_producto_de_tienda(tienda_id: str, superficie: str = "piso"):
+    """
+    Devuelve un producto real del catálogo de la tienda, apto para esa
+    superficie y con foto — la foto es indispensable, porque es lo que se le
+    manda a la IA como referencia visual del material.
+
+    Se elige al azar entre los aptos para que dos clientes que manden fotos
+    parecidas no vean siempre el mismo piso.
+
+    Devuelve None si la tienda no tiene nada compatible; el que llama decide
+    qué hacer con eso.
+    """
+    if not tienda_id:
+        return None
+    categorias = CATEGORIAS_POR_SUPERFICIE.get(superficie, CATEGORIAS_POR_SUPERFICIE["piso"])
+    try:
+        supabase = get_supabase()
+        r = supabase.table("productos") \
+            .select("id, nombre, categoria, imagen_url, precio, unidad") \
+            .eq("tienda_id", tienda_id).eq("activo", True) \
+            .in_("categoria", categorias) \
+            .not_.is_("imagen_url", "null") \
+            .limit(40).execute()
+        aptos = [p for p in (r.data or []) if p.get("imagen_url")]
+        if not aptos:
+            logger.info(f"Tienda {tienda_id} sin productos con foto para '{superficie}'")
+            return None
+        elegido = secrets.choice(aptos)
+        logger.info(f"Producto elegido para la remodelación: {elegido['nombre']} ({elegido['categoria']})")
+        return elegido
+    except Exception as e:
+        logger.error(f"No se pudo consultar el catálogo de la tienda: {e}")
+        return None
+
+
 async def registrar_imagen_generada(empresa_id, url_generada, telefono,
                                      tipo_espacio, estilo, url_original=None,
                                      producto=None):
@@ -524,7 +571,42 @@ async def procesar_imagen_background(
                 settings, pid_envio
             )
 
-            url_generada = await generar_imagen_remodelada(imagen_bytes, "moderno")
+            # ── REMODELACIÓN CON UN PRODUCTO REAL DE LA TIENDA ───────────
+            # Antes esto llamaba a generar_imagen_remodelada(imagen, "moderno"),
+            # que tiene los materiales escritos fijos en el código ("light oak
+            # hardwood floors"). El cliente veía un piso de madera que la
+            # ferretería no vende, y al abrir el catálogo solo había
+            # porcelanato. Eso decepciona en vez de vender.
+            # Ahora se elige un producto real del catálogo y se le manda su
+            # FOTO a la IA como referencia visual del material, no solo el
+            # nombre — para que el resultado sea el material que de verdad se
+            # puede comprar en esa tienda.
+            producto_usado = None
+            url_generada = None
+            if tienda_ctx and tienda_ctx.get("id"):
+                producto_usado = await elegir_producto_de_tienda(
+                    tienda_ctx["id"], superficie=tipo_espacio
+                )
+
+            if producto_usado:
+                try:
+                    async with httpx.AsyncClient(timeout=30.0) as cli:
+                        pr = await cli.get(producto_usado["imagen_url"])
+                        pr.raise_for_status()
+                    url_generada = await generar_imagen_con_producto(
+                        imagen_bytes, pr.content,
+                        producto_usado["nombre"],
+                        producto_usado.get("categoria", "pisos"),
+                    )
+                except Exception as e:
+                    # Si falla la foto del producto no se deja al cliente sin
+                    # nada: se cae al estilo genérico y se avisa que es una idea.
+                    logger.warning(f"No se pudo usar el producto de la tienda: {e}")
+                    producto_usado = None
+
+            if not url_generada:
+                url_generada = await generar_imagen_remodelada(imagen_bytes, "moderno")
+
             if empresa_id: await descontar_foto(empresa_id)
 
             # PRIMERO SE ENTREGA. Antes se subía la foto original a imgbb antes
@@ -533,12 +615,22 @@ async def procesar_imagen_background(
             # estaba generada y pagada a OpenAI, pero el cliente recibía
             # "Hubo un error". Guardar una copia de referencia jamás puede
             # costar la entrega de lo que el cliente está esperando.
-            await enviar_imagen_whatsapp(
-                sender, url_generada,
-                f"✨ ¡Así podría quedar tu {tipo_espacio}!\n"
-                f"Diseño moderno con acabados premium 🏠",
-                settings, pid_envio
-            )
+            if producto_usado:
+                precio = producto_usado.get("precio") or 0
+                pie = (f"✨ ¡Así queda tu {tipo_espacio}!\n\n"
+                       f"🧱 *{producto_usado['nombre']}*\n"
+                       + (f"💲 ${int(precio):,}".replace(",", ".") + f" /{producto_usado.get('unidad') or 'm²'}\n"
+                          if precio else "")
+                       + "\nEs un producto real de la tienda 🏠")
+            else:
+                # Sin producto compatible se avisa que es inspiración, para no
+                # prometer un material que la tienda no tiene.
+                pie = (f"✨ ¡Así podría quedar tu {tipo_espacio}!\n\n"
+                       f"💡 Esta es una propuesta de inspiración — todavía no "
+                       f"corresponde a un producto del catálogo.\n"
+                       f"Toca *Ver productos* para probarlo con materiales reales 🏠")
+
+            await enviar_imagen_whatsapp(sender, url_generada, pie, settings, pid_envio)
 
             # Copia de la foto original, solo para referencia del asesor.
             # Si imgbb falla se sigue sin ella: es opcional, no bloqueante.
@@ -552,8 +644,10 @@ async def procesar_imagen_background(
 
             await registrar_imagen_generada(
                 empresa_id, url_generada, sender,
-                tipo_espacio=tipo_espacio, estilo="moderno",
+                tipo_espacio=tipo_espacio,
+                estilo=(producto_usado.get("categoria") if producto_usado else "moderno"),
                 url_original=url_original,
+                producto=(producto_usado["nombre"] if producto_usado else None),
             )
 
             # Mismo fix que en el flujo de plano: token aleatorio real.
