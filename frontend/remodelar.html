@@ -506,7 +506,10 @@ async function cargarBandejaAsesor() {
     lista.innerHTML = '<div style="font-size:12px;color:var(--gris);">Cargando…</div>';
     try {
         const r = await fetch(`https://decoia.onrender.com/api/superficies/bandeja/${empresaIdActual}`);
-        if (!r.ok) throw new Error('No se pudo cargar');
+        if (!r.ok) {
+            const cuerpo = await r.json().catch(() => ({}));
+            throw new Error(cuerpo.detail || `El servidor respondió ${r.status}`);
+        }
         const { items } = await r.json();
         if (!items.length) {
             lista.innerHTML = '<div style="font-size:12px;color:var(--gris);line-height:1.6;">Todavía no hay remodelaciones. Cuando un cliente le mande una foto a tu WhatsApp, el resultado aparece aquí con su número.</div>';
@@ -525,7 +528,12 @@ async function cargarBandejaAsesor() {
             </div>`;
         }).join('');
     } catch (e) {
-        lista.innerHTML = '<div style="font-size:12px;color:#FCA5A5;">No se pudo cargar la bandeja. Intenta recargar la página.</div>';
+        // Se muestra el error real. El mensaje genérico de antes obligaba a
+        // adivinar qué había fallado.
+        lista.innerHTML = '<div style="font-size:11.5px;color:#FCA5A5;line-height:1.5;">'
+            + 'No se pudo cargar la bandeja.<br><span style="color:var(--gris);font-size:10.5px;">'
+            + (e.message || e) + '</span></div>';
+        console.error('Bandeja:', e);
     }
 }
 
@@ -922,7 +930,49 @@ window.addEventListener('DOMContentLoaded', async () => {
     // Teléfono del cliente (si llegó desde WhatsApp) — para poder avisarle
     // al asesor quién es cuando pide hablar en vez de pagar directo.
     clienteTelefono = new URLSearchParams(window.location.search).get('tel') || '';
+
+    // La foto que el cliente ya mandó por WhatsApp viene en el link. Sin esto
+    // llegaba al catálogo y le pedían subirla otra vez: parece que algo salió
+    // mal, y ahí se pierde la venta.
+    const imgParam = new URLSearchParams(window.location.search).get('img');
+    if (imgParam) await cargarFotoDesdeUrl(imgParam);
 });
+
+// Trae la foto por su URL y deja la página en el mismo estado que si el
+// usuario la hubiera subido a mano.
+async function cargarFotoDesdeUrl(url) {
+    try {
+        const r = await fetch(url, { mode: 'cors' });
+        if (!r.ok) throw new Error('No se pudo descargar');
+        const blob = await r.blob();
+        if (!blob.type.startsWith('image/')) throw new Error('No es una imagen');
+
+        const dataUrl = await new Promise((ok, mal) => {
+            const fr = new FileReader();
+            fr.onload = () => ok(fr.result);
+            fr.onerror = () => mal(new Error('No se pudo leer'));
+            fr.readAsDataURL(blob);
+        });
+
+        fotoUrl    = dataUrl;
+        fotoBase64 = dataUrl.split(',')[1];
+        sessionStorage.setItem('deco_foto_url', fotoUrl);
+        sessionStorage.setItem('deco_foto_b64', fotoBase64);
+
+        document.getElementById('imgAntes').src = fotoUrl;
+        document.getElementById('uploadZone').style.display = 'none';
+        document.getElementById('comparador').classList.add('visible');
+        document.getElementById('fotoToolbar').classList.add('visible');
+
+        actualizarPasos(2);
+        toast('📸 Tu foto de WhatsApp ya está lista — elige el producto');
+    } catch (e) {
+        // Si no se puede traer, se cae a pedirla: mejor eso que una pantalla
+        // rota sin explicación.
+        console.warn('No se pudo recuperar la foto del link:', e);
+        toast('No pudimos traer tu foto de WhatsApp — súbela aquí');
+    }
+}
 
 let clienteTelefono = '';
 

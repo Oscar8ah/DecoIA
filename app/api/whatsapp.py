@@ -21,6 +21,7 @@ from app.services.limites_service import tiene_fotos_disponibles, descontar_foto
 from app.utils.supabase_client import get_supabase
 from datetime import datetime
 import json
+from urllib.parse import quote
 
 
 async def registrar_imagen_generada(empresa_id, url_generada, telefono,
@@ -557,7 +558,12 @@ async def procesar_imagen_background(
 
             # Mismo fix que en el flujo de plano: token aleatorio real.
             session_id   = secrets.token_urlsafe(24)
-            url_selector = url_selector_base or f"{BASE_URL}/remodelar"
+            # La foto del cliente viaja en el link. Sin esto, el cliente que ya
+            # mandó su foto por WhatsApp abría el catálogo y le pedían subirla
+            # otra vez — parece que algo salió mal y se pierde la venta ahí.
+            base_sel     = url_selector_base or f"{BASE_URL}/remodelar"
+            url_selector = (f"{base_sel}&img={quote(url_original, safe='')}"
+                            if url_original else base_sel)
 
             estado_usuarios[sender] = {
                 "modo":              "remodelado",
