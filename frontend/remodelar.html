@@ -498,6 +498,18 @@ async function verificarRol() {
 // ── BANDEJA DEL ASESOR (plan Básico) ───────────────────────────────────
 // Su único dashboard: las remodelaciones que la IA le generó a sus clientes
 // por WhatsApp, con el teléfono de cada uno para poder contactarlos.
+// Reabre una remodelación de la bandeja en esta misma página. No se abre otra
+// pestaña porque el asesor YA está en /remodelar: sería duplicarle la ventana.
+// Se usa la foto ORIGINAL cuando existe — aplicar un piso sobre otro piso ya
+// aplicado degrada la imagen.
+window.reabrirDesdeBandeja = async function(urlOriginal, urlGenerada, telefono) {
+    const base = urlOriginal || urlGenerada;
+    if (!base) { toast('Esa remodelación no tiene foto asociada'); return; }
+    if (telefono) clienteTelefono = telefono;
+    await cargarFotoDesdeUrl(base);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
 async function cargarBandejaAsesor() {
     const caja = document.getElementById('bandejaAsesor');
     if (!caja || !empresaIdActual) return;
@@ -523,7 +535,11 @@ async function cargarBandejaAsesor() {
                 <div style="flex:1;min-width:0;">
                     <div style="font-size:12px;font-weight:700;color:var(--texto);">${it.producto || it.tipo_espacio || 'Remodelación'}</div>
                     <div style="font-size:11px;color:var(--gris);">${fecha}</div>
-                    ${tel ? `<a href="https://wa.me/${tel}" target="_blank" style="font-size:11.5px;color:#6EE7B7;text-decoration:none;font-weight:700;">💬 Escribirle al ${tel}</a>` : ''}
+                    <div style="display:flex;gap:6px;margin-top:5px;flex-wrap:wrap;align-items:center;">
+                        <button onclick="reabrirDesdeBandeja('${it.url_original||''}','${it.url_generada||''}','${tel}')"
+                            style="background:rgba(124,58,237,0.18);border:1px solid rgba(124,58,237,0.4);color:#A78BFA;padding:5px 10px;border-radius:7px;font-size:11.5px;font-weight:700;cursor:pointer;">🎨 Seguir editando</button>
+                        ${tel ? `<a href="https://wa.me/${tel}" target="_blank" style="font-size:11.5px;color:#6EE7B7;text-decoration:none;font-weight:700;">💬 Escribirle al ${tel}</a>` : ''}
+                    </div>
                 </div>
             </div>`;
         }).join('');
