@@ -36,6 +36,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from app.utils.config import get_settings
+from app.utils.supabase_client import get_supabase
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/superficies", tags=["superficies"])
@@ -149,14 +150,35 @@ async def bandeja_asesor(empresa_id: str, limite: int = 40):
     """Últimas imágenes generadas para los clientes de esta empresa."""
     if limite < 1 or limite > 200:
         limite = 40
-    try:
-        supabase = get_supabase()
-        r = supabase.table("imagenes") \
-            .select("id, url_generada, url_original, tipo_espacio, estilo, telefono, producto, origen, creado_en") \
-            .eq("empresa_id", empresa_id) \
-            .order("creado_en", desc=True) \
-            .limit(limite).execute()
-        return {"ok": True, "items": r.data or []}
-    except Exception as e:
-        logger.exception("Error leyendo la bandeja del asesor")
-        raise HTTPException(status_code=500, detail=f"No se pudo leer la bandeja: {e}")
+    supabase = get_supabase()
+
+    # El nombre de la columna de fecha no es igual en todas las tablas del
+    # proyecto: clientes_finales usa created_at, otras usan creado_en. Ordenar
+    # por una que no existe hace fallar la consulta ENTERA, y el asesor ve
+    # "no se pudo cargar" sin más pistas. Se prueban las variantes y, si
+    # ninguna existe, se devuelve sin ordenar antes que no devolver nada.
+    campos = "id, url_generada, url_original, tipo_espacio, estilo, telefono, producto, origen"
+    ultimo_error = None
+
+    for col in ("creado_en", "created_at", "fecha", None):
+        try:
+            sel = f"{campos}, {col}" if col else campos
+            q = supabase.table("imagenes").select(sel).eq("empresa_id", empresa_id)
+            if col:
+                q = q.order(col, desc=True)
+            r = q.limit(limite).execute()
+            items = r.data or []
+            # Se normaliza el nombre para que el frontend no tenga que adivinar
+            if col and col != "creado_en":
+                for it in items:
+                    it["creado_en"] = it.get(col)
+            return {"ok": True, "items": items, "orden": col or "sin_orden"}
+        except Exception as e:
+            ultimo_error = e
+            continue
+
+    logger.error(f"Bandeja: ninguna variante de consulta funcionó — {ultimo_error}")
+    raise HTTPException(
+        status_code=500,
+        detail=f"No se pudo leer la bandeja: {ultimo_error}"
+    )
