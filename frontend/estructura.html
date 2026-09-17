@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Estructura — DecoIArte</title>
+<style>
+    :root{
+        --oscuro:#0B0B14; --oscuro2:#12121F; --carta:#181828;
+        --texto:#E8E8F0; --gris:#8B8BA7; --morado:#7C3AED; --lila:#A78BFA;
+        --verde:#10B981; --ambar:#F59E0B; --cian:#22D3EE; --rosa:#EC4899;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{
+        background:var(--oscuro); color:var(--texto);
+        font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+        line-height:1.6; padding:28px 20px 80px;
+    }
+    .caja{max-width:1100px;margin:0 auto}
+    h1{font-size:30px;font-weight:800;margin-bottom:6px}
+    h1 span{background:linear-gradient(90deg,var(--lila),var(--cian));
+        -webkit-background-clip:text;background-clip:text;color:transparent}
+    .sub{color:var(--gris);font-size:14.5px;margin-bottom:6px}
+    .nota{background:rgba(124,58,237,.1);border:1px solid rgba(124,58,237,.3);
+        border-radius:12px;padding:12px 15px;font-size:13.5px;color:var(--gris);
+        margin:18px 0 26px;line-height:1.7}
+    .nota b{color:var(--texto)}
+
+    h2{font-size:19px;font-weight:700;margin:34px 0 14px;
+        padding-bottom:8px;border-bottom:1px solid rgba(139,139,167,.2)}
+
+    /* Escalera */
+    .escalera{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+    .peldano{flex:1;min-width:150px;background:var(--carta);border-radius:12px;
+        padding:14px;text-align:center;border:1px solid rgba(139,139,167,.15)}
+    .peldano .verbo{font-size:17px;font-weight:800;margin-bottom:3px}
+    .peldano .quien{font-size:12px;color:var(--gris)}
+    .v1{color:var(--verde)} .v2{color:var(--cian)}
+    .v3{color:var(--lila)} .v4{color:var(--rosa)}
+
+    /* Tarjetas de plan */
+    .plan{background:var(--carta);border-radius:14px;padding:18px 20px;
+        margin-bottom:14px;border-left:4px solid var(--gris)}
+    .plan.basico{border-left-color:var(--verde)}
+    .plan.profesional{border-left-color:var(--cian)}
+    .plan.premium{border-left-color:var(--lila)}
+    .plan.corporativo{border-left-color:var(--rosa)}
+    .plan.visitante{border-left-color:var(--ambar)}
+    .plan-cab{display:flex;justify-content:space-between;align-items:baseline;
+        gap:12px;flex-wrap:wrap;margin-bottom:4px}
+    .plan-nom{font-size:18px;font-weight:800}
+    .plan-precio{font-size:14px;color:var(--gris);font-weight:600}
+    .plan-promesa{font-size:14.5px;color:var(--texto);margin:8px 0 12px;
+        font-style:italic;opacity:.9}
+    .fila{display:flex;gap:10px;font-size:13.5px;padding:5px 0;
+        border-top:1px solid rgba(139,139,167,.12)}
+    .fila .et{color:var(--gris);min-width:110px;font-weight:600}
+    .ruta{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;
+        background:rgba(124,58,237,.14);padding:2px 7px;border-radius:5px;color:var(--lila)}
+
+    .aviso{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.35);
+        border-radius:12px;padding:14px 16px;margin:14px 0;font-size:13.5px;line-height:1.7}
+    .aviso b{color:var(--ambar)}
+
+    table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:6px}
+    th,td{text-align:left;padding:8px 10px;border-bottom:1px solid rgba(139,139,167,.14)}
+    th{color:var(--gris);font-size:11.5px;text-transform:uppercase;letter-spacing:.05em}
+    .si{color:var(--verde);font-weight:700}
+    .no{color:#F87171;font-weight:700}
+
+    ul{margin:8px 0 0 18px;font-size:13.5px}
+    li{margin-bottom:5px}
+    .pie{margin-top:40px;padding-top:16px;border-top:1px solid rgba(139,139,167,.2);
+        font-size:12.5px;color:var(--gris)}
+</style>
+</head>
+<body>
+<div class="caja">
+
+    <h1>Estructura de <span>DecoIArte</span></h1>
+    <p class="sub">Qué hace cada plan y dónde vive. Página interna de referencia.</p>
+
+    <div class="nota">
+        Esta página es la <b>fuente de verdad</b> de cómo está organizado el producto.
+        Antes de proponer o construir algo, se revisa aquí a qué plan pertenece y en qué
+        pantalla vive. Si una idea no encaja en ninguna casilla, primero se decide dónde
+        va — y se actualiza esta página.
+    </div>
+
+    <h2>La escalera</h2>
+    <p class="sub" style="margin-bottom:12px">
+        Cada plan hace todo lo del anterior y suma una capa. No es "más pestañas por más
+        plata": es una sola idea que crece.
+    </p>
+    <div class="escalera">
+        <div class="peldano"><div class="verbo v1">Transformar</div><div class="quien">Básico</div></div>
+        <div class="peldano"><div class="verbo v2">Editar</div><div class="quien">Profesional</div></div>
+        <div class="peldano"><div class="verbo v3">Crear</div><div class="quien">Premium</div></div>
+        <div class="peldano"><div class="verbo v4">Animar</div><div class="quien">Corporativo</div></div>
+    </div>
+
+    <h2>Los planes</h2>
+
+    <div class="plan visitante">
+        <div class="plan-cab">
+            <span class="plan-nom">🌐 Visitante</span>
+            <span class="plan-precio">$5.000 por imagen</span>
+        </div>
+        <div class="plan-promesa">"Sube la foto de tu espacio y mira cómo queda con productos reales."</div>
+        <div class="fila"><span class="et">Vive en</span><span><span class="ruta">/remodelar</span></span></div>
+        <div class="fila"><span class="et">Quién es</span><span>Cualquiera que llega desde el home, sin cuenta de empresa</span></div>
+        <div class="fila"><span class="et">Cómo paga</span><span>Crea cuenta, genera, y paga $5.000 para desbloquear la imagen</span></div>
+    </div>
+
+    <div class="plan basico">
+        <div class="plan-cab">
+            <span class="plan-nom">🟢 Básico — Transformar</span>
+            <span class="plan-precio">$400.000 pago único</span>
+        </div>
+        <div class="plan-promesa">"Tus clientes ven TUS productos puestos en su casa, y te escriben."</div>
+        <div class="fila"><span class="et">Vive en</span><span><span class="ruta">/remodelar</span> — ese ES su dashboard</span></div>
+        <div class="fila"><span class="et">Herramienta</span><span>Bot de WhatsApp propio de la tienda</span></div>
+        <div class="fila"><span class="et">Quién opera</span><span>El cliente final, solo y automático</span></div>
+        <div class="fila"><span class="et">Flujo</span><span>Cliente manda foto → la IA remodela con un producto real del catálogo → Ver productos → Hablar con asesor</span></div>
+        <div class="fila"><span class="et">El asesor ve</span><span>La bandeja <b>📥 Remodelaciones de tus clientes</b> dentro de <span class="ruta">/remodelar</span>, con el teléfono de cada uno</span></div>
+        <div class="fila"><span class="et">NO tiene</span><span>Editor Planta, Entorno 3D, editor de video ni editor de superficies</span></div>
+    </div>
+
+    <div class="plan profesional">
+        <div class="plan-cab">
+            <span class="plan-nom">🔵 Profesional — Editar</span>
+            <span class="plan-precio">$700.000 pago único</span>
+        </div>
+        <div class="plan-promesa">"Usted cierra la venta ahí mismo en el mostrador, con el cliente al lado."</div>
+        <div class="fila"><span class="et">Vive en</span><span>Editor de superficies y objetos <span class="ruta">/editor-superficies</span></span></div>
+        <div class="fila"><span class="et">Qué suma</span><span>Ya no solo transforma: <b>edita</b>. Cambia pisos y paredes, quita objetos, pone lo que quiera</span></div>
+        <div class="fila"><span class="et">Cómo funciona</span><span>Detecta por capas y objetos. El cálculo hace el grueso — perspectiva, escala real de pieza, transferencia de luz, sombras de contacto — y la IA da el remate</span></div>
+        <div class="fila"><span class="et">Quién opera</span><span>El asesor de la tienda, no el cliente final</span></div>
+    </div>
+
+    <div class="plan premium">
+        <div class="plan-cab">
+            <span class="plan-nom">🟣 Premium — Crear</span>
+            <span class="plan-precio">por definir</span>
+        </div>
+        <div class="plan-promesa">"Diseña un espacio que todavía no existe."</div>
+        <div class="fila"><span class="et">Vive en</span><span>Editor Planta y Entorno 3D <span class="ruta">/visor3d</span></span></div>
+        <div class="fila"><span class="et">Qué suma</span><span>Parte de cero: dibuja la planta, la convierte en 3D, mete estructura, techos y cubiertas</span></div>
+        <div class="fila"><span class="et">Incluye</span><span>Columnas y vigas, cielos rasos, cubiertas paramétricas, multinivel, cálculo de materiales</span></div>
+    </div>
+
+    <div class="plan corporativo">
+        <div class="plan-cab">
+            <span class="plan-nom">🔴 Corporativo — Animar</span>
+            <span class="plan-precio">$3.000.000 pago único</span>
+        </div>
+        <div class="plan-promesa">"Con los diseños que has hecho, crea videos. Ve tus alcances hechos realidad."</div>
+        <div class="fila"><span class="et">Vive en</span><span>Editor de video y Nodos, dentro de <span class="ruta">/visor3d</span></span></div>
+        <div class="fila"><span class="et">Qué suma</span><span>Recorridos de cámara y video de alta calidad</span></div>
+        <div class="fila"><span class="et">Para quién</span><span>Constructoras que necesitan mostrar el proyecto completo</span></div>
+    </div>
+
+    <div class="aviso">
+        <b>⚠️ Sin ubicar todavía:</b> la pestaña <b>Foto IA</b> —diseñar un espacio desde
+        cero escribiendo un prompt— estaba asignada a Premium cuando Premium era "crear
+        con IA". Al pasar Premium al Visor 3D, Foto IA quedó sin plan. Hay que decidir si
+        se suma a Premium, se sube a Corporativo, o se vende aparte.
+    </div>
+
+    <h2>Quién entra a dónde</h2>
+    <table>
+        <tr>
+            <th>Plan</th><th>/remodelar</th><th>Editor superficies</th>
+            <th>Visor 3D</th><th>Editor video</th>
+        </tr>
+        <tr><td>Visitante</td><td class="si">Sí</td><td class="no">No</td><td class="no">No</td><td class="no">No</td></tr>
+        <tr><td>Básico</td><td class="si">Sí</td><td class="no">No</td><td class="no">No</td><td class="no">No</td></tr>
+        <tr><td>Profesional</td><td class="si">Sí</td><td class="si">Sí</td><td class="no">No</td><td class="no">No</td></tr>
+        <tr><td>Premium</td><td class="si">Sí</td><td class="si">Sí</td><td class="si">Sí</td><td class="no">No</td></tr>
+        <tr><td>Corporativo</td><td class="si">Sí</td><td class="si">Sí</td><td class="si">Sí</td><td class="si">Sí</td></tr>
+    </table>
+
+    <h2>Reglas que no cambian</h2>
+    <ul>
+        <li><b>El enrutamiento manda.</b> Al iniciar sesión, un Básico va a <span class="ruta">/remodelar</span>;
+            del Profesional para arriba, al dashboard. Nadie ve pestañas con candado.</li>
+        <li><b>Hay que estar pagado.</b> Plan asignado no basta: el estado debe ser
+            <span class="ruta">activo</span>. Quien no ha pagado se queda en el dashboard, donde está el botón de pago.</li>
+        <li><b>El producto no es la imagen, es el contacto y la venta.</b> La remodelación
+            es el anzuelo; el catálogo y el teléfono del cliente son el producto.</li>
+        <li><b>Cada tienda necesita su número de WhatsApp verificado en Meta.</b>
+            Una sola app de Meta para todo DecoIArte, pero un <span class="ruta">phone_number_id</span> por tienda.</li>
+        <li><b>El pago del plan es único; las recargas de IA van aparte.</b> Sin eso, un
+            cliente que genera mil imágenes deja pérdida.</li>
+        <li><b>Cálculos para pintar, IA solo para percibir.</b> De lo que devuelve la IA
+            se extrae únicamente la iluminación — nunca puede cambiar el material que el
+            cliente va a comprar.</li>
+    </ul>
+
+    <div class="pie">
+        Actualizado el 16 de septiembre de 2026 · Página interna, no indexada.<br>
+        Si algo de aquí ya no es cierto, actualízalo antes de construir encima.
+    </div>
+
+</div>
+</body>
+</html>

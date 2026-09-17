@@ -1,19 +1,68 @@
 {
   "rewrites": [
-    { "source": "/login",       "destination": "/login.html" },
-    { "source": "/prueba-seg",  "destination": "/prueba-segmentacion.html" },
-    { "source": "/ver-en-espacio", "destination": "/ver-en-espacio.html" },
-    { "source": "/editor-superficies", "destination": "/editor-superficies.html" },
-    { "source": "/registro",    "destination": "/registro.html" },
-    { "source": "/dashboard",   "destination": "/dashboard.html" },
-    { "source": "/marketplace", "destination": "/marketplace.html" },
-    { "source": "/visor3d",     "destination": "/visor3d.html" },
-    { "source": "/selector",    "destination": "/selector.html" },
-    { "source": "/remodelar",   "destination": "/remodelar.html" },
-    { "source": "/terminos",    "destination": "/terminos.html" },
-    { "source": "/",            "destination": "/index.html" },
-    { "source": "/crm", "destination": "/crm.html" },
-    { "source": "/admin", "destination": "/admin.html" },
-    { "source": "/medir-ar", "destination": "/medir-ar.html" }
+    {
+      "source": "/login",
+      "destination": "/login.html"
+    },
+    {
+      "source": "/prueba-seg",
+      "destination": "/prueba-segmentacion.html"
+    },
+    {
+      "source": "/ver-en-espacio",
+      "destination": "/ver-en-espacio.html"
+    },
+    {
+      "source": "/editor-superficies",
+      "destination": "/editor-superficies.html"
+    },
+    {
+      "source": "/registro",
+      "destination": "/registro.html"
+    },
+    {
+      "source": "/dashboard",
+      "destination": "/dashboard.html"
+    },
+    {
+      "source": "/marketplace",
+      "destination": "/marketplace.html"
+    },
+    {
+      "source": "/visor3d",
+      "destination": "/visor3d.html"
+    },
+    {
+      "source": "/selector",
+      "destination": "/selector.html"
+    },
+    {
+      "source": "/remodelar",
+      "destination": "/remodelar.html"
+    },
+    {
+      "source": "/terminos",
+      "destination": "/terminos.html"
+    },
+    {
+      "source": "/estructura",
+      "destination": "/estructura.html"
+    },
+    {
+      "source": "/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/crm",
+      "destination": "/crm.html"
+    },
+    {
+      "source": "/admin",
+      "destination": "/admin.html"
+    },
+    {
+      "source": "/medir-ar",
+      "destination": "/medir-ar.html"
+    }
   ]
 }
