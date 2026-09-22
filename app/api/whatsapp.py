@@ -581,12 +581,29 @@ async def procesar_imagen_background(
             # FOTO a la IA como referencia visual del material, no solo el
             # nombre — para que el resultado sea el material que de verdad se
             # puede comprar en esa tienda.
+            # tienda_ctx no existe en esta función — solo llega empresa_id.
+            # Antes se usaba tienda_ctx sin definirla aquí (venía de otro
+            # bloque, en el webhook principal), y esto tronaba con
+            # NameError en CUALQUIER foto que llegara de una empresa
+            # identificada: se veía el "Recibí tu foto" pero nunca la
+            # remodelación. Se resuelve la tienda desde empresa_id, que sí
+            # es un parámetro real de esta función.
             producto_usado = None
             url_generada = None
-            if tienda_ctx and tienda_ctx.get("id"):
-                producto_usado = await elegir_producto_de_tienda(
-                    tienda_ctx["id"], superficie=tipo_espacio
-                )
+            if empresa_id:
+                try:
+                    supabase_tienda = get_supabase()
+                    r_tienda = supabase_tienda.table("tiendas") \
+                        .select("id").eq("empresa_id", empresa_id).limit(1).execute()
+                    tienda_id_ctx = (r_tienda.data or [{}])[0].get("id") if r_tienda.data else None
+                except Exception as e:
+                    logger.warning(f"No se pudo resolver la tienda de la empresa {empresa_id}: {e}")
+                    tienda_id_ctx = None
+
+                if tienda_id_ctx:
+                    producto_usado = await elegir_producto_de_tienda(
+                        tienda_id_ctx, superficie=tipo_espacio
+                    )
 
             if producto_usado:
                 try:
