@@ -41,6 +41,11 @@ class RenderRequest(BaseModel):
     producto_imagen_url:   Optional[str] = None   # foto real del producto elegido (piso, mueble, etc.)
     categoria_producto:    Optional[str] = None    # "muebles", "pisos", "enchapes", "pintura", ...
     producto_nombre:       Optional[str] = None
+    # Tienda dueña del producto que se está probando. La usa un cliente
+    # que no es empresa (visitante o comprador) para que la generación se
+    # le cargue a esa tienda: para ella es un cliente potencial, que es
+    # exactamente lo que compra con el plan Básico.
+    tienda_id:             Optional[str] = None
 
 
 @router.post("/generar-render-3d")
@@ -57,6 +62,22 @@ async def generar_render_3d(data: RenderRequest, request: Request):
     # OJO: antes, si la petición llegaba SIN empresa_id, este bloque se
     # saltaba entero y el render se generaba gratis sin descontarle a nadie.
     # Ahora la empresa es obligatoria: sin ella no se gasta dinero de la IA.
+    # Un visitante o comprador no tiene empresa. Antes eso rechazaba la
+    # petición entera y NINGÚN visitante podía generar en /remodelar — ni el
+    # que llegaba del home, ni el cliente de WhatsApp que tocaba "probar
+    # otros materiales". Ahora se le carga a la tienda del producto. La
+    # empresa se busca en la base con la clave de servicio: nunca se confía
+    # en una empresa que mande el navegador para este caso.
+    if not data.empresa_id and data.tienda_id:
+        try:
+            rt = get_supabase().table("tiendas").select("empresa_id") \
+                .eq("id", data.tienda_id).eq("activa", True).maybe_single().execute()
+            if rt and rt.data and rt.data.get("empresa_id"):
+                data.empresa_id = rt.data["empresa_id"]
+                logger.info(f"Render de visitante cargado a la empresa de la tienda {data.tienda_id}")
+        except Exception as e:
+            logger.warning(f"No se pudo resolver la empresa de la tienda {data.tienda_id}: {e}")
+
     if not data.empresa_id:
         logger.warning("Render 3D rechazado: petición sin empresa_id")
         return {"status": "error", "error": "empresa_requerida",

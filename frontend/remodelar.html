@@ -194,7 +194,7 @@
             🛒 Carrito
             <span class="carrito-count" id="carritoCount">0</span>
         </button>
-        <button class="btn-sm btn-secondary" onclick="window.location.href='/login'">Mi cuenta</button>
+        <span id="zonaCuenta" style="display:inline-flex;gap:8px;align-items:center;"></span>
     </div>
 </div>
 
@@ -211,6 +211,7 @@
             <div class="paso-item" id="paso4"><span class="paso-num">4</span><span>Ver resultado</span></div>
         </div>
 
+        <div id="avisoCuenta" style="display:none;margin:0 0 12px;padding:12px 16px;border-radius:12px;font-size:13.5px;line-height:1.5;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;"></div>
         <div class="zona-foto" id="zonaFoto">
 
             <div class="upload-zone" id="uploadZone">
@@ -274,6 +275,12 @@
     <div class="panel">
             
         <div class="panel-scroll" id="panelScroll">
+
+            <div id="baulComprador" style="display:none;background:rgba(15,15,26,0.6);border:1px solid rgba(16,185,129,0.3);border-radius:12px;padding:12px;margin-bottom:14px;">
+                <div style="font-size:13px;font-weight:700;color:#6EE7B7;margin-bottom:4px;">📁 Mis remodelaciones</div>
+                <div style="font-size:11px;color:var(--gris);line-height:1.5;margin-bottom:8px;">Tus espacios transformados y tu lista de compra, guardados.</div>
+                <div id="baulLista"></div>
+            </div>
 
             <div id="bandejaAsesor" style="display:none;background:rgba(15,15,26,0.6);border:1px solid rgba(124,58,237,0.25);border-radius:12px;padding:12px;margin-bottom:14px;">
                 <div style="font-size:13px;font-weight:700;color:#A78BFA;margin-bottom:4px;">📥 Remodelaciones de tus clientes</div>
@@ -473,23 +480,194 @@ function dibujarEnCanvas(url) {
 }
 
 // ── ACCESO Y ROL ────────────────────────────────────────────────────────
+
+let empresaIdActual = null;   // la empresa dueña de la generación
+
+// ── CUENTA ────────────────────────────────────────────────────────────────
+// Mirar el antes y después NO exige cuenta: el cliente que llega del link de
+// WhatsApp tiene que ver su remodelación de inmediato, sin toparse con un
+// login. Antes toda la página exigía sesión, y el cliente del bot rebotaba a
+// /login antes de ver nada. La cuenta se pide solo para generar, pagar y
+// guardar — y se invita, no se obliga.
+let sesionActiva       = null;
+let resultadoDeTienda  = false;   // true si el resultado vino del bot (ya lo pagó la tienda)
+let baulActual         = null;    // url_generada del registro del baúl abierto
+
 async function verificarAcceso() {
     const { data:{ session } } = await db.auth.getSession();
-    if (!session) {
-        // Antes se guardaba solo '/remodelar', sin la query string. Un
-        // visitante que llega desde el link de WhatsApp (?tel=...&img=...)
-        // y no tiene sesión iniciada pasaba por /login y volvía a
-        // /remodelar en blanco: la foto y el teléfono del cliente se
-        // perdían en el camino, y le tocaba subir la imagen otra vez —
-        // rompiendo exactamente el puente que se construyó para evitar eso.
-        sessionStorage.setItem('redirect_after_login', location.pathname + location.search);
-        window.location.href = '/login';
-        return false;
-    }
+    sesionActiva = session || null;
+    pintarZonaCuenta();
     return true;
 }
 
-let empresaIdActual = null;   // la empresa dueña de la generación
+function irALogin() {
+    // Se guarda la URL completa para volver con la foto y el resultado
+    sessionStorage.setItem('redirect_after_login', location.pathname + location.search);
+    location.href = '/login';
+}
+
+async function requerirCuenta(motivo) {
+    if (sesionActiva) return true;
+    toast(motivo || 'Crea tu cuenta gratis para continuar');
+    setTimeout(irALogin, 1300);
+    return false;
+}
+
+async function cerrarSesion() {
+    await db.auth.signOut();
+    // Se borra lo que quedó en este navegador: si el computador es compartido
+    // (la ferretería, un café internet), el siguiente no debe ver la foto ni
+    // la lista de compra del anterior.
+    ['deco_foto_url','deco_foto_b64','deco_resultado_url','deco_carrito',
+     'deco_producto_activo','deco_superficie'].forEach(k => sessionStorage.removeItem(k));
+    location.href = '/remodelar';
+}
+
+function textoSeguro(t) {
+    return String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function pintarZonaCuenta() {
+    const z = document.getElementById('zonaCuenta');
+    if (!z) return;
+    if (!sesionActiva) {
+        z.innerHTML = `<button class="btn-sm btn-secondary" onclick="irALogin()">Iniciar sesión</button>`;
+        return;
+    }
+    const correo = sesionActiva.user?.email || 'Mi cuenta';
+    z.innerHTML =
+        `<span style="font-size:12px;color:var(--gris);max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${textoSeguro(correo)}">${textoSeguro(correo)}</span>` +
+        `<button class="btn-sm btn-secondary" onclick="cerrarSesion()">🚪 Cerrar sesión</button>`;
+}
+
+// Franja sobre la foto: invita a crear cuenta, o confirma que quedó guardado
+function pintarAvisoCuenta() {
+    const a = document.getElementById('avisoCuenta');
+    if (!a) return;
+    if (!resultadoUrl || rolUsuario === 'empresa') { a.style.display = 'none'; return; }
+    a.style.display = 'flex';
+    if (!sesionActiva) {
+        a.style.background = 'rgba(124,58,237,0.12)';
+        a.style.border = '1px solid rgba(124,58,237,0.35)';
+        a.innerHTML =
+            `<span>💾 <b>¿Te gustó?</b> Crea tu cuenta gratis y guarda esta remodelación junto con tu lista de compra.</span>` +
+            `<button class="btn-sm" style="background:linear-gradient(135deg,#7C3AED,#6366F1);color:#fff;border:none;padding:8px 14px;border-radius:9px;font-weight:700;cursor:pointer;" onclick="irALogin()">Crear cuenta gratis</button>`;
+    } else if (baulActual === resultadoUrl) {
+        a.style.background = 'rgba(16,185,129,0.1)';
+        a.style.border = '1px solid rgba(16,185,129,0.35)';
+        a.innerHTML = `<span>✅ Guardado en <b>Mis remodelaciones</b>. Tu lista de compra se guarda sola mientras agregas productos.</span>`;
+    } else {
+        a.style.display = 'none';
+    }
+}
+
+// ── BAÚL DEL COMPRADOR ───────────────────────────────────────────────────
+// Tabla mis_remodelaciones, protegida por RLS: cada quien ve solo lo suyo.
+async function subirOriginalAlBaul() {
+    // La foto subida en la web vive solo en el navegador. Para poder volver a
+    // abrir el antes y después desde el baúl, hay que alojarla.
+    if (!fotoBase64 || !sesionActiva) return null;
+    try {
+        const bin = atob(fotoBase64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        const ruta = `baul/${sesionActiva.user.id}/${Date.now()}.jpg`;
+        const { error } = await db.storage.from('portafolio').upload(ruta, new Blob([bytes], {type:'image/jpeg'}), { contentType:'image/jpeg' });
+        if (error) throw error;
+        return db.storage.from('portafolio').getPublicUrl(ruta).data.publicUrl;
+    } catch (e) {
+        console.warn('No se pudo alojar la foto original:', e);
+        return null;
+    }
+}
+
+async function guardarEnBaul(urlOriginal, urlGenerada, origen) {
+    if (!sesionActiva || rolUsuario === 'empresa' || !urlGenerada) return;
+    const fila = {
+        user_id:      sesionActiva.user.id,
+        url_original: urlOriginal || null,
+        url_generada: urlGenerada,
+        tienda_id:    (tiendaActiva && tiendaActiva !== 'todas') ? String(tiendaActiva) : null,
+        productos:    carrito.map(p => ({ id:p.id, nombre:p.nombre, precio:p.precio, unidad:p.unidad, imagen_url:p.imagen_url })),
+        origen,
+    };
+    const { error } = await db.from('mis_remodelaciones').upsert(fila, { onConflict: 'user_id,url_generada' });
+    if (error) { console.warn('No se pudo guardar en el baúl:', error.message); return; }
+    baulActual = urlGenerada;
+    pintarAvisoCuenta();
+    cargarBaul();
+}
+
+// La lista de compra se guarda sola: cada cambio del carrito actualiza el
+// registro abierto, con una pausa para no escribir en cada clic.
+let _syncBaul = null;
+function programarSyncBaul() {
+    if (!baulActual || !sesionActiva || rolUsuario === 'empresa') return;
+    clearTimeout(_syncBaul);
+    _syncBaul = setTimeout(async () => {
+        const productos = carrito.map(p => ({ id:p.id, nombre:p.nombre, precio:p.precio, unidad:p.unidad, imagen_url:p.imagen_url }));
+        const { error } = await db.from('mis_remodelaciones').update({ productos })
+            .eq('user_id', sesionActiva.user.id).eq('url_generada', baulActual);
+        if (error) console.warn('No se pudo actualizar la lista:', error.message);
+        else cargarBaul();
+    }, 900);
+}
+
+async function cargarBaul() {
+    const caja = document.getElementById('baulComprador');
+    if (!caja || !sesionActiva || rolUsuario === 'empresa') { if (caja) caja.style.display = 'none'; return; }
+    caja.style.display = 'block';
+    const lista = document.getElementById('baulLista');
+    const { data, error } = await db.from('mis_remodelaciones')
+        .select('id,url_original,url_generada,productos,origen,created_at')
+        .order('created_at', { ascending:false }).limit(30);
+    if (error) {
+        lista.innerHTML = `<div style="font-size:11.5px;color:#FCA5A5;">No se pudo cargar: ${textoSeguro(error.message)}</div>`;
+        return;
+    }
+    if (!data || !data.length) {
+        lista.innerHTML = '<div style="font-size:12px;color:var(--gris);line-height:1.6;">Todavía no tienes remodelaciones guardadas. Cuando transformes un espacio, queda aquí.</div>';
+        return;
+    }
+    window._baulItems = data;
+    lista.innerHTML = data.map((it, i) => {
+        const fecha = new Date(it.created_at).toLocaleString('es-CO',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+        const n = (it.productos || []).length;
+        return `<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid rgba(148,163,184,0.15);">
+            <img src="${textoSeguro(it.url_generada)}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;flex-shrink:0;" loading="lazy">
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:11.5px;color:var(--gris);">${fecha}${it.origen==='whatsapp' ? ' · por WhatsApp' : ''}</div>
+                <div style="font-size:12px;color:var(--texto);font-weight:600;">${n ? `🛒 ${n} producto${n===1?'':'s'} en tu lista` : 'Sin productos en la lista'}</div>
+                <div style="display:flex;gap:6px;margin-top:5px;">
+                    <button onclick="abrirDelBaul(${i})" style="background:rgba(124,58,237,0.18);border:1px solid rgba(124,58,237,0.4);color:#A78BFA;padding:4px 10px;border-radius:7px;font-size:11.5px;font-weight:700;cursor:pointer;">Ver</button>
+                    <button onclick="quitarDelBaul('${it.id}')" style="background:transparent;border:1px solid rgba(239,68,68,0.3);color:#FCA5A5;padding:4px 10px;border-radius:7px;font-size:11.5px;cursor:pointer;">Quitar</button>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+window.abrirDelBaul = async function(i) {
+    const it = (window._baulItems || [])[i];
+    if (!it) return;
+    await cargarFotoDesdeUrl(it.url_original || it.url_generada, true);
+    carrito = (it.productos || []).map(p => ({ ...p }));
+    sessionStorage.setItem('deco_carrito', JSON.stringify(carrito));
+    resultadoUrl = it.url_generada;
+    resultadoDeTienda = it.origen === 'whatsapp';
+    baulActual = it.url_generada;
+    sessionStorage.setItem('deco_resultado_url', resultadoUrl);
+    await mostrarResultado(resultadoUrl, false);
+    actualizarPasos(4);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+window.quitarDelBaul = async function(id) {
+    if (!confirm('¿Quitar esta remodelación de tus guardadas?')) return;
+    const { error } = await db.from('mis_remodelaciones').delete().eq('id', id);
+    if (error) { toast('No se pudo quitar'); return; }
+    cargarBaul();
+};
 
 async function verificarRol() {
     const { data:{ session } } = await db.auth.getSession();
@@ -716,6 +894,8 @@ function verificarListo() {
 // ── GENERAR RENDER ──────────────────────────────────────────────────────
 async function generarRender() {
     if (!fotoBase64 || !productoActivo) return;
+    if (!await requerirCuenta('Crea tu cuenta gratis para generar tu remodelación')) return;
+    resultadoDeTienda = false;
     const btn = document.getElementById('btnGenerar');
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-btn"></span>Generando...';
@@ -740,6 +920,9 @@ async function generarRender() {
                 producto_imagen_url: productoActivo.imagen_url || null,
                 categoria_producto:  productoActivo.categoria || null,
                 producto_nombre:     productoActivo.nombre || null,
+                // Sin empresa (visitante o comprador), el servidor le carga la
+                // generación a la tienda del producto que se está probando.
+                tienda_id:           productoActivo.tienda_id || ((tiendaActiva && tiendaActiva !== 'todas') ? tiendaActiva : null),
             })
         });
         if (!response.ok) throw new Error('Error ' + response.status);
@@ -751,6 +934,10 @@ async function generarRender() {
         await mostrarResultado(resultadoUrl, true);
         actualizarPasos(4);
         toast('✨ ¡Transformación lista!');
+        // Queda guardada en el baúl del comprador, con su foto original
+        if (sesionActiva && rolUsuario !== 'empresa') {
+            subirOriginalAlBaul().then(orig => guardarEnBaul(orig, resultadoUrl, 'web'));
+        }
     } catch(e) {
         console.error(e);
         toast('❌ Error generando: ' + (e.message||'Intenta de nuevo'));
@@ -774,7 +961,9 @@ async function mostrarResultado(url, agregarCarrito) {
     document.getElementById('marcaAgua').classList.add('visible');
 
     // ✅ Candado siempre visible para consumidor, oculto para empresa
-    if (rolUsuario !== 'empresa') {
+    // El resultado que llega del bot ya lo pagó la tienda y el cliente ya lo
+    // tiene completo en su WhatsApp: bloquearlo aquí solo confunde.
+    if (rolUsuario !== 'empresa' && !resultadoDeTienda) {
         document.getElementById('overlayBloqueo').style.display = 'flex';
     } else {
         document.getElementById('overlayBloqueo').style.display = 'none';
@@ -791,6 +980,7 @@ async function mostrarResultado(url, agregarCarrito) {
     }
     if (agregarCarrito) agregarProductoAlCarrito();
     else renderCarrito();
+    pintarAvisoCuenta();
 }
 
 // ── SLIDER ──────────────────────────────────────────────────────────────
@@ -838,6 +1028,7 @@ function quitarDeCarrito(id) {
 }
 
 function renderCarrito() {
+    programarSyncBaul();
     const items   = document.getElementById('carritoItems');
     const resumen = document.getElementById('carritoResumen');
     const count   = document.getElementById('carritoCount');
@@ -913,7 +1104,8 @@ function renderCarrito() {
     resumen.style.display = 'block';
 }
 
-function irAPagar() {
+async function irAPagar() {
+    if (!await requerirCuenta('Crea tu cuenta gratis para completar tu compra')) return;
     sessionStorage.setItem('carrito_remodelar', JSON.stringify(carrito));
     sessionStorage.setItem('imagen_resultado', resultadoUrl || '');
     toast('💳 Redirigiendo al pago...');
@@ -942,8 +1134,7 @@ function toast(msg) {
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
-    const acceso = await verificarAcceso();
-    if (!acceso) return;
+    await verificarAcceso();
     await verificarRol();
     await restaurarCache();
     await cargarTiendas();
@@ -960,13 +1151,32 @@ window.addEventListener('DOMContentLoaded', async () => {
     // La foto que el cliente ya mandó por WhatsApp viene en el link. Sin esto
     // llegaba al catálogo y le pedían subirla otra vez: parece que algo salió
     // mal, y ahí se pierde la venta.
-    const imgParam = new URLSearchParams(window.location.search).get('img');
-    if (imgParam) await cargarFotoDesdeUrl(imgParam);
+    const qp       = new URLSearchParams(window.location.search);
+    const imgParam = qp.get('img');
+    const resParam = qp.get('res');
+    if (imgParam) await cargarFotoDesdeUrl(imgParam, !!resParam);
+
+    // Viene del bot con el resultado ya hecho: se abre directo en el antes y
+    // después con la línea deslizable, no en "sube tu foto".
+    if (resParam) {
+        resultadoUrl = resParam;
+        resultadoDeTienda = true;
+        sessionStorage.setItem('deco_resultado_url', resultadoUrl);
+        await mostrarResultado(resultadoUrl, false);
+        actualizarPasos(4);
+        // Si el cliente ya tiene cuenta (o acaba de crearla), queda guardado
+        if (sesionActiva && rolUsuario !== 'empresa') {
+            await guardarEnBaul(imgParam, resParam, 'whatsapp');
+        }
+    }
+
+    cargarBaul();
+    pintarAvisoCuenta();
 });
 
 // Trae la foto por su URL y deja la página en el mismo estado que si el
 // usuario la hubiera subido a mano.
-async function cargarFotoDesdeUrl(url) {
+async function cargarFotoDesdeUrl(url, silencioso = false) {
     try {
         const r = await fetch(url, { mode: 'cors' });
         if (!r.ok) throw new Error('No se pudo descargar');
@@ -991,7 +1201,7 @@ async function cargarFotoDesdeUrl(url) {
         document.getElementById('fotoToolbar').classList.add('visible');
 
         actualizarPasos(2);
-        toast('📸 Tu foto de WhatsApp ya está lista — elige el producto');
+        if (!silencioso) toast('📸 Tu foto de WhatsApp ya está lista — elige el producto');
     } catch (e) {
         // Si no se puede traer, se cae a pedirla: mejor eso que una pantalla
         // rota sin explicación.

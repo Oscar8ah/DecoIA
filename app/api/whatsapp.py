@@ -36,6 +36,14 @@ CATEGORIAS_POR_SUPERFICIE = {
 }
 
 
+def con_parametros(base: str, **params) -> str:
+    """Agrega parámetros a una URL respetando si ya trae '?' o no."""
+    extra = "&".join(f"{k}={quote(str(v), safe='')}" for k, v in params.items() if v)
+    if not extra:
+        return base
+    return f"{base}{'&' if '?' in base else '?'}{extra}"
+
+
 async def elegir_producto_de_tienda(tienda_id: str, superficie: str = "piso"):
     """
     Devuelve un producto real del catálogo de la tienda, apto para esa
@@ -687,8 +695,7 @@ async def procesar_imagen_background(
             # mandó su foto por WhatsApp abría el catálogo y le pedían subirla
             # otra vez — parece que algo salió mal y se pierde la venta ahí.
             base_sel     = url_selector_base or f"{BASE_URL}/remodelar"
-            url_selector = (f"{base_sel}&img={quote(url_original, safe='')}"
-                            if url_original else base_sel)
+            url_selector = con_parametros(base_sel, img=url_original, res=url_generada)
 
             estado_usuarios[sender] = {
                 "modo":              "remodelado",
@@ -700,6 +707,18 @@ async def procesar_imagen_background(
                 "pid_envio":         pid_envio,
                 "asesor":            asesor_numero,
             }
+
+            # El cliente recibe también un link donde ve su antes y después con
+            # la línea deslizable, y desde ahí puede guardar su remodelación y
+            # su lista de compra creando una cuenta gratis.
+            await enviar_mensaje_whatsapp(
+                sender,
+                "👀 *Mira tu antes y después aquí:*\n"
+                f"{url_selector}\n\n"
+                "Ahí puedes comparar deslizando la línea, probar otros "
+                "materiales y guardar tu remodelación 💾",
+                settings, pid_envio
+            )
 
             await enviar_botones_whatsapp(
                 sender,
