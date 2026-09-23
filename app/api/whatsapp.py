@@ -226,10 +226,24 @@ async def obtener_slug_tienda(empresa_id: str = None) -> str:
 async def resolver_empresa_por_phone_id(phone_number_id: str):
     """
     Busca a qué empresa pertenece el número de WhatsApp que recibió el mensaje
-    (metadata.phone_number_id del webhook). Si no coincide con ninguna empresa
-    registrada (ej: es el número demo/de pruebas), o si la empresa no tiene un
-    plan que incluya Multiasesor (Premium o Corporativo), devuelve None y todo
-    el flujo sigue funcionando igual que hoy, con el comportamiento genérico.
+    (metadata.phone_number_id del webhook).
+
+    Antes esta función devolvía None si el plan de la empresa no incluía
+    Multiasesor (Premium/Corporativo) — y con eso se perdía TODO: no solo el
+    reparto entre varios asesores, sino también identificar la tienda para el
+    catálogo del plan Básico. Un cliente Básico mandaba una foto, el bot
+    identificaba bien el número, pero como el plan no traía Multiasesor la
+    función devolvía None, empresa_id llegaba vacío más adelante, y la
+    remodelación salía con el estilo genérico en vez del producto real de esa
+    tienda — sin ningún error ni aviso en el log, porque el código que
+    reacciona a "no hay empresa" está pensado para el número demo, no para
+    este caso.
+
+    Ahora la función siempre devuelve los datos de la empresa si el número
+    coincide. Se agrega 'tiene_multiasesor' para que quien la llame decida
+    aparte si activa el reparto entre asesores — eso sí sigue exclusivo de
+    Premium/Corporativo — sin que afecte la identificación de tienda, que le
+    sirve a cualquier plan.
     """
     if not phone_number_id:
         return None
@@ -241,9 +255,9 @@ async def resolver_empresa_por_phone_id(phone_number_id: str):
         if not r.data:
             return None
         plan_nombre = (r.data.get("planes") or {}).get("nombre")
-        if plan_nombre not in ("premium", "corporativo"):
-            logger.info(f"Empresa {r.data.get('nombre')} tiene número configurado pero su plan ({plan_nombre}) no incluye Multiasesor")
-            return None
+        r.data["tiene_multiasesor"] = plan_nombre in ("premium", "corporativo")
+        if not r.data["tiene_multiasesor"]:
+            logger.info(f"Empresa {r.data.get('nombre')} tiene número configurado — plan ({plan_nombre}), sin Multiasesor")
         return r.data
     except Exception as e:
         logger.error(f"Error resolviendo empresa por phone_number_id {phone_number_id}: {e}")

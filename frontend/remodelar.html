@@ -476,7 +476,13 @@ function dibujarEnCanvas(url) {
 async function verificarAcceso() {
     const { data:{ session } } = await db.auth.getSession();
     if (!session) {
-        sessionStorage.setItem('redirect_after_login', '/remodelar');
+        // Antes se guardaba solo '/remodelar', sin la query string. Un
+        // visitante que llega desde el link de WhatsApp (?tel=...&img=...)
+        // y no tiene sesión iniciada pasaba por /login y volvía a
+        // /remodelar en blanco: la foto y el teléfono del cliente se
+        // perdían en el camino, y le tocaba subir la imagen otra vez —
+        // rompiendo exactamente el puente que se construyó para evitar eso.
+        sessionStorage.setItem('redirect_after_login', location.pathname + location.search);
         window.location.href = '/login';
         return false;
     }
