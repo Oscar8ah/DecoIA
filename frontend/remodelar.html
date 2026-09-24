@@ -694,7 +694,15 @@ window.reabrirDesdeBandeja = async function(urlOriginal, urlGenerada, telefono) 
     const base = urlOriginal || urlGenerada;
     if (!base) { toast('Esa remodelación no tiene foto asociada'); return; }
     if (telefono) clienteTelefono = telefono;
-    await cargarFotoDesdeUrl(base);
+    await cargarFotoDesdeUrl(base, true);
+    // Faltaba mostrar el DESPUÉS: solo se traía la foto de "antes" y se
+    // quedaba en el paso 2, sin la línea deslizante ni el resultado.
+    if (urlGenerada) {
+        resultadoUrl = urlGenerada;
+        sessionStorage.setItem('deco_resultado_url', resultadoUrl);
+        await mostrarResultado(resultadoUrl, false);
+        actualizarPasos(4);
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
