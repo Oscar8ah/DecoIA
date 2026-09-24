@@ -778,6 +778,13 @@ window.elegirProducto = async function(i){
     await aplicarMaterial();
 };
 
+// El servidor comprueba con este token QUIÉN pide y que la empresa sea suya.
+// Se pide fresco en cada llamada porque el token de sesión vence cada hora.
+async function cabecerasConSesion(){
+    const { data:{ session } } = await db.auth.getSession();
+    return { 'Content-Type':'application/json', 'Authorization': 'Bearer ' + (session?.access_token || '') };
+}
+
 // ── BARRA DE PROGRESO ────────────────────────────────────────────────────
 // No conocemos el computador del cliente. La primera vez se usa un tiempo
 // razonable, y después la barra APRENDE cuánto tarda cada paso en ESE
@@ -1282,7 +1289,7 @@ window.refinarConIA = async function(){
         // atiende Vercel, que no la conoce, y el botón nunca funcionó en
         // producción. El servidor es Render, como en el resto de páginas.
         const resp = await fetch('https://decoia.onrender.com/api/superficies/refinar', {
-            method:'POST', headers:{'Content-Type':'application/json'},
+            method:'POST', headers: await cabecerasConSesion(),
             body: JSON.stringify({
                 imagen_base64:  lienzo.toDataURL('image/png').split(',')[1],
                 mascara_base64: mascaraParaIA(w,h),
@@ -1389,7 +1396,7 @@ window.guardarAmbiente = async function(){
     };
     try{
         const r=await fetch('/api/superficies/ambientes',{method:'POST',
-            headers:{'Content-Type':'application/json'}, body:JSON.stringify(ambiente)});
+            headers: await cabecerasConSesion(), body:JSON.stringify(ambiente)});
         if(!r.ok) throw new Error('El servidor no lo aceptó');
         est.textContent='✓ Ambiente guardado. Ya se puede reutilizar sin recalibrar.';
     }catch(e){
@@ -1661,7 +1668,7 @@ async function pedirObjeto(accion, producto){
         : `⇄ Poniendo <b>${esc(producto.nombre)}</b>… puede tardar hasta un minuto.`;
     try{
         const resp = await fetch('https://decoia.onrender.com/api/superficies/objeto', {
-            method:'POST', headers:{'Content-Type':'application/json'},
+            method:'POST', headers: await cabecerasConSesion(),
             body: JSON.stringify({
                 imagen_base64:   imgLimpia.toDataURL('image/png').split(',')[1],
                 mascara_base64:  mascaraObjetoParaIA(w, h, accion),
@@ -1738,7 +1745,7 @@ window.interpretarConIA = async function(){
         await hornearSiHayMaterial();
         const referencias = [refMaterial || refMaterialPegado, refObjeto].filter(r => r && r.url);
         const resp = await fetch('https://decoia.onrender.com/api/superficies/interpretar', {
-            method:'POST', headers:{'Content-Type':'application/json'},
+            method:'POST', headers: await cabecerasConSesion(),
             body: JSON.stringify({
                 imagen_base64: imgLimpia.toDataURL('image/png').split(',')[1],
                 empresa_id:    empresaIdEditor,

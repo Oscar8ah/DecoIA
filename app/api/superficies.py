@@ -92,6 +92,44 @@ class InterpretarRequest(BaseModel):
 PLANES_CON_IA_EN_EDITOR = ("profesional", "premium", "corporativo")
 
 
+ADMIN_EMAIL = "oscar8a.cds@gmail.com"   # el mismo que usan las políticas RLS y el trigger
+
+
+async def _exigir_duenio(request: Request, empresa_id: str | None):
+    """
+    Comprueba QUIÉN hace la petición, con el token de su sesión de Supabase, y
+    que la empresa sea suya.
+
+    Antes estos endpoints creían el empresa_id que mandaba el navegador. Y ese
+    id es público: la tabla de tiendas se lee sin sesión y lo trae. Resultado:
+    cualquiera podía pedir la bandeja de CUALQUIER tienda —teléfonos y fotos
+    de las casas de sus clientes— o gastarle el cupo de IA a una tienda ajena.
+    """
+    auth = request.headers.get("authorization") or ""
+    if not auth.lower().startswith("bearer ") or not auth[7:].strip():
+        raise HTTPException(status_code=401, detail="Inicia sesión para usar esta herramienta.")
+    try:
+        u = get_supabase().auth.get_user(auth[7:].strip())
+        email = ((u.user.email if u and u.user else "") or "").lower()
+    except Exception:
+        raise HTTPException(status_code=401, detail="Tu sesión expiró. Vuelve a iniciar sesión.")
+    if not email:
+        raise HTTPException(status_code=401, detail="Tu sesión expiró. Vuelve a iniciar sesión.")
+    if email == ADMIN_EMAIL:
+        return
+    if not empresa_id:
+        raise HTTPException(status_code=403, detail="Esta herramienta es para cuentas de empresa.")
+    try:
+        r = get_supabase().table("empresas").select("id") \
+            .eq("id", empresa_id).eq("email", email).maybe_single().execute()
+    except Exception as e:
+        logger.error(f"No se pudo verificar el dueño de {empresa_id}: {e}")
+        raise HTTPException(status_code=503, detail="No se pudo verificar tu cuenta, intenta de nuevo")
+    if not r or not r.data:
+        logger.warning(f"Intento de usar la empresa {empresa_id} desde la cuenta {email}")
+        raise HTTPException(status_code=403, detail="Esa empresa no pertenece a tu cuenta.")
+
+
 async def _verificar_empresa_para_ia(empresa_id: str | None):
     """Plan, pago y cupo leídos de la base — nunca de lo que diga el navegador."""
     if not empresa_id:
@@ -146,6 +184,7 @@ async def refinar_superficie(data: RefinarRequest, request: Request):
     settings = get_settings()
     if not settings.openai_api_key:
         raise HTTPException(status_code=503, detail="Falta configurar la clave de OpenAI")
+    await _exigir_duenio(request, data.empresa_id)
     await _verificar_empresa_para_ia(data.empresa_id)
 
     try:
@@ -207,7 +246,7 @@ async def refinar_superficie(data: RefinarRequest, request: Request):
 # la IA lo quita o lo reemplaza por un producto del catálogo.
 # ─────────────────────────────────────────────────────────────────────────
 @router.post("/objeto")
-async def objeto(data: ObjetoRequest):
+async def objeto(data: ObjetoRequest, request: Request):
     if data.accion not in ("quitar", "cambiar"):
         raise HTTPException(status_code=400, detail="Acción no válida")
     if data.accion == "cambiar" and not data.producto_url:
@@ -215,6 +254,7 @@ async def objeto(data: ObjetoRequest):
     settings = get_settings()
     if not settings.openai_api_key:
         raise HTTPException(status_code=503, detail="Falta configurar la clave de OpenAI")
+    await _exigir_duenio(request, data.empresa_id)
     await _verificar_empresa_para_ia(data.empresa_id)
 
     try:
@@ -256,10 +296,11 @@ async def objeto(data: ObjetoRequest):
 # al final pide una interpretación realista del cuarto completo.
 # ─────────────────────────────────────────────────────────────────────────
 @router.post("/interpretar")
-async def interpretar(data: InterpretarRequest):
+async def interpretar(data: InterpretarRequest, request: Request):
     settings = get_settings()
     if not settings.openai_api_key:
         raise HTTPException(status_code=503, detail="Falta configurar la clave de OpenAI")
+    await _exigir_duenio(request, data.empresa_id)
     await _verificar_empresa_para_ia(data.empresa_id)
 
     # El texto va directo a la IA: se limpia y se revisa que no traiga
@@ -306,8 +347,11 @@ async def interpretar(data: InterpretarRequest):
 # uno para poder contactarlos.
 # ─────────────────────────────────────────────────────────────────────────
 @router.get("/bandeja/{empresa_id}")
-async def bandeja_asesor(empresa_id: str, limite: int = 40, solo_clientes: bool = True):
+async def bandeja_asesor(empresa_id: str, request: Request, limite: int = 40, solo_clientes: bool = True):
     """Últimas imágenes generadas para los clientes de esta empresa."""
+    # Trae teléfonos y fotos de las casas de los clientes: datos personales.
+    # Solo la propia empresa (o el administrador) puede verlos.
+    await _exigir_duenio(request, empresa_id)
     if limite < 1 or limite > 200:
         limite = 40
     supabase = get_supabase()
