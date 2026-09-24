@@ -183,12 +183,12 @@
         <div style="display:flex;gap:8px;">
             <div style="flex:1;">
                 <label style="font-size:10.5px;color:#9CA3AF;">Ancho (cm)</label>
-                <input id="piezaAncho" type="number" value="60" min="2" max="300" step="1" oninput="aplicarMaterial()"
+                <input id="piezaAncho" type="number" value="60" min="2" max="300" step="1" oninput="aplicarMaterialPronto()"
                     style="width:100%;background:#0F1117;border:1px solid rgba(148,163,184,0.25);border-radius:7px;padding:6px 8px;color:#E5E7EB;font-size:12px;outline:none;">
             </div>
             <div style="flex:1;">
                 <label style="font-size:10.5px;color:#9CA3AF;">Largo (cm)</label>
-                <input id="piezaLargo" type="number" value="60" min="2" max="300" step="1" oninput="aplicarMaterial()"
+                <input id="piezaLargo" type="number" value="60" min="2" max="300" step="1" oninput="aplicarMaterialPronto()"
                     style="width:100%;background:#0F1117;border:1px solid rgba(148,163,184,0.25);border-radius:7px;padding:6px 8px;color:#E5E7EB;font-size:12px;outline:none;">
             </div>
         </div>
@@ -344,13 +344,14 @@ async function procesarImagenDesdeBlob(origen){
         imgLimpia.width=w; imgLimpia.height=h;
         imgLimpia.getContext('2d').drawImage(bmp,0,0,w,h);
 
-        const dataUrl = imgLimpia.toDataURL('image/jpeg',0.92);
-        const img = await RawImage.fromURL(dataUrl);
-        entradas = await procesador(img);
-        embeddings = await modelo.get_image_embeddings(entradas);
-
-        mostrarEstado('✅ Listo — toca la superficie que quieres cambiar', 100);
-        setTimeout(()=>{ est.style.display='none'; barraWrap.style.display='none'; }, 1600);
+        // La foto se muestra YA; el análisis corre por detrás mientras el
+        // asesor mira, elige el modo o el producto. Solo el primer toque
+        // espera, y solo si el análisis todavía no terminó.
+        mostrarEstado('🔍 Preparando la detección… ya puedes ir eligiendo el producto', 60);
+        analizarEnSegundoPlano(() => {
+            mostrarEstado('✅ Listo — toca la superficie que quieres cambiar', 100);
+            setTimeout(()=>{ est.style.display='none'; barraWrap.style.display='none'; }, 1600);
+        });
         document.getElementById('cardSeleccion').style.display='block';
         const ci = document.getElementById('cardInterpretar');
         if (ci) ci.style.display = 'block';
@@ -497,6 +498,7 @@ window.redibujarPlano = function(){
 
 document.getElementById('lienzo').addEventListener('click', async (e)=>{
     if(modoPlano) return;   // en modo plano el clic es para mover puntos
+    if(!embeddings) await esperarAnalisis();
     if(!embeddings) return;
     const lienzo = e.target;
     const r = lienzo.getBoundingClientRect();
@@ -763,6 +765,40 @@ window.elegirProducto = async function(i){
     await aplicarMaterial();
 };
 
+// ── Textura del producto, preparada una sola vez ─────────────────────────
+// Antes, CADA recálculo (cambiar el acabado, mover un punto del plano,
+// escribir el tamaño de la pieza) volvía a descargar la foto del producto de
+// internet y reconstruía su textura desde cero. La foto no cambia: se
+// prepara la primera vez y se reutiliza.
+const cacheTexturas = new Map();
+async function texturaDe(url){
+    if (cacheTexturas.has(url)) return cacheTexturas.get(url);
+    const resp = await fetch(url, {mode:'cors'});
+    if(!resp.ok) throw new Error('La imagen del producto no cargó (HTTP '+resp.status+')');
+    const blob = await resp.blob();
+    // Si el servidor devuelve una página de error en vez de una imagen,
+    // createImageBitmap falla con un mensaje críptico. Mejor decirlo claro.
+    if(!blob.type.startsWith('image/'))
+        throw new Error('La URL del producto no devolvió una imagen sino '+(blob.type||'algo desconocido'));
+    const bmp = await createImageBitmap(blob);
+    // Pirámide de la textura + normales del nivel más detallado
+    const MIPS=piramideTextura(bmp, 5);
+    const TX=MIPS[0].t, tex=MIPS[0].d;
+    const NRM=normalesTextura(tex, TX);
+    const t = { MIPS, TX, tex, NRM };
+    cacheTexturas.set(url, t);
+    return t;
+}
+
+// Al escribir el tamaño de la pieza se recalculaba en CADA tecla: escribir
+// "120" eran tres cálculos completos (1, 12 y 120). Ahora espera a que
+// termines de escribir.
+let _pausaMaterial = null;
+window.aplicarMaterialPronto = function(){
+    clearTimeout(_pausaMaterial);
+    _pausaMaterial = setTimeout(() => aplicarMaterial(), 350);
+};
+
 // ── Aplicar la textura del material sobre la superficie detectada ────────
 // Se expone en window porque los campos de tamaño de pieza y acabado la
 // llaman desde el HTML, y este script es un módulo: sin esto, cambiar el
@@ -774,19 +810,8 @@ async function aplicarMaterial(){
     const w=lienzo.width, h=lienzo.height;
 
     try{
-        const resp = await fetch(productoSel.imagen_url, {mode:'cors'});
-        if(!resp.ok) throw new Error('La imagen del producto no cargó (HTTP '+resp.status+')');
-        const blob = await resp.blob();
-        // Si el servidor devuelve una página de error en vez de una imagen,
-        // createImageBitmap falla con un mensaje críptico. Mejor decirlo claro.
-        if(!blob.type.startsWith('image/'))
-            throw new Error('La URL del producto no devolvió una imagen sino '+(blob.type||'algo desconocido'));
-        const bmp = await createImageBitmap(blob);
-
-        // Pirámide de la textura + normales del nivel más detallado
-        const MIPS=piramideTextura(bmp, 5);
-        const TX=MIPS[0].t, tex=MIPS[0].d;
-        const NRM=normalesTextura(tex, TX);
+        const t0Material = performance.now();
+        const { MIPS, TX, tex, NRM } = await texturaDe(productoSel.imagen_url);
 
         // DIAGNÓSTICO — color promedio de lo que se va a estampar.
         // El resto del cálculo solo multiplica por escalares (sombra, relieve,
@@ -998,6 +1023,7 @@ async function aplicarMaterial(){
         const av=document.getElementById('planoInfo');
         if(av && !Hinv) av.innerHTML='<span style="color:#FCD34D;">⚠️ Sin plano marcado: la textura sale sin perspectiva y el área es inventada. Marca los 4 puntos arriba.</span>';
         calcularCosto();
+        console.info(`⏱ Aplicar material: ${Math.round(performance.now()-t0Material)} ms`);
     }catch(e){
         console.error(e);
         alert('No se pudo aplicar este material. Puede ser un problema con la imagen del producto.');
@@ -1409,17 +1435,46 @@ function actualizarDeshacer(){
 
 // Después de cambiar la foto base, SAM tiene que volver a mirarla: si no, el
 // próximo toque recortaría sobre la foto vieja.
+// Antes se esperaba este análisis completo después de CADA cambio (quitar un
+// objeto, pegar un piso, interpretar) antes de mostrar el resultado. Es lo
+// más pesado del editor y solo sirve para el próximo toque: ahora corre por
+// detrás y el resultado se ve de inmediato.
 async function reanalizar(){
     limpiarSeleccion();
-    mostrarEstado('🔍 Actualizando la foto para seguir editando…', 70);
-    try{
-        const img = await RawImage.fromURL(imgLimpia.toDataURL('image/jpeg',0.92));
-        entradas   = await procesador(img);
-        embeddings = await modelo.get_image_embeddings(entradas);
-    }finally{
-        est.style.display='none'; barraWrap.style.display='none';
-    }
     actualizarDeshacer();
+    analizarEnSegundoPlano();
+}
+
+// Cada análisis lleva un número de versión: si la foto cambia otra vez antes
+// de que termine, el resultado viejo se descarta y no pisa al nuevo.
+let versionFoto = 0, analisisPendiente = null;
+function analizarEnSegundoPlano(alTerminar){
+    const v = ++versionFoto;
+    embeddings = null;
+    const t0 = performance.now();
+    const p = (async () => {
+        const img = await RawImage.fromURL(imgLimpia.toDataURL('image/jpeg',0.92));
+        const ent = await procesador(img);
+        const emb = await modelo.get_image_embeddings(ent);
+        if (v !== versionFoto) return;          // llegó tarde: la foto ya cambió
+        entradas = ent; embeddings = emb;
+        console.info(`⏱ Análisis de la foto: ${Math.round(performance.now()-t0)} ms`);
+        if (alTerminar) alTerminar();
+    })().catch(e => {
+        console.error('No se pudo analizar la foto:', e);
+        if (v === versionFoto) mostrarEstado('❌ No se pudo analizar la imagen. Intenta con otra foto.');
+    });
+    analisisPendiente = p;
+    p.finally(() => { if (analisisPendiente === p) analisisPendiente = null; });
+}
+
+async function esperarAnalisis(){
+    let vueltas = 0;
+    while (!embeddings && analisisPendiente && vueltas++ < 6) {
+        mostrarEstado('⏳ Terminando de preparar la foto…', 85);
+        await analisisPendiente;
+    }
+    if (embeddings){ est.style.display='none'; barraWrap.style.display='none'; }
 }
 
 async function reemplazarBase(src, guardar=true){
