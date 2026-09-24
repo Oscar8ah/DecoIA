@@ -37,6 +37,8 @@ from pydantic import BaseModel
 
 from app.utils.config import get_settings
 from app.utils.supabase_client import get_supabase
+from app.services.limites_service import tiene_fotos_disponibles, descontar_foto
+from app.services.imagen_service import editar_objeto
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/superficies", tags=["superficies"])
@@ -55,6 +57,49 @@ class RefinarRequest(BaseModel):
     producto_nombre: str | None = None
     # 'piso' | 'pared' | 'techo'
     superficie: str = "piso"
+    # Empresa que usa la herramienta. Sin ella se rechaza: cada llamada a la
+    # IA cuesta, y el botón no puede quedar abierto a cualquier visitante.
+    empresa_id: str | None = None
+
+
+class ObjetoRequest(BaseModel):
+    # Escena actual (PNG base64) y máscara del mismo tamaño: alfa 0 = objeto
+    imagen_base64: str
+    mascara_base64: str
+    accion: str                         # 'quitar' | 'cambiar'
+    empresa_id: str
+    producto_url: str | None = None     # solo para 'cambiar'
+    producto_nombre: str | None = None
+
+
+# Lo que usa IA en el editor es del plan Profesional para arriba. El cálculo
+# de pisos y paredes sigue gratis para todos: corre en el aparato de cada
+# quien y no le cuesta nada a nadie.
+PLANES_CON_IA_EN_EDITOR = ("profesional", "premium", "corporativo")
+
+
+async def _verificar_empresa_para_ia(empresa_id: str | None):
+    """Plan, pago y cupo leídos de la base — nunca de lo que diga el navegador."""
+    if not empresa_id:
+        raise HTTPException(status_code=403,
+            detail="Esta herramienta es del plan Profesional. Inicia sesión con tu cuenta de empresa.")
+    try:
+        r = get_supabase().table("empresas").select("estado, planes(nombre)") \
+            .eq("id", empresa_id).maybe_single().execute()
+    except Exception as e:
+        logger.error(f"No se pudo verificar la empresa {empresa_id}: {e}")
+        raise HTTPException(status_code=503, detail="No se pudo verificar tu plan, intenta de nuevo")
+    if not r or not r.data:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada")
+    plan = ((r.data.get("planes") or {}).get("nombre") or "").lower().replace("á", "a")
+    if plan not in PLANES_CON_IA_EN_EDITOR:
+        raise HTTPException(status_code=403,
+            detail="Quitar y cambiar objetos, y mejorar con IA, son del plan Profesional.")
+    if (r.data.get("estado") or "") != "activo":
+        raise HTTPException(status_code=402, detail="Tu plan está pendiente de pago.")
+    if not await tiene_fotos_disponibles(empresa_id):
+        raise HTTPException(status_code=402,
+            detail="Se acabaron tus generaciones con IA. Recarga desde tu cuenta.")
 
 
 def _prompt(superficie: str, producto: str | None) -> str:
@@ -87,6 +132,7 @@ async def refinar_superficie(data: RefinarRequest, request: Request):
     settings = get_settings()
     if not settings.openai_api_key:
         raise HTTPException(status_code=503, detail="Falta configurar la clave de OpenAI")
+    await _verificar_empresa_para_ia(data.empresa_id)
 
     try:
         imagen = base64.b64decode(data.imagen_base64)
@@ -113,6 +159,8 @@ async def refinar_superficie(data: RefinarRequest, request: Request):
                     "size": "1024x1024",
                     # Fidelidad alta: se quiere el mínimo cambio posible
                     "input_fidelity": "high",
+                    # En "auto" bloquea fotos de obra normales sin explicar
+                    "moderation": "low",
                 },
             )
 
@@ -121,6 +169,7 @@ async def refinar_superficie(data: RefinarRequest, request: Request):
             raise HTTPException(status_code=502, detail="El servicio de IA no respondió bien")
 
         salida = respuesta.json()["data"][0]
+        await descontar_foto(data.empresa_id)
         return {
             "ok": True,
             "imagen_base64": salida.get("b64_json"),
@@ -136,6 +185,55 @@ async def refinar_superficie(data: RefinarRequest, request: Request):
     except Exception as e:
         logger.exception("Error refinando superficie")
         raise HTTPException(status_code=500, detail=f"Error inesperado: {e}")
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# QUITAR O CAMBIAR UN OBJETO — plan Profesional
+# El asesor toca un objeto en la foto, el navegador lo recorta (SAM), y aquí
+# la IA lo quita o lo reemplaza por un producto del catálogo.
+# ─────────────────────────────────────────────────────────────────────────
+@router.post("/objeto")
+async def objeto(data: ObjetoRequest):
+    if data.accion not in ("quitar", "cambiar"):
+        raise HTTPException(status_code=400, detail="Acción no válida")
+    if data.accion == "cambiar" and not data.producto_url:
+        raise HTTPException(status_code=400, detail="Elige el producto por el que lo quieres cambiar")
+    settings = get_settings()
+    if not settings.openai_api_key:
+        raise HTTPException(status_code=503, detail="Falta configurar la clave de OpenAI")
+    await _verificar_empresa_para_ia(data.empresa_id)
+
+    try:
+        escena = base64.b64decode(data.imagen_base64)
+        mascara = base64.b64decode(data.mascara_base64)
+    except Exception:
+        raise HTTPException(status_code=400, detail="La imagen o la máscara no son válidas")
+    if len(escena) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="La imagen supera los 20 MB")
+
+    producto_bytes = None
+    if data.accion == "cambiar":
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as cli:
+                pr = await cli.get(data.producto_url)
+            if pr.status_code != 200 or not pr.headers.get("content-type", "").startswith("image/"):
+                raise ValueError(f"respondió {pr.status_code} {pr.headers.get('content-type')}")
+            producto_bytes = pr.content
+        except Exception as e:
+            logger.warning(f"No se pudo descargar la foto del producto: {e}")
+            raise HTTPException(status_code=400, detail="No se pudo cargar la foto de ese producto")
+
+    try:
+        resultado = await editar_objeto(escena, mascara, data.accion,
+                                        producto_bytes, data.producto_nombre)
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="La IA tardó demasiado, intenta de nuevo")
+
+    # Se descuenta solo si se entregó: un fallo del proveedor no cuesta cupo
+    await descontar_foto(data.empresa_id)
+    return {"ok": True, "imagen_base64": base64.b64encode(resultado).decode()}
 
 
 # ─────────────────────────────────────────────────────────────────────────

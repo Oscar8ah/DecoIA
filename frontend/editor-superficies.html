@@ -81,9 +81,21 @@
         <div id="barraWrap" class="barra" style="display:none;"><div id="barra"></div></div>
     </div>
 
+    <div class="card" id="cardFuente" style="display:none;">
+        <div class="titulo">Trabajar sobre</div>
+        <div class="opciones" style="margin-top:0;">
+            <button class="op" id="fuenteOriginalBtn" onclick="usarFuente('original')">📷 Foto original</button>
+            <button class="op" id="fuenteRemodeladaBtn" onclick="usarFuente('remodelada')">✨ Remodelada</button>
+        </div>
+    </div>
+
     <div class="card" id="cardSeleccion" style="display:none;">
-        <div class="titulo">2 · Toca la superficie que quieres cambiar</div>
-        <div style="font-size:12.5px;color:var(--gris);line-height:1.55;">
+        <div class="opciones" style="margin-top:0;margin-bottom:10px;">
+            <button class="op activo" id="modoSupBtn" onclick="cambiarModo('superficie')">🧱 Superficie</button>
+            <button class="op" id="modoObjBtn" onclick="cambiarModo('objeto')">🎯 Objeto</button>
+        </div>
+        <div class="titulo" id="tituloSeleccion">2 · Toca la superficie que quieres cambiar</div>
+        <div id="textoSeleccion" style="font-size:12.5px;color:var(--gris);line-height:1.55;">
             Toca el <b style="color:var(--texto);">piso</b> o una <b style="color:var(--texto);">pared</b>.
             La IA la detecta sola y te muestra tres opciones — elige la que mejor la cubra.
         </div>
@@ -93,6 +105,21 @@
             <button class="op" onclick="verMascara(2)">Opción 3</button>
         </div>
         <div id="infoMascara" style="font-size:11.5px;color:#6EE7B7;margin-top:7px;"></div>
+        <div id="barraDeshacer" style="display:none;margin-top:9px;">
+            <button class="op" onclick="deshacerCambio()">↩ Deshacer último cambio</button>
+        </div>
+    </div>
+
+    <div class="card" id="cardObjeto" style="display:none;">
+        <div class="titulo">🎯 Objeto</div>
+        <div id="infoObjeto" style="font-size:12.5px;color:var(--gris);line-height:1.55;">
+            Toca en la foto el objeto que quieres quitar o cambiar. Verás su contorno en azul.
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+            <button id="btnQuitarObj" onclick="quitarObjeto()" style="flex:1;padding:9px;border-radius:8px;background:rgba(239,68,68,0.14);border:1px solid rgba(239,68,68,0.4);color:#FCA5A5;font-size:12.5px;font-weight:700;cursor:pointer;">✕ Quitar</button>
+            <button id="btnCambiarObj" onclick="mostrarCambioObjeto()" style="flex:1;padding:9px;border-radius:8px;background:rgba(34,211,238,0.12);border:1px solid rgba(34,211,238,0.4);color:#67E8F9;font-size:12.5px;font-weight:700;cursor:pointer;">⇄ Cambiar por producto</button>
+        </div>
+        <div id="estadoObjeto" style="font-size:11.5px;color:#9CA3AF;margin-top:8px;line-height:1.5;"></div>
     </div>
 
     <!-- PLANO DEL PISO — sin esto la textura no tiene perspectiva ni medidas -->
@@ -223,6 +250,14 @@ let modelo=null, procesador=null, RawImage=null, Tensor=null;
 let embeddings=null, entradas=null;
 let mascaras=null, mascaraElegida=null, nivelElegido=0;
 let imgLimpia=null, productos=[], productoSel=null;
+
+// ── Modo Objeto (plan Profesional) ──
+let modoEdicion     = 'superficie';   // 'superficie' | 'objeto'
+let esperandoCambio = false;          // eligió "Cambiar" y está escogiendo producto
+let historial       = [];             // fotos base anteriores, para deshacer
+let empresaIdEditor = null;
+let puedeIAEditor   = false;          // Profesional+, pagado. El servidor lo vuelve a verificar
+let fuenteOriginal = null, fuenteRemodelada = null, fuenteActiva = null;
 
 const est = document.getElementById('estadoFoto');
 const barraWrap = document.getElementById('barraWrap');
@@ -455,8 +490,17 @@ document.getElementById('lienzo').addEventListener('click', async (e)=>{
 
         document.getElementById('opcionesMascara').style.display='flex';
         verMascara(mejor);
-        document.getElementById('cardPlano').style.display='block';
-        document.getElementById('cardProductos').style.display='block';
+        if (modoEdicion === 'objeto') {
+            esperandoCambio = false;
+            document.getElementById('cardObjeto').style.display='block';
+            document.getElementById('cardProductos').style.display='none';
+            document.getElementById('infoObjeto').innerHTML =
+                'Contorno listo. Si no tomó el objeto completo, prueba <b>Opción 1, 2 o 3</b> arriba.';
+            document.getElementById('estadoObjeto').textContent = '';
+        } else {
+            document.getElementById('cardPlano').style.display='block';
+            document.getElementById('cardProductos').style.display='block';
+        }
     }catch(err){ console.error(err); }
 });
 
@@ -476,7 +520,8 @@ window.verMascara = function(nivel){
     document.getElementById('infoMascara').textContent =
         `Cubre el ${((n/(w*h))*100).toFixed(1)}% de la foto`;
 
-    if(productoSel) aplicarMaterial(); else pintarSeleccion();
+    if(modoEdicion === 'objeto') pintarObjeto();
+    else if(productoSel) aplicarMaterial(); else pintarSeleccion();
 };
 
 // Verde translúcido para que se vea qué quedó seleccionado
@@ -677,12 +722,22 @@ async function cargarProductos(){
 }
 
 window.elegirProducto = async function(i){
+    if (modoEdicion === 'objeto') {
+        if (!esperandoCambio) return;
+        document.querySelectorAll('.prod').forEach((el,j)=> el.classList.toggle('sel', j===i));
+        await pedirObjeto('cambiar', productos[i]);
+        return;
+    }
     productoSel = productos[i];
     document.querySelectorAll('.prod').forEach((el,j)=> el.classList.toggle('sel', j===i));
     await aplicarMaterial();
 };
 
 // ── Aplicar la textura del material sobre la superficie detectada ────────
+// Se expone en window porque los campos de tamaño de pieza y acabado la
+// llaman desde el HTML, y este script es un módulo: sin esto, cambiar el
+// tamaño de la baldosa o el acabado no hacía nada.
+window.aplicarMaterial = (...a) => aplicarMaterial(...a);
 async function aplicarMaterial(){
     if(!productoSel || !mascaraElegida) return;
     const lienzo=document.getElementById('lienzo'), ctx=lienzo.getContext('2d');
@@ -1037,6 +1092,8 @@ window.quitarMaterial = function(){
 };
 
 window.descargarResultado = function(){
+    if (modoEdicion === 'objeto' && imgLimpia)
+        document.getElementById('lienzo').getContext('2d').drawImage(imgLimpia,0,0);
     const a=document.createElement('a');
     a.download = 'decoiarte-'+Date.now()+'.jpg';
     a.href = document.getElementById('lienzo').toDataURL('image/jpeg',0.92);
@@ -1088,12 +1145,16 @@ function mascaraParaIA(w,h){
 
 window.refinarConIA = async function(){
     if(!productoSel || !mascaraElegida){ alert('Primero elige un material.'); return; }
+    if(!puedeIAEditor){ avisoPlan(); return; }
     const btn=document.getElementById('btnIA'), est=document.getElementById('estadoIA');
     btn.disabled=true; btn.textContent='✨ Analizando la iluminación…';
     est.textContent='Esto puede tardar hasta un minuto.';
     const lienzo=document.getElementById('lienzo'), w=lienzo.width, h=lienzo.height;
     try{
-        const resp = await fetch('/api/superficies/refinar', {
+        // Antes era '/api/superficies/refinar' (relativa): esa dirección la
+        // atiende Vercel, que no la conoce, y el botón nunca funcionó en
+        // producción. El servidor es Render, como en el resto de páginas.
+        const resp = await fetch('https://decoia.onrender.com/api/superficies/refinar', {
             method:'POST', headers:{'Content-Type':'application/json'},
             body: JSON.stringify({
                 imagen_base64:  lienzo.toDataURL('image/png').split(',')[1],
@@ -1101,6 +1162,7 @@ window.refinarConIA = async function(){
                 producto_url:    productoSel.imagen_url || null,
                 producto_nombre: productoSel.nombre || null,
                 superficie: 'piso',
+                empresa_id: empresaIdEditor,
             })
         });
         if(!resp.ok) throw new Error((await resp.json()).detail || 'El servicio no respondió');
@@ -1258,11 +1320,262 @@ function calcularCosto(){
         ${exacto?'':'<br><span style="color:#FCD34D;font-size:11px;">⚠️ Marca el plano del piso arriba para obtener metros reales — este número es solo una referencia gruesa.</span>'}`;
 }
 
-// Si viene una imagen ya generada por la IA, se carga sola
+// ═══════════════════════════════════════════════════════════════════════
+// MODO OBJETO — plan Profesional
+// El asesor toca un objeto, SAM lo recorta (como el iPhone al tocar a una
+// persona o una mascota), y la IA lo quita o lo cambia por un producto del
+// catálogo. El resultado pasa a ser la nueva foto base: se puede seguir
+// quitando, cambiando pisos por cálculo, y al final mejorar con IA.
+// Pisos y paredes por cálculo siguen gratis para todos; lo que usa IA es del
+// Profesional, y el servidor lo verifica aunque alguien toque la pantalla.
+// ═══════════════════════════════════════════════════════════════════════
+async function verificarPlanEditor(){
+    try{
+        const { data:{ session } } = await db.auth.getSession();
+        if(!session) return;
+        const { data:emp } = await db.from('empresas')
+            .select('id, estado, planes(nombre)').eq('email', session.user.email).maybeSingle();
+        if(!emp) return;
+        empresaIdEditor = emp.id;
+        const plan = (emp.planes?.nombre || '').toLowerCase().replace('á','a');
+        puedeIAEditor = ['profesional','premium','corporativo'].includes(plan) && (emp.estado||'') === 'activo';
+    }catch(e){ console.warn('No se pudo verificar el plan:', e); }
+}
+
+function avisoPlan(){
+    alert(empresaIdEditor
+        ? '🔒 Quitar y cambiar objetos, y mejorar con IA, son del plan Profesional.\n\nPuedes seguir cambiando pisos y paredes gratis.'
+        : '🔒 Esta herramienta es del plan Profesional.\n\nInicia sesión con tu cuenta de empresa. Pisos y paredes los puedes seguir cambiando gratis.');
+}
+
+function pintarModo(){
+    document.getElementById('modoSupBtn').classList.toggle('activo', modoEdicion==='superficie');
+    document.getElementById('modoObjBtn').classList.toggle('activo', modoEdicion==='objeto');
+    document.getElementById('modoObjBtn').textContent = (puedeIAEditor ? '🎯' : '🔒') + ' Objeto';
+    if (modoEdicion === 'objeto') {
+        document.getElementById('tituloSeleccion').textContent = '2 · Toca el objeto que quieres quitar o cambiar';
+        document.getElementById('textoSeleccion').innerHTML =
+            'Un mueble, un sanitario, una lámpara… Toca encima y la IA lo recorta con su contorno.';
+    } else {
+        document.getElementById('tituloSeleccion').textContent = '2 · Toca la superficie que quieres cambiar';
+        document.getElementById('textoSeleccion').innerHTML =
+            'Toca el <b style="color:var(--texto);">piso</b> o una <b style="color:var(--texto);">pared</b>. ' +
+            'La IA la detecta sola y te muestra tres opciones — elige la que mejor la cubra.';
+    }
+}
+
+function limpiarSeleccion(){
+    mascaras=null; mascaraElegida=null; mascaraPlaca=null; capaObjetos=null; capaLuzIA=null;
+    productoSel=null; esperandoCambio=false;
+    document.querySelectorAll('.prod').forEach(el=>el.classList.remove('sel'));
+    document.getElementById('opcionesMascara').style.display='none';
+    document.getElementById('infoMascara').textContent='';
+}
+
+function actualizarDeshacer(){
+    document.getElementById('barraDeshacer').style.display = historial.length ? 'block' : 'none';
+}
+
+// Después de cambiar la foto base, SAM tiene que volver a mirarla: si no, el
+// próximo toque recortaría sobre la foto vieja.
+async function reanalizar(){
+    limpiarSeleccion();
+    mostrarEstado('🔍 Actualizando la foto para seguir editando…', 70);
+    try{
+        const img = await RawImage.fromURL(imgLimpia.toDataURL('image/jpeg',0.92));
+        entradas   = await procesador(img);
+        embeddings = await modelo.get_image_embeddings(entradas);
+    }finally{
+        est.style.display='none'; barraWrap.style.display='none';
+    }
+    actualizarDeshacer();
+}
+
+async function reemplazarBase(src, guardar=true){
+    if (guardar) historial.push(imgLimpia.toDataURL('image/png'));
+    const bmp = await createImageBitmap(await (await fetch(src)).blob());
+    const w=imgLimpia.width, h=imgLimpia.height, c=imgLimpia.getContext('2d');
+    c.clearRect(0,0,w,h);
+    c.drawImage(bmp,0,0,w,h);   // el servidor ya lo devuelve en la misma proporción
+    document.getElementById('lienzo').getContext('2d').drawImage(imgLimpia,0,0);
+    await reanalizar();
+}
+
+window.deshacerCambio = async function(){
+    if (!historial.length) return;
+    await reemplazarBase(historial.pop(), false);
+    document.getElementById('estadoObjeto').textContent = '↩ Se deshizo el último cambio.';
+};
+
+// Si ya hay un piso nuevo aplicado por cálculo, se "pega" a la foto antes de
+// pasar a objetos. Así el asesor no pierde lo que hizo y la IA trabaja sobre
+// el cuarto como está quedando, no sobre la foto vieja.
+async function hornearSiHayMaterial(){
+    if (!(productoSel && mascaraElegida)) return;
+    if (modoPlano){ modoPlano=false; document.getElementById('btnPlano').textContent='📐 Ajustar plano'; }
+    await aplicarMaterial();
+    if (capaLuzIA) pintarConIA();
+    historial.push(imgLimpia.toDataURL('image/png'));
+    imgLimpia.getContext('2d').drawImage(document.getElementById('lienzo'),0,0);
+    await reanalizar();
+}
+
+window.cambiarModo = async function(m){
+    if (m === modoEdicion) return;
+    if (m === 'objeto' && !puedeIAEditor){ avisoPlan(); return; }
+    if (!imgLimpia) return;
+    if (m === 'objeto') await hornearSiHayMaterial();
+    else limpiarSeleccion();
+    modoEdicion = m;
+    esperandoCambio = false;
+    catSel = 'superficies';
+    document.getElementById('lienzo').getContext('2d').drawImage(imgLimpia,0,0);
+    document.getElementById('cardObjeto').style.display = m==='objeto' ? 'block' : 'none';
+    document.getElementById('cardPlano').style.display = 'none';
+    document.getElementById('cardProductos').style.display = 'none';
+    document.getElementById('estadoObjeto').textContent = '';
+    pintarModo();
+};
+
+// Contorno azul grueso + un tinte suave adentro, para que se vea qué objeto
+// quedó recortado — igual que cuando el iPhone levanta una figura.
+function pintarObjeto(){
+    const l=document.getElementById('lienzo'), ctx=l.getContext('2d'), w=l.width, h=l.height;
+    ctx.drawImage(imgLimpia,0,0);
+    const m=mascaraElegida, d=ctx.getImageData(0,0,w,h);
+    const en=(x,y)=> x>=0 && y>=0 && x<w && y<h && m[y*w+x];
+    for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+        const i=y*w+x;
+        if(!m[i]) continue;
+        const borde = !en(x-1,y)||!en(x+1,y)||!en(x,y-1)||!en(x,y+1)||
+                      !en(x-2,y)||!en(x+2,y)||!en(x,y-2)||!en(x,y+2);
+        if(borde){ d.data[i*4]=34; d.data[i*4+1]=211; d.data[i*4+2]=238; }
+        else{
+            d.data[i*4]  =d.data[i*4]  *0.78+34 *0.22;
+            d.data[i*4+1]=d.data[i*4+1]*0.78+211*0.22;
+            d.data[i*4+2]=d.data[i*4+2]*0.78+238*0.22;
+        }
+    }
+    ctx.putImageData(d,0,0);
+}
+
+function dilatarMascara(m, w, h, pasos){
+    let act = m;
+    for(let k=0;k<pasos;k++){
+        const sig = new Uint8Array(w*h);
+        for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+            const i=y*w+x;
+            if(act[i] || (x>0&&act[i-1]) || (x<w-1&&act[i+1]) || (y>0&&act[i-w]) || (y<h-1&&act[i+w])) sig[i]=1;
+        }
+        act = sig;
+    }
+    return act;
+}
+
+// La zona que la IA puede tocar es el objeto un poco agrandado: así entra
+// también su borde y su sombra, y no queda un "fantasma" del objeto quitado.
+function mascaraObjetoParaIA(w, h, accion){
+    const pasos = accion==='cambiar'
+        ? Math.max(8, Math.round(Math.min(w,h)*0.03))
+        : Math.max(4, Math.round(Math.min(w,h)*0.012));
+    const m = dilatarMascara(mascaraElegida, w, h, pasos);
+    const c=document.createElement('canvas'); c.width=w; c.height=h;
+    const cx=c.getContext('2d'), d=cx.createImageData(w,h);
+    for(let i=0;i<w*h;i++){ d.data[i*4+3] = m[i] ? 0 : 255; }   // alfa 0 = editable
+    cx.putImageData(d,0,0);
+    return c.toDataURL('image/png').split(',')[1];
+}
+
+async function pedirObjeto(accion, producto){
+    const estO = document.getElementById('estadoObjeto');
+    if (!mascaraElegida){ estO.textContent = 'Primero toca el objeto en la foto.'; return; }
+    if (!puedeIAEditor){ avisoPlan(); return; }
+    const w=imgLimpia.width, h=imgLimpia.height;
+    const bQ=document.getElementById('btnQuitarObj'), bC=document.getElementById('btnCambiarObj');
+    bQ.disabled = bC.disabled = true;
+    estO.innerHTML = accion==='quitar'
+        ? '✕ Quitando el objeto… puede tardar hasta un minuto.'
+        : `⇄ Poniendo <b>${esc(producto.nombre)}</b>… puede tardar hasta un minuto.`;
+    try{
+        const resp = await fetch('https://decoia.onrender.com/api/superficies/objeto', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({
+                imagen_base64:   imgLimpia.toDataURL('image/png').split(',')[1],
+                mascara_base64:  mascaraObjetoParaIA(w, h, accion),
+                accion,
+                empresa_id:      empresaIdEditor,
+                producto_url:    producto ? producto.imagen_url : null,
+                producto_nombre: producto ? producto.nombre : null,
+            })
+        });
+        const j = await resp.json().catch(()=>({}));
+        if (!resp.ok) throw new Error(j.detail || `El servidor respondió ${resp.status}`);
+        if (!j.imagen_base64) throw new Error('La IA no devolvió imagen');
+        await reemplazarBase('data:image/png;base64,' + j.imagen_base64);
+        document.getElementById('cardProductos').style.display='none';
+        document.getElementById('infoObjeto').innerHTML = 'Toca otro objeto para seguir, o pasa a <b>🧱 Superficie</b> para cambiar el piso.';
+        estO.innerHTML = accion==='quitar'
+            ? '<span style="color:#6EE7B7;">✓ Objeto quitado.</span>'
+            : `<span style="color:#6EE7B7;">✓ Listo: ${esc(producto.nombre)} — $${Number(producto.precio||0).toLocaleString('es-CO')}</span>`;
+    }catch(e){
+        console.error(e);
+        estO.innerHTML = `<span style="color:#FCA5A5;">No se pudo: ${esc(e.message)}. La foto sigue como estaba.</span>`;
+    }finally{
+        bQ.disabled = bC.disabled = false;
+        esperandoCambio = false;
+    }
+}
+
+window.quitarObjeto = function(){ pedirObjeto('quitar', null); };
+
+window.mostrarCambioObjeto = async function(){
+    if (modoEdicion !== 'objeto') return;
+    const estO = document.getElementById('estadoObjeto');
+    if (!mascaraElegida){ estO.textContent = 'Primero toca el objeto en la foto.'; return; }
+    esperandoCambio = true;
+    catSel = 'objetos';
+    renderFiltroCats();
+    document.getElementById('cardProductos').style.display='block';
+    estO.innerHTML = '⬇️ Elige abajo el producto que va en su lugar.';
+    await cargarProductos();
+    document.getElementById('cardProductos').scrollIntoView({behavior:'smooth', block:'start'});
+};
+
+function pintarFuente(){
+    document.getElementById('fuenteOriginalBtn').classList.toggle('activo', fuenteActiva==='original');
+    document.getElementById('fuenteRemodeladaBtn').classList.toggle('activo', fuenteActiva==='remodelada');
+}
+
+window.usarFuente = async function(cual){
+    if (cual === fuenteActiva) return;
+    const url = cual==='original' ? fuenteOriginal : fuenteRemodelada;
+    if (!url) return;
+    if (historial.length && !confirm('Se descartan los cambios que hiciste sobre esta foto. ¿Seguir?')) return;
+    historial = [];
+    fuenteActiva = cual;
+    pintarFuente();
+    limpiarSeleccion();
+    await procesarImagenDesdeBlob(url);
+    actualizarDeshacer();
+    pintarModo();
+};
+
+// Si viene una imagen ya generada por la IA, se carga sola. Desde la bandeja
+// llegan las dos: la foto original (img) y la remodelada (res), y el asesor
+// elige sobre cuál trabajar.
 (async function inicio(){
     const params = new URLSearchParams(location.search);
-    const imgUrl = params.get('img') || sessionStorage.getItem('deco_resultado_url');
+    await verificarPlanEditor();
+    fuenteOriginal   = params.get('img') || null;
+    fuenteRemodelada = params.get('res') || null;
+    const imgUrl = fuenteRemodelada || fuenteOriginal || sessionStorage.getItem('deco_resultado_url');
+    fuenteActiva = fuenteRemodelada ? 'remodelada' : 'original';
     if(params.get('volver')) document.getElementById('volver').href = params.get('volver');
+    if (fuenteOriginal && fuenteRemodelada){
+        document.getElementById('cardFuente').style.display='block';
+        pintarFuente();
+    }
+    pintarModo();
     if(imgUrl){
         document.getElementById('zonaFoto').style.display='none';
         await procesarImagenDesdeBlob(imgUrl);

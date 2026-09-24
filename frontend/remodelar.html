@@ -726,7 +726,10 @@ window.abrirEditorSuperficies = function(urlOriginal, urlGenerada) {
     // trae otro aplicado acumula defectos.
     const base = urlOriginal || urlGenerada;
     if (!base) { toast('Esa remodelación no tiene foto asociada'); return; }
+    // Van las dos fotos: el editor deja elegir si trabajar sobre la original
+    // o sobre la remodelada.
     let url = `/editor-superficies?img=${encodeURIComponent(base)}&volver=${encodeURIComponent('/remodelar')}`;
+    if (urlOriginal && urlGenerada) url += `&res=${encodeURIComponent(urlGenerada)}`;
     if (tiendaActiva && tiendaActiva !== 'todas') url += `&tienda=${encodeURIComponent(tiendaActiva)}`;
     window.open(url, '_blank');
 };

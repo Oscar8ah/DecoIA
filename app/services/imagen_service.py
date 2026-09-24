@@ -216,6 +216,94 @@ def recortar_al_original(resultado_bytes: bytes, original_bytes: bytes) -> bytes
         return resultado_bytes
 
 
+def ajustar_mascara_a_lienzo(mascara: Image.Image, ancho: int, alto: int) -> Image.Image:
+    """
+    Encaja la máscara con EXACTAMENTE la misma geometría que ajustar_a_lienzo
+    usa para la foto, para que cada píxel de la máscara caiga sobre su píxel.
+    El borde de relleno queda opaco: la IA no debe tocar lo que no es foto.
+    Se pega SIN máscara de pegado, para copiar el alfa tal cual (el alfa 0 es
+    lo que le dice a OpenAI dónde puede editar).
+    """
+    mascara = mascara.convert("RGBA")
+    escala = min(ancho / mascara.width, alto / mascara.height)
+    nueva = mascara.resize((max(1, int(mascara.width * escala)),
+                            max(1, int(mascara.height * escala))), Image.NEAREST)
+    lienzo = Image.new("RGBA", (ancho, alto), (0, 0, 0, 255))
+    lienzo.paste(nueva, ((ancho - nueva.width) // 2, (alto - nueva.height) // 2))
+    return lienzo
+
+
+async def editar_objeto(escena_bytes: bytes, mascara_bytes: bytes, accion: str,
+                        producto_bytes: bytes = None, producto_nombre: str = None) -> bytes:
+    """
+    Quita un objeto de la foto, o lo cambia por un producto del catálogo.
+
+    Esto NO se puede hacer por cálculo: al quitar un sofá hay que inventar el
+    piso y la pared que había detrás, y eso solo lo hace la IA. La máscara
+    marca la zona del objeto; todo lo demás debe quedar idéntico.
+
+    Devuelve los bytes PNG ya recortados a la proporción de la escena, para
+    que el antes y el después calcen.
+    """
+    settings = get_settings()
+    ancho, alto, tamano_salida = tamano_para(escena_bytes)
+    escena  = ajustar_a_lienzo(Image.open(io.BytesIO(escena_bytes)), ancho, alto)
+    mascara = ajustar_mascara_a_lienzo(Image.open(io.BytesIO(mascara_bytes)), ancho, alto)
+
+    def a_png(img):
+        b = io.BytesIO(); img.save(b, format="PNG"); return b.getvalue()
+
+    archivos = [("image[]", ("escena.png", a_png(escena), "image/png"))]
+    if accion == "cambiar":
+        if not producto_bytes:
+            raise RuntimeError("Falta la foto del producto para hacer el cambio")
+        archivos.append(("image[]", ("producto_referencia.png", imagen_a_png_1024(producto_bytes), "image/png")))
+        prompt = (
+            f"Replace the object inside the masked area with the product shown in the second "
+            f"reference image{': ' + producto_nombre if producto_nombre else ''}. "
+            f"Place it in the same position, facing a natural direction, matching the room's "
+            f"perspective, scale and lighting, with a realistic contact shadow on the floor. "
+            f"Reproduce the product's real shape, color, materials and details faithfully from the "
+            f"reference image — do not invent a different design. If the product is smaller than the "
+            f"removed object, fill the rest with the floor and wall that would naturally be behind it. "
+            f"Keep everything outside the masked area exactly as it is. Photorealistic."
+        )
+    else:
+        prompt = (
+            "Completely remove the object inside the masked area. Fill that area with what would "
+            "naturally be behind it: continue the floor, wall and baseboard with exactly the same "
+            "material, tile pattern, grout lines, perspective and lighting as the surrounding area. "
+            "Remove its shadow too. Do not add any new object or decoration. Keep everything outside "
+            "the masked area exactly as it is. Photorealistic."
+        )
+    archivos.append(("mask", ("mascara.png", a_png(mascara), "image/png")))
+
+    async with httpx.AsyncClient(timeout=180.0) as client:
+        response = await _post_con_reintentos(
+            client,
+            "https://api.openai.com/v1/images/edits",
+            headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+            etiqueta=f"gpt-image-1 objeto/{accion}",
+            files=archivos,
+            data={
+                "model":          "gpt-image-1",
+                "prompt":         prompt,
+                "n":              "1",
+                "size":           tamano_salida,
+                "quality":        "high",
+                "moderation":     "low",
+                "input_fidelity": "high",
+            },
+        )
+    if response.status_code != 200:
+        logger.error(f"gpt-image-1 objeto/{accion} falló: {response.status_code} {response.text[:400]}")
+        raise RuntimeError(f"El servicio de IA respondió {response.status_code}")
+    b64 = (response.json().get("data") or [{}])[0].get("b64_json")
+    if not b64:
+        raise RuntimeError("La IA no devolvió imagen")
+    return recortar_al_original(base64.b64decode(b64), escena_bytes)
+
+
 def crear_mascara_piso_paredes(imagen_bytes: bytes) -> bytes:
     """
     Máscara PNG con canal alpha:
