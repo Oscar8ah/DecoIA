@@ -69,6 +69,21 @@
 
     <div class="card">
         <div class="titulo">1 · Tu foto</div>
+        <div id="elegirFuente" style="display:none;">
+            <div style="font-size:13px;color:var(--gris);margin-bottom:10px;line-height:1.5;">¿Sobre cuál foto quieres trabajar?</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <button onclick="elegirFuenteInicial('original')" style="background:rgba(255,255,255,0.03);border:2px solid rgba(148,163,184,0.3);border-radius:12px;padding:8px;cursor:pointer;color:var(--texto);text-align:center;">
+                    <img id="miniOriginal" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;display:block;" alt="">
+                    <div style="font-size:13px;font-weight:700;margin-top:7px;">📷 Foto original</div>
+                    <div style="font-size:11px;color:var(--gris);">La que mandó el cliente</div>
+                </button>
+                <button onclick="elegirFuenteInicial('remodelada')" style="background:rgba(124,58,237,0.08);border:2px solid rgba(124,58,237,0.45);border-radius:12px;padding:8px;cursor:pointer;color:var(--texto);text-align:center;">
+                    <img id="miniRemodelada" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;display:block;" alt="">
+                    <div style="font-size:13px;font-weight:700;margin-top:7px;">✨ Remodelada</div>
+                    <div style="font-size:11px;color:var(--gris);">La que ya hizo la IA</div>
+                </button>
+            </div>
+        </div>
         <div id="zonaFoto">
             <input type="file" id="inputFoto" accept="image/*" onchange="cargarFoto(this)"
                    style="width:100%;font-size:13px;color:var(--gris);">
@@ -195,6 +210,17 @@
         <div id="diagTextura" style="font-size:10.5px;color:#9CA3AF;margin-top:5px;line-height:1.5;"></div>
     </div>
 
+    <div class="card" id="cardInterpretar" style="display:none;border:1px solid rgba(168,85,247,0.45);">
+        <div style="font-size:13.5px;font-weight:800;margin-bottom:6px;">✨ Interpretar con IA</div>
+        <div style="font-size:11.5px;color:#9CA3AF;line-height:1.55;margin-bottom:9px;">
+            Lo que armas aquí es cálculo: rápido, pero se ve pegado. Cuando termines de cambiar
+            pisos y quitar o poner objetos, la IA convierte tu diseño en una <b>foto realista del
+            mismo cuarto</b>, usando las fotos reales de los productos que elegiste.
+        </div>
+        <button id="btnInterpretar" onclick="interpretarConIA()" style="width:100%;padding:11px;border-radius:9px;background:linear-gradient(135deg,#7C3AED,#6366F1);border:none;color:#fff;font-size:13px;font-weight:800;cursor:pointer;">✨ Interpretar mi diseño con IA</button>
+        <div id="estadoInterpretar" style="font-size:11.5px;color:#9CA3AF;margin-top:8px;line-height:1.5;"></div>
+    </div>
+
     <div class="card" id="cardIA" style="display:none;">
         <div style="font-size:13px;font-weight:700;margin-bottom:6px;">✨ ¿No te convence cómo quedó?</div>
         <div style="font-size:11.5px;color:#9CA3AF;line-height:1.5;margin-bottom:8px;">
@@ -203,7 +229,7 @@
             respuesta solo se toma la luz, y esa restricción está en el código,
             no en lo que se le pide.
         </div>
-        <button id="btnIA" onclick="refinarConIA()" style="width:100%;padding:9px;border-radius:8px;background:rgba(168,85,247,0.18);border:1px solid rgba(168,85,247,0.4);color:#D8B4FE;font-size:12.5px;font-weight:700;cursor:pointer;">✨ Mejorar la iluminación con IA</button>
+        <button id="btnIA" onclick="refinarConIA()" style="width:100%;padding:9px;border-radius:8px;background:rgba(168,85,247,0.18);border:1px solid rgba(168,85,247,0.4);color:#D8B4FE;font-size:12.5px;font-weight:700;cursor:pointer;">💡 Solo ajustar la luz (conserva el material exacto)</button>
         <div style="display:flex;gap:6px;margin-top:6px;align-items:center;">
             <button onclick="ajustarFuerzaIA(-1)" style="flex:1;padding:6px;border-radius:7px;background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.25);color:#9CA3AF;font-size:11px;font-weight:700;cursor:pointer;">− Menos</button>
             <div id="lblFuerzaIA" style="flex:1;text-align:center;font-size:11px;color:#D8B4FE;font-weight:700;">70%</div>
@@ -258,6 +284,7 @@ let historial       = [];             // fotos base anteriores, para deshacer
 let empresaIdEditor = null;
 let puedeIAEditor   = false;          // Profesional+, pagado. El servidor lo vuelve a verificar
 let fuenteOriginal = null, fuenteRemodelada = null, fuenteActiva = null;
+let refMaterial = null, refMaterialPegado = null, refObjeto = null;   // {url, nombre, tipo}
 
 const est = document.getElementById('estadoFoto');
 const barraWrap = document.getElementById('barraWrap');
@@ -325,6 +352,8 @@ async function procesarImagenDesdeBlob(origen){
         mostrarEstado('✅ Listo — toca la superficie que quieres cambiar', 100);
         setTimeout(()=>{ est.style.display='none'; barraWrap.style.display='none'; }, 1600);
         document.getElementById('cardSeleccion').style.display='block';
+        const ci = document.getElementById('cardInterpretar');
+        if (ci) ci.style.display = 'block';
         await cargarTiendas();
     }catch(e){
         console.error(e);
@@ -729,6 +758,7 @@ window.elegirProducto = async function(i){
         return;
     }
     productoSel = productos[i];
+    refMaterial = { url: productoSel.imagen_url, nombre: productoSel.nombre, tipo: 'material' };
     document.querySelectorAll('.prod').forEach((el,j)=> el.classList.toggle('sel', j===i));
     await aplicarMaterial();
 };
@@ -1083,6 +1113,7 @@ function desenfoqueCaja(fuente,w,h,radio){
 
 window.quitarMaterial = function(){
     productoSel=null;
+    refMaterial = refMaterialPegado;   // lo que ya quedó pegado a la foto sigue ahí
     document.querySelectorAll('.prod').forEach(el=>el.classList.remove('sel'));
     document.getElementById('cardCosto').style.display='none';
     if(mascaraElegida) pintarSeleccion(); else {
@@ -1200,7 +1231,7 @@ window.refinarConIA = async function(){
         console.error(e);
         est.innerHTML='<span style="color:#FCA5A5;">No se pudo: '+e.message+'. El resultado calculado sigue ahí.</span>';
     }finally{
-        btn.disabled=false; btn.textContent='✨ Mejorar la iluminación con IA';
+        btn.disabled=false; btn.textContent='💡 Solo ajustar la luz (conserva el material exacto)';
     }
 };
 
@@ -1417,6 +1448,7 @@ async function hornearSiHayMaterial(){
     if (capaLuzIA) pintarConIA();
     historial.push(imgLimpia.toDataURL('image/png'));
     imgLimpia.getContext('2d').drawImage(document.getElementById('lienzo'),0,0);
+    refMaterialPegado = refMaterial;
     await reanalizar();
 }
 
@@ -1517,6 +1549,7 @@ async function pedirObjeto(accion, producto){
         estO.innerHTML = accion==='quitar'
             ? '<span style="color:#6EE7B7;">✓ Objeto quitado.</span>'
             : `<span style="color:#6EE7B7;">✓ Listo: ${esc(producto.nombre)} — $${Number(producto.precio||0).toLocaleString('es-CO')}</span>`;
+        if (accion === 'cambiar') refObjeto = { url: producto.imagen_url, nombre: producto.nombre, tipo: 'objeto' };
     }catch(e){
         console.error(e);
         estO.innerHTML = `<span style="color:#FCA5A5;">No se pudo: ${esc(e.message)}. La foto sigue como estaba.</span>`;
@@ -1560,22 +1593,86 @@ window.usarFuente = async function(cual){
     pintarModo();
 };
 
+window.interpretarConIA = async function(){
+    if (!puedeIAEditor){ avisoPlan(); return; }
+    if (!imgLimpia) return;
+    const btn = document.getElementById('btnInterpretar'), estI = document.getElementById('estadoInterpretar');
+    btn.disabled = true;
+    estI.innerHTML = '✨ La IA está convirtiendo tu diseño en una foto realista… puede tardar hasta un minuto.';
+    try{
+        // Lo que se está viendo (piso recién aplicado incluido) pasa a ser la foto
+        await hornearSiHayMaterial();
+        const referencias = [refMaterial || refMaterialPegado, refObjeto].filter(r => r && r.url);
+        const resp = await fetch('https://decoia.onrender.com/api/superficies/interpretar', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({
+                imagen_base64: imgLimpia.toDataURL('image/png').split(',')[1],
+                empresa_id:    empresaIdEditor,
+                referencias,
+            })
+        });
+        const j = await resp.json().catch(()=>({}));
+        if (!resp.ok) throw new Error(j.detail || `El servidor respondió ${resp.status}`);
+        if (!j.imagen_base64) throw new Error('La IA no devolvió imagen');
+        await reemplazarBase('data:image/png;base64,' + j.imagen_base64);
+        estI.innerHTML = '<span style="color:#6EE7B7;">✓ Listo. Si prefieres la versión anterior, usa ↩ Deshacer.</span>';
+    }catch(e){
+        console.error(e);
+        estI.innerHTML = `<span style="color:#FCA5A5;">No se pudo: ${esc(e.message)}. Tu diseño sigue como estaba.</span>`;
+    }finally{
+        btn.disabled = false;
+    }
+};
+
+// Según /estructura, el editor de superficies y objetos es del plan
+// Profesional para arriba. Visitantes y Básico se quedan en /remodelar.
+function bloquearEditor(){
+    const capa = document.createElement('div');
+    capa.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(10,10,20,0.96);display:flex;align-items:center;justify-content:center;padding:24px;';
+    capa.innerHTML = `
+        <div style="max-width:420px;text-align:center;background:#181828;border:1px solid rgba(124,58,237,0.4);border-radius:16px;padding:26px;">
+            <div style="font-size:40px;margin-bottom:8px;">🔒</div>
+            <div style="font-size:18px;font-weight:800;margin-bottom:8px;">Editor de superficies y objetos</div>
+            <div style="font-size:13.5px;color:#9CA3AF;line-height:1.6;margin-bottom:18px;">
+                Cambiar pisos y paredes con medidas reales, quitar y cambiar objetos, e interpretar
+                el diseño con IA es del <b style="color:#E8E8F0;">plan Profesional</b>.
+                ${empresaIdEditor ? 'Puedes pedirlo desde tu cuenta.' : 'Si eres una tienda, inicia sesión con tu cuenta de empresa.'}
+            </div>
+            <a href="/remodelar" style="display:inline-block;background:linear-gradient(135deg,#7C3AED,#6366F1);color:#fff;padding:11px 20px;border-radius:10px;font-weight:700;text-decoration:none;">Volver a remodelar</a>
+        </div>`;
+    document.body.appendChild(capa);
+}
+
+window.elegirFuenteInicial = async function(cual){
+    fuenteActiva = cual;
+    document.getElementById('elegirFuente').style.display = 'none';
+    document.getElementById('cardFuente').style.display = 'block';
+    pintarFuente();
+    await procesarImagenDesdeBlob(cual === 'original' ? fuenteOriginal : fuenteRemodelada);
+    pintarModo();
+};
+
 // Si viene una imagen ya generada por la IA, se carga sola. Desde la bandeja
 // llegan las dos: la foto original (img) y la remodelada (res), y el asesor
 // elige sobre cuál trabajar.
 (async function inicio(){
     const params = new URLSearchParams(location.search);
     await verificarPlanEditor();
+    if(params.get('volver')) document.getElementById('volver').href = params.get('volver');
+    if (!puedeIAEditor){ bloquearEditor(); return; }
     fuenteOriginal   = params.get('img') || null;
     fuenteRemodelada = params.get('res') || null;
-    const imgUrl = fuenteRemodelada || fuenteOriginal || sessionStorage.getItem('deco_resultado_url');
-    fuenteActiva = fuenteRemodelada ? 'remodelada' : 'original';
-    if(params.get('volver')) document.getElementById('volver').href = params.get('volver');
-    if (fuenteOriginal && fuenteRemodelada){
-        document.getElementById('cardFuente').style.display='block';
-        pintarFuente();
-    }
     pintarModo();
+    // Con las dos fotos, primero se elige sobre cuál trabajar (los dos cuadritos)
+    if (fuenteOriginal && fuenteRemodelada){
+        document.getElementById('miniOriginal').src   = fuenteOriginal;
+        document.getElementById('miniRemodelada').src = fuenteRemodelada;
+        document.getElementById('zonaFoto').style.display = 'none';
+        document.getElementById('elegirFuente').style.display = 'block';
+        return;
+    }
+    const imgUrl = fuenteOriginal || fuenteRemodelada || sessionStorage.getItem('deco_resultado_url');
+    fuenteActiva = fuenteRemodelada ? 'remodelada' : 'original';
     if(imgUrl){
         document.getElementById('zonaFoto').style.display='none';
         await procesarImagenDesdeBlob(imgUrl);

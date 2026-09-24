@@ -304,6 +304,74 @@ async def editar_objeto(escena_bytes: bytes, mascara_bytes: bytes, accion: str,
     return recortar_al_original(base64.b64decode(b64), escena_bytes)
 
 
+async def interpretar_escena(escena_bytes: bytes, referencias: list) -> bytes:
+    """
+    Convierte el diseño que el asesor armó en el editor en una foto realista.
+
+    Lo calculado en el navegador se ve "pegado": el piso nuevo sin reflejos
+    reales, los huecos donde se quitó un mueble con bordes duros. Aquí la IA
+    reinterpreta la escena COMPLETA, pero con instrucciones de no mover nada y
+    con las fotos reales de los productos como referencia, para que el
+    material que se va a vender quede fiel.
+
+    referencias: lista de (bytes, nombre, tipo) — tipo 'material' u 'objeto'.
+    Devuelve PNG recortado a la proporción de la escena, para que calce.
+    """
+    settings = get_settings()
+    ancho, alto, tamano_salida = tamano_para(escena_bytes)
+    escena = ajustar_a_lienzo(Image.open(io.BytesIO(escena_bytes)), ancho, alto)
+    b = io.BytesIO(); escena.save(b, format="PNG")
+    archivos = [("image[]", ("escena.png", b.getvalue(), "image/png"))]
+
+    detalles = []
+    for k, (ref_bytes, nombre, tipo) in enumerate(referencias[:3], start=2):
+        archivos.append(("image[]", (f"referencia_{k}.png", imagen_a_png_1024(ref_bytes), "image/png")))
+        if tipo == "objeto":
+            detalles.append(f"The {nombre or 'product'} placed in the room must look exactly like reference image {k}.")
+        else:
+            detalles.append(
+                f"The new floor/wall material must look exactly like reference image {k}"
+                f"{' (' + nombre + ')' if nombre else ''}: keep its color, veining, pattern and tile size faithfully."
+            )
+
+    prompt = (
+        "The first image is a mock-up of a remodeled room, made by digitally applying new "
+        "materials and editing objects on a real photo, so it looks artificial. Render it as a "
+        "professional, photorealistic interior photograph of the SAME room. Keep the exact camera "
+        "angle, perspective and room geometry, and keep every piece of furniture and object in the "
+        "same place, size and shape. Do not add or remove any object. Make the edited parts look "
+        "real: correct tile perspective and grout lines, natural reflections, contact shadows under "
+        "furniture, and lighting consistent with the room's existing light sources. Where an object "
+        "was removed, the floor and wall must continue naturally. "
+        + " ".join(detalles)
+    )
+
+    async with httpx.AsyncClient(timeout=180.0) as client:
+        response = await _post_con_reintentos(
+            client,
+            "https://api.openai.com/v1/images/edits",
+            headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+            etiqueta="gpt-image-1 interpretar",
+            files=archivos,
+            data={
+                "model":          "gpt-image-1",
+                "prompt":         prompt,
+                "n":              "1",
+                "size":           tamano_salida,
+                "quality":        "high",
+                "moderation":     "low",
+                "input_fidelity": "high",
+            },
+        )
+    if response.status_code != 200:
+        logger.error(f"gpt-image-1 interpretar falló: {response.status_code} {response.text[:400]}")
+        raise RuntimeError(f"El servicio de IA respondió {response.status_code}")
+    b64 = (response.json().get("data") or [{}])[0].get("b64_json")
+    if not b64:
+        raise RuntimeError("La IA no devolvió imagen")
+    return recortar_al_original(base64.b64decode(b64), escena_bytes)
+
+
 def crear_mascara_piso_paredes(imagen_bytes: bytes) -> bytes:
     """
     Máscara PNG con canal alpha:

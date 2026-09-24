@@ -392,7 +392,8 @@ function esc(str) {
 
 let carrito          = [];
 let rolUsuario       = null;
-let planEmpresa      = '';   // 'basico', 'profesional', 'premium', 'corporativo'
+let planEmpresa      = '';
+let fotoOriginalHosted = null;   // la foto original alojada (no la del navegador), para mandarla al editor   // 'basico', 'profesional', 'premium', 'corporativo'
 let sliderDragging   = false;
 
 // ── PROTECCIONES ────────────────────────────────────────────────────────
@@ -652,6 +653,7 @@ window.abrirDelBaul = async function(i) {
     const it = (window._baulItems || [])[i];
     if (!it) return;
     await cargarFotoDesdeUrl(it.url_original || it.url_generada, true);
+    fotoOriginalHosted = it.url_original || null;
     carrito = (it.productos || []).map(p => ({ ...p }));
     sessionStorage.setItem('deco_carrito', JSON.stringify(carrito));
     resultadoUrl = it.url_generada;
@@ -697,6 +699,7 @@ window.reabrirDesdeBandeja = async function(urlOriginal, urlGenerada, telefono) 
     if (!base) { toast('Esa remodelación no tiene foto asociada'); return; }
     if (telefono) clienteTelefono = telefono;
     await cargarFotoDesdeUrl(base, true);
+    fotoOriginalHosted = urlOriginal || null;
     // Faltaba mostrar el DESPUÉS: solo se traía la foto de "antes" y se
     // quedaba en el paso 2, sin la línea deslizante ni el resultado.
     if (urlGenerada) {
@@ -827,6 +830,7 @@ async function subirFoto(input) {
 
     const reader = new FileReader();
     reader.onload = (e) => {
+        fotoOriginalHosted = null;   // la subida local solo vive en el navegador
         fotoUrl    = e.target.result;
         fotoBase64 = e.target.result.split(',')[1];
         sessionStorage.setItem('deco_foto_url', fotoUrl);
@@ -1012,9 +1016,21 @@ async function mostrarResultado(url, agregarCarrito) {
     // distintos sobre esta misma imagen, sin gastar otra generación de IA.
     const btnEd = document.getElementById('btnEditorSuperficies');
     if (btnEd) {
-        btnEd.style.display = 'block';
-        btnEd.href = `/editor-superficies?img=${encodeURIComponent(url)}&volver=${encodeURIComponent(location.pathname + location.search)}`
-                   + (tiendaActiva && tiendaActiva !== 'todas' ? `&tienda=${encodeURIComponent(tiendaActiva)}` : '');
+        // Según /estructura el editor es del Profesional para arriba: a
+        // visitantes y Básico no se les muestra. Y se mandan LAS DOS fotos
+        // (original y remodelada) para que el editor deje elegir; antes solo
+        // iba la remodelada y no había entre qué escoger.
+        if (!tieneEditor()) {
+            btnEd.style.display = 'none';
+        } else {
+            let href = `/editor-superficies?img=${encodeURIComponent(fotoOriginalHosted || url)}`
+                     + `&volver=${encodeURIComponent(location.pathname + location.search)}`;
+            if (fotoOriginalHosted) href += `&res=${encodeURIComponent(url)}`;
+            if (tiendaActiva && tiendaActiva !== 'todas') href += `&tienda=${encodeURIComponent(tiendaActiva)}`;
+            btnEd.href = href;
+            btnEd.textContent = '🎨 Editar superficies y objetos';
+            btnEd.style.display = 'block';
+        }
     }
     if (agregarCarrito) agregarProductoAlCarrito();
     else renderCarrito();
@@ -1215,6 +1231,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 // Trae la foto por su URL y deja la página en el mismo estado que si el
 // usuario la hubiera subido a mano.
 async function cargarFotoDesdeUrl(url, silencioso = false) {
+    fotoOriginalHosted = url;
     try {
         const r = await fetch(url, { mode: 'cors' });
         if (!r.ok) throw new Error('No se pudo descargar');

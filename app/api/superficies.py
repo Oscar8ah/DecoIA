@@ -38,7 +38,7 @@ from pydantic import BaseModel
 from app.utils.config import get_settings
 from app.utils.supabase_client import get_supabase
 from app.services.limites_service import tiene_fotos_disponibles, descontar_foto
-from app.services.imagen_service import editar_objeto
+from app.services.imagen_service import editar_objeto, interpretar_escena
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/superficies", tags=["superficies"])
@@ -70,6 +70,18 @@ class ObjetoRequest(BaseModel):
     empresa_id: str
     producto_url: str | None = None     # solo para 'cambiar'
     producto_nombre: str | None = None
+
+
+class Referencia(BaseModel):
+    url: str
+    nombre: str | None = None
+    tipo: str = "material"              # 'material' | 'objeto'
+
+
+class InterpretarRequest(BaseModel):
+    imagen_base64: str                  # el diseño tal como lo dejó el asesor
+    empresa_id: str
+    referencias: list[Referencia] = []  # fotos reales de lo que se aplicó
 
 
 # Lo que usa IA en el editor es del plan Profesional para arriba. El cálculo
@@ -232,6 +244,46 @@ async def objeto(data: ObjetoRequest):
         raise HTTPException(status_code=504, detail="La IA tardó demasiado, intenta de nuevo")
 
     # Se descuenta solo si se entregó: un fallo del proveedor no cuesta cupo
+    await descontar_foto(data.empresa_id)
+    return {"ok": True, "imagen_base64": base64.b64encode(resultado).decode()}
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# INTERPRETAR CON IA — plan Profesional
+# El asesor arma el diseño por cálculo (rápido, gratis, pero se ve pegado) y
+# al final pide una interpretación realista del cuarto completo.
+# ─────────────────────────────────────────────────────────────────────────
+@router.post("/interpretar")
+async def interpretar(data: InterpretarRequest):
+    settings = get_settings()
+    if not settings.openai_api_key:
+        raise HTTPException(status_code=503, detail="Falta configurar la clave de OpenAI")
+    await _verificar_empresa_para_ia(data.empresa_id)
+    try:
+        escena = base64.b64decode(data.imagen_base64)
+    except Exception:
+        raise HTTPException(status_code=400, detail="La imagen no es válida")
+    if len(escena) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="La imagen supera los 20 MB")
+
+    # Las fotos de referencia son una ayuda: si una no carga, se sigue sin ella
+    referencias = []
+    async with httpx.AsyncClient(timeout=30.0) as cli:
+        for ref in data.referencias[:3]:
+            try:
+                r = await cli.get(ref.url)
+                if r.status_code == 200 and r.headers.get("content-type", "").startswith("image/"):
+                    referencias.append((r.content, ref.nombre, ref.tipo))
+            except Exception as e:
+                logger.warning(f"Referencia no disponible ({ref.url}): {e}")
+
+    try:
+        resultado = await interpretar_escena(escena, referencias)
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="La IA tardó demasiado, intenta de nuevo")
+
     await descontar_foto(data.empresa_id)
     return {"ok": True, "imagen_base64": base64.b64encode(resultado).decode()}
 
