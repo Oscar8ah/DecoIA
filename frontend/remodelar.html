@@ -392,6 +392,7 @@ function esc(str) {
 
 let carrito          = [];
 let rolUsuario       = null;
+let planEmpresa      = '';   // 'basico', 'profesional', 'premium', 'corporativo'
 let sliderDragging   = false;
 
 // ── PROTECCIONES ────────────────────────────────────────────────────────
@@ -672,8 +673,9 @@ window.quitarDelBaul = async function(id) {
 async function verificarRol() {
     const { data:{ session } } = await db.auth.getSession();
     if (!session) { rolUsuario = null; empresaIdActual = null; return; }
-    const { data:empresa } = await db.from('empresas').select('id').eq('email',session.user.email).maybeSingle();
+    const { data:empresa } = await db.from('empresas').select('id, planes(nombre)').eq('email',session.user.email).maybeSingle();
     rolUsuario = empresa ? 'empresa' : 'consumidor';
+    planEmpresa = (empresa?.planes?.nombre || '').toLowerCase().replace('á','a');
     // A quién se le carga la generación. Antes iba `empresa_id: null` escrito
     // a mano y el backend rechazaba la petición entera: nadie podía generar
     // desde esta página. Si es una empresa se le carga a ella; si es un
@@ -706,6 +708,29 @@ window.reabrirDesdeBandeja = async function(urlOriginal, urlGenerada, telefono) 
     window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
+// ── PLAN PROFESIONAL: editor de superficies y objetos ───────────────────
+// El Profesional trabaja desde esta misma casa, con un botón más: abrir la
+// remodelación en el editor para cambiar pisos, paredes y quitar objetos.
+// Al Básico se le muestra con candado: ve lo que se está perdiendo cada vez
+// que entra, que vende mejor que una tabla de precios.
+function tieneEditor() {
+    return ['profesional', 'premium', 'corporativo'].includes(planEmpresa);
+}
+
+window.abrirEditorSuperficies = function(urlOriginal, urlGenerada) {
+    if (!tieneEditor()) {
+        toast('🔒 Editar superficies y objetos es del plan Profesional. Pídelo desde tu cuenta.');
+        return;
+    }
+    // Se abre la foto ORIGINAL: aplicar un material sobre una imagen que ya
+    // trae otro aplicado acumula defectos.
+    const base = urlOriginal || urlGenerada;
+    if (!base) { toast('Esa remodelación no tiene foto asociada'); return; }
+    let url = `/editor-superficies?img=${encodeURIComponent(base)}&volver=${encodeURIComponent('/remodelar')}`;
+    if (tiendaActiva && tiendaActiva !== 'todas') url += `&tienda=${encodeURIComponent(tiendaActiva)}`;
+    window.open(url, '_blank');
+};
+
 async function cargarBandejaAsesor() {
     const caja = document.getElementById('bandejaAsesor');
     if (!caja || !empresaIdActual) return;
@@ -734,6 +759,8 @@ async function cargarBandejaAsesor() {
                     <div style="display:flex;gap:6px;margin-top:5px;flex-wrap:wrap;align-items:center;">
                         <button onclick="reabrirDesdeBandeja('${it.url_original||''}','${it.url_generada||''}','${tel}')"
                             style="background:rgba(124,58,237,0.18);border:1px solid rgba(124,58,237,0.4);color:#A78BFA;padding:5px 10px;border-radius:7px;font-size:11.5px;font-weight:700;cursor:pointer;">🎨 Seguir editando</button>
+                        <button onclick="abrirEditorSuperficies('${it.url_original||''}','${it.url_generada||''}')"
+                            style="background:rgba(34,211,238,0.12);border:1px solid rgba(34,211,238,0.4);color:#67E8F9;padding:5px 10px;border-radius:7px;font-size:11.5px;font-weight:700;cursor:pointer;">${tieneEditor() ? '✏️' : '🔒'} Superficies y objetos</button>
                         ${tel ? `<a href="https://wa.me/${tel}" target="_blank" style="font-size:11.5px;color:#6EE7B7;text-decoration:none;font-weight:700;">💬 Escribirle al ${tel}</a>` : ''}
                     </div>
                 </div>
@@ -994,7 +1021,7 @@ async function mostrarResultado(url, agregarCarrito) {
 // ── SLIDER ──────────────────────────────────────────────────────────────
 function moverSlider(pct) {
     document.getElementById('sliderLine').style.left = pct + '%';
-    document.getElementById('compDespues').style.clipPath = `inset(0 ${100-pct}% 0 0)`;
+    document.getElementById('compDespues').style.clipPath = `inset(0 0 0 ${pct}%)`;
 }
 
 document.addEventListener('DOMContentLoaded', () => {

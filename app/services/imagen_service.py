@@ -180,6 +180,42 @@ def ajustar_a_lienzo(img: Image.Image, ancho: int, alto: int) -> Image.Image:
     return lienzo
 
 
+def recortar_al_original(resultado_bytes: bytes, original_bytes: bytes) -> bytes:
+    """
+    Quita el borde que se le agregó a la foto antes de mandarla a la IA.
+
+    ajustar_a_lienzo() encaja la foto en el formato que acepta el modelo y
+    rellena lo que sobra. El resultado vuelve CON ese relleno, así que en el
+    comparador antes/después la foto nueva salía más pequeña y corrida
+    respecto a la original: no calzaban. Se recorta exactamente la zona donde
+    se pegó la foto (misma cuenta que ajustar_a_lienzo) y se devuelve al
+    misma proporción de la original, para que las dos se superpongan.
+
+    Si algo falla se entrega el resultado sin recortar: un borde de más es
+    preferible a no entregarle nada al cliente.
+    """
+    try:
+        orig = Image.open(io.BytesIO(original_bytes))
+        w, h = orig.size
+        ancho, alto, _ = tamano_para(original_bytes)
+        escala = min(ancho / w, alto / h)
+        nw, nh = max(1, int(w * escala)), max(1, int(h * escala))
+        x0, y0 = (ancho - nw) // 2, (alto - nh) // 2
+        res = Image.open(io.BytesIO(resultado_bytes)).convert("RGB")
+        if res.size != (ancho, alto):
+            res = res.resize((ancho, alto), Image.LANCZOS)
+        # Se deja en su tamaño natural, SIN agrandar a la resolución original:
+        # para que calce basta con la misma proporción, y una foto de iPhone
+        # (4032x3024) agrandada pasaría de 5 MB, que es el tope de WhatsApp.
+        recorte = res.crop((x0, y0, x0 + nw, y0 + nh))
+        buf = io.BytesIO()
+        recorte.save(buf, format="PNG")
+        return buf.getvalue()
+    except Exception as e:
+        logger.warning(f"No se pudo recortar el borde del resultado: {e}")
+        return resultado_bytes
+
+
 def crear_mascara_piso_paredes(imagen_bytes: bytes) -> bytes:
     """
     Máscara PNG con canal alpha:
@@ -283,7 +319,7 @@ async def generar_imagen_remodelada(imagen_bytes: bytes, estilo: str = "moderno"
             data = response.json()
             imagen_b64 = data["data"][0].get("b64_json")
             if imagen_b64:
-                resultado_bytes = base64.b64decode(imagen_b64)
+                resultado_bytes = recortar_al_original(base64.b64decode(imagen_b64), imagen_bytes)
                 return await subir_imagen_a_imgbb(resultado_bytes, settings.imgbb_api_key)
             else:
                 return data["data"][0].get("url")
@@ -381,7 +417,7 @@ async def generar_imagen_con_producto(
             data = response.json()
             imagen_b64 = data["data"][0].get("b64_json")
             if imagen_b64:
-                resultado_bytes = base64.b64decode(imagen_b64)
+                resultado_bytes = recortar_al_original(base64.b64decode(imagen_b64), foto_bytes)
                 return await subir_imagen_a_imgbb(resultado_bytes, settings.imgbb_api_key)
             else:
                 return data["data"][0].get("url")
