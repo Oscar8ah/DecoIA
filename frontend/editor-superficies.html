@@ -217,6 +217,13 @@
             pisos y quitar o poner objetos, la IA convierte tu diseño en una <b>foto realista del
             mismo cuarto</b>, usando las fotos reales de los productos que elegiste.
         </div>
+        <label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;font-weight:700;">Indicaciones para la IA (opcional)</label>
+        <textarea id="indicacionesIA" maxlength="400" rows="3"
+            placeholder="Ej: donde estaba la pantalla pon un portátil Lenovo Legion. El sofá de cuero café."
+            style="width:100%;margin:5px 0 4px;background:var(--oscuro,#0B0B14);border:1px solid rgba(168,85,247,0.35);border-radius:8px;padding:9px 10px;color:var(--texto);font-size:12.5px;font-family:inherit;line-height:1.45;resize:vertical;outline:none;box-sizing:border-box;"></textarea>
+        <div style="font-size:10.5px;color:#6B7280;margin-bottom:9px;line-height:1.45;">
+            Sirve para cosas que la tienda no vende o que no se pueden tocar en la foto. Lo demás del cuarto se respeta.
+        </div>
         <button id="btnInterpretar" onclick="interpretarConIA()" style="width:100%;padding:11px;border-radius:9px;background:linear-gradient(135deg,#7C3AED,#6366F1);border:none;color:#fff;font-size:13px;font-weight:800;cursor:pointer;">✨ Interpretar mi diseño con IA</button>
         <div id="estadoInterpretar" style="font-size:11.5px;color:#9CA3AF;margin-top:8px;line-height:1.5;"></div>
     </div>
@@ -1664,6 +1671,7 @@ window.interpretarConIA = async function(){
                 imagen_base64: imgLimpia.toDataURL('image/png').split(',')[1],
                 empresa_id:    empresaIdEditor,
                 referencias,
+                indicaciones:  (document.getElementById('indicacionesIA')?.value || '').trim() || null,
             })
         });
         const j = await resp.json().catch(()=>({}));

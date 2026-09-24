@@ -60,18 +60,19 @@ Responde SIEMPRE en español colombiano.
 
 # ── PROTECCIÓN CONTRA PROMPT INJECTION ───────────────────────────────────
 PATRONES_INJECTION = [
-    r"ignora\s+(todas\s+)?(tus\s+)?(instrucciones|reglas|directrices)",
+    r"ignora\s+(todas?\s+)?(las\s+|la\s+|tus?\s+|sus\s+)?(instrucci[oó]n(es)?|reglas?|directrices)",
     r"olvida\s+(todo|tus\s+instrucciones|lo\s+anterior)",
     r"nuevo\s+sistema\s+(de\s+)?(prompt|instrucciones)",
     r"actúa\s+como\s+(si\s+fueras|un\s+)",
     r"ahora\s+eres\s+",
     r"desde\s+ahora\s+serás",
     r"tu\s+nueva\s+(personalidad|identidad|instrucción)",
-    r"muestra\s+(tus\s+)?(instrucciones|sistema|prompt|contexto)",
+    r"muestra\s+(tus?\s+)?(instrucciones|sistema|prompt|contexto)",
+    r"(tu|el)\s+prompt\s+del\s+sistema",
     r"repite\s+(tus\s+)?(instrucciones|sistema|prompt)",
     r"cuáles\s+son\s+tus\s+(instrucciones|reglas)",
     r"dime\s+tu\s+(system\s+prompt|prompt\s+del\s+sistema)",
-    r"ignore\s+(all\s+)?(previous\s+)?(instructions|rules)",
+    r"ignore\s+(all\s+)?(the\s+)?(previous\s+|above\s+)?(instructions|rules)",
     r"forget\s+(everything|your\s+instructions)",
     r"you\s+are\s+now\s+",
     r"act\s+as\s+(if\s+you\s+are|a\s+)",

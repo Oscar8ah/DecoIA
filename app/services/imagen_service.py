@@ -304,7 +304,7 @@ async def editar_objeto(escena_bytes: bytes, mascara_bytes: bytes, accion: str,
     return recortar_al_original(base64.b64decode(b64), escena_bytes)
 
 
-async def interpretar_escena(escena_bytes: bytes, referencias: list) -> bytes:
+async def interpretar_escena(escena_bytes: bytes, referencias: list, indicaciones: str = "") -> bytes:
     """
     Convierte el diseño que el asesor armó en el editor en una foto realista.
 
@@ -315,6 +315,9 @@ async def interpretar_escena(escena_bytes: bytes, referencias: list) -> bytes:
     material que se va a vender quede fiel.
 
     referencias: lista de (bytes, nombre, tipo) — tipo 'material' u 'objeto'.
+    indicaciones: lo que el asesor escribió (ya limpio), p. ej. "donde estaba
+    la pantalla pon un portátil Lenovo Legion". Permite cosas que la tienda
+    no vende, o cambios que no se pueden hacer tocando la foto.
     Devuelve PNG recortado a la proporción de la escena, para que calce.
     """
     settings = get_settings()
@@ -334,12 +337,23 @@ async def interpretar_escena(escena_bytes: bytes, referencias: list) -> bytes:
                 f"{' (' + nombre + ')' if nombre else ''}: keep its color, veining, pattern and tile size faithfully."
             )
 
+    # Sin indicaciones, la IA no puede agregar ni quitar nada. Con indicaciones,
+    # hace EXACTAMENTE lo pedido y fuera de eso sigue sin tocar nada: si no, "pon
+    # un portátil" chocaría con "no agregues objetos".
+    if indicaciones:
+        regla_objetos = (
+            "Apply ONLY these changes requested by the interior designer (written in Spanish): "
+            f"\"{indicaciones}\". Apart from those requested changes, do not add, remove or move "
+            "any other object. "
+        )
+    else:
+        regla_objetos = "Do not add or remove any object. "
     prompt = (
         "The first image is a mock-up of a remodeled room, made by digitally applying new "
         "materials and editing objects on a real photo, so it looks artificial. Render it as a "
         "professional, photorealistic interior photograph of the SAME room. Keep the exact camera "
         "angle, perspective and room geometry, and keep every piece of furniture and object in the "
-        "same place, size and shape. Do not add or remove any object. Make the edited parts look "
+        "same place, size and shape. " + regla_objetos + "Make the edited parts look "
         "real: correct tile perspective and grout lines, natural reflections, contact shadows under "
         "furniture, and lighting consistent with the room's existing light sources. Where an object "
         "was removed, the floor and wall must continue naturally. "

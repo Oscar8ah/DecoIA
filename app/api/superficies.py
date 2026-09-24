@@ -39,6 +39,7 @@ from app.utils.config import get_settings
 from app.utils.supabase_client import get_supabase
 from app.services.limites_service import tiene_fotos_disponibles, descontar_foto
 from app.services.imagen_service import editar_objeto, interpretar_escena
+from app.services.openai_service import detectar_prompt_injection, sanitizar_entrada
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/superficies", tags=["superficies"])
@@ -82,6 +83,7 @@ class InterpretarRequest(BaseModel):
     imagen_base64: str                  # el diseño tal como lo dejó el asesor
     empresa_id: str
     referencias: list[Referencia] = []  # fotos reales de lo que se aplicó
+    indicaciones: str | None = None     # lo que el asesor le escribe a la IA
 
 
 # Lo que usa IA en el editor es del plan Profesional para arriba. El cálculo
@@ -259,6 +261,14 @@ async def interpretar(data: InterpretarRequest):
     if not settings.openai_api_key:
         raise HTTPException(status_code=503, detail="Falta configurar la clave de OpenAI")
     await _verificar_empresa_para_ia(data.empresa_id)
+
+    # El texto va directo a la IA: se limpia y se revisa que no traiga
+    # órdenes para saltarse las reglas ("ignora las instrucciones", etc.).
+    indicaciones = sanitizar_entrada(data.indicaciones or "", max_longitud=400)
+    if indicaciones and detectar_prompt_injection(indicaciones):
+        raise HTTPException(status_code=400,
+            detail="Esas indicaciones no se pueden usar. Describe solo cómo quieres el espacio.")
+
     try:
         escena = base64.b64decode(data.imagen_base64)
     except Exception:
@@ -278,7 +288,7 @@ async def interpretar(data: InterpretarRequest):
                 logger.warning(f"Referencia no disponible ({ref.url}): {e}")
 
     try:
-        resultado = await interpretar_escena(escena, referencias)
+        resultado = await interpretar_escena(escena, referencias, indicaciones)
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=str(e))
     except httpx.TimeoutException:
