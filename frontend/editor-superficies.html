@@ -59,6 +59,12 @@
 </head>
 <body>
 
+<div id="progresoFlotante" style="display:none;position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:9000;background:#181828;border:1px solid rgba(124,58,237,0.55);border-radius:12px;padding:10px 14px;width:min(360px,92vw);box-shadow:0 10px 32px rgba(0,0,0,0.5);">
+    <div id="progresoTexto" style="font-size:12.5px;font-weight:700;margin-bottom:7px;color:#E8E8F0;"></div>
+    <div style="height:7px;background:rgba(255,255,255,0.08);border-radius:10px;overflow:hidden;"><div id="progresoBarra" style="height:100%;width:0%;background:linear-gradient(90deg,#7C3AED,#22D3EE);transition:width .25s linear;"></div></div>
+    <div id="progresoTiempo" style="font-size:11px;color:#9CA3AF;margin-top:6px;"></div>
+</div>
+
 <div class="header">
     <span class="logo">DecoIArte</span>
     <span style="font-size:12.5px;color:var(--gris);">Editor de superficies</span>
@@ -772,6 +778,57 @@ window.elegirProducto = async function(i){
     await aplicarMaterial();
 };
 
+// ── BARRA DE PROGRESO ────────────────────────────────────────────────────
+// No conocemos el computador del cliente. La primera vez se usa un tiempo
+// razonable, y después la barra APRENDE cuánto tarda cada paso en ESE
+// equipo (se guarda en el navegador): en un PC lento avisa que tarda más,
+// en uno rápido no se queda esperando de más.
+const TIEMPO_TIPICO = { analisis:9000, material:1500, quitar:35000, cambiar:40000, interpretar:45000, luz:35000 };
+let progresoDueno = 0, progresoReloj = null;
+function progresoIniciar(clave, texto, minimoMs = 0){
+    let estimado = TIEMPO_TIPICO[clave] || 10000, aprendido = false;
+    try { const g = Number(localStorage.getItem('deco_t_'+clave)); if (g > 0){ estimado = g; aprendido = true; } } catch(_){}
+    const t0 = performance.now();
+    const tarea = { ok:false, fin(){} };
+    // Los pasos que en este equipo son rápidos no muestran barra: sería parpadeo
+    const mostrar = estimado >= minimoMs;
+    let id = 0;
+    if (mostrar){
+        id = ++progresoDueno;
+        const panel = document.getElementById('progresoFlotante');
+        const barra = document.getElementById('progresoBarra');
+        document.getElementById('progresoTexto').textContent = texto;
+        document.getElementById('progresoTiempo').textContent = '';
+        barra.style.width = '0%';
+        panel.style.display = 'block';
+        clearInterval(progresoReloj);
+        progresoReloj = setInterval(() => {
+            if (id !== progresoDueno) return;
+            const t = performance.now() - t0;
+            // Avanza rápido al principio y se frena cerca del final: nunca
+            // llega sola al 100 %, eso solo pasa cuando de verdad termina
+            barra.style.width = Math.min(95, 100*(1 - Math.exp(-1.6*t/estimado))).toFixed(1) + '%';
+            const seg = Math.round(t/1000), est = Math.max(1, Math.round(estimado/1000));
+            document.getElementById('progresoTiempo').textContent = t < estimado
+                ? `${seg} s · ${aprendido ? 'en este equipo suele tardar' : 'suele tardar'} unos ${est} s`
+                : `${seg} s · está tardando más de lo normal, sigue trabajando…`;
+        }, 250);
+    }
+    tarea.fin = () => {
+        const dur = performance.now() - t0;
+        if (tarea.ok) try { localStorage.setItem('deco_t_'+clave, String(Math.round(aprendido ? estimado*0.6 + dur*0.4 : dur))); } catch(_){}
+        if (mostrar && id === progresoDueno){
+            clearInterval(progresoReloj);
+            document.getElementById('progresoBarra').style.width = tarea.ok ? '100%' : '0%';
+            setTimeout(() => { if (id === progresoDueno) document.getElementById('progresoFlotante').style.display = 'none'; }, tarea.ok ? 500 : 0);
+        }
+    };
+    return tarea;
+}
+// El cálculo del piso congela la pantalla mientras corre: se le da un
+// instante al navegador para pintar la barra ANTES de empezar.
+const cederPantalla = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+
 // ── Textura del producto, preparada una sola vez ─────────────────────────
 // Antes, CADA recálculo (cambiar el acabado, mover un punto del plano,
 // escribir el tamaño de la pieza) volvía a descargar la foto del producto de
@@ -816,9 +873,12 @@ async function aplicarMaterial(){
     const lienzo=document.getElementById('lienzo'), ctx=lienzo.getContext('2d');
     const w=lienzo.width, h=lienzo.height;
 
+    let prMat = null;
     try{
         const t0Material = performance.now();
+        prMat = progresoIniciar('material', '🧱 Calculando el piso con perspectiva y luz…', 1200);
         const { MIPS, TX, tex, NRM } = await texturaDe(productoSel.imagen_url);
+        await cederPantalla();
 
         // DIAGNÓSTICO — color promedio de lo que se va a estampar.
         // El resto del cálculo solo multiplica por escalares (sombra, relieve,
@@ -1031,7 +1091,9 @@ async function aplicarMaterial(){
         if(av && !Hinv) av.innerHTML='<span style="color:#FCD34D;">⚠️ Sin plano marcado: la textura sale sin perspectiva y el área es inventada. Marca los 4 puntos arriba.</span>';
         calcularCosto();
         console.info(`⏱ Aplicar material: ${Math.round(performance.now()-t0Material)} ms`);
+        prMat.ok = true; prMat.fin();
     }catch(e){
+        if (prMat) prMat.fin();
         console.error(e);
         alert('No se pudo aplicar este material. Puede ser un problema con la imagen del producto.');
     }
@@ -1213,6 +1275,7 @@ window.refinarConIA = async function(){
     const btn=document.getElementById('btnIA'), est=document.getElementById('estadoIA');
     btn.disabled=true; btn.textContent='✨ Analizando la iluminación…';
     est.textContent='Esto puede tardar hasta un minuto.';
+    const prLuz = progresoIniciar('luz', '💡 La IA está analizando la luz…');
     const lienzo=document.getElementById('lienzo'), w=lienzo.width, h=lienzo.height;
     try{
         // Antes era '/api/superficies/refinar' (relativa): esa dirección la
@@ -1259,11 +1322,13 @@ window.refinarConIA = async function(){
         for(let i=0;i<w*h;i++) razon[i]= mPlaca[i] ? lIA[i]/Math.max(0.02,lMio[i]) : 1;
         capaLuzIA = desenfoqueCaja(razon, w, h, Math.max(4, Math.round(Math.min(w,h)*0.018)));
         pintarConIA();
+        prLuz.ok = true;
         est.innerHTML='<span style="color:#6EE7B7;">✓ Iluminación mejorada. De la IA solo se tomó la luz, y los muebles se restauraron de tu foto original.</span>';
     }catch(e){
         console.error(e);
         est.innerHTML='<span style="color:#FCA5A5;">No se pudo: '+e.message+'. El resultado calculado sigue ahí.</span>';
     }finally{
+        prLuz.fin();
         btn.disabled=false; btn.textContent='💡 Solo ajustar la luz (conserva el material exacto)';
     }
 };
@@ -1459,15 +1524,18 @@ function analizarEnSegundoPlano(alTerminar){
     const v = ++versionFoto;
     embeddings = null;
     const t0 = performance.now();
+    const prA = progresoIniciar('analisis', '🔍 Preparando la foto para el próximo toque…');
     const p = (async () => {
         const img = await RawImage.fromURL(imgLimpia.toDataURL('image/jpeg',0.92));
         const ent = await procesador(img);
         const emb = await modelo.get_image_embeddings(ent);
-        if (v !== versionFoto) return;          // llegó tarde: la foto ya cambió
+        if (v !== versionFoto){ prA.fin(); return; }   // llegó tarde: la foto ya cambió
         entradas = ent; embeddings = emb;
+        prA.ok = true; prA.fin();
         console.info(`⏱ Análisis de la foto: ${Math.round(performance.now()-t0)} ms`);
         if (alTerminar) alTerminar();
     })().catch(e => {
+        prA.fin();
         console.error('No se pudo analizar la foto:', e);
         if (v === versionFoto) mostrarEstado('❌ No se pudo analizar la imagen. Intenta con otra foto.');
     });
@@ -1587,6 +1655,7 @@ async function pedirObjeto(accion, producto){
     const w=imgLimpia.width, h=imgLimpia.height;
     const bQ=document.getElementById('btnQuitarObj'), bC=document.getElementById('btnCambiarObj');
     bQ.disabled = bC.disabled = true;
+    const pr = progresoIniciar(accion, accion==='quitar' ? '✕ La IA está quitando el objeto…' : '⇄ La IA está poniendo el producto…');
     estO.innerHTML = accion==='quitar'
         ? '✕ Quitando el objeto… puede tardar hasta un minuto.'
         : `⇄ Poniendo <b>${esc(producto.nombre)}</b>… puede tardar hasta un minuto.`;
@@ -1605,6 +1674,7 @@ async function pedirObjeto(accion, producto){
         const j = await resp.json().catch(()=>({}));
         if (!resp.ok) throw new Error(j.detail || `El servidor respondió ${resp.status}`);
         if (!j.imagen_base64) throw new Error('La IA no devolvió imagen');
+        pr.ok = true; pr.fin();
         await reemplazarBase('data:image/png;base64,' + j.imagen_base64);
         document.getElementById('cardProductos').style.display='none';
         document.getElementById('infoObjeto').innerHTML = 'Toca otro objeto para seguir, o pasa a <b>🧱 Superficie</b> para cambiar el piso.';
@@ -1616,6 +1686,7 @@ async function pedirObjeto(accion, producto){
         console.error(e);
         estO.innerHTML = `<span style="color:#FCA5A5;">No se pudo: ${esc(e.message)}. La foto sigue como estaba.</span>`;
     }finally{
+        pr.fin();
         bQ.disabled = bC.disabled = false;
         esperandoCambio = false;
     }
@@ -1661,6 +1732,7 @@ window.interpretarConIA = async function(){
     const btn = document.getElementById('btnInterpretar'), estI = document.getElementById('estadoInterpretar');
     btn.disabled = true;
     estI.innerHTML = '✨ La IA está convirtiendo tu diseño en una foto realista… puede tardar hasta un minuto.';
+    const pr = progresoIniciar('interpretar', '✨ La IA está interpretando tu diseño…');
     try{
         // Lo que se está viendo (piso recién aplicado incluido) pasa a ser la foto
         await hornearSiHayMaterial();
@@ -1677,12 +1749,14 @@ window.interpretarConIA = async function(){
         const j = await resp.json().catch(()=>({}));
         if (!resp.ok) throw new Error(j.detail || `El servidor respondió ${resp.status}`);
         if (!j.imagen_base64) throw new Error('La IA no devolvió imagen');
+        pr.ok = true; pr.fin();
         await reemplazarBase('data:image/png;base64,' + j.imagen_base64);
         estI.innerHTML = '<span style="color:#6EE7B7;">✓ Listo. Si prefieres la versión anterior, usa ↩ Deshacer.</span>';
     }catch(e){
         console.error(e);
         estI.innerHTML = `<span style="color:#FCA5A5;">No se pudo: ${esc(e.message)}. Tu diseño sigue como estaba.</span>`;
     }finally{
+        pr.fin();
         btn.disabled = false;
     }
 };

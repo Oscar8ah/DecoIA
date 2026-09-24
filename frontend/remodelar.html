@@ -537,7 +537,12 @@ function pintarZonaCuenta() {
         return;
     }
     const correo = sesionActiva.user?.email || 'Mi cuenta';
-    z.innerHTML =
+    // Las empresas administran su tienda (logo, catálogo, WhatsApp, cobros)
+    // en el dashboard. Sin este botón, el Básico no tenía cómo llegar.
+    const botonTienda = rolUsuario === 'empresa'
+        ? `<button class="btn-sm btn-secondary" onclick="location.href='/dashboard#mitienda'" title="Administrar mi tienda">⚙️<span class="txt-largo"> Mi tienda</span></button>`
+        : '';
+    z.innerHTML = botonTienda +
         `<span style="font-size:12px;color:var(--gris);max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${textoSeguro(correo)}">${textoSeguro(correo)}</span>` +
         `<button class="btn-sm btn-secondary" onclick="cerrarSesion()">🚪 Cerrar sesión</button>`;
 }
@@ -677,6 +682,7 @@ async function verificarRol() {
     if (!session) { rolUsuario = null; empresaIdActual = null; return; }
     const { data:empresa } = await db.from('empresas').select('id, planes(nombre)').eq('email',session.user.email).maybeSingle();
     rolUsuario = empresa ? 'empresa' : 'consumidor';
+    pintarZonaCuenta();
     planEmpresa = (empresa?.planes?.nombre || '').toLowerCase().replace('á','a');
     // A quién se le carga la generación. Antes iba `empresa_id: null` escrito
     // a mano y el backend rechazaba la petición entera: nadie podía generar

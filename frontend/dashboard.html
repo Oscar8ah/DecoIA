@@ -488,10 +488,11 @@
     <nav class="sidebar-nav">
         <!-- Incluido en todos los planes (desde Gratis) -->
         <button class="nav-item active" onclick="mostrarPagina('inicio',this)"><span class="icon">🏠</span> Inicio</button>
+        <a href="/remodelar" class="nav-item" id="navRemodelar" style="text-decoration:none;"><span class="icon">🎨</span> Remodelar</a>
         <button class="nav-item" onclick="mostrarPagina('mitienda',this)"><span class="icon">🏪</span> Mi Tienda <span class="dot-amarillo" id="dotTienda"></span></button>
         <button class="nav-item" onclick="mostrarPagina('ventas',this); cargarVentas();"><span class="icon">💰</span> Mis ventas</button>
         <button class="nav-item" onclick="mostrarPagina('historial',this)"><span class="icon">🖼️</span> Historial</button>
-        <button class="nav-item" onclick="window.open('/editor-superficies','_blank')"><span class="icon">🎨</span> Editor de superficies</button>
+        <button class="nav-item" id="navEditorSup" onclick="window.open('/editor-superficies','_blank')"><span class="icon">🎨</span> Editor de superficies</button>
 
         <div class="nav-divider"></div>
 
@@ -554,6 +555,7 @@
         <div class="tabs">
             <button class="tab-btn active" onclick="mostrarTab('tab-info',this)">📋 Info de la tienda</button>
             <button class="tab-btn" onclick="mostrarTab('tab-legal',this)">📄 Documentos legales</button>
+            <button class="tab-btn" onclick="mostrarTab('tab-cobros',this); cargarCuentaCobro();">💳 Cobros</button>
             <button class="tab-btn" onclick="mostrarTab('tab-productos',this)">📦 Mis productos</button>
             <button class="tab-btn" onclick="mostrarTab('tab-importar',this)">🤖 Importar con IA</button>
             <button class="tab-btn" onclick="mostrarTab('tab-planos',this)">🏗️ Planos con IA</button>
@@ -655,6 +657,38 @@
         </div>
 
         <!-- TAB PRODUCTOS -->
+        <div class="tab-content" id="tab-cobros">
+            <div class="form-card">
+                <h3>💳 Dónde recibes el pago de tus ventas</h3>
+                <p>Cuando un cliente te compra por DecoIArte, el pago llega primero a DecoIArte y se te transfiere a esta cuenta, descontando la comisión del marketplace. <b>Estos datos solo los ves tú y el administrador</b>; no aparecen en tu tienda pública.</p>
+                <div class="alerta" id="cobrosAlerta"></div>
+                <div class="form-campo">
+                    <label>Cómo quieres recibir</label>
+                    <select id="cobroMedio" onchange="pintarCamposCobro()">
+                        <option value="banco">🏦 Cuenta bancaria</option>
+                        <option value="nequi">📱 Nequi</option>
+                        <option value="daviplata">📱 Daviplata</option>
+                        <option value="breb">🔑 Llave Bre-B</option>
+                    </select>
+                </div>
+                <div id="camposBanco">
+                    <div class="form-campo"><label>Banco</label><input id="cobroBanco" placeholder="Ej: Bancolombia"></div>
+                    <div class="form-campo"><label>Tipo de cuenta</label>
+                        <select id="cobroTipoCuenta"><option value="ahorros">Ahorros</option><option value="corriente">Corriente</option></select>
+                    </div>
+                </div>
+                <div class="form-campo"><label id="cobroNumeroEt">Número de cuenta</label><input id="cobroNumero" inputmode="numeric" placeholder=""></div>
+                <div class="form-campo"><label>Titular de la cuenta</label><input id="cobroTitular" placeholder="Nombre como aparece en el banco"></div>
+                <div class="form-campo"><label>Documento del titular</label>
+                    <div style="display:flex;gap:8px;">
+                        <select id="cobroTipoDoc" style="max-width:110px;"><option>CC</option><option>NIT</option><option>CE</option></select>
+                        <input id="cobroDocumento" inputmode="numeric" placeholder="Número" style="flex:1;">
+                    </div>
+                </div>
+                <button class="btn-primario" id="btnGuardarCobro" onclick="guardarCuentaCobro()">💾 Guardar dónde recibo</button>
+            </div>
+        </div>
+
         <div class="tab-content" id="tab-productos">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
                 <div><div style="font-size:18px;font-weight:700;">Mis productos</div><div style="font-size:14px;color:var(--gris)" id="contadorProductosDash"></div></div>
@@ -911,7 +945,8 @@ const FEATURES_PLAN = {
     corporativo: ['Bot WhatsApp IA','Medición AR','Planos IA','Gerente dedicado']
 };
 const PLANES_CON_IA      = ['profesional','premium','corporativo'];
-const PLANES_CON_CRM_VISOR = ['profesional','premium','corporativo'];   // Visor 3D y CRM
+const PLANES_CON_CRM_VISOR = ['profesional','premium','corporativo'];   // CRM
+const PLANES_CON_VISOR     = ['premium','corporativo'];                 // Visor 3D, según /estructura
 const PLANES_CON_WHATSAPP  = ['basico','profesional','premium','corporativo']; // todo menos gratis
 const PLANES_CON_AR        = ['corporativo'];
 const PLANES_CON_PLANOS    = ['corporativo'];
@@ -998,15 +1033,11 @@ async function cargarDatos(user) {
     // 'basico' por defecto. Si la consulta del plan fallara, usar el valor por
     // defecto expulsaría del dashboard a un cliente Corporativo que sí pagó.
     // Solo se redirige cuando la base dice explícitamente que es Básico.
-    const planLeido = (empresa.planes?.nombre || '').toLowerCase().replace('á','a');
-    // Solo se manda a /remodelar si además YA PAGÓ. Quien está en
-    // pendiente_pago se queda en el dashboard, que es donde está el botón para
-    // completar el pago — mandarlo a la herramienta sería darle el producto
-    // gratis, porque /remodelar no verifica estado.
-    if (planLeido === 'basico' && (empresa.estado || '') === 'activo') {
-        window.location.replace('/remodelar');
-        return;
-    }
+    // El dashboard es donde CUALQUIER plan administra su tienda: crearla,
+    // subir el logo y el catálogo, conectar WhatsApp, decir dónde recibe sus
+    // pagos. Antes aquí se sacaba al Básico hacia /remodelar, y un cliente que
+    // pagaba no tenía cómo montar su tienda. /remodelar sigue siendo su casa
+    // (el login lo lleva allá); este es su "cuarto de administración".
     planIdActual  = empresa.plan_id;
     empresaEstado = empresa.estado || 'pendiente_pago';
     const [imagenesRes, tiendaRes, planesRes, solicitudRes] = await Promise.all([
@@ -1083,19 +1114,39 @@ function renderDashboard(empresa, plan, imagenes) {
     // queda bloqueado por defecto; y si el pago está pendiente, tampoco pasa)
     if (!funcionDesbloqueada(PLANES_CON_CRM_VISOR)) {
         const msgCrmVisor = mensajeBloqueo(PLANES_CON_CRM_VISOR, 'Profesional').replace(/<\/?strong>/g, '');
-        document.querySelectorAll('.btn-visor3d, #navVisor3D, #navCrm').forEach(el => {
+        document.querySelectorAll('#navCrm').forEach(el => {
             el.onclick = (e) => { if (e) e.preventDefault(); alert(msgCrmVisor); };
             el.style.opacity = '0.5';
             el.title = msgCrmVisor;
         });
         document.getElementById('dotCrm').style.display = 'none';
-        document.getElementById('dotVisor3D').style.display = 'none';
     } else {
         // Sí está incluido en el plan y activo — se "enciende" con punto verde
         const dotCrm = document.getElementById('dotCrm');
-        const dotV3D = document.getElementById('dotVisor3D');
         dotCrm.className = 'dot-verde'; dotCrm.style.display = 'inline-block'; dotCrm.title = 'Incluido en tu plan';
+    }
+
+    // Visor 3D — Premium para arriba (antes se le abría al Profesional)
+    if (!funcionDesbloqueada(PLANES_CON_VISOR)) {
+        const msgVisor = mensajeBloqueo(PLANES_CON_VISOR, 'Premium').replace(/<\/?strong>/g, '');
+        document.querySelectorAll('.btn-visor3d, #navVisor3D').forEach(el => {
+            el.onclick = (e) => { if (e) e.preventDefault(); alert(msgVisor); };
+            el.style.opacity = '0.5';
+            el.title = msgVisor;
+        });
+        document.getElementById('dotVisor3D').style.display = 'none';
+    } else {
+        const dotV3D = document.getElementById('dotVisor3D');
         dotV3D.className = 'dot-verde'; dotV3D.style.display = 'inline-block'; dotV3D.title = 'Incluido en tu plan';
+    }
+
+    // Editor de superficies — Profesional para arriba
+    const navEd = document.getElementById('navEditorSup');
+    if (navEd && !funcionDesbloqueada(PLANES_CON_IA)) {
+        const msgEd = mensajeBloqueo(PLANES_CON_IA, 'Profesional').replace(/<\/?strong>/g, '');
+        navEd.onclick = () => alert(msgEd);
+        navEd.style.opacity = '0.5';
+        navEd.title = msgEd;
     }
 
     // WhatsApp con IA — no incluido en el plan Gratis, y requiere pago activo
@@ -2473,6 +2524,54 @@ async function solicitarActivacionWa() {
 // Se manda la foto ORIGINAL cuando existe — es la que hay que reeditar, no el
 // resultado ya procesado, porque aplicar un piso sobre otro piso ya aplicado
 // degrada la imagen.
+// ── COBROS: dónde recibe la tienda ──────────────────────────────────────
+// Tabla aparte (cuentas_pago), NO en "tiendas": tiendas es pública para el
+// marketplace, y una cuenta bancaria nunca puede quedar a la vista.
+function pintarCamposCobro(){
+    const m = document.getElementById('cobroMedio').value;
+    document.getElementById('camposBanco').style.display = m === 'banco' ? 'block' : 'none';
+    document.getElementById('cobroNumeroEt').textContent =
+        m === 'banco' ? 'Número de cuenta' : m === 'breb' ? 'Llave Bre-B (celular, cédula o llave)' : 'Número de celular';
+}
+async function cargarCuentaCobro(){
+    pintarCamposCobro();
+    if (!empresaId) return;
+    const { data } = await db.from('cuentas_pago').select('*').eq('empresa_id', empresaId).maybeSingle();
+    if (!data) return;
+    document.getElementById('cobroMedio').value      = data.medio || 'banco';
+    document.getElementById('cobroBanco').value      = data.banco || '';
+    document.getElementById('cobroTipoCuenta').value = data.tipo_cuenta || 'ahorros';
+    document.getElementById('cobroNumero').value     = data.numero || '';
+    document.getElementById('cobroTitular').value    = data.titular || '';
+    document.getElementById('cobroTipoDoc').value    = data.tipo_documento || 'CC';
+    document.getElementById('cobroDocumento').value  = data.documento || '';
+    pintarCamposCobro();
+}
+async function guardarCuentaCobro(){
+    const v = id => (document.getElementById(id).value || '').trim();
+    const medio = v('cobroMedio');
+    const numero = v('cobroNumero').replace(/\s/g,'');
+    const fila = {
+        empresa_id: empresaId, medio,
+        banco: medio === 'banco' ? v('cobroBanco') : null,
+        tipo_cuenta: medio === 'banco' ? v('cobroTipoCuenta') : null,
+        numero, titular: v('cobroTitular'),
+        tipo_documento: v('cobroTipoDoc'), documento: v('cobroDocumento').replace(/\D/g,''),
+        actualizado: new Date().toISOString(),
+    };
+    if (!empresaId) { mostrarAlerta('cobrosAlerta','⚠️ No se encontró tu empresa. Recarga la página.','error'); return; }
+    if (medio === 'banco' && !fila.banco) { mostrarAlerta('cobrosAlerta','⚠️ Escribe el banco.','error'); return; }
+    if (!numero || !fila.titular || !fila.documento) { mostrarAlerta('cobrosAlerta','⚠️ Completa el número, el titular y el documento.','error'); return; }
+    if ((medio === 'nequi' || medio === 'daviplata') && !/^3\d{9}$/.test(numero)) {
+        mostrarAlerta('cobrosAlerta','⚠️ El celular debe tener 10 dígitos y empezar por 3.','error'); return;
+    }
+    const btn = document.getElementById('btnGuardarCobro'); btn.disabled = true;
+    const { error } = await db.from('cuentas_pago').upsert(fila, { onConflict: 'empresa_id' });
+    btn.disabled = false;
+    if (error) mostrarAlerta('cobrosAlerta', '❌ No se pudo guardar: ' + esc(error.message), 'error');
+    else mostrarAlerta('cobrosAlerta', '✅ Guardado. Aquí te llegará el pago de tus ventas.', 'exito');
+}
+
 function abrirEnRemodelar(urlOriginal, urlGenerada, telefono) {
     const base = urlOriginal || urlGenerada;
     if (!base) { alert('Esa imagen no tiene archivo asociado.'); return; }

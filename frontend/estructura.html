@@ -191,7 +191,7 @@
     <div class="plan" style="border-left-color:var(--verde);">
         <div class="plan-nom" style="margin-bottom:6px;">💳 Cómo entra la plata</div>
         <div class="fila"><span class="et">Planes</span><span>Wompi, a la cuenta de DecoIArte. <b>Ya funciona</b></span></div>
-        <div class="fila"><span class="et">Marketplace</span><span>Comisión de <b>5 %</b>. No encontré split nativo en Wompi; lo que sí tiene es <b>Pagos a Terceros</b>: el cliente paga a DecoIArte y DecoIArte le dispersa a cada tienda lo suyo, por API, a banco, Nequi, Daviplata o llave Bre-B. La tienda <b>no necesita cuenta de Wompi</b>, solo registrar dónde recibe. <b>Por construir</b></span></div>
+        <div class="fila"><span class="et">Marketplace</span><span>Comisión de <b>5 %</b>. Cada tienda registra dónde recibe en <b>Mi Tienda → 💳 Cobros</b> (tabla <span class="ruta">cuentas_pago</span>, privada). No encontré split nativo en Wompi; lo que sí tiene es <b>Pagos a Terceros</b>: el cliente paga a DecoIArte y DecoIArte le dispersa a cada tienda lo suyo, por API, a banco, Nequi, Daviplata o llave Bre-B. La tienda <b>no necesita cuenta de Wompi</b>, solo registrar dónde recibe. <b>Por construir</b></span></div>
         <div class="fila"><span class="et">⚠️ Antes</span><span>Hablar con un contador: si la plata de las tiendas pasa por la cuenta de DecoIArte, cambia cómo se factura y qué retenciones aplican</span></div>
     </div>
     <div class="plan" style="border-left-color:var(--ambar);">
@@ -202,8 +202,12 @@
 
     <h2>Reglas que no cambian</h2>
     <ul>
-        <li><b>El enrutamiento manda.</b> Al iniciar sesión, un Básico va a <span class="ruta">/remodelar</span>;
-            del Profesional para arriba, al dashboard. Nadie ve pestañas con candado.</li>
+        <li><b>El enrutamiento manda.</b> Al iniciar sesión, Básico y Profesional van a <span class="ruta">/remodelar</span>;
+            Premium y Corporativo, al dashboard. Nadie ve pestañas con candado como si fueran suyas.</li>
+        <li><b>El dashboard es la administración de la tienda, para TODOS los planes.</b> Ahí se crea la tienda,
+            se sube el logo y el catálogo, se conecta WhatsApp y se registra dónde se recibe el pago
+            (pestaña <b>💳 Cobros</b>). Desde <span class="ruta">/remodelar</span> se llega con el botón <b>⚙️ Mi tienda</b>,
+            y desde el dashboard se vuelve con <b>🎨 Remodelar</b>.</li>
         <li><b>Hay que estar pagado.</b> Plan asignado no basta: el estado debe ser
             <span class="ruta">activo</span>. Quien no ha pagado se queda en el dashboard, donde está el botón de pago.</li>
         <li><b>El producto no es la imagen, es el contacto y la venta.</b> La remodelación

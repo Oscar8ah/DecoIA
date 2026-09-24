@@ -53,7 +53,9 @@ async function detectarRol() {
         // Un Básico que todavía no ha pagado va al dashboard, donde está el
         // botón para completar el pago. /remodelar no verifica estado, así que
         // mandarlo allá sería entregarle el producto sin cobrar.
-        const destino = (plan === 'basico' && pagado) ? '/remodelar' : '/dashboard';
+        // Según /estructura, Básico y Profesional viven en /remodelar (el
+        // Profesional con el botón al editor). Premium y Corporativo, al dashboard.
+        const destino = (['basico','profesional'].includes(plan) && pagado) ? '/remodelar' : '/dashboard';
         // Si venía de una página concreta, se respeta esa intención
         const guardado = sessionStorage.getItem('redirect_after_login');
         if (guardado) sessionStorage.removeItem('redirect_after_login');
