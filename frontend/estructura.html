@@ -133,10 +133,12 @@
             <span class="plan-precio">$700.000 pago único</span>
         </div>
         <div class="plan-promesa">"Usted cierra la venta ahí mismo en el mostrador, con el cliente al lado."</div>
-        <div class="fila"><span class="et">Vive en</span><span>Editor de superficies y objetos <span class="ruta">/editor-superficies</span></span></div>
-        <div class="fila"><span class="et">Qué suma</span><span>Ya no solo transforma: <b>edita</b>. Cambia pisos y paredes, quita objetos, pone lo que quiera</span></div>
-        <div class="fila"><span class="et">Cómo funciona</span><span>Detecta por capas y objetos. El cálculo hace el grueso — perspectiva, escala real de pieza, transferencia de luz, sombras de contacto — y la IA da el remate</span></div>
-        <div class="fila"><span class="et">Quién opera</span><span>El asesor de la tienda, no el cliente final</span></div>
+        <div class="fila"><span class="et">Vive en</span><span><span class="ruta">/remodelar</span> + botón <b>🎨 Editar superficies y objetos</b> que abre <span class="ruta">/editor-superficies</span></span></div>
+        <div class="fila"><span class="et">Al abrir</span><span>Dos cuadritos: trabajar sobre la <b>foto original</b> o sobre la <b>remodelada</b></span></div>
+        <div class="fila"><span class="et">Superficie</span><span>Pisos y paredes por cálculo: perspectiva, escala real de pieza, luz, capas</span></div>
+        <div class="fila"><span class="et">Objeto</span><span>Tocar un objeto → contorno → <b>✕ Quitar</b> o <b>⇄ Cambiar por producto</b> del catálogo. Con deshacer</span></div>
+        <div class="fila"><span class="et">Al final</span><span><b>✨ Interpretar con IA</b> con cuadro de indicaciones (ej: "pon un portátil Lenovo"). Aparte, <b>💡 Solo ajustar la luz</b>, que nunca cambia el material</span></div>
+        <div class="fila"><span class="et">Control</span><span>Todo lo que usa IA lo verifica el servidor: plan, pago y cupo. Cada uso gasta una generación</span></div>
     </div>
 
     <div class="plan premium">
@@ -144,10 +146,18 @@
             <span class="plan-nom">🟣 Premium — Crear</span>
             <span class="plan-precio">por definir</span>
         </div>
-        <div class="plan-promesa">"Diseña un espacio que todavía no existe."</div>
-        <div class="fila"><span class="et">Vive en</span><span>Editor Planta y Entorno 3D <span class="ruta">/visor3d</span></span></div>
-        <div class="fila"><span class="et">Qué suma</span><span>Parte de cero: dibuja la planta, la convierte en 3D, mete estructura, techos y cubiertas</span></div>
-        <div class="fila"><span class="et">Incluye</span><span>Columnas y vigas, cielos rasos, cubiertas paramétricas, multinivel, cálculo de materiales</span></div>
+        <div class="plan-promesa">"Diseña un espacio que todavía no existe, entra en él y tómale la foto."</div>
+        <div class="fila"><span class="et">Vive en</span><span>Dashboard + <span class="ruta">/visor3d</span> (Editor Planta, Entorno 3D, Foto IA)</span></div>
+        <div class="fila"><span class="et">Cámara</span><span>Solo de <b>fotografía</b>, interior y exterior. La foto se interpreta con IA; el piso o el cielo se ajustan con indicaciones o una foto de referencia. <b>Sin video</b></span></div>
+        <div class="fila"><span class="et">Ya existe ✅</span><span>Planta con zonas y cuartos, multinivel, columnas cuadradas y redondas, vigas, cielos rasos, 10 tipos de cubierta, puertas que abren, detección de muros de fachada, gizmo para mover, rotar y escalar con pivote, recorrido, Foto IA</span></div>
+        <div class="fila"><span class="et">Falta 🔲</span><span>
+            <b>Escaleras</b> (recta, en L, en U, caracol) ·
+            <b>Asistente de cocina</b> en ventana aparte (lineal, L, U, isla; estufa a la izquierda o derecha) ·
+            <b>Asistente de baño</b> ·
+            <b>Editor de fachada</b>: elegir un muro y trabajarlo en alzado (media pared + ventanal, etc.) ·
+            <b>Losas de piso</b> y <b>andenes</b> ·
+            <b>Cámara exterior</b> para fotos de fachada
+        </span></div>
     </div>
 
     <div class="plan corporativo">
@@ -157,16 +167,12 @@
         </div>
         <div class="plan-promesa">"Con los diseños que has hecho, crea videos. Ve tus alcances hechos realidad."</div>
         <div class="fila"><span class="et">Vive en</span><span>Editor de video y Nodos, dentro de <span class="ruta">/visor3d</span></span></div>
-        <div class="fila"><span class="et">Qué suma</span><span>Recorridos de cámara y video de alta calidad</span></div>
+        <div class="fila"><span class="et">Qué suma</span><span><b>Video</b>: una o varias cámaras, interior y exterior, con recorridos. Es lo único que el Premium no tiene</span></div>
+        <div class="fila"><span class="et">Control</span><span>Ya está así en el código: <span class="ruta">PLANES_CON_VIDEO = ['corporativo']</span></span></div>
         <div class="fila"><span class="et">Para quién</span><span>Constructoras que necesitan mostrar el proyecto completo</span></div>
     </div>
 
-    <div class="aviso">
-        <b>⚠️ Sin ubicar todavía:</b> la pestaña <b>Foto IA</b> —diseñar un espacio desde
-        cero escribiendo un prompt— estaba asignada a Premium cuando Premium era "crear
-        con IA". Al pasar Premium al Visor 3D, Foto IA quedó sin plan. Hay que decidir si
-        se suma a Premium, se sube a Corporativo, o se vende aparte.
-    </div>
+    
 
     <h2>Quién entra a dónde</h2>
     <table>
@@ -180,6 +186,19 @@
         <tr><td>Premium</td><td class="si">Sí</td><td class="si">Sí</td><td class="si">Sí</td><td class="no">No</td></tr>
         <tr><td>Corporativo</td><td class="si">Sí</td><td class="si">Sí</td><td class="si">Sí</td><td class="si">Sí</td></tr>
     </table>
+
+    <h2>Pagos y catálogo</h2>
+    <div class="plan" style="border-left-color:var(--verde);">
+        <div class="plan-nom" style="margin-bottom:6px;">💳 Cómo entra la plata</div>
+        <div class="fila"><span class="et">Planes</span><span>Wompi, a la cuenta de DecoIArte. <b>Ya funciona</b></span></div>
+        <div class="fila"><span class="et">Marketplace</span><span>Comisión de <b>5 %</b>. No encontré split nativo en Wompi; lo que sí tiene es <b>Pagos a Terceros</b>: el cliente paga a DecoIArte y DecoIArte le dispersa a cada tienda lo suyo, por API, a banco, Nequi, Daviplata o llave Bre-B. La tienda <b>no necesita cuenta de Wompi</b>, solo registrar dónde recibe. <b>Por construir</b></span></div>
+        <div class="fila"><span class="et">⚠️ Antes</span><span>Hablar con un contador: si la plata de las tiendas pasa por la cuenta de DecoIArte, cambia cómo se factura y qué retenciones aplican</span></div>
+    </div>
+    <div class="plan" style="border-left-color:var(--ambar);">
+        <div class="plan-nom" style="margin-bottom:6px;">🧱 Qué puede vender una tienda</div>
+        <div class="fila"><span class="et">Categorías</span><span>18: pisos, enchapes, cocinas, baños, materiales, estructuras, ferretería, eléctricos, cables, plomería, pintura, puertas, muebles, electrodomésticos, electrónica, jardinería, seguridad, otros. Cubren tuercas, tornillos, cemento, arena, pintura, pisos, muebles y comedores</span></div>
+        <div class="fila"><span class="et">Falta 🔲</span><span><b>Unidades de venta</b>: hoy solo m², unidad, kg, litro y caja. Una ferretería necesita <b>bulto</b> (cemento), <b>m³</b> (arena), <b>metro lineal</b> (tubo, cable), <b>galón</b> (pintura), <b>rollo</b> y <b>libra</b> (puntilla)</span></div>
+    </div>
 
     <h2>Reglas que no cambian</h2>
     <ul>
@@ -199,7 +218,7 @@
     </ul>
 
     <div class="pie">
-        Actualizado el 16 de septiembre de 2026 · Página interna, no indexada.<br>
+        Actualizado el 24 de septiembre de 2026 · Página interna, no indexada.<br>
         Si algo de aquí ya no es cierto, actualízalo antes de construir encima.
     </div>
 
