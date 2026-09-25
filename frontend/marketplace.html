@@ -257,7 +257,7 @@
     <div class="nav-links-pc">
         <a href="/">Inicio</a>
         <a href="/marketplace">Marketplace</a>
-        <a href="/dashboard">Mi cuenta</a>
+        <a href="/mi-cuenta">Mi cuenta</a>
         <a href="/registro" class="btn-nav">Registrar tienda</a>
     </div>
     <button class="hamburger-btn" onclick="abrirPanel()" aria-label="Menú">
@@ -335,6 +335,7 @@
             </div>
             <div class="modal-prod-unidad" id="modalProdUnidad"></div>
             <div class="modal-prod-stock" id="modalProdStock"></div>
+            <div id="modalResenas" style="margin-top:14px;"></div>
             <div class="modal-prod-acciones">
                 <button class="modal-btn-carrito" id="modalBtnCarrito" onclick="modalAgregarCarrito()">🛒 Añadir al carrito</button>
                 <a class="modal-btn-pedir" id="modalBtnPedir" href="#" target="_blank" style="flex:none;padding:14px 18px;">💬 Pedir</a>
@@ -415,6 +416,7 @@ function cerrarPanel() { document.getElementById('panelLateral').classList.remov
 
 // ── CARGAR TIENDAS ────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
+    cargarFavoritos();
     const { data: tiendas } = await db.from('tiendas').select('*').eq('activa', true).order('created_at', { ascending: false });
     todasTiendas = tiendas || [];
     document.getElementById('skeletons').style.display   = 'none';
@@ -495,7 +497,10 @@ function renderProductos(productos, tienda) {
         const desc = esc(p.descripcion) || '';
         const tieneDesc = desc.length > 0;
         return `
-        <div class="producto-card" onclick="abrirModalPorId('${p.id}')" style="cursor:pointer;">
+        <div class="producto-card" onclick="abrirModalPorId('${p.id}')" style="cursor:pointer;position:relative;">
+            <button class="btn-fav" data-fav="${p.id}" onclick="event.stopPropagation(); alternarFavorito('${p.id}', this)"
+                title="Guardar en favoritos"
+                style="position:absolute;top:8px;right:8px;z-index:2;width:34px;height:34px;border-radius:50%;border:none;background:rgba(0,0,0,.45);font-size:17px;cursor:pointer;">${(window._favs && window._favs.has(p.id)) ? '❤️' : '🤍'}</button>
             <div class="producto-img">${p.imagen_url ? `<img src="${esc(p.imagen_url)}" alt="${esc(p.nombre)}" loading="lazy" onerror="this.parentElement.innerHTML='📦'">` : '📦'}</div>
             <div class="producto-body">
                 <div class="producto-cat">${esc(p.categoria) || 'General'}</div>
@@ -582,6 +587,7 @@ function abrirModalPorId(prodId) {
 }
 
 function abrirModalProducto(p, tienda) {
+    cargarResenasModal(p.id);
     document.getElementById('modalProdImg').innerHTML = p.imagen_url
         ? `<img src="${esc(p.imagen_url)}" alt="${esc(p.nombre)}" onerror="this.parentElement.innerHTML='📦'">` : '📦';
 
@@ -809,6 +815,118 @@ function mostrarToastCarrito(msg) {
 // ── WOMPI ─────────────────────────────────────────────────────────
 const WOMPI_LLAVE_PUBLICA = 'pub_test_VWTmTBcjGHtKGRGcBtuWZwDlWJn0xAzF';
 
+// ═══ CUENTA DEL COMPRADOR ═══════════════════════════════════════════════
+const API_DECO = 'https://decoia.onrender.com';
+async function cabecerasSesion() {
+    const { data:{ session } } = await db.auth.getSession();
+    return { 'Content-Type':'application/json', 'Authorization':'Bearer ' + (session?.access_token || '') };
+}
+// Comprar o guardar favoritos exige cuenta de comprador
+async function exigirComprador(motivo) {
+    const { data:{ session } } = await db.auth.getSession();
+    if (session) return session;
+    mostrarToastCarrito(motivo || 'Crea tu cuenta gratis para continuar');
+    sessionStorage.setItem('redirect_after_login', location.pathname + location.search);
+    setTimeout(() => location.href = '/registro?tipo=consumidor', 1200);
+    return null;
+}
+
+// ── Favoritos ──
+window._favs = new Set();
+async function cargarFavoritos() {
+    const { data:{ session } } = await db.auth.getSession();
+    if (!session) return;
+    const { data } = await db.from('favoritos').select('producto_id');
+    window._favs = new Set((data || []).map(f => f.producto_id));
+    document.querySelectorAll('[data-fav]').forEach(b => b.textContent = window._favs.has(b.dataset.fav) ? '❤️' : '🤍');
+}
+async function alternarFavorito(productoId, boton) {
+    const session = await exigirComprador('Crea tu cuenta gratis para guardar favoritos');
+    if (!session) return;
+    const yaEsta = window._favs.has(productoId);
+    const { error } = yaEsta
+        ? await db.from('favoritos').delete().eq('producto_id', productoId).eq('user_id', session.user.id)
+        : await db.from('favoritos').insert({ user_id: session.user.id, producto_id: productoId });
+    if (error) { mostrarToastCarrito('No se pudo guardar el favorito'); return; }
+    yaEsta ? window._favs.delete(productoId) : window._favs.add(productoId);
+    document.querySelectorAll(`[data-fav="${productoId}"]`).forEach(b => b.textContent = yaEsta ? '🤍' : '❤️');
+    mostrarToastCarrito(yaEsta ? 'Quitado de favoritos' : '❤️ Guardado en tus favoritos');
+}
+
+// ── Reseñas en el detalle del producto ──
+async function cargarResenasModal(productoId) {
+    const cont = document.getElementById('modalResenas');
+    if (!cont) return;
+    cont.innerHTML = '';
+    try {
+        const r = await fetch(`${API_DECO}/api/cuenta/resenas?producto_id=${encodeURIComponent(productoId)}`);
+        const d = await r.json();
+        if (!r.ok || !d.total) {
+            cont.innerHTML = '<div style="font-size:12.5px;color:#8B8BA7;">Aún sin reseñas. Solo pueden reseñar quienes lo compraron.</div>';
+            return;
+        }
+        const estrellas = n => '⭐'.repeat(n) + '<span style="opacity:.25">' + '⭐'.repeat(5 - n) + '</span>';
+        cont.innerHTML = `<div style="font-weight:800;font-size:14px;margin-bottom:8px;">⭐ ${d.promedio} · ${d.total} reseña${d.total === 1 ? '' : 's'} de compradores verificados</div>` +
+            d.resenas.slice(0, 5).map(x => `
+            <div style="border-top:1px solid rgba(148,163,184,.15);padding:8px 0;font-size:13px;">
+                <div>${estrellas(x.calificacion)} <b>${esc(x.autor_nombre)}</b></div>
+                ${x.comentario ? `<div style="margin-top:3px;">${esc(x.comentario)}</div>` : ''}
+                ${x.respuesta_tienda ? `<div style="margin-top:6px;padding:7px 10px;border-radius:8px;background:rgba(124,58,237,.12);font-size:12.5px;"><b>Respuesta de la tienda:</b> ${esc(x.respuesta_tienda)}</div>` : ''}
+            </div>`).join('');
+    } catch (_) { cont.innerHTML = ''; }
+}
+
+// ── Datos de entrega ──
+// La primera vez se piden y quedan guardados en "Mi cuenta"; las siguientes
+// compras salen solas. La tienda los ve solo cuando el pedido queda pagado.
+async function datosDeEntrega(session) {
+    const { data: c } = await db.from('consumidores')
+        .select('nombre, celular, direccion, ciudad, indicaciones, acepta_datos_en')
+        .eq('email', session.user.email).maybeSingle();
+    if (c && c.nombre && c.celular && c.direccion && c.ciudad && c.acepta_datos_en) return c;
+    return await pedirDatosDeEntrega(session, c || {});
+}
+function pedirDatosDeEntrega(session, c) {
+    return new Promise(resolver => {
+        const capa = document.createElement('div');
+        capa.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:18px;z-index:99999;';
+        const campo = (id, et, val, extra='') => `<label style="display:block;font-size:11px;color:#8B8BA7;text-transform:uppercase;font-weight:700;margin:10px 0 4px;">${et}</label>
+            <input id="${id}" value="${esc(val || '')}" ${extra} style="width:100%;box-sizing:border-box;background:#0B0B14;border:1px solid rgba(124,58,237,.3);border-radius:9px;padding:10px;color:#E8E8F0;font-size:14px;">`;
+        capa.innerHTML = `<div style="background:#161625;border:1px solid rgba(124,58,237,.35);border-radius:14px;padding:18px;max-width:420px;width:100%;color:#E8E8F0;font-family:inherit;">
+            <div style="font-weight:800;font-size:16px;">📦 ¿A dónde te lo llevamos?</div>
+            <div style="font-size:12.5px;color:#8B8BA7;margin-top:3px;">La tienda ve tu celular y tu dirección solo cuando el pedido queda pagado.</div>
+            ${campo('eNombre','Nombre completo', c.nombre)}
+            ${campo('eCelular','Celular', c.celular, 'inputmode="numeric" placeholder="3001234567"')}
+            ${campo('eDireccion','Dirección', c.direccion, 'placeholder="Calle 45 # 12-30, apto 402"')}
+            ${campo('eCiudad','Ciudad', c.ciudad)}
+            ${c.acepta_datos_en ? '' : `<label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;color:#8B8BA7;margin-top:12px;line-height:1.5;">
+                <input type="checkbox" id="eAcepto" style="margin-top:2px;"> <span>Acepto la <a href="/terminos" target="_blank" style="color:#A78BFA;">política de privacidad</a> y el tratamiento de mis datos (Ley 1581 de 2012).</span></label>`}
+            <div id="eAviso" style="font-size:12.5px;color:#FCA5A5;margin-top:8px;"></div>
+            <div style="display:flex;gap:8px;margin-top:12px;">
+                <button id="eCancelar" style="flex:1;padding:10px;border-radius:9px;border:1px solid rgba(124,58,237,.3);background:transparent;color:#E8E8F0;cursor:pointer;">Cancelar</button>
+                <button id="eGuardar" style="flex:1;padding:10px;border-radius:9px;border:none;background:linear-gradient(135deg,#7C3AED,#6366F1);color:#fff;font-weight:700;cursor:pointer;">Continuar al pago</button>
+            </div></div>`;
+        document.body.appendChild(capa);
+        const v = id => (document.getElementById(id)?.value || '').trim();
+        document.getElementById('eCancelar').onclick = () => { capa.remove(); resolver(null); };
+        document.getElementById('eGuardar').onclick = async () => {
+            const celular = v('eCelular').replace(/\D/g, '');
+            const aviso = document.getElementById('eAviso');
+            if (!v('eNombre') || !v('eDireccion') || !v('eCiudad')) { aviso.textContent = 'Completa nombre, dirección y ciudad.'; return; }
+            if (!/^3\d{9}$/.test(celular)) { aviso.textContent = 'El celular debe tener 10 dígitos y empezar por 3.'; return; }
+            const cambios = { nombre: v('eNombre'), celular, direccion: v('eDireccion'), ciudad: v('eCiudad') };
+            if (!c.acepta_datos_en) {
+                if (!document.getElementById('eAcepto')?.checked) { aviso.textContent = 'Acepta la política de privacidad para continuar.'; return; }
+                cambios.acepta_datos_en = new Date().toISOString();
+            }
+            const { error } = await db.from('consumidores').update(cambios).eq('email', session.user.email);
+            if (error) { aviso.textContent = 'No se pudo guardar: ' + error.message; return; }
+            capa.remove();
+            resolver({ ...c, ...cambios });
+        };
+    });
+}
+
 async function generarFirmaWompi(referencia, monto, moneda) {
     try {
         const r = await fetch('https://decoia.onrender.com/wompi/firma', {
@@ -826,6 +944,12 @@ async function pagarConWompi(tiendaId) {
     const items = grupo.items.filter(i => i.seleccionado);
     if (!items.length) { mostrarToastCarrito('⚠️ Selecciona al menos un producto'); return; }
 
+    // Comprar exige cuenta de comprador, y la tienda necesita a dónde llevarlo
+    const sesionCompra = await exigirComprador('Crea tu cuenta gratis para comprar');
+    if (!sesionCompra) return;
+    const entrega = await datosDeEntrega(sesionCompra);
+    if (!entrega) return;
+
     mostrarToastCarrito('💳 Preparando pago...');
 
     // ── 1. Crear el PEDIDO en el backend ─────────────────────────────────
@@ -836,13 +960,14 @@ async function pagarConWompi(tiendaId) {
     let pedido;
     try {
         const r = await fetch('https://decoia.onrender.com/crear-pedido', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: await cabecerasSesion(),
             body: JSON.stringify({
                 tienda_id: tiendaId,
                 items: items.map(i => ({ producto_id: i.prod.id, cantidad: i.qty })),
-                comprador_nombre:   '',
-                comprador_email:    '',
-                comprador_telefono: '',
+                comprador_nombre:    entrega.nombre,
+                comprador_telefono:  entrega.celular,
+                comprador_direccion: [entrega.direccion, entrega.ciudad].filter(Boolean).join(', ')
+                                     + (entrega.indicaciones ? ` (${entrega.indicaciones})` : ''),
             })
         });
         pedido = await r.json();

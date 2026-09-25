@@ -490,7 +490,7 @@
         <button class="nav-item active" onclick="mostrarPagina('inicio',this)"><span class="icon">🏠</span> Inicio</button>
         <a href="/remodelar" class="nav-item" id="navRemodelar" style="text-decoration:none;"><span class="icon">🎨</span> Remodelar</a>
         <button class="nav-item" onclick="mostrarPagina('mitienda',this)"><span class="icon">🏪</span> Mi Tienda <span class="dot-amarillo" id="dotTienda"></span></button>
-        <button class="nav-item" onclick="mostrarPagina('ventas',this); cargarVentas();"><span class="icon">💰</span> Mis ventas</button>
+        <button class="nav-item" onclick="mostrarPagina('ventas',this); cargarVentas(); cargarResenasTienda();"><span class="icon">💰</span> Mis ventas</button>
         <button class="nav-item" onclick="mostrarPagina('historial',this)"><span class="icon">🖼️</span> Historial</button>
         <button class="nav-item" id="navEditorSup" onclick="window.open('/editor-superficies','_blank')"><span class="icon">🎨</span> Editor de superficies</button>
 
@@ -871,6 +871,11 @@
         <div class="card">
             <h3 style="font-size:15px;margin-bottom:14px;">Pedidos recibidos</h3>
             <div id="listaPedidos"><p style="color:var(--gris);font-size:14px;">Cargando...</p></div>
+        </div>
+        <div class="card" style="margin-top:16px;">
+            <h3 style="font-size:15px;margin-bottom:4px;">⭐ Reseñas de tus compradores</h3>
+            <p style="font-size:12.5px;color:var(--gris);margin-bottom:12px;">Solo reseñan quienes te compraron de verdad. Tu respuesta se ve en público.</p>
+            <div id="listaResenasTienda"><p style="color:var(--gris);font-size:13px;">Cargando...</p></div>
         </div>
     </div>
 
@@ -2619,10 +2624,17 @@ async function cargarVentas() {
     const { data: { session } } = await db.auth.getSession();
     if (!session) return;
 
-    // La política RLS ya limita a los pedidos de SU tienda, así que basta con
-    // pedir todo — no hace falta filtrar por tienda desde el navegador.
-    const { data: pedidos, error } = await db.from('pedidos')
-        .select('*').order('created_at', { ascending: false }).limit(100);
+    // Las ventas se piden al servidor: la tabla de pedidos ya no se lee desde
+    // el navegador, porque ahí están el celular y la dirección del comprador.
+    // El servidor solo los entrega cuando el pedido está pagado.
+    let pedidos = null, error = null;
+    try {
+        const rv = await fetch('https://decoia.onrender.com/api/cuenta/ventas', {
+            headers: { 'Authorization': 'Bearer ' + session.access_token } });
+        const dv = await rv.json().catch(() => ({}));
+        if (!rv.ok) throw new Error(dv.detail || ('Error ' + rv.status));
+        pedidos = dv.pedidos || [];
+    } catch (e) { error = e; }
 
     if (error) {
         cont.innerHTML = `<p style="color:#FCA5A5;font-size:13px;">No se pudieron cargar las ventas: ${esc(error.message)}</p>`;
@@ -2676,6 +2688,15 @@ async function cargarVentas() {
             <div style="font-size:12px;color:var(--gris);margin-top:8px;line-height:1.7;">
                 ${items.map(i => `• ${esc(i.nombre)} × ${i.cantidad}`).join('<br>')}
             </div>
+            ${p.datos_entrega_visibles ? `
+            <div style="margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.3);font-size:12.5px;line-height:1.7;">
+                <b style="color:#6EE7B7;">📦 Entregar a:</b> ${esc(p.comprador_nombre || '')}<br>
+                📱 ${p.comprador_telefono ? `<a href="https://wa.me/57${esc(String(p.comprador_telefono).replace(/\D/g,'').slice(-10))}" target="_blank" style="color:#6EE7B7;">${esc(p.comprador_telefono)}</a>` : '—'}<br>
+                📍 ${esc(p.comprador_direccion || '—')}
+            </div>` : `
+            <div style="margin-top:10px;font-size:12px;color:var(--gris);">
+                🔒 ${p.comprador_nombre ? esc(p.comprador_nombre) + ' — ' : ''}los datos de entrega aparecen cuando el pedido quede pagado.
+            </div>`}
             <div style="display:flex;gap:16px;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.06);flex-wrap:wrap;font-size:12.5px;">
                 <span style="color:var(--gris);">Total: <b style="color:var(--texto);">$${Number(p.total||0).toLocaleString('es-CO')}</b></span>
                 <span style="color:var(--gris);">Comisión (${p.comision_porcentaje}%): <b>$${Number(p.comision_monto||0).toLocaleString('es-CO')}</b></span>
@@ -2684,6 +2705,48 @@ async function cargarVentas() {
             </div>
         </div>`;
     }).join('');
+}
+
+async function cargarResenasTienda() {
+    const cont = document.getElementById('listaResenasTienda');
+    if (!cont) return;
+    const { data:{ session } } = await db.auth.getSession();
+    if (!session) return;
+    try {
+        const r = await fetch('https://decoia.onrender.com/api/cuenta/resenas-tienda',
+                              { headers: { 'Authorization': 'Bearer ' + session.access_token } });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || r.status);
+        if (!d.total) { cont.innerHTML = '<p style="color:var(--gris);font-size:13px;">Todavía no tienes reseñas.</p>'; return; }
+        cont.innerHTML = `<div style="font-weight:800;margin-bottom:8px;">⭐ ${d.promedio} de 5 · ${d.total} reseña${d.total===1?'':'s'}</div>` +
+            d.resenas.map(x => `
+            <div style="border-top:1px solid rgba(255,255,255,0.06);padding:10px 0;font-size:13px;">
+                <div>${'⭐'.repeat(x.calificacion)} <b>${esc(x.autor_nombre)}</b>
+                    <span style="color:var(--gris);font-size:11.5px;"> · ${new Date(x.created_at).toLocaleDateString('es-CO')}</span></div>
+                ${x.comentario ? `<div style="margin-top:3px;">${esc(x.comentario)}</div>` : ''}
+                ${x.respuesta_tienda
+                    ? `<div style="margin-top:6px;padding:7px 10px;border-radius:8px;background:rgba(124,58,237,0.12);font-size:12.5px;"><b>Tu respuesta:</b> ${esc(x.respuesta_tienda)}</div>`
+                    : `<div style="display:flex;gap:6px;margin-top:6px;">
+                          <input id="resp-${x.id}" maxlength="600" placeholder="Responder con amabilidad…"
+                                 style="flex:1;background:var(--oscuro);border:1px solid rgba(124,58,237,0.25);border-radius:8px;padding:7px 10px;color:var(--texto);font-size:12.5px;">
+                          <button class="btn-primario" style="padding:7px 12px;" onclick="responderResena('${x.id}')">Responder</button>
+                       </div>`}
+            </div>`).join('');
+    } catch (e) {
+        cont.innerHTML = `<p style="color:#FCA5A5;font-size:13px;">No se pudieron cargar las reseñas: ${esc(e.message)}</p>`;
+    }
+}
+
+async function responderResena(id) {
+    const texto = (document.getElementById('resp-' + id)?.value || '').trim();
+    if (!texto) return;
+    const { data:{ session } } = await db.auth.getSession();
+    const r = await fetch(`https://decoia.onrender.com/api/cuenta/resenas/${encodeURIComponent(id)}/responder`, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'Authorization':'Bearer ' + session.access_token },
+        body: JSON.stringify({ respuesta: texto }) });
+    if (!r.ok) { const d = await r.json().catch(()=>({})); alert('No se pudo responder: ' + (d.detail || r.status)); return; }
+    cargarResenasTienda();
 }
 
 function mostrarPagina(nombre,btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));document.getElementById('pagina-'+nombre).classList.add('active');if(btn)btn.classList.add('active');document.getElementById('sidebar').classList.remove('open');}

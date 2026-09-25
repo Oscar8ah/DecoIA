@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mi cuenta — DecoIArte</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+    :root{ --oscuro:#0B0B14; --carta:#161625; --borde:rgba(124,58,237,.22); --texto:#E8E8F0; --gris:#8B8BA7;
+           --morado:#7C3AED; --lila:#A78BFA; --verde:#10B981; --ambar:#F59E0B; --rojo:#F87171; }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:var(--oscuro);color:var(--texto);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;line-height:1.55;min-height:100vh}
+    a{color:var(--lila)}
+    .header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 20px;border-bottom:1px solid var(--borde);position:sticky;top:0;background:rgba(11,11,20,.94);backdrop-filter:blur(8px);z-index:10}
+    .logo{font-weight:800;font-size:19px;text-decoration:none;background:linear-gradient(90deg,#7C3AED,#6366F1);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .acciones{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+    .btn{background:rgba(255,255,255,.04);border:1px solid var(--borde);color:var(--texto);padding:7px 12px;border-radius:9px;font-size:13px;cursor:pointer;text-decoration:none;white-space:nowrap}
+    .btn-prim{background:linear-gradient(135deg,#7C3AED,#6366F1);border:none;color:#fff;font-weight:700}
+    .caja{max-width:980px;margin:0 auto;padding:22px 18px 70px}
+    h1{font-size:26px;font-weight:800;margin-bottom:2px}
+    .sub{color:var(--gris);font-size:14px;margin-bottom:18px}
+    .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+    .tab{background:rgba(255,255,255,.03);border:1px solid var(--borde);color:var(--gris);padding:9px 14px;border-radius:10px;cursor:pointer;font-size:13.5px;font-weight:600}
+    .tab.activa{background:rgba(124,58,237,.18);border-color:var(--morado);color:#fff}
+    .panel{display:none}.panel.activo{display:block}
+    .carta{background:var(--carta);border:1px solid var(--borde);border-radius:14px;padding:16px;margin-bottom:12px}
+    .vacio{color:var(--gris);font-size:14px;text-align:center;padding:34px 10px}
+    .fila{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center}
+    .chip{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:20px}
+    .chip.pagado,.chip.enviado,.chip.entregado{background:rgba(16,185,129,.15);color:#6EE7B7}
+    .chip.pendiente{background:rgba(245,158,11,.15);color:#FCD34D}
+    .chip.otro{background:rgba(148,163,184,.15);color:var(--gris)}
+    .item{display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:7px 0;border-top:1px solid rgba(148,163,184,.12);align-items:center;flex-wrap:wrap}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px}
+    .prod img{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:10px;background:#222}
+    .campo{margin-bottom:12px}
+    .campo label{display:block;font-size:11.5px;color:var(--gris);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:5px}
+    .campo input,.campo textarea{width:100%;background:var(--oscuro);border:1px solid var(--borde);border-radius:9px;padding:10px 12px;color:var(--texto);font-size:14px;font-family:inherit;outline:none}
+    .aviso{border-radius:12px;padding:12px 14px;font-size:13px;margin-bottom:14px;line-height:1.55}
+    .aviso.ok{background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.35)}
+    .aviso.mal{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.35)}
+    .aviso.info{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.35)}
+    .estrellas button{background:none;border:none;font-size:26px;cursor:pointer;padding:0 2px;filter:grayscale(1);opacity:.45}
+    .estrellas button.on{filter:none;opacity:1}
+    .modal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;padding:18px;z-index:50}
+    .modal.abierto{display:flex}
+    .modal .carta{max-width:440px;width:100%;margin:0}
+</style>
+</head>
+<body>
+
+<div class="header">
+    <a href="/" class="logo">DecoIArte</a>
+    <div class="acciones">
+        <a class="btn" href="/marketplace">🛍️ Marketplace</a>
+        <a class="btn" href="/remodelar">🎨 Remodelar</a>
+        <button class="btn" onclick="cerrarSesion()">🚪 Salir</button>
+    </div>
+</div>
+
+<div class="caja">
+    <h1 id="saludo">Mi cuenta</h1>
+    <div class="sub" id="correo"></div>
+    <div id="avisoGeneral"></div>
+
+    <div class="tabs">
+        <button class="tab activa" data-panel="pedidos">🧾 Mis pedidos</button>
+        <button class="tab" data-panel="favoritos">❤️ Favoritos</button>
+        <button class="tab" data-panel="remodelaciones">📁 Mis remodelaciones</button>
+        <button class="tab" data-panel="datos">👤 Mis datos</button>
+    </div>
+
+    <div class="panel activo" id="panel-pedidos"><div class="vacio">Cargando…</div></div>
+    <div class="panel" id="panel-favoritos"><div class="vacio">Cargando…</div></div>
+    <div class="panel" id="panel-remodelaciones"><div class="vacio">Cargando…</div></div>
+
+    <div class="panel" id="panel-datos">
+        <div class="carta">
+            <div style="font-weight:800;margin-bottom:4px;">¿A dónde te llevamos tus compras?</div>
+            <div style="font-size:12.5px;color:var(--gris);margin-bottom:14px;line-height:1.6;">
+                Estos datos son privados. Una tienda ve tu celular y tu dirección <b style="color:var(--texto)">solo cuando le pagas un pedido</b>, y solo los de ese pedido.
+            </div>
+            <div id="avisoDatos"></div>
+            <div class="campo"><label>Nombre completo</label><input id="dNombre" autocomplete="name"></div>
+            <div class="campo"><label>Celular</label><input id="dCelular" inputmode="numeric" autocomplete="tel" placeholder="3001234567"></div>
+            <div class="campo"><label>Dirección</label><input id="dDireccion" autocomplete="street-address" placeholder="Calle 45 # 12-30, apto 402"></div>
+            <div class="campo"><label>Ciudad</label><input id="dCiudad" autocomplete="address-level2" placeholder="Bucaramanga"></div>
+            <div class="campo"><label>Indicaciones para la entrega (opcional)</label><textarea id="dIndicaciones" rows="2" placeholder="Portón negro, timbre del segundo piso"></textarea></div>
+            <div id="bloqueConsentimiento" style="display:none;margin-bottom:12px;">
+                <label style="display:flex;gap:9px;align-items:flex-start;font-size:12.5px;line-height:1.55;color:var(--gris);cursor:pointer;">
+                    <input type="checkbox" id="dAcepto" style="margin-top:3px;width:16px;height:16px;flex-shrink:0;">
+                    <span>Acepto los <a href="/terminos" target="_blank">términos y la política de privacidad</a> y autorizo a DecoIArte a tratar mis datos personales conforme a la <b style="color:var(--texto)">Ley 1581 de 2012</b>.</span>
+                </label>
+            </div>
+            <button class="btn btn-prim" id="btnGuardarDatos" onclick="guardarDatos()">💾 Guardar mis datos</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="modalResena">
+    <div class="carta">
+        <div style="font-weight:800;font-size:16px;margin-bottom:3px;">⭐ Reseñar</div>
+        <div id="resenaProducto" style="font-size:13px;color:var(--gris);margin-bottom:10px;"></div>
+        <div class="estrellas" id="estrellas"></div>
+        <div class="campo" style="margin-top:10px;"><label>Tu opinión (opcional)</label>
+            <textarea id="resenaTexto" rows="3" maxlength="600" placeholder="¿Cómo te fue con el producto y con la tienda?"></textarea></div>
+        <div id="avisoResena"></div>
+        <div style="display:flex;gap:8px;">
+            <button class="btn" style="flex:1" onclick="cerrarResena()">Cancelar</button>
+            <button class="btn btn-prim" style="flex:1" id="btnEnviarResena" onclick="enviarResena()">Publicar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const API = 'https://decoia.onrender.com';
+const db = supabase.createClient('https://cqwbsikyzdtegutyvgfo.supabase.co',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxd2JzaWt5emR0ZWd1dHl2Z2ZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NTk5MjUsImV4cCI6MjA5NDMzNTkyNX0.v9Qmp85POur1zZ3nHVYNRyhqHAi4VawafBsCiXF72Yo',
+    { auth: { flowType:'pkce', persistSession:true, detectSessionInUrl:true, autoRefreshToken:true } });
+
+let sesion = null, perfil = null, resenaActual = null, estrellasElegidas = 0, productosCache = {};
+
+const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pesos = n => '$' + Number(n || 0).toLocaleString('es-CO');
+async function cabeceras() {
+    const { data:{ session } } = await db.auth.getSession();
+    return { 'Content-Type':'application/json', 'Authorization':'Bearer ' + (session?.access_token || '') };
+}
+function aviso(id, tipo, html) { document.getElementById(id).innerHTML = html ? `<div class="aviso ${tipo}">${html}</div>` : ''; }
+
+// ── Pestañas ──────────────────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.toggle('activa', x === t));
+    document.querySelectorAll('.panel').forEach(p => p.classList.toggle('activo', p.id === 'panel-' + t.dataset.panel));
+    history.replaceState(null, '', '#' + t.dataset.panel);
+}));
+
+async function cerrarSesion() { await db.auth.signOut(); location.href = '/marketplace'; }
+
+// ── Arranque: solo compradores ────────────────────────────────────────
+(async function inicio() {
+    const { data:{ session } } = await db.auth.getSession();
+    if (!session) {
+        sessionStorage.setItem('redirect_after_login', '/mi-cuenta');
+        location.href = '/registro?tipo=consumidor';
+        return;
+    }
+    sesion = session;
+    // Una empresa tiene su propio panel: el dashboard
+    const { data: emp } = await db.from('empresas').select('id').eq('email', session.user.email).maybeSingle();
+    if (emp) { location.href = '/dashboard'; return; }
+
+    const { data } = await db.from('consumidores')
+        .select('nombre, email, celular, direccion, ciudad, indicaciones, acepta_datos_en')
+        .eq('email', session.user.email).maybeSingle();
+    perfil = data || {};
+    document.getElementById('saludo').textContent = '👋 Hola' + (perfil.nombre ? ', ' + perfil.nombre.split(' ')[0] : '');
+    document.getElementById('correo').textContent = session.user.email;
+    pintarDatos();
+
+    // Ley 1581: cuentas creadas antes de la casilla la aceptan aquí
+    if (!perfil.acepta_datos_en) {
+        document.getElementById('bloqueConsentimiento').style.display = 'block';
+        aviso('avisoGeneral', 'info', '📋 Para seguir comprando, revisa <b>Mis datos</b> y acepta la política de privacidad.');
+    }
+
+    const pestana = (location.hash || '').slice(1);
+    if (pestana) document.querySelector(`.tab[data-panel="${pestana}"]`)?.click();
+
+    cargarPedidos(); cargarFavoritos(); cargarRemodelaciones();
+})();
+
+// ── Mis pedidos ───────────────────────────────────────────────────────
+async function cargarPedidos() {
+    const panel = document.getElementById('panel-pedidos');
+    try {
+        const r = await fetch(API + '/api/cuenta/pedidos', { headers: await cabeceras() });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || r.status);
+        const pedidos = d.pedidos || [];
+        if (!pedidos.length) {
+            panel.innerHTML = '<div class="vacio">Todavía no tienes pedidos.<br><br><a class="btn btn-prim" href="/marketplace">Ir al marketplace</a></div>';
+            return;
+        }
+        const ids = [...new Set(pedidos.flatMap(p => (p.items || []).map(i => i.producto_id)))];
+        if (ids.length) {
+            const { data: prods } = await db.from('productos').select('id, nombre, imagen_url').in('id', ids);
+            (prods || []).forEach(p => productosCache[p.id] = p);
+        }
+        panel.innerHTML = pedidos.map(p => {
+            const clase = ['pagado','enviado','entregado','pendiente'].includes(p.estado) ? p.estado : 'otro';
+            const texto = { pagado:'Pagado', enviado:'Enviado', entregado:'Entregado', pendiente:'Pendiente de pago' }[p.estado] || (p.estado || '—');
+            const fecha = p.created_at ? new Date(p.created_at).toLocaleDateString('es-CO', { day:'numeric', month:'short', year:'numeric' }) : '';
+            const items = (p.items || []).map(i => {
+                const prod = productosCache[i.producto_id] || {};
+                const puede = (p.resenables || []).includes(String(i.producto_id));
+                return `<div class="item">
+                    <span>${esc(prod.nombre || i.nombre || 'Producto')} × ${i.cantidad || 1}</span>
+                    ${puede ? `<button class="btn" onclick="abrirResena('${esc(p.referencia)}','${esc(i.producto_id)}')">⭐ Reseñar</button>` : ''}
+                </div>`;
+            }).join('');
+            return `<div class="carta">
+                <div class="fila">
+                    <div><b>${esc(p.tienda)}</b><div style="font-size:12px;color:var(--gris);">${fecha} · ${esc(p.referencia)}</div></div>
+                    <div style="text-align:right;"><span class="chip ${clase}">${texto}</span><div style="font-weight:800;margin-top:4px;">${pesos(p.total)}</div></div>
+                </div>
+                <div style="margin-top:10px;">${items}</div>
+                ${p.direccion ? `<div style="font-size:12px;color:var(--gris);margin-top:8px;">📍 ${esc(p.direccion)}</div>` : ''}
+            </div>`;
+        }).join('');
+    } catch (e) {
+        panel.innerHTML = `<div class="aviso mal">No se pudieron cargar tus pedidos: ${esc(e.message)}</div>`;
+    }
+}
+
+// ── Reseñas ───────────────────────────────────────────────────────────
+function abrirResena(referencia, productoId) {
+    resenaActual = { referencia, productoId };
+    estrellasElegidas = 0;
+    document.getElementById('resenaProducto').textContent = productosCache[productoId]?.nombre || 'Producto';
+    document.getElementById('resenaTexto').value = '';
+    aviso('avisoResena', '', '');
+    pintarEstrellas();
+    document.getElementById('modalResena').classList.add('abierto');
+}
+function cerrarResena() { document.getElementById('modalResena').classList.remove('abierto'); }
+function pintarEstrellas() {
+    document.getElementById('estrellas').innerHTML = [1,2,3,4,5].map(n =>
+        `<button class="${n <= estrellasElegidas ? 'on' : ''}" onclick="estrellasElegidas=${n};pintarEstrellas()" aria-label="${n} estrellas">⭐</button>`).join('');
+}
+async function enviarResena() {
+    if (!estrellasElegidas) { aviso('avisoResena', 'mal', 'Elige de 1 a 5 estrellas.'); return; }
+    const btn = document.getElementById('btnEnviarResena'); btn.disabled = true;
+    try {
+        const r = await fetch(API + '/api/cuenta/resenas', { method:'POST', headers: await cabeceras(),
+            body: JSON.stringify({ pedido_referencia: resenaActual.referencia, producto_id: resenaActual.productoId,
+                                   calificacion: estrellasElegidas, comentario: document.getElementById('resenaTexto').value.trim() }) });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.detail || r.status);
+        cerrarResena();
+        aviso('avisoGeneral', 'ok', '✅ ¡Gracias! Tu reseña ya se ve en el producto.');
+        cargarPedidos();
+    } catch (e) { aviso('avisoResena', 'mal', esc(e.message)); }
+    btn.disabled = false;
+}
+
+// ── Favoritos ─────────────────────────────────────────────────────────
+async function cargarFavoritos() {
+    const panel = document.getElementById('panel-favoritos');
+    const { data, error } = await db.from('favoritos')
+        .select('producto_id, productos(id, nombre, precio, unidad, imagen_url, tienda_id)')
+        .order('created_at', { ascending:false });
+    if (error) { panel.innerHTML = `<div class="aviso mal">No se pudieron cargar: ${esc(error.message)}</div>`; return; }
+    const lista = (data || []).map(f => f.productos).filter(Boolean);
+    if (!lista.length) {
+        panel.innerHTML = '<div class="vacio">Aún no tienes favoritos. En el marketplace, toca el ❤️ de un producto para guardarlo aquí.</div>';
+        return;
+    }
+    panel.innerHTML = '<div class="grid">' + lista.map(p => `
+        <div class="carta prod" style="margin:0;padding:10px;">
+            ${p.imagen_url ? `<img src="${esc(p.imagen_url)}" alt="" loading="lazy">` : '<div style="aspect-ratio:1;display:grid;place-items:center;font-size:40px;">📦</div>'}
+            <div style="font-size:13px;font-weight:700;margin:8px 0 2px;">${esc(p.nombre)}</div>
+            <div style="font-size:13px;color:var(--lila);font-weight:800;">${pesos(p.precio)}<span style="color:var(--gris);font-weight:400;"> /${esc(p.unidad || 'und')}</span></div>
+            <div style="display:flex;gap:6px;margin-top:8px;">
+                <a class="btn" style="flex:1;text-align:center;" href="/marketplace?tienda=${esc(p.tienda_id)}">Ver</a>
+                <button class="btn" onclick="quitarFavorito('${esc(p.id)}')" title="Quitar de favoritos">💔</button>
+            </div>
+        </div>`).join('') + '</div>';
+}
+async function quitarFavorito(id) {
+    await db.from('favoritos').delete().eq('producto_id', id).eq('user_id', sesion.user.id);
+    cargarFavoritos();
+}
+
+// ── Mis remodelaciones (el baúl de /remodelar) ─────────────────────────
+async function cargarRemodelaciones() {
+    const panel = document.getElementById('panel-remodelaciones');
+    const { data, error } = await db.from('mis_remodelaciones')
+        .select('url_generada, productos, origen, created_at').order('created_at', { ascending:false }).limit(40);
+    if (error) { panel.innerHTML = `<div class="aviso mal">No se pudieron cargar: ${esc(error.message)}</div>`; return; }
+    if (!data || !data.length) {
+        panel.innerHTML = '<div class="vacio">Todavía no guardas remodelaciones.<br><br><a class="btn btn-prim" href="/remodelar">Transformar un espacio</a></div>';
+        return;
+    }
+    panel.innerHTML = '<div class="grid">' + data.map(r => `
+        <div class="carta prod" style="margin:0;padding:10px;">
+            <img src="${esc(r.url_generada)}" alt="" loading="lazy">
+            <div style="font-size:12px;color:var(--gris);margin-top:7px;">${new Date(r.created_at).toLocaleDateString('es-CO')}${r.origen === 'whatsapp' ? ' · por WhatsApp' : ''}</div>
+            <div style="font-size:12.5px;">🛒 ${(r.productos || []).length} en tu lista</div>
+        </div>`).join('') + '</div>' +
+        '<div style="text-align:center;margin-top:14px;"><a class="btn btn-prim" href="/remodelar">Abrir en Remodelar</a></div>';
+}
+
+// ── Mis datos ─────────────────────────────────────────────────────────
+function pintarDatos() {
+    document.getElementById('dNombre').value      = perfil.nombre || '';
+    document.getElementById('dCelular').value     = perfil.celular || '';
+    document.getElementById('dDireccion').value   = perfil.direccion || '';
+    document.getElementById('dCiudad').value      = perfil.ciudad || '';
+    document.getElementById('dIndicaciones').value = perfil.indicaciones || '';
+}
+async function guardarDatos() {
+    const v = id => document.getElementById(id).value.trim();
+    const celular = v('dCelular').replace(/\D/g, '');
+    if (celular && !/^3\d{9}$/.test(celular)) { aviso('avisoDatos', 'mal', 'El celular debe tener 10 dígitos y empezar por 3.'); return; }
+    const cambios = { nombre: v('dNombre') || perfil.nombre, celular: celular || null, direccion: v('dDireccion') || null,
+                      ciudad: v('dCiudad') || null, indicaciones: v('dIndicaciones') || null };
+    if (!perfil.acepta_datos_en) {
+        if (!document.getElementById('dAcepto').checked) { aviso('avisoDatos', 'mal', 'Acepta la política de privacidad para guardar tus datos.'); return; }
+        cambios.acepta_datos_en = new Date().toISOString();
+    }
+    const btn = document.getElementById('btnGuardarDatos'); btn.disabled = true;
+    const { error } = await db.from('consumidores').update(cambios).eq('email', sesion.user.email);
+    btn.disabled = false;
+    if (error) { aviso('avisoDatos', 'mal', 'No se pudo guardar: ' + esc(error.message)); return; }
+    Object.assign(perfil, cambios);
+    document.getElementById('bloqueConsentimiento').style.display = 'none';
+    aviso('avisoGeneral', '', '');
+    aviso('avisoDatos', 'ok', '✅ Guardado. La próxima compra ya sale con estos datos.');
+}
+</script>
+</body>
+</html>

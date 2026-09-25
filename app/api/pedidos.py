@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from app.utils.config import get_settings
 from app.utils.supabase_client import get_supabase
+from app.api.compras import usuario_de_sesion
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["pedidos"])
@@ -54,6 +55,16 @@ async def crear_pedido(data: CrearPedidoRequest, request: Request):
     cualquiera podría editarlo y comprar un piso de $200.000 por $1.
     """
     _verificar_limite_ip(request)
+
+    # Comprar exige cuenta de comprador. El pedido queda ligado a esa cuenta
+    # (para "Mis pedidos" y para poder reseñar) y el correo sale del token,
+    # no de lo que escriba el navegador.
+    comprador = await usuario_de_sesion(request)
+
+    # La tienda necesita a dónde llevarlo y a quién llamar. Estos datos la
+    # tienda los ve SOLO cuando el pedido queda pagado.
+    if not data.comprador_nombre.strip() or not data.comprador_telefono.strip() or not data.comprador_direccion.strip():
+        raise HTTPException(status_code=400, detail="Completa tu nombre, celular y dirección de entrega.")
 
     if not data.items:
         raise HTTPException(status_code=400, detail="El pedido no tiene productos.")
@@ -121,7 +132,8 @@ async def crear_pedido(data: CrearPedidoRequest, request: Request):
             "tienda_id":           data.tienda_id,
             "empresa_id":          tienda.get("empresa_id"),
             "comprador_nombre":    data.comprador_nombre.strip()[:150] or None,
-            "comprador_email":     data.comprador_email.strip()[:150] or None,
+            "comprador_email":     comprador["email"] or None,
+            "user_id":             comprador["id"],
             "comprador_telefono":  data.comprador_telefono.strip()[:40] or None,
             "comprador_direccion": data.comprador_direccion.strip()[:300] or None,
             "items":               items_final,
