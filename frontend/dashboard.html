@@ -2022,8 +2022,12 @@ async function enviarTanda(blob, nombre) {
     fd.append('tienda_id', tiendaId);
     const catSugerida = document.getElementById('categoriaImport')?.value;
     if (catSugerida) fd.append('categoria_sugerida', catSugerida);
+    // Se pide la sesión en cada tanda: un catálogo de 80 páginas tarda y el token se renueva
+    const { data: { session } } = await db.auth.getSession();
+    if (!session) throw new Error('Tu sesión expiró. Vuelve a iniciar sesión.');
     const r = await fetchConEspera('https://decoia.onrender.com/procesar-catalogo',
-                                   { method: 'POST', body: fd }, ESPERA_TANDA_MS);
+                                   { method: 'POST', body: fd, headers: { 'Authorization': 'Bearer ' + session.access_token } },
+                                   ESPERA_TANDA_MS);
     if (!r.ok) {
         const err = await r.json().catch(() => ({}));
         throw new Error(err.detail || `El servidor respondió ${r.status}`);
@@ -2154,9 +2158,11 @@ async function procesarUrlTienda() {
     mostrarAlerta('importarAlerta','🤖 La IA está leyendo tu tienda (puede tardar hasta 1 minuto)...','info');
     document.getElementById('previewProductos').style.display='none';
     try {
+        const { data: { session } } = await db.auth.getSession();
+        if (!session) throw new Error('Tu sesión expiró. Vuelve a iniciar sesión.');
         const response = await fetch('https://decoia.onrender.com/procesar-catalogo-url', {
             method: 'POST',
-            headers: {'Content-Type':'application/json'},
+            headers: {'Content-Type':'application/json', 'Authorization':'Bearer ' + session.access_token},
             body: JSON.stringify({ url, tienda_id: tiendaId })
         });
         if (!response.ok) {

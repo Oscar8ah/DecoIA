@@ -37,6 +37,7 @@ from pydantic import BaseModel
 
 from app.utils.config import get_settings
 from app.utils.supabase_client import get_supabase
+from app.utils.auth import exigir_duenio
 from app.services.limites_service import tiene_fotos_disponibles, descontar_foto
 from app.services.imagen_service import editar_objeto, interpretar_escena
 from app.services.openai_service import detectar_prompt_injection, sanitizar_entrada
@@ -92,42 +93,8 @@ class InterpretarRequest(BaseModel):
 PLANES_CON_IA_EN_EDITOR = ("profesional", "premium", "corporativo")
 
 
-ADMIN_EMAIL = "oscar8a.cds@gmail.com"   # el mismo que usan las políticas RLS y el trigger
-
-
-async def _exigir_duenio(request: Request, empresa_id: str | None):
-    """
-    Comprueba QUIÉN hace la petición, con el token de su sesión de Supabase, y
-    que la empresa sea suya.
-
-    Antes estos endpoints creían el empresa_id que mandaba el navegador. Y ese
-    id es público: la tabla de tiendas se lee sin sesión y lo trae. Resultado:
-    cualquiera podía pedir la bandeja de CUALQUIER tienda —teléfonos y fotos
-    de las casas de sus clientes— o gastarle el cupo de IA a una tienda ajena.
-    """
-    auth = request.headers.get("authorization") or ""
-    if not auth.lower().startswith("bearer ") or not auth[7:].strip():
-        raise HTTPException(status_code=401, detail="Inicia sesión para usar esta herramienta.")
-    try:
-        u = get_supabase().auth.get_user(auth[7:].strip())
-        email = ((u.user.email if u and u.user else "") or "").lower()
-    except Exception:
-        raise HTTPException(status_code=401, detail="Tu sesión expiró. Vuelve a iniciar sesión.")
-    if not email:
-        raise HTTPException(status_code=401, detail="Tu sesión expiró. Vuelve a iniciar sesión.")
-    if email == ADMIN_EMAIL:
-        return
-    if not empresa_id:
-        raise HTTPException(status_code=403, detail="Esta herramienta es para cuentas de empresa.")
-    try:
-        r = get_supabase().table("empresas").select("id") \
-            .eq("id", empresa_id).eq("email", email).maybe_single().execute()
-    except Exception as e:
-        logger.error(f"No se pudo verificar el dueño de {empresa_id}: {e}")
-        raise HTTPException(status_code=503, detail="No se pudo verificar tu cuenta, intenta de nuevo")
-    if not r or not r.data:
-        logger.warning(f"Intento de usar la empresa {empresa_id} desde la cuenta {email}")
-        raise HTTPException(status_code=403, detail="Esa empresa no pertenece a tu cuenta.")
+# La verificación de sesión y dueño vive en app/utils/auth.py (la usan todos los endpoints)
+_exigir_duenio = exigir_duenio
 
 
 async def _verificar_empresa_para_ia(empresa_id: str | None):
