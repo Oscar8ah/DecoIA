@@ -11,6 +11,7 @@ from openai import OpenAI
 from app.utils.config import get_settings
 from app.utils.supabase_client import get_supabase
 from app.services.limites_service import tiene_fotos_disponibles, descontar_foto
+from app.api.compras import usuario_de_sesion, guardar_para_venta
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["render3d"])
@@ -68,6 +69,11 @@ async def generar_render_3d(data: RenderRequest, request: Request):
     # otros materiales". Ahora se le carga a la tienda del producto. La
     # empresa se busca en la base con la clave de servicio: nunca se confía
     # en una empresa que mande el navegador para este caso.
+    # Es un comprador (no una empresa) generando con productos de una tienda.
+    # Comprar exige sesión: se identifica ANTES de gastar en la IA.
+    es_comprador = not data.empresa_id and bool(data.tienda_id)
+    comprador = await usuario_de_sesion(request) if es_comprador else None
+
     if not data.empresa_id and data.tienda_id:
         try:
             rt = get_supabase().table("tiendas").select("empresa_id") \
@@ -147,6 +153,29 @@ async def generar_render_3d(data: RenderRequest, request: Request):
         # Obtener imagen generada (b64_json)
         imagen_generada_b64   = response.data[0].b64_json
         imagen_generada_bytes = base64.b64decode(imagen_generada_b64)
+
+        # ── Comprador: la imagen limpia NO se publica ──
+        # Antes se subía a una carpeta pública y se devolvía su dirección: el
+        # candado era solo un dibujo en la pantalla. Ahora va a un bucket
+        # privado y se entrega una vista previa con marca de agua; la limpia
+        # se descarga solo cuando Wompi confirma el pago.
+        if es_comprador:
+            venta = await guardar_para_venta(imagen_generada_bytes, comprador,
+                                             data.empresa_id, data.tienda_id)
+            try:
+                get_supabase().table("imagenes").insert({
+                    "empresa_id":   data.empresa_id,
+                    "url_generada": venta["url_preview"],
+                    "tipo_espacio": "remodelar_web",
+                    "estilo":       "render_ia",
+                    "origen":       "web",
+                }).execute()
+            except Exception as e:
+                logger.warning(f"No se pudo registrar la imagen en la tienda: {e}")
+            await descontar_foto(data.empresa_id)
+            logger.info(f"Render de comprador {comprador['email']} → vista previa {venta['referencia']}")
+            return {"url_imagen": venta["url_preview"], "status": "ok",
+                    "compra": {"id": venta["id"], "referencia": venta["referencia"], "monto": venta["monto"]}}
 
         # ── Subir a Supabase Storage ──
         supabase   = get_supabase()

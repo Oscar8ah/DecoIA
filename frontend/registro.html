@@ -205,6 +205,10 @@
                     <div class="divider-line"></div>
                 </div>
 
+                <label style="display:flex;gap:9px;align-items:flex-start;font-size:12.5px;line-height:1.5;color:#9CA3AF;margin:0 0 12px;cursor:pointer;text-align:left;">
+                    <input type="checkbox" id="aceptoDatos" style="margin-top:3px;width:16px;height:16px;flex-shrink:0;cursor:pointer;">
+                    <span>Acepto los <a href="/terminos" target="_blank" style="color:#A78BFA;">términos y la política de privacidad</a>, y autorizo a DecoIArte a tratar mis datos personales conforme a la <b style="color:#E8E8F0;">Ley 1581 de 2012</b>. Mi celular y mi dirección solo se le muestran a una tienda cuando le compro.</span>
+                </label>
                 <button class="btn-google" onclick="loginConGoogle()" id="btnGoogle">
                     <svg viewBox="0 0 24 24" width="22" height="22">
                         <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -289,6 +293,12 @@ function seleccionarTipo(tipo) {
 }
 
 async function loginConGoogle() {
+    // Ley 1581: la autorización para tratar datos personales debe ser expresa
+    if (!document.getElementById('aceptoDatos')?.checked) {
+        mostrarAlerta('⚠️ Para crear tu cuenta debes aceptar la política de privacidad y el tratamiento de tus datos.');
+        return;
+    }
+    try { localStorage.setItem('decoiarte_acepta_datos', new Date().toISOString()); } catch(e) {}
     const plan = document.querySelector('input[name="plan"]:checked')?.value || 'profesional';
     try {
         localStorage.setItem('decoiarte_plan', plan);
@@ -367,6 +377,18 @@ async function manejarCallback() {
             }
         }
 
+        // ── Ley 1581: sin autorización expresa no se crea ninguna cuenta ──
+        // Segunda verificación: alguien podría llegar aquí ya autenticado
+        // (desde el login) sin haber pasado por la casilla.
+        let aceptaDatos = null;
+        try { aceptaDatos = localStorage.getItem('decoiarte_acepta_datos'); } catch(e) {}
+        if (!aceptaDatos) {
+            document.getElementById('loadingScreen').style.display = 'none';
+            document.getElementById('formContenido').style.display = 'block';
+            mostrarAlerta('⚠️ Para terminar de crear tu cuenta, acepta la política de privacidad y vuelve a entrar con Google.');
+            return;
+        }
+
         // ── 2. Usuario nuevo ────────────────────────────────────────────
         const nombre = user.user_metadata?.full_name || user.user_metadata?.name || user.email.split('@')[0];
 
@@ -375,7 +397,8 @@ async function manejarCallback() {
                 nombre,
                 email:      user.email,
                 avatar_url: user.user_metadata?.avatar_url || null,
-                estado:     'activo'
+                estado:     'activo',
+                acepta_datos_en: aceptaDatos,
             });
             if (errC && errC.code !== '23505') throw errC;
 
@@ -396,7 +419,8 @@ async function manejarCallback() {
                 fotos_disponibles: planData.fotos_incluidas,
                 fotos_usadas:      0,
                 estado:            plan === 'gratis' ? 'activo' : 'pendiente_pago',
-                pago_metodo:       plan === 'gratis' ? 'no_aplica' : 'pendiente'
+                pago_metodo:       plan === 'gratis' ? 'no_aplica' : 'pendiente',
+                acepta_datos_en:   aceptaDatos,
             });
             if (errE && errE.code !== '23505') throw errE;
 

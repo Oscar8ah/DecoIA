@@ -10,6 +10,7 @@ from app.utils.supabase_client import get_supabase
 from app.services.recibo_service import generar_pdf_recibo, guardar_recibo
 
 logger = logging.getLogger(__name__)
+from app.api.compras import confirmar_pago_imagen
 router = APIRouter(prefix="/wompi", tags=["wompi"])
 
 
@@ -328,6 +329,10 @@ async def webhook_wompi(
         # el plan solo, sin que nadie tenga que aprobar nada a mano.
         if referencia.startswith("SUSC-"):
             return await _procesar_pago_cambio_plan(referencia, monto_cop, metodo, tx_id, cliente_email)
+
+        # ── Compra de una IMAGEN del visitante ($5.000) — referencia IMG-... ─
+        if referencia.startswith("IMG-"):
+            return await confirmar_pago_imagen(referencia, monto_cop, tx_id)
 
         # ── Compra del MARKETPLACE — marcar el pedido como pagado ─────────
         # El pedido ya fue creado antes de mandar al cliente a pagar, con el

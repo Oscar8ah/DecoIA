@@ -17,6 +17,7 @@ from app.api.pedidos import router as pedidos_router
 from app.api.video_ia import router as video_ia_router
 from app.api.modelo3d import router as modelo3d_router
 from app.api.superficies import router as superficies_router
+from app.api.compras import router as compras_router
 
 load_dotenv()
 
@@ -87,3 +88,4 @@ app.include_router(pedidos_router)
 app.include_router(video_ia_router)
 app.include_router(modelo3d_router)
 app.include_router(superficies_router)
+app.include_router(compras_router)
