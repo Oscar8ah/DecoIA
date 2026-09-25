@@ -71,6 +71,12 @@
 
     ul{margin:8px 0 0 18px;font-size:13.5px}
     li{margin-bottom:5px}
+    .prio{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:50px;white-space:nowrap}
+        .p1{background:rgba(239,68,68,.15);color:#FCA5A5}
+        .p2{background:rgba(245,158,11,.15);color:#FCD34D}
+        .p3{background:rgba(34,211,238,.12);color:#67E8F9}
+        .p4{background:rgba(167,139,250,.15);color:#C4B5FD}
+        td.que{color:var(--texto)} td.donde{color:var(--gris);font-size:12.5px}
     .pie{margin-top:40px;padding-top:16px;border-top:1px solid rgba(139,139,167,.2);
         font-size:12.5px;color:var(--gris)}
 </style>
@@ -192,7 +198,7 @@
         <div class="plan-nom" style="margin-bottom:6px;">🛍️ Quien compra en el marketplace</div>
         <div class="fila"><span class="et">Para comprar</span><span>Siempre con cuenta de comprador. El visitante anónimo mira, pero no genera ni paga</span></div>
         <div class="fila"><span class="et">Sus datos</span><span>Nombre, dirección, ciudad, celular y correo son <b>privados</b>. La tienda ve la dirección y el celular <b>solo de un pedido ya pagado</b>, y solo de ese pedido</span></div>
-        <div class="fila"><span class="et">Ley 1581</span><span>Casilla obligatoria en el registro; se guarda la fecha en <span class="ruta">acepta_datos_en</span>. Las cuentas creadas antes no la tienen: pedirla en su próximo ingreso 🔲</span></div>
+        <div class="fila"><span class="et">Ley 1581</span><span>Casilla obligatoria en el registro; se guarda la fecha en <span class="ruta">acepta_datos_en</span>. Las cuentas de comprador creadas antes la aceptan en <span class="ruta">/mi-cuenta</span> ✅. Las <b>empresas</b> viejas todavía no: el dashboard no la pide 🔲</span></div>
         <div class="fila"><span class="et">Ya existe ✅</span><span><span class="ruta">/mi-cuenta</span>: 🧾 Mis pedidos · ❤️ Favoritos · 📁 Mis remodelaciones · 👤 Mis datos. Compra de imágenes. Reseñas con ⭐ solo de compras pagadas, y la tienda responde desde <b>Mis ventas</b></span></div>
         <div class="fila"><span class="et">Cómo compra</span><span>Sin sesión, el corazón y el pago lo mandan a crear cuenta de comprador. La primera compra le pide nombre, celular, dirección y ciudad; quedan guardados y las siguientes salen solas</span></div>
     </div>
@@ -207,8 +213,45 @@
     <div class="plan" style="border-left-color:var(--ambar);">
         <div class="plan-nom" style="margin-bottom:6px;">🧱 Qué puede vender una tienda</div>
         <div class="fila"><span class="et">Categorías</span><span>18: pisos, enchapes, cocinas, baños, materiales, estructuras, ferretería, eléctricos, cables, plomería, pintura, puertas, muebles, electrodomésticos, electrónica, jardinería, seguridad, otros. Cubren tuercas, tornillos, cemento, arena, pintura, pisos, muebles y comedores</span></div>
+        <div class="fila"><span class="et">Mis productos</span><span>Agrupados por <b>catálogo</b> (columna <span class="ruta">productos.catalogo</span>; al importar un PDF toma el nombre del archivo). Buscador, filtros por catálogo, categoría y estado (incluye "precio en $0") y vista <b>☰ Lista</b> para editar nombre, precio, unidad, stock y catálogo directo sobre la fila ✅</span></div>
+        <div class="fila"><span class="et">Categorías tienda</span><span>Una <b>principal</b> y varias de <b>"También vendo"</b> (<span class="ruta">tiendas.categorias_extra</span>), las 18 en los dos lados ✅</span></div>
         <div class="fila"><span class="et">Falta 🔲</span><span><b>Unidades de venta</b>: hoy solo m², unidad, kg, litro y caja. Una ferretería necesita <b>bulto</b> (cemento), <b>m³</b> (arena), <b>metro lineal</b> (tubo, cable), <b>galón</b> (pintura), <b>rollo</b> y <b>libra</b> (puntilla)</span></div>
     </div>
+
+    <h2>Lo que falta</h2>
+    <div class="nota" style="margin-top:0">
+        Revisado en el código el 25 de septiembre de 2026. <b>Básico, Profesional, Visitante y el marketplace
+        ya funcionan de punta a punta</b>: lo que queda de ellos no es de producto sino de seguridad, plata y
+        puesta a punto. El siguiente producto grande es <b>Premium</b>.
+        Cuando algo se termina, se borra de aquí y se anota arriba como ✅.
+    </div>
+    <table>
+        <tr><th style="width:120px">Prioridad</th><th>Qué</th><th style="width:34%">Dónde / por qué</th></tr>
+
+        <tr><td><span class="prio p1">🔴 Antes de vender</span></td><td class="que"><b>Autenticación en todo el servidor.</b> Mover <span class="ruta">_exigir_duenio</span> a <span class="ruta">app/utils/auth.py</span> y aplicarlo donde hoy se cree el <span class="ruta">empresa_id</span> o <span class="ruta">tienda_id</span> que manda el navegador</td><td class="donde"><span class="ruta">catalogo</span> (gasta créditos de Anthropic), <span class="ruta">video_ia</span>, <span class="ruta">modelo3d</span>, <span class="ruta">render3d</span> para empresas, <span class="ruta">planos</span>, <span class="ruta">fondo</span>, <span class="ruta">solicitudes</span>, <span class="ruta">cotizacion</span>. Solo <span class="ruta">superficies</span> y compras lo tienen</td></tr>
+        <tr><td><span class="prio p1">🔴 Antes de vender</span></td><td class="que">Probar el cobro de la imagen de $5.000 con las llaves de prueba de Wompi (o un pago real pequeño)</td><td class="donde">Visitante · referencia <span class="ruta">IMG-</span></td></tr>
+        <tr><td><span class="prio p1">🔴 Antes de vender</span></td><td class="que">Recorrido completo del comprador: favorito → compra → reseña → la tienda responde</td><td class="donde">Marketplace · cuenta <span class="ruta">ofertprodesarrollo@gmail.com</span></td></tr>
+        <tr><td><span class="prio p1">🔴 Antes de vender</span></td><td class="que">Probar logo (subir y eliminar), portafolio y baúl</td><td class="donde">Dashboard y <span class="ruta">/remodelar</span></td></tr>
+        <tr><td><span class="prio p1">🔴 Antes de vender</span></td><td class="que">Verificación en dos pasos en la cuenta de Google del administrador y protección de contraseñas filtradas en Supabase</td><td class="donde">Fuera del código</td></tr>
+
+        <tr><td><span class="prio p2">🟠 Plata</span></td><td class="que"><b>Cupo atómico</b>: una función SQL que revise y descuente en un solo paso</td><td class="donde"><span class="ruta">limites_service.py</span> hoy lee y después actualiza: dos pedidos a la vez pueden pasarse del cupo</td></tr>
+        <tr><td><span class="prio p2">🟠 Plata</span></td><td class="que">Tope diario de generaciones por comprador</td><td class="donde">Visitante · evita que una cuenta gaste IA sin pagar</td></tr>
+        <tr><td><span class="prio p2">🟠 Plata</span></td><td class="que">Dispersión a las tiendas con Pagos a Terceros de Wompi</td><td class="donde">Marketplace · <b>antes, hablar con un contador</b></td></tr>
+
+        <tr><td><span class="prio p3">🟢 Orden</span></td><td class="que">Guarda de plan al abrir <span class="ruta">/visor3d</span> por link directo</td><td class="donde">Hoy solo el botón del dashboard está bloqueado</td></tr>
+        <tr><td><span class="prio p3">🟢 Orden</span></td><td class="que">Pedir la Ley 1581 a las empresas creadas antes de la casilla</td><td class="donde">Dashboard · <span class="ruta">empresas.acepta_datos_en</span></td></tr>
+        <tr><td><span class="prio p3">🟢 Orden</span></td><td class="que">Unidades de venta de ferretería: bulto, m³, metro lineal, galón, rollo, libra</td><td class="donde">Dashboard · <span class="ruta">UNIDADES_PROD</span> y el cálculo de cantidades</td></tr>
+        <tr><td><span class="prio p3">🟢 Orden</span></td><td class="que">Conectar el WhatsApp de cada tienda sin hacerlo a mano (Embedded Signup de Meta)</td><td class="donde">Básico en adelante · el número no puede estar en la app normal de WhatsApp</td></tr>
+        <tr><td><span class="prio p3">🟢 Orden</span></td><td class="que">Rol de administrador en una tabla, en vez del correo fijo · cerrar políticas amplias de <span class="ruta">nodos-referencias</span></td><td class="donde">Supabase</td></tr>
+
+        <tr><td><span class="prio p4">🟣 Premium</span></td><td class="que"><b>Escaleras</b>: recta, en L, en U, caracol</td><td class="donde"><span class="ruta">/visor3d</span> · Editor Planta</td></tr>
+        <tr><td><span class="prio p4">🟣 Premium</span></td><td class="que"><b>Asistente de cocina</b> en ventana aparte: lineal, L, U, isla; estufa a la izquierda o derecha</td><td class="donde"><span class="ruta">/visor3d</span></td></tr>
+        <tr><td><span class="prio p4">🟣 Premium</span></td><td class="que"><b>Asistente de baño</b></td><td class="donde"><span class="ruta">/visor3d</span></td></tr>
+        <tr><td><span class="prio p4">🟣 Premium</span></td><td class="que"><b>Editor de fachada</b>: elegir un muro y trabajarlo en alzado (media pared + ventanal)</td><td class="donde"><span class="ruta">/visor3d</span></td></tr>
+        <tr><td><span class="prio p4">🟣 Premium</span></td><td class="que"><b>Losas y andenes</b></td><td class="donde"><span class="ruta">/visor3d</span> · Editor Planta</td></tr>
+        <tr><td><span class="prio p4">🟣 Premium</span></td><td class="que"><b>Cámara exterior</b> para fotos de fachada, con indicaciones o foto de referencia para el cielo y el piso</td><td class="donde"><span class="ruta">/visor3d</span> · Foto IA</td></tr>
+        <tr><td><span class="prio p4">🟣 Premium</span></td><td class="que">Definir el <b>precio</b> del plan</td><td class="donde">Decisión de negocio</td></tr>
+    </table>
 
     <h2>Reglas que no cambian</h2>
     <ul>
@@ -232,7 +275,7 @@
     </ul>
 
     <div class="pie">
-        Actualizado el 24 de septiembre de 2026 · Página interna, no indexada.<br>
+        Actualizado el 25 de septiembre de 2026 · Página interna, no indexada.<br>
         Si algo de aquí ya no es cierto, actualízalo antes de construir encima.
     </div>
 
