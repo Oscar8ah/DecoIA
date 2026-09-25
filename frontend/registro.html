@@ -135,7 +135,7 @@
 
                 <label class="label-titulo">¿Cómo quieres entrar?</label>
                 <div class="tipo-selector">
-                    <div class="tipo-btn activo" id="btnTipoEmpresa" onclick="seleccionarTipo('empresa')">
+                    <div class="tipo-btn" id="btnTipoEmpresa" onclick="seleccionarTipo('empresa')">
                         <span class="tipo-badge">💼</span>
                         <span class="tipo-icon">🏪</span>
                         <div class="tipo-nombre">Soy un negocio</div>
@@ -144,12 +144,12 @@
                     <div class="tipo-btn" id="btnTipoConsumidor" onclick="seleccionarTipo('consumidor')">
                         <span class="tipo-icon">🏠</span>
                         <div class="tipo-nombre">Quiero remodelar</div>
-                        <div class="tipo-desc">Exploro productos, uso el visor 3D y compro lo que me guste</div>
+                        <div class="tipo-desc">Transformo mi espacio con IA y compro lo que me guste</div>
                     </div>
                 </div>
 
                 <!-- PLANES (solo empresa) -->
-                <div class="planes-wrap visible" id="planesWrap">
+                <div class="planes-wrap" id="planesWrap">
                     <label class="label-titulo">Elige tu plan</label>
                     <div class="planes-grid">
                         <label class="plan-option">
@@ -279,7 +279,10 @@ const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 const PRECIOS_PLAN = { gratis:'$0', basico:'$400.000 pago único', profesional:'$700.000 pago único', premium:'$1.000.000 pago único', corporativo:'$3.000.000 pago único' };
 const NOMBRES_PLAN = { gratis:'Gratis', basico:'Básico', profesional:'Profesional', premium:'Premium', corporativo:'Corporativo' };
 
-let tipoActual = 'empresa';
+// Sin valor por defecto a propósito: antes arrancaba en 'empresa', y un
+// visitante que llegaba desde "Crear cuenta gratis" quedaba registrado como
+// negocio con plan Profesional pendiente de pago, sin haberlo elegido.
+let tipoActual = null;
 
 function seleccionarTipo(tipo) {
     tipoActual = tipo;
@@ -298,12 +301,21 @@ async function loginConGoogle() {
         mostrarAlerta('⚠️ Para crear tu cuenta debes aceptar la política de privacidad y el tratamiento de tus datos.');
         return;
     }
+    if (!tipoActual) {
+        mostrarAlerta('⚠️ Primero elige: ¿eres un negocio, o quieres remodelar tu espacio?');
+        return;
+    }
     try { localStorage.setItem('decoiarte_acepta_datos', new Date().toISOString()); } catch(e) {}
     const plan = document.querySelector('input[name="plan"]:checked')?.value || 'profesional';
     try {
         localStorage.setItem('decoiarte_plan', plan);
         localStorage.setItem('decoiarte_tipo', tipoActual);
     } catch(e) {}
+
+    // Si ya entró con Google (vino desde el login) no hace falta volver a
+    // Google: se crea la cuenta con lo que acaba de elegir.
+    const { data: { session: yaDentro } } = await db.auth.getSession();
+    if (yaDentro) { await manejarCallback(); return; }
 
     const btn = document.getElementById('btnGoogle');
     btn.disabled = true;
@@ -337,13 +349,34 @@ function redirigirSegunRol(destino) {
     }
 }
 
+// Quien llega desde /remodelar o el marketplace viene a comprar: se le
+// marca "Quiero remodelar" de entrada.
+(function preseleccionarTipo(){
+    const t = new URLSearchParams(location.search).get('tipo');
+    if (t === 'consumidor' || t === 'empresa') { try { seleccionarTipo(t); } catch(e) {} }
+})();
+
 async function manejarCallback() {
     const { data: { session }, error } = await db.auth.getSession();
     if (error || !session) return;
 
     const user = session.user;
-    let tipo = 'empresa';
-    try { tipo = localStorage.getItem('decoiarte_tipo') || 'empresa'; } catch(e) {}
+    let tipo = null;
+    try { tipo = localStorage.getItem('decoiarte_tipo'); } catch(e) {}
+    if (tipo !== 'empresa' && tipo !== 'consumidor') {
+        // No se sabe qué eligió: si ya tiene cuenta se le lleva a ella; si es
+        // nuevo se le pregunta. Nunca se asume "empresa".
+        const [{ data: emp }, { data: con }] = await Promise.all([
+            db.from('empresas').select('id').eq('email', session.user.email).maybeSingle(),
+            db.from('consumidores').select('id').eq('email', session.user.email).maybeSingle(),
+        ]);
+        if (emp) { redirigirSegunRol('/dashboard'); return; }
+        if (con) { redirigirSegunRol('/marketplace'); return; }
+        document.getElementById('loadingScreen').style.display = 'none';
+        document.getElementById('formContenido').style.display = 'block';
+        mostrarAlerta('👋 ¡Bienvenido! Elige si eres un negocio o si quieres remodelar tu espacio, y acepta la política para terminar.');
+        return;
+    }
     const plan = (() => { try { return localStorage.getItem('decoiarte_plan') || 'profesional'; } catch(e) { return 'profesional'; } })();
 
     document.getElementById('formContenido').style.display = 'none';

@@ -584,10 +584,12 @@ async function verificarAcceso() {
     return true;
 }
 
-function irALogin() {
+function irALogin(comoComprador = true) {
     // Se guarda la URL completa para volver con la foto y el resultado
     sessionStorage.setItem('redirect_after_login', location.pathname + location.search);
-    location.href = '/login';
+    // Quien viene a crear cuenta desde aquí es un comprador: se abre el
+    // registro con "Quiero remodelar" ya marcado. "Iniciar sesión" va al login.
+    location.href = comoComprador ? '/registro?tipo=consumidor' : '/login';
 }
 
 async function requerirCuenta(motivo) {
@@ -615,7 +617,7 @@ function pintarZonaCuenta() {
     const z = document.getElementById('zonaCuenta');
     if (!z) return;
     if (!sesionActiva) {
-        z.innerHTML = `<button class="btn-sm btn-secondary" onclick="irALogin()">Iniciar sesión</button>`;
+        z.innerHTML = `<button class="btn-sm btn-secondary" onclick="irALogin(false)">Iniciar sesión</button>`;
         return;
     }
     const correo = sesionActiva.user?.email || 'Mi cuenta';
