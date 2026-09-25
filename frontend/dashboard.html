@@ -2188,8 +2188,11 @@ async function procesarPlanoArquitectonico(input) {
         const formData = new FormData();
         formData.append('archivo', file);
         formData.append('empresa_id', empresaId);
+        const { data: { session } } = await db.auth.getSession();
+        if (!session) throw new Error('Tu sesión expiró. Vuelve a iniciar sesión.');
         const response = await fetch('https://decoia.onrender.com/analizar-plano-arquitectonico', {
             method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + session.access_token },
             body: formData
         });
         if (!response.ok) {

@@ -4968,11 +4968,17 @@ async function capturarYGenerarIA() {
             `Fotografía arquitectónica hiperrealista, iluminación cinematográfica ACES, sombras PCFSoft, texturas PBR. Sin texto, sin marcas de agua. ` +
             (promptUser ? `Estilo adicional: ${promptUser}.` : 'Estilo moderno contemporáneo, luz natural cálida.');
 
+        // El servidor verifica con la sesión que la empresa sea tuya antes de gastar el cupo
+        const { data: { session: sesRender } } = await db.auth.getSession();
+        if (!sesRender) throw new Error('Tu sesión expiró. Vuelve a iniciar sesión.');
         const response = await fetch('https://decoia.onrender.com/generar-render-3d', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sesRender.access_token },
             body: JSON.stringify({ imagen_base64: base64Canvas, prompt: promptFinal, empresa_id: await obtenerEmpresaId() })
         });
-        if (!response.ok) throw new Error('Error del servidor: ' + response.status);
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.detail || ('Error del servidor: ' + response.status));
+        }
         const data = await response.json();
         if (data.status === 'error') throw new Error(data.mensaje || data.error || 'Error desconocido');
         if (!data.url_imagen) throw new Error('No se recibió URL de imagen');

@@ -12,6 +12,7 @@ from app.utils.config import get_settings
 from app.utils.supabase_client import get_supabase
 from app.services.limites_service import tiene_fotos_disponibles, descontar_foto
 from app.api.compras import usuario_de_sesion, guardar_para_venta
+from app.utils.auth import exigir_duenio, ADMIN_EMAIL
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["render3d"])
@@ -73,6 +74,23 @@ async def generar_render_3d(data: RenderRequest, request: Request):
     # Comprar exige sesión: se identifica ANTES de gastar en la IA.
     es_comprador = not data.empresa_id and bool(data.tienda_id)
     comprador = await usuario_de_sesion(request) if es_comprador else None
+
+    # Es una empresa usando SU cupo (visor 3D, /remodelar del asesor). Antes se
+    # creía el empresa_id del navegador, y ese id es público: cualquiera podía
+    # gastarle las fotos a otra tienda. Ahora: sesión + dueño + plan pagado.
+    if data.empresa_id:
+        email = await exigir_duenio(request, data.empresa_id)
+        if email != ADMIN_EMAIL:
+            try:
+                re_ = get_supabase().table("empresas").select("estado") \
+                    .eq("id", data.empresa_id).maybe_single().execute()
+                estado = ((re_.data or {}).get("estado") if re_ else None) or ""
+            except Exception as e:
+                logger.error(f"No se pudo leer el estado de {data.empresa_id}: {e}")
+                raise HTTPException(status_code=503, detail="No se pudo verificar tu plan, intenta de nuevo")
+            if estado != "activo":
+                return {"status": "error", "error": "plan_inactivo",
+                        "mensaje": "Tu plan no está activo. Completa el pago en el dashboard para generar imágenes."}
 
     if not data.empresa_id and data.tienda_id:
         try:

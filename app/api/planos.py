@@ -8,6 +8,7 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request
 
 from app.services.openai_service import analizar_plano_completo
 from app.utils.supabase_client import get_supabase
+from app.utils.auth import exigir_duenio, ADMIN_EMAIL
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["planos"])
@@ -40,16 +41,18 @@ async def analizar_plano_arquitectonico(
     (misma función que usa el bot de WhatsApp) y genera el modelo 3D listo
     para cargar en el Visor 3D. Exclusivo del plan Corporativo.
     """
+    # Quién pide y si la empresa es suya, antes de todo: esto gasta IA de pago
+    email = await exigir_duenio(request, empresa_id)
     _verificar_limite_ip(request)
     supabase = get_supabase()
 
-    # ── Verificar plan Corporativo server-side (no confiar solo en el frontend) ──
-    empresa_res = supabase.table("empresas").select("id, planes(nombre)").eq("id", empresa_id).maybe_single().execute()
-    if not empresa_res.data:
+    # ── Verificar plan Corporativo y pago server-side (no confiar en el frontend) ──
+    empresa_res = supabase.table("empresas").select("id, estado, planes(nombre)").eq("id", empresa_id).maybe_single().execute()
+    if not empresa_res or not empresa_res.data:
         raise HTTPException(status_code=404, detail="Empresa no encontrada.")
-    plan_nombre = (empresa_res.data.get("planes") or {}).get("nombre", "basico")
-    if plan_nombre != "corporativo":
-        raise HTTPException(status_code=403, detail="Esta función es exclusiva del plan Corporativo.")
+    plan_nombre = ((empresa_res.data.get("planes") or {}).get("nombre") or "basico").lower()
+    if email != ADMIN_EMAIL and (plan_nombre != "corporativo" or empresa_res.data.get("estado") != "activo"):
+        raise HTTPException(status_code=403, detail="Esta función es exclusiva del plan Corporativo activo.")
 
     contenido = await archivo.read()
     if len(contenido) > 10 * 1024 * 1024:

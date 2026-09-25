@@ -1067,7 +1067,7 @@ async function generarRender() {
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.detail || ('Error ' + response.status));
-        if (data.status === 'error') throw new Error(data.error);
+        if (data.status === 'error') throw new Error(data.mensaje || data.error);
 
         resultadoUrl = data.url_imagen;
         resultadoPagado = false;
