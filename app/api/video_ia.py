@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from app.utils.config import get_settings
 from app.utils.supabase_client import get_supabase
+from app.utils.auth import exigir_duenio, email_de_sesion
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["video-ia"])
@@ -76,6 +77,8 @@ async def generar_video_ia(data: VideoIARequest, request: Request):
     que ya existe es mucho más barato que generar desde cero, y además respeta
     la geometría real del plano que hizo el usuario.
     """
+    # Quién pide y si la empresa es suya, ANTES de todo: esto cuesta plata en Runway
+    await exigir_duenio(request, data.empresa_id)
     _verificar_limite_ip(request)
     settings = get_settings()
 
@@ -125,11 +128,13 @@ async def generar_video_ia(data: VideoIARequest, request: Request):
 
 
 @router.get("/video-ia/{tarea_id}")
-async def estado_video_ia(tarea_id: str):
+async def estado_video_ia(tarea_id: str, request: Request):
     """
     Consulta cómo va la generación. La IA de video tarda minutos, así que el
     frontend consulta esto cada pocos segundos en vez de esperar bloqueado.
+    Pide sesión: sin ella, cualquiera con un id de tarea veía el video ajeno.
     """
+    email_de_sesion(request)
     settings = get_settings()
     api_key = getattr(settings, "runway_api_key", "") or ""
     if not api_key:

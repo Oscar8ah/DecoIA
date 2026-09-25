@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from app.utils.config import get_settings
 from app.utils.supabase_client import get_supabase
+from app.utils.auth import exigir_duenio, email_de_sesion
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["modelo-3d"])
@@ -53,6 +54,8 @@ async def generar_modelo_3d(data: Modelo3DRequest, request: Request):
     Genera el modelo 3D de un producto a partir de su foto, para poder verlo
     en AR. Cuesta créditos de Meshy, así que se valida bastante antes.
     """
+    # Sesión primero: sin ella no se dice ni si el producto existe
+    email_de_sesion(request)
     _verificar_limite_ip(request)
     settings = get_settings()
 
@@ -69,6 +72,10 @@ async def generar_modelo_3d(data: Modelo3DRequest, request: Request):
     if not r.data:
         raise HTTPException(status_code=404, detail="Producto no encontrado.")
     prod = r.data
+
+    # El producto es público en el marketplace: su id no prueba nada.
+    # Solo el dueño de la tienda puede gastar los créditos de Meshy de su plan.
+    await exigir_duenio(request, (prod.get("tiendas") or {}).get("empresa_id"))
 
     # Si ya tiene modelo, no gastar créditos otra vez
     if prod.get("modelo_3d_url"):
@@ -126,8 +133,21 @@ async def generar_modelo_3d(data: Modelo3DRequest, request: Request):
 
 
 @router.get("/modelo-3d/{tarea_id}")
-async def estado_modelo_3d(tarea_id: str, producto_id: str = ""):
+async def estado_modelo_3d(tarea_id: str, request: Request, producto_id: str = ""):
     """Consulta el avance. Al terminar, guarda la URL del modelo en el producto."""
+    email_de_sesion(request)
+    # Esto ESCRIBE en el producto: antes cualquiera podía ponerle un modelo
+    # a un producto ajeno. Se comprueba el dueño antes de consultar nada.
+    if producto_id:
+        try:
+            rp = get_supabase().table("productos").select("tiendas(empresa_id)") \
+                .eq("id", producto_id).maybe_single().execute()
+        except Exception as e:
+            logger.error(f"No se pudo leer el producto {producto_id}: {e}")
+            raise HTTPException(status_code=503, detail="No se pudo verificar el producto, intenta de nuevo")
+        if not rp or not rp.data:
+            raise HTTPException(status_code=404, detail="Producto no encontrado.")
+        await exigir_duenio(request, (rp.data.get("tiendas") or {}).get("empresa_id"))
     settings = get_settings()
     api_key = getattr(settings, "meshy_api_key", "") or ""
     if not api_key:
