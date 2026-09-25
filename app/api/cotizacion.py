@@ -7,6 +7,8 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.services.cotizacion_service import generar_pdf_cotizacion, guardar_cotizacion_pdf
+from app.utils.auth import exigir_duenio_tienda
+from app.utils.supabase_client import get_supabase
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["cotizacion"])
@@ -60,7 +62,16 @@ async def generar_cotizacion(data: CotizacionRequest, request: Request):
     propias cotizaciones). Este endpoint solo genera el archivo y devuelve la
     URL + el número de cotización para que el frontend guarde el registro.
     """
+    # Antes cualquiera podía sacar un PDF "de" cualquier tienda, con el nombre
+    # que quisiera, alojado en nuestro Storage: servía para estafar a nombre ajeno.
+    await exigir_duenio_tienda(request, data.tienda_id)
     _verificar_limite_ip(request)
+    try:
+        rt = get_supabase().table("tiendas").select("nombre").eq("id", data.tienda_id).maybe_single().execute()
+        tienda_nombre = ((rt.data or {}).get("nombre") if rt else None) or data.tienda_nombre
+    except Exception as e:
+        logger.warning(f"No se pudo leer el nombre de la tienda {data.tienda_id}: {e}")
+        tienda_nombre = data.tienda_nombre
 
     if data.descuento_pct < 0 or data.descuento_pct > 100:
         raise HTTPException(status_code=400, detail="El descuento debe estar entre 0 y 100%.")
@@ -93,7 +104,7 @@ async def generar_cotizacion(data: CotizacionRequest, request: Request):
     try:
         pdf_bytes = generar_pdf_cotizacion(
             numero=numero,
-            tienda_nombre=data.tienda_nombre,
+            tienda_nombre=tienda_nombre,
             items=items_dict,
             subtotal=subtotal,
             descuento_pct=data.descuento_pct,

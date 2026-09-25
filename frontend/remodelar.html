@@ -1400,7 +1400,8 @@ async function hablarConAsesorDesdeCarrito() {
             body: JSON.stringify({
                 tienda_id: tiendaParaAsesor,
                 cliente_telefono: clienteTelefono,
-                items: carrito.map(p => ({ nombre: p.nombre, precio: Number(p.precio) || 0, unidad: p.unidad || '' })),
+                // El servidor lee nombre y precio reales por id; lo demás es respaldo
+                items: carrito.map(p => ({ id: p.id ? String(p.id) : '', nombre: p.nombre, precio: Number(p.precio) || 0, unidad: p.unidad || '' })),
                 imagen_render_url: resultadoUrl || '',
             })
         });

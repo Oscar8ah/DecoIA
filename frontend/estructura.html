@@ -156,14 +156,23 @@
         <div class="fila"><span class="et">Vive en</span><span>Dashboard + <span class="ruta">/visor3d</span> (Editor Planta, Entorno 3D, Foto IA)</span></div>
         <div class="fila"><span class="et">Cámara</span><span>Solo de <b>fotografía</b>, interior y exterior. La foto se interpreta con IA; el piso o el cielo se ajustan con indicaciones o una foto de referencia. <b>Sin video</b></span></div>
         <div class="fila"><span class="et">Ya existe ✅</span><span>Planta con zonas y cuartos, multinivel, columnas cuadradas y redondas, vigas, cielos rasos, 10 tipos de cubierta, puertas que abren, detección de muros de fachada, gizmo para mover, rotar y escalar con pivote, recorrido, Foto IA</span></div>
+        <div class="fila"><span class="et">Planos</span><span><b>Crear planos es de Premium</b>: la planta, y también <b>interpretar un plano desde una foto</b> con IA (<span class="ruta">PLANES_CON_PLANOS = premium, corporativo</span>, en el servidor y en el dashboard) ✅. La cámara del visor se usa todas las veces que quiera; lo que gasta cupo es la <b>Foto IA</b>, que interpreta la escena de three.js</span></div>
         <div class="fila"><span class="et">Falta 🔲</span><span>
             <b>Escaleras</b> (recta, en L, en U, caracol) ·
-            <b>Asistente de cocina</b> en ventana aparte (lineal, L, U, isla; estufa a la izquierda o derecha) ·
             <b>Asistente de baño</b> ·
-            <b>Editor de fachada</b>: elegir un muro y trabajarlo en alzado (media pared + ventanal, etc.) ·
-            <b>Losas de piso</b> y <b>andenes</b> ·
             <b>Cámara exterior</b> para fotos de fachada
         </span></div>
+        <div class="fila"><span class="et">🧱 Editor de pared</span><span>Ventana modal para trabajar <b>cualquier muro, interior o exterior</b>, en alzado (de frente): media pared, ventanal, enchapes por zonas. En los muros <b>exteriores</b> se dibujan <b>cuadrados, rectángulos y círculos</b> sobre la pared (vanos, relieves, placas decorativas). Reemplaza al "editor de fachada" 🔲</span></div>
+        <div class="fila"><span class="et">🟫 Pisos exteriores</span><span>Módulo aparte: el mismo rectángulo, pero <b>acostado sobre el suelo</b>, para representar <b>andenes, losas, patios, rampas</b> y zonas duras alrededor de la casa 🔲</span></div>
+        <div class="fila"><span class="et">🍳 Módulo cocina</span><span>Ventana aparte, porque no hay dos cocinas iguales. Se arma por piezas:
+            <b>cajones</b> dibujados con cuadros y rectángulos, o una <b>caja grande</b> ·
+            <b>planchón</b> (mesón) de largo y fondo libres ·
+            <b>estufa</b> configurable (a gas o de inducción, número de puestos) que se <b>ubica donde uno quiera</b> sobre el planchón ·
+            <b>lavaplatos</b> con posición libre (izquierda, derecha o donde caiga) ·
+            <b>horno a gas empotrado</b>, movible a izquierda o derecha ·
+            <b>microondas</b> empotrado o sobre el planchón ·
+            <b>campana extractora</b>, indicando por dónde salen las partículas (ducto al techo, a la pared o recirculación).
+            Formas base: lineal, en L, en U, con isla 🔲</span></div>
     </div>
 
     <div class="plan corporativo">
@@ -175,6 +184,8 @@
         <div class="fila"><span class="et">Vive en</span><span>Editor de video y Nodos, dentro de <span class="ruta">/visor3d</span></span></div>
         <div class="fila"><span class="et">Qué suma</span><span><b>Video</b>: una o varias cámaras, interior y exterior, con recorridos. Es lo único que el Premium no tiene</span></div>
         <div class="fila"><span class="et">Control</span><span>Ya está así en el código: <span class="ruta">PLANES_CON_VIDEO = ['corporativo']</span></span></div>
+        <div class="fila"><span class="et">Cámara ✅</span><span>La camarita, su gizmo y el tubo del recorrido son <b>ayudas del editor</b> (capa 1 de three.js): se ven en Entorno 3D pero <b>no salen en el video</b>. Antes la cámara que graba quedaba dentro del modelo y lo primero que se veía era su propio lente</span></div>
+        <div class="fila"><span class="et">Falta 🔲</span><span><b>Trazo de cámara tipo pluma vectorial</b> (como en Illustrator): puntos con manijas para dar <b>curva</b>, botón para <b>suavizar</b>, línea <b>continua o punteada</b>, y mover o borrar puntos después. Reemplaza el tubo grueso de hoy</span></div>
         <div class="fila"><span class="et">Para quién</span><span>Constructoras que necesitan mostrar el proyecto completo</span></div>
     </div>
 
@@ -228,7 +239,7 @@
     <table>
         <tr><th style="width:120px">Prioridad</th><th>Qué</th><th style="width:34%">Dónde / por qué</th></tr>
 
-        <tr><td><span class="prio p1">🔴 Antes de vender</span></td><td class="que"><b>Autenticación en todo el servidor.</b> Mover <span class="ruta">_exigir_duenio</span> a <span class="ruta">app/utils/auth.py</span> y aplicarlo donde hoy se cree el <span class="ruta">empresa_id</span> o <span class="ruta">tienda_id</span> que manda el navegador</td><td class="donde"><span class="ruta">catalogo</span> (gasta créditos de Anthropic), <span class="ruta">video_ia</span>, <span class="ruta">modelo3d</span>, <span class="ruta">render3d</span> para empresas, <span class="ruta">planos</span>, <span class="ruta">fondo</span>, <span class="ruta">solicitudes</span>, <span class="ruta">cotizacion</span>. Solo <span class="ruta">superficies</span> y compras lo tienen</td></tr>
+        <tr><td><span class="prio p3">✅ Hecho 25 sep</span></td><td class="que"><b>Autenticación en todo el servidor.</b> <span class="ruta">app/utils/auth.py</span> (<span class="ruta">exigir_duenio</span>, <span class="ruta">exigir_duenio_tienda</span>) aplicado en <span class="ruta">catalogo</span>, <span class="ruta">video_ia</span>, <span class="ruta">modelo3d</span>, <span class="ruta">render3d</span>, <span class="ruta">planos</span>, <span class="ruta">fondo</span> y <span class="ruta">cotizacion</span>. <span class="ruta">solicitudes</span> lo usa el cliente: ahí el precio sale de la base, el link de imagen solo de nuestro Storage y el teléfono solo dígitos</td><td class="donde">Probado con ataques: sin sesión, token falso, otra cuenta, comprador, empresa sin pagar. Borrar esta fila en la próxima revisión</td></tr>
         <tr><td><span class="prio p1">🔴 Antes de vender</span></td><td class="que">Probar el cobro de la imagen de $5.000 con las llaves de prueba de Wompi (o un pago real pequeño)</td><td class="donde">Visitante · referencia <span class="ruta">IMG-</span></td></tr>
         <tr><td><span class="prio p1">🔴 Antes de vender</span></td><td class="que">Recorrido completo del comprador: favorito → compra → reseña → la tienda responde</td><td class="donde">Marketplace · cuenta <span class="ruta">ofertprodesarrollo@gmail.com</span></td></tr>
         <tr><td><span class="prio p1">🔴 Antes de vender</span></td><td class="que">Probar logo (subir y eliminar), portafolio y baúl</td><td class="donde">Dashboard y <span class="ruta">/remodelar</span></td></tr>
@@ -245,12 +256,14 @@
         <tr><td><span class="prio p3">🟢 Orden</span></td><td class="que">Rol de administrador en una tabla, en vez del correo fijo · cerrar políticas amplias de <span class="ruta">nodos-referencias</span></td><td class="donde">Supabase</td></tr>
 
         <tr><td><span class="prio p4">🟣 Premium</span></td><td class="que"><b>Escaleras</b>: recta, en L, en U, caracol</td><td class="donde"><span class="ruta">/visor3d</span> · Editor Planta</td></tr>
-        <tr><td><span class="prio p4">🟣 Premium</span></td><td class="que"><b>Asistente de cocina</b> en ventana aparte: lineal, L, U, isla; estufa a la izquierda o derecha</td><td class="donde"><span class="ruta">/visor3d</span></td></tr>
+        <tr><td><span class="prio p4">🟣 Premium</span></td><td class="que"><b>Módulo cocina</b> por piezas: cajones, caja grande, planchón, estufa gas/inducción ubicable, lavaplatos, horno empotrado, microondas, campana (detalle arriba, en el plan Premium)</td><td class="donde"><span class="ruta">/visor3d</span> · ventana aparte</td></tr>
         <tr><td><span class="prio p4">🟣 Premium</span></td><td class="que"><b>Asistente de baño</b></td><td class="donde"><span class="ruta">/visor3d</span></td></tr>
-        <tr><td><span class="prio p4">🟣 Premium</span></td><td class="que"><b>Editor de fachada</b>: elegir un muro y trabajarlo en alzado (media pared + ventanal)</td><td class="donde"><span class="ruta">/visor3d</span></td></tr>
-        <tr><td><span class="prio p4">🟣 Premium</span></td><td class="que"><b>Losas y andenes</b></td><td class="donde"><span class="ruta">/visor3d</span> · Editor Planta</td></tr>
+        <tr><td><span class="prio p4">🟣 Premium</span></td><td class="que"><b>Editor de pared</b> (modal, interior o exterior, en alzado); en exteriores cuadrados, rectángulos y círculos</td><td class="donde"><span class="ruta">/visor3d</span> · ventana modal</td></tr>
+        <tr><td><span class="prio p4">🟣 Premium</span></td><td class="que"><b>Pisos exteriores</b>: rectángulo sobre el suelo para andenes, losas y patios</td><td class="donde"><span class="ruta">/visor3d</span> · Editor Planta</td></tr>
         <tr><td><span class="prio p4">🟣 Premium</span></td><td class="que"><b>Cámara exterior</b> para fotos de fachada, con indicaciones o foto de referencia para el cielo y el piso</td><td class="donde"><span class="ruta">/visor3d</span> · Foto IA</td></tr>
         <tr><td><span class="prio p4">🟣 Premium</span></td><td class="que">Definir el <b>precio</b> del plan</td><td class="donde">Decisión de negocio</td></tr>
+        <tr><td><span class="prio p4">🔴 Corporativo</span></td><td class="que"><b>Trazo de cámara tipo pluma vectorial</b>: curvas con manijas, suavizar, continua o punteada</td><td class="donde"><span class="ruta">/visor3d</span> · Editor de video (reemplaza <span class="ruta">dibujarLineaTrazo3D</span>)</td></tr>
+        <tr><td><span class="prio p3">🟢 Decidir</span></td><td class="que">¿Las empresas <b>sin pagar</b> pueden importar catálogos? Hoy el servidor solo exige ser el dueño (gasta créditos de Anthropic, máx. 8 por hora)</td><td class="donde"><span class="ruta">app/api/catalogo.py</span></td></tr>
     </table>
 
     <h2>Reglas que no cambian</h2>

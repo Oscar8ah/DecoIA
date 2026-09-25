@@ -13,6 +13,8 @@ from app.utils.auth import exigir_duenio, ADMIN_EMAIL
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["planos"])
 
+PLANES_CON_PLANOS = {"premium", "corporativo"}
+
 # Igual que en catalogo.py — llama a IA de pago, hay que protegerlo de abuso
 _peticiones_por_ip: dict = defaultdict(deque)
 LIMITE_PETICIONES = 6
@@ -39,7 +41,7 @@ async def analizar_plano_arquitectonico(
     """
     Recibe una foto/escaneo de un plano arquitectónico, lo interpreta con IA
     (misma función que usa el bot de WhatsApp) y genera el modelo 3D listo
-    para cargar en el Visor 3D. Exclusivo del plan Corporativo.
+    para cargar en el Visor 3D. Desde el plan Premium (la planta es de Premium).
     """
     # Quién pide y si la empresa es suya, antes de todo: esto gasta IA de pago
     email = await exigir_duenio(request, empresa_id)
@@ -51,8 +53,8 @@ async def analizar_plano_arquitectonico(
     if not empresa_res or not empresa_res.data:
         raise HTTPException(status_code=404, detail="Empresa no encontrada.")
     plan_nombre = ((empresa_res.data.get("planes") or {}).get("nombre") or "basico").lower()
-    if email != ADMIN_EMAIL and (plan_nombre != "corporativo" or empresa_res.data.get("estado") != "activo"):
-        raise HTTPException(status_code=403, detail="Esta función es exclusiva del plan Corporativo activo.")
+    if email != ADMIN_EMAIL and (plan_nombre not in PLANES_CON_PLANOS or empresa_res.data.get("estado") != "activo"):
+        raise HTTPException(status_code=403, detail="Interpretar planos está disponible desde el plan Premium activo.")
 
     contenido = await archivo.read()
     if len(contenido) > 10 * 1024 * 1024:

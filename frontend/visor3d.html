@@ -1619,6 +1619,14 @@ document.addEventListener('keyup', (e) => {
 
 // ── RAYCASTER para drag & drop ────────────────────────────────────────────
 const raycaster  = new THREE.Raycaster();
+// ── Capa de ayudas visuales ────────────────────────────────────────────
+// Capa 0 = lo que existe en la casa. Capa 1 = ayudas del editor (la camarita,
+// su gizmo, el tubo del recorrido). La cámara principal y los clics ven las
+// dos; cameraPreview (la que graba el video) solo ve la capa 0.
+const CAPA_AYUDAS = 1;
+function soloEnEditor(obj) { obj.traverse(o => o.layers.set(CAPA_AYUDAS)); }
+camera.layers.enable(CAPA_AYUDAS);
+raycaster.layers.enable(CAPA_AYUDAS);
 const mouse      = new THREE.Vector2();
 
 // ── MINI-PANTALLA "vista por dentro" (Nodos) + camarita marcadora (Entorno 3D) ──
@@ -1799,6 +1807,11 @@ marcarPersistente(marcadorCamara);
 // mano: se marca para que el gizmo la agarre como a cualquier otro.
 marcadorCamara.userData.tipoEstructura = 'camara';
 marcadorCamara.userData.moduloNombre   = '🎥 Cámara';
+// La camarita y su gizmo son AYUDAS del editor: se ven en Entorno 3D pero la
+// cámara que graba no las ve. Antes la cámara de grabación quedaba parada
+// dentro del modelo (a escala 3 el lente sobresale ~1,5 m) y lo primero que
+// salía en el video era su propio lente.
+soloEnEditor(marcadorCamara);
 scene.add(marcadorCamara);
 const planoArrastre = new THREE.Plane(new THREE.Vector3(0,1,0), 0); // plano Y=0
 const puntoArrastre = new THREE.Vector3();
@@ -4357,6 +4370,7 @@ let dibujando3D      = false;
 let trazo3D          = []; // [{x,z,moduloId,moduloNombre}]
 let lineaTrazo3DObj  = null;
 const raycaster3D = new THREE.Raycaster();
+raycaster3D.layers.enable(CAPA_AYUDAS);   // para poder agarrar la camarita, que vive en la capa de ayudas
 const mouse3D     = new THREE.Vector2();
 
 const PROMPTS_PREDETERMINADOS_POR_ZONA = {
@@ -4620,6 +4634,7 @@ function dibujarLineaTrazo3D() {
     const mat = new THREE.MeshBasicMaterial({ color: 0x22D3EE, depthTest: false, depthWrite: false });
     lineaTrazo3DObj = new THREE.Mesh(geo, mat);
     lineaTrazo3DObj.renderOrder = 999;
+    soloEnEditor(lineaTrazo3DObj);   // se dibuja encima de todo: si la cámara que graba lo viera, saldría en el video
     marcarPersistente(lineaTrazo3DObj);
     scene.add(lineaTrazo3DObj);
 }

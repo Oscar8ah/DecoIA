@@ -1,4 +1,5 @@
 import logging
+import re
 import time
 from collections import defaultdict, deque
 
@@ -16,6 +17,8 @@ _peticiones_por_ip: dict = defaultdict(deque)
 LIMITE_PETICIONES = 20
 VENTANA_SEGUNDOS  = 3600
 MAX_ITEMS = 30
+# Solo se aceptan imágenes de nuestro propio Storage de Supabase
+STORAGE_PERMITIDO = "https://cqwbsikyzdtegutyvgfo.supabase.co/storage/"
 
 
 def _verificar_limite_ip(request: Request):
@@ -30,6 +33,7 @@ def _verificar_limite_ip(request: Request):
 
 
 class ItemCarrito(BaseModel):
+    id: str = ""
     nombre: str
     precio: float = 0
     unidad: str = ""
@@ -83,7 +87,37 @@ async def notificar_carrito_asesor(data: SolicitudAsesorRequest, request: Reques
         asesor_numero   = ASESOR_NUMERO
         phone_number_id = None
 
-    items_dict = [{"nombre": it.nombre.strip()[:200], "precio": it.precio, "unidad": it.unidad.strip()[:20]} for it in data.items]
+    # Este endpoint lo usa el CLIENTE (no el dueño), así que no se exige dueño.
+    # Pero lo que llega al WhatsApp del asesor no puede ser inventado:
+    # - nombre y precio salen de la base, por id, y solo de ESA tienda
+    # - el link de la imagen solo puede ser de nuestro Storage (nada de links de estafa)
+    # - el teléfono solo dígitos
+    ids = [it.id for it in data.items if it.id][:MAX_ITEMS]
+    reales = {}
+    if ids:
+        try:
+            rp = supabase.table("productos").select("id, nombre, precio, unidad") \
+                .in_("id", ids).eq("tienda_id", data.tienda_id).execute()
+            reales = {str(p["id"]): p for p in (rp.data or [])}
+        except Exception as e:
+            logger.error(f"No se pudieron leer los productos del carrito: {e}")
+    items_dict = []
+    for it in data.items:
+        p = reales.get(str(it.id)) if it.id else None
+        if p:
+            items_dict.append({"nombre": (p.get("nombre") or "")[:200], "precio": float(p.get("precio") or 0),
+                               "unidad": (p.get("unidad") or "")[:20]})
+        elif not it.id:
+            # Sin id (pantalla vieja en caché): se muestra el nombre, pero el precio no se cree
+            items_dict.append({"nombre": it.nombre.strip()[:200] + " (precio por confirmar)", "precio": 0.0,
+                               "unidad": it.unidad.strip()[:20]})
+        # con id que no es de esta tienda: se descarta
+    telefono = re.sub(r"\D", "", data.cliente_telefono or "")
+    if not (7 <= len(telefono) <= 15):
+        telefono = ""
+    imagen_url = data.imagen_render_url or ""
+    if not imagen_url.startswith(STORAGE_PERMITIDO):
+        imagen_url = ""
     total = sum(it["precio"] for it in items_dict)
 
     # ── Notificar al asesor por WhatsApp con la info real del carrito ──────
@@ -95,9 +129,9 @@ async def notificar_carrito_asesor(data: SolicitudAsesorRequest, request: Reques
 
     mensaje = (
         f"🔔 *Cliente pide asesor — {tienda.get('nombre', 'tu tienda')}*\n\n"
-        f"📱 *Cliente:* +{data.cliente_telefono or 'no identificado'}\n\n"
+        f"📱 *Cliente:* {('+' + telefono) if telefono else 'no identificado'}\n\n"
         f"{cuerpo_productos}"
-        + (f"🖼️ *Imagen generada:* {data.imagen_render_url}\n\n" if data.imagen_render_url else "")
+        + (f"🖼️ *Imagen generada:* {imagen_url}\n\n" if imagen_url else "")
         + "⚡ Contáctalo cuanto antes."
     )
 
@@ -113,9 +147,9 @@ async def notificar_carrito_asesor(data: SolicitudAsesorRequest, request: Reques
         supabase.table("solicitudes_asesor").insert({
             "tienda_id":         data.tienda_id,
             "empresa_id":        empresa.get("id"),
-            "cliente_telefono":  data.cliente_telefono or None,
+            "cliente_telefono":  telefono or None,
             "items":             items_dict,
-            "imagen_render_url": data.imagen_render_url or None,
+            "imagen_render_url": imagen_url or None,
             "total":             total,
         }).execute()
     except Exception as e:

@@ -806,9 +806,9 @@
             </div>
         </div>
 
-        <!-- TAB PLANOS ARQUITECTÓNICOS CON IA — solo Corporativo -->
+        <!-- TAB PLANOS ARQUITECTÓNICOS CON IA — Premium en adelante -->
         <div class="tab-content" id="tab-planos">
-            <div id="planosBloqueado" style="display:none;"><div class="plan-requerido">⚠️ Esta función está disponible en el plan <strong>Corporativo</strong>. <a href="/#planes" style="color:#FCD34D;margin-left:8px;">Ver planes →</a></div></div>
+            <div id="planosBloqueado" style="display:none;"><div class="plan-requerido">⚠️ Esta función está disponible desde el plan <strong>Premium</strong>. <a href="/#planes" style="color:#FCD34D;margin-left:8px;">Ver planes →</a></div></div>
             <div id="planosDisponible" style="display:none;">
                 <div class="form-card"><h3>🏗️ Planos arquitectónicos con IA</h3><p>Sube una foto de un plano arquitectónico real (impreso, escaneado o boceto) y la IA lo interpreta con normas técnicas colombianas, generando el modelo 3D listo para el Visor.</p></div>
                 <div class="alerta" id="planosAlerta"></div>
@@ -1001,7 +1001,7 @@ const PLANES_CON_CRM_VISOR = ['profesional','premium','corporativo'];   // CRM
 const PLANES_CON_VISOR     = ['premium','corporativo'];                 // Visor 3D, según /estructura
 const PLANES_CON_WHATSAPP  = ['basico','profesional','premium','corporativo']; // todo menos gratis
 const PLANES_CON_AR        = ['corporativo'];
-const PLANES_CON_PLANOS    = ['corporativo'];
+const PLANES_CON_PLANOS    = ['premium','corporativo'];   // la planta es de Premium (/estructura)
 const PLANES_CON_COTIZADOR = ['premium','corporativo'];
 
 // ── CANDADO POR PLAN + PAGO ─────────────────────────────────────────────
@@ -1116,7 +1116,7 @@ async function cargarDatos(user) {
     } else {
         document.getElementById('planosBloqueado').style.display  = 'block';
         document.getElementById('planosBloqueado').innerHTML =
-            `<div class="plan-requerido">${mensajeBloqueo(PLANES_CON_PLANOS, 'Corporativo')} <a href="#" onclick="mostrarPagina('plan')" style="color:#FCD34D;margin-left:8px;">Ver planes →</a></div>`;
+            `<div class="plan-requerido">${mensajeBloqueo(PLANES_CON_PLANOS, 'Premium')} <a href="#" onclick="mostrarPagina('plan')" style="color:#FCD34D;margin-left:8px;">Ver planes →</a></div>`;
     }
     if (funcionDesbloqueada(PLANES_CON_COTIZADOR)) {
         document.getElementById('cotizadorDisponible').style.display = 'block';
@@ -1345,12 +1345,17 @@ async function quitarFondoProducto() {
     btn.innerHTML = '<span class="spinner-btn"></span>Quitando fondo...';
     try {
         const base64 = btoa(String.fromCharCode(...new Uint8Array(imagenActualBytes)));
+        const { data: { session } } = await db.auth.getSession();
+        if (!session) throw new Error('Tu sesión expiró. Vuelve a iniciar sesión.');
         const response = await fetch('https://decoia.onrender.com/quitar-fondo', {
             method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ imagen_base64: base64 })
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+            body:    JSON.stringify({ imagen_base64: base64, empresa_id: empresaId })
         });
-        if (!response.ok) throw new Error('Error del servidor: ' + response.status);
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.detail || ('Error del servidor: ' + response.status));
+        }
         const data = await response.json();
         if (data.status === 'error') throw new Error(data.error);
         const urlPng = data.url_imagen;
@@ -2309,9 +2314,11 @@ async function cotGenerarPDF() {
     const tiendaNombre = document.getElementById('tiendaNombre')?.value || 'Mi tienda';
 
     try {
+        const { data: { session } } = await db.auth.getSession();
+        if (!session) throw new Error('Tu sesión expiró. Vuelve a iniciar sesión.');
         const response = await fetch('https://decoia.onrender.com/generar-cotizacion', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
             body: JSON.stringify({
                 tienda_id: tiendaId,
                 tienda_nombre: tiendaNombre,
