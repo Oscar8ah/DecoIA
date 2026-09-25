@@ -76,6 +76,21 @@
         .tienda-ciudad { font-size: 12px; color: var(--gris); }
         .btn-ver-tienda { background: var(--degradado); color: white; padding: 8px 18px; border-radius: 50px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: opacity 0.3s; font-family: 'Segoe UI', sans-serif; }
         .btn-ver-tienda:hover { opacity: 0.85; }
+        /* ── Tarjeta de tienda con portada viva (fotos reales de sus productos) ── */
+        .tienda-banner-vivo { height: 150px; font-size: 38px; }
+        .portada-collage { position: absolute; inset: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+        .portada-collage.una { grid-template-columns: 1fr; }
+        .portada-collage img { width: 100%; height: 100%; object-fit: cover; transition: transform .6s ease; }
+        .tienda-card:hover .portada-collage img { transform: scale(1.06); }
+        .portada-velo { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(10,10,20,.55)); pointer-events: none; }
+        .logo-caja { position: absolute; left: 14px; top: 14px; width: 76px; height: 76px; border-radius: 16px; background: #fff;
+                     display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 18px rgba(0,0,0,.28); overflow: hidden; z-index: 2; font-size: 34px; }
+        .tienda-banner .logo-caja img { width: 100%; height: 100%; object-fit: contain; padding: 7px; box-sizing: border-box; }
+        .tienda-banner-vivo .tienda-cat-badge { top: 12px; right: 12px; bottom: auto; background: rgba(255,255,255,.92); color: #4C1D95; font-weight: 700; z-index: 2; }
+        .tienda-card .tienda-desc { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 8px; }
+        .tienda-card .tienda-ciudad { display: block; margin-bottom: 14px; }
+        .tienda-miniaturas { display: flex; gap: 6px; }
+        .tienda-miniaturas img { width: 46px; height: 38px; object-fit: cover; border-radius: 8px; border: 1px solid rgba(255,255,255,.08); }
         .tienda-header-grande { background: var(--oscuro2); border: 1px solid rgba(124,58,237,0.2); border-radius: 20px; overflow: hidden; margin-bottom: 32px; }
         .tienda-banner-grande { height: 150px; display: flex; align-items: center; justify-content: center; font-size: 52px; position: relative; overflow: hidden; }
         .tienda-banner-grande img.banner-bg { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; }
@@ -423,7 +438,28 @@ window.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('tiendasGrid').style.display = 'grid';
     renderTiendas(todasTiendas);
     carritoInit();
+    // Las fotos llegan después y se vuelve a pintar respetando los filtros:
+    // la lista aparece de inmediato y la portada se completa en un momento.
+    cargarFotosTiendas(todasTiendas).then(aplicarFiltros).catch(() => {});
 });
+
+// Portada y miniaturas de cada tienda, con fotos reales de sus productos.
+// Ninguna tienda tiene que subir nada: sale de su propio catálogo.
+window._fotosTienda = {};
+async function cargarFotosTiendas(tiendas) {
+    const ids = tiendas.map(t => t.id);
+    if (!ids.length) return;
+    const { data } = await db.from('productos').select('tienda_id, imagen_url')
+        .in('tienda_id', ids).eq('activo', true).not('imagen_url', 'is', null)
+        .order('created_at', { ascending: false }).limit(400);
+    const mapa = {};
+    (data || []).forEach(p => {
+        if (!p.imagen_url) return;
+        (mapa[p.tienda_id] ||= []);
+        if (mapa[p.tienda_id].length < 6) mapa[p.tienda_id].push(p.imagen_url);
+    });
+    window._fotosTienda = mapa;
+}
 
 function renderTiendas(tiendas) {
     const grid     = document.getElementById('tiendasGrid');
@@ -436,20 +472,25 @@ function renderTiendas(tiendas) {
     grid.innerHTML = tiendas.map(t => {
         const emoji = EMOJIS_CAT[t.categoria_principal] || '🏪';
         const color = COLORES_CAT[t.categoria_principal] || 'linear-gradient(135deg,#3B82F6,#7C3AED)';
-        const bannerContenido = t.logo_url
-            ? `<div style="background:#FFFFFF;width:100%;height:100%;display:flex;align-items:center;justify-content:center;"><img src="${esc(t.logo_url)}" class="logo-sobre-banner" alt="${esc(t.nombre)}" onerror="this.style.display='none'"></div>`
-            : `<span>${emoji}</span>`;
+        const fotos      = (window._fotosTienda || {})[t.id] || [];
+        const portada    = fotos.slice(0, 2);
+        const miniaturas = (fotos.length > 2 ? fotos.slice(2, 6) : fotos).slice(0, 4);
+        const logo = t.logo_url
+            ? `<div class="logo-caja"><img src="${esc(t.logo_url)}" alt="${esc(t.nombre)}" onerror="this.remove()"></div>`
+            : `<div class="logo-caja">${emoji}</div>`;
         return `
         <div class="tienda-card" onclick="verTienda('${t.id}')">
-            <div class="tienda-banner" style="background:${t.logo_url ? '#FFFFFF' : color}">
-                ${bannerContenido}
+            <div class="tienda-banner tienda-banner-vivo" style="background:${color}">
+                ${portada.length ? `<div class="portada-collage ${portada.length === 1 ? 'una' : ''}">${portada.map(u => `<img src="${esc(u)}" alt="" loading="lazy" onerror="this.remove()">`).join('')}</div><div class="portada-velo"></div>` : ''}
+                ${logo}
                 <span class="tienda-cat-badge">${esc(t.categoria_principal) || 'General'}</span>
             </div>
             <div class="tienda-body">
                 <div class="tienda-nombre">${esc(t.nombre)}</div>
                 <div class="tienda-desc">${esc(t.descripcion) || 'Tienda de materiales para remodelación.'}</div>
+                <span class="tienda-ciudad">📍 ${esc(t.ciudad) || 'Colombia'}</span>
                 <div class="tienda-meta">
-                    <span class="tienda-ciudad">📍 ${esc(t.ciudad) || 'Colombia'}</span>
+                    <div class="tienda-miniaturas">${miniaturas.map(u => `<img src="${esc(u)}" alt="" loading="lazy" onerror="this.remove()">`).join('')}</div>
                     <button class="btn-ver-tienda">Ver tienda →</button>
                 </div>
             </div>
