@@ -5783,6 +5783,59 @@ function geometriaVanoEnPlano(v) {
     return null;
 }
 
+// ── CONTACTOS ENTRE MÓDULOS (para poner vanos) ───────────────────────────
+// Dónde se tocan dos cuartos, o un cuarto y un piso exterior (la puerta de la
+// sala que sale al andén). El cuarto siempre queda como modulo_a y el lado es
+// el del cuarto: así el 3D le abre el hueco a SU muro. Los contactos con un
+// exterior NO van en paredes_compartidas: ese muro sigue siendo fachada.
+function contactosPlanta() {
+    const TOL = 0.15, MIN = 0.05, lista = [];
+    const P = m => ({ x: m.px / ESCALA, z: m.pz / ESCALA, an: m.ancho, la: m.largo });
+    for (let i = 0; i < modulosPlanta.length; i++) {
+        for (let j = i + 1; j < modulosPlanta.length; j++) {
+            const mi = modulosPlanta[i], mj = modulosPlanta[j];
+            let cu, ot, exterior;
+            if (esCuarto(mi.tipo) && esCuarto(mj.tipo))          { cu = mi; ot = mj; exterior = false; }
+            else if (esCuarto(mi.tipo) && mj.tipo === 'exterior') { cu = mi; ot = mj; exterior = true; }
+            else if (esCuarto(mj.tipo) && mi.tipo === 'exterior') { cu = mj; ot = mi; exterior = true; }
+            else continue;
+            if (nivelDe(cu) !== nivelDe(ot)) continue;
+            const a = P(cu), b = P(ot);
+            const push = (lado, ini, fin) => { if (fin - ini > MIN) lista.push({ modulo_a: cu.id, modulo_b: ot.id, lado, ini, fin, exterior, nivel: nivelDe(cu) }); };
+            if (Math.abs(a.z - (b.z + b.la)) < TOL) push('norte', Math.max(a.x, b.x), Math.min(a.x + a.an, b.x + b.an));
+            if (Math.abs((a.z + a.la) - b.z) < TOL) push('sur',   Math.max(a.x, b.x), Math.min(a.x + a.an, b.x + b.an));
+            if (Math.abs(a.x - (b.x + b.an)) < TOL) push('oeste', Math.max(a.z, b.z), Math.min(a.z + a.la, b.z + b.la));
+            if (Math.abs((a.x + a.an) - b.x) < TOL) push('este',  Math.max(a.z, b.z), Math.min(a.z + a.la, b.z + b.la));
+        }
+    }
+    return lista;
+}
+const claveMuro = o => `${o.modulo_a}|${o.modulo_b}|${o.lado}`;
+// Muros donde el usuario borró el último vano: al regenerar el 3D no se le
+// vuelve a abrir un arco solo. Se reabren con el botón ＋ de la planta.
+const murosCerrados = new Set();
+let botonesMasVano = [];   // { px, pz, contacto } — los ＋ dibujados en la planta
+
+function crearVanoEnContacto(c) {
+    const largo = c.fin - c.ini;
+    const nuevo = {
+        id: 'v_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+        modulo_a: c.modulo_a, modulo_b: c.modulo_b, lado: c.lado, nivel: c.nivel || 0,
+        centro: (c.ini + c.fin) / 2,
+        ancho: Math.min(0.9, Math.max(0.6, largo - 0.2)),
+        // Hacia afuera lo normal es una PUERTA; entre cuartos, el paso libre de siempre
+        tipo: c.exterior ? 'puerta' : 'arco',
+        alto: 2.1, bisagra: 'izq', sentido: 'dentro', anguloApertura: 75, abierta: true,
+        limIni: c.ini, limFin: c.fin,
+    };
+    vanosPlanta.push(nuevo);
+    murosCerrados.delete(claveMuro(c));
+    seleccionarVano(nuevo);
+    const otro = modulosPlanta.find(m => m.id === c.modulo_b);
+    mostrarToast(c.exterior ? `🚪 Puerta hacia ${otro ? otro.nombre : 'afuera'} — arrástrala y vuelve a generar el 3D`
+                            : '➕ Vano creado — arrástralo a su posición');
+}
+
 // ¿El clic cayó sobre algún vano? Devuelve el vano o null.
 function vanoEnPunto(px, pz) {
     const TOL = 10; // píxeles de tolerancia
@@ -5848,7 +5901,9 @@ function actualizarVano(campo, valor) {
 
 function borrarVano() {
     if (!vanoSeleccionado) return;
+    const clave = claveMuro(vanoSeleccionado);
     vanosPlanta = vanosPlanta.filter(v => v.id !== vanoSeleccionado.id);
+    if (!vanosPlanta.some(v => claveMuro(v) === clave)) murosCerrados.add(clave);
     vanoSeleccionado = null;
     renderPanelVano();
     dibujarPlanta();
@@ -6105,6 +6160,28 @@ function dibujarPlanta() {
         ctx.stroke();
     });
 
+    // ── ＋ PARA AGREGAR VANO en cada muro que se toca y no tiene ninguno ──
+    // Celeste entre cuartos; verde lima hacia un piso exterior (andén, patio…).
+    botonesMasVano = [];
+    if (!modoDibujoRecorrido) contactosPlanta().forEach(c => {
+        if (c.nivel !== nivelActivo) return;
+        if (vanosPlanta.some(v => claveMuro(v) === claveMuro(c))) return;
+        const a = modulosPlanta.find(m => m.id === c.modulo_a);
+        if (!a) return;
+        const med = (c.ini + c.fin) / 2 * ESCALA;
+        const px = (c.lado === 'norte' || c.lado === 'sur') ? med : (c.lado === 'oeste' ? a.px : a.px + a.ancho * ESCALA);
+        const pz = (c.lado === 'oeste' || c.lado === 'este') ? med : (c.lado === 'norte' ? a.pz : a.pz + a.largo * ESCALA);
+        const col = c.exterior ? '#A3E635' : '#38BDF8';
+        ctx.save();
+        ctx.shadowColor = col; ctx.shadowBlur = 8;
+        ctx.fillStyle = '#0F0F1A'; ctx.strokeStyle = col; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(px, pz, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.shadowBlur = 0; ctx.fillStyle = col;
+        ctx.fillRect(px - 4.5, pz - 1, 9, 2); ctx.fillRect(px - 1, pz - 4.5, 2, 9);
+        ctx.restore();
+        botonesMasVano.push({ px, pz, contacto: c });
+    });
+
     // ── VANOS (puertas / pasos entre zonas) ──────────────────────────────
     // Se dibujan como una barra sobre la pared donde están. Verde = arco
     // (de piso a techo), naranja = puerta (con dintel encima).
@@ -6228,6 +6305,10 @@ function onPlantaMouseDown(e) {
         dibujarPlanta();
         return;
     }
+
+    // ¿Clic sobre un ＋? Crea el vano en ese muro (hacia un exterior: una puerta).
+    const mas = botonesMasVano.find(b => Math.hypot(mx - b.px, my - b.pz) <= 12);
+    if (mas) { crearVanoEnContacto(mas.contacto); return; }
 
     // ¿Clic sobre un VANO? Se revisa ANTES que los módulos, porque el vano
     // vive sobre el borde de una zona y si no tendría prioridad el módulo.
@@ -6777,6 +6858,7 @@ function generarDesdePlanta() {
     paredes_compartidas.forEach(pc => {
         const yaExiste = vanosPlanta.some(v => v.modulo_a === pc.modulo_a && v.modulo_b === pc.modulo_b && v.lado === pc.lado);
         if (yaExiste) return;
+        if (murosCerrados.has(claveMuro(pc))) return;   // el usuario lo dejó cerrado a propósito
         const largoContacto = pc.fin - pc.ini;
         const anchoVano = Math.min(ANCHO_VANO_DEFECTO, Math.max(0.6, largoContacto - 0.2));
         vanosPlanta.push({
@@ -6797,9 +6879,13 @@ function generarDesdePlanta() {
             limIni: pc.ini, limFin: pc.fin,   // hasta dónde se puede deslizar sobre esa pared
         });
     });
-    // Descartar vanos cuyas zonas ya no se tocan (el usuario movió un módulo)
+    // Descartar vanos cuyas zonas ya no se tocan (el usuario movió un módulo).
+    // Los vanos hacia un piso exterior (andén, patio…) se validan con sus
+    // propios contactos: no están en paredes_compartidas porque ese muro es fachada.
+    const contactosExt = contactosPlanta().filter(c => c.exterior);
     vanosPlanta = vanosPlanta.filter(v =>
-        paredes_compartidas.some(pc => pc.modulo_a === v.modulo_a && pc.modulo_b === v.modulo_b && pc.lado === v.lado)
+        paredes_compartidas.some(pc => pc.modulo_a === v.modulo_a && pc.modulo_b === v.modulo_b && pc.lado === v.lado) ||
+        contactosExt.some(c => claveMuro(c) === claveMuro(v))
     );
 
     const modelo3d = {
@@ -7327,13 +7413,31 @@ function cargarDesdePlano(modelo3d) {
                 if (altoDintel <= 0.05) return;
                 const largoD = d.fin - d.ini;
                 const centroD = (d.ini + d.fin) / 2;
+                // Puerta en un muro de FACHADA (p. ej. la que sale al andén): el
+                // dintel lleva el grosor y el acabado de la fachada; si no, por
+                // fuera queda un escalón encima de la puerta.
+                const dintelFachada = configEnvolvente.fachada &&
+                    !contactos.some(([cI, cF]) => d.ini >= cI - 0.01 && d.fin <= cF + 0.01);
+                const gruesoD = dintelFachada ? (configEnvolvente.gruesoFachada || 0.20) : gruesoPared;
+                const perpD   = p.posPerp + (dintelFachada ? dirFuera[p.id] * (gruesoD / 2 - gruesoPared / 2) : 0);
                 const geoD = p.horizontal
-                    ? new THREE.BoxGeometry(largoD, altoDintel, gruesoPared)
-                    : new THREE.BoxGeometry(gruesoPared, altoDintel, largoD);
+                    ? new THREE.BoxGeometry(largoD, altoDintel, gruesoD)
+                    : new THREE.BoxGeometry(gruesoD, altoDintel, largoD);
                 const dintel = new THREE.Mesh(geoD, matPared.clone());
                 const yD = baseY + d.altoVano + altoDintel/2;
-                if (p.horizontal) dintel.position.set(centroD, yD, p.posPerp);
-                else               dintel.position.set(p.posPerp, yD, centroD);
+                if (p.horizontal) dintel.position.set(centroD, yD, perpD);
+                else               dintel.position.set(perpD, yD, centroD);
+                if (dintelFachada) {
+                    const esp = 0.025;
+                    const geoF = p.horizontal ? new THREE.BoxGeometry(largoD, altoDintel, esp) : new THREE.BoxGeometry(esp, altoDintel, largoD);
+                    const revoqueD = new THREE.Mesh(geoF, crearMaterialFachada());
+                    const perpF = perpD + dirFuera[p.id] * (gruesoD / 2 + esp / 2);
+                    if (p.horizontal) revoqueD.position.set(centroD, yD, perpF);
+                    else               revoqueD.position.set(perpF, yD, centroD);
+                    revoqueD.castShadow = true; revoqueD.receiveShadow = true;
+                    revoqueD.userData = { esFachada: true, moduloId: mod.id, lado: p.id };
+                    scene.add(revoqueD);
+                }
                 dintel.castShadow = true;
                 dintel.receiveShadow = true;
                 dintel.userData = { esPared: true, moduloId: mod.id, lado: p.id, esDintel: true };
