@@ -54,11 +54,13 @@ async def exigir_duenio(request: Request, empresa_id: str | None) -> str:
     return email
 
 
-async def exigir_duenio_tienda(request: Request, tienda_id: str | None) -> str:
+async def exigir_duenio_tienda(request: Request, tienda_id: str | None, pagado: bool = False) -> str:
     """
     Igual que exigir_duenio, pero partiendo de una tienda: busca a qué empresa
     pertenece y comprueba que esa empresa sea de la sesión. Devuelve el empresa_id
     leído de la base (no el que diga el navegador).
+    Con pagado=True además exige el plan activo: regla de /estructura, sin pago
+    no se usa la IA (la tienda sí se puede armar a mano).
     """
     email = email_de_sesion(request)
     if not tienda_id:
@@ -76,7 +78,7 @@ async def exigir_duenio_tienda(request: Request, tienda_id: str | None) -> str:
         raise HTTPException(status_code=403, detail="Esa tienda no pertenece a tu cuenta.")
     if email != ADMIN_EMAIL:
         try:
-            e = get_supabase().table("empresas").select("id") \
+            e = get_supabase().table("empresas").select("id, estado") \
                 .eq("id", empresa_id).eq("email", email).maybe_single().execute()
         except Exception as ex:
             logger.error(f"No se pudo verificar el dueño de la tienda {tienda_id}: {ex}")
@@ -84,4 +86,7 @@ async def exigir_duenio_tienda(request: Request, tienda_id: str | None) -> str:
         if not e or not e.data:
             logger.warning(f"Intento de usar la tienda {tienda_id} desde la cuenta {email}")
             raise HTTPException(status_code=403, detail="Esa tienda no pertenece a tu cuenta.")
+        if pagado and (e.data.get("estado") or "") != "activo":
+            raise HTTPException(status_code=403, detail="Importar con IA se habilita cuando tu plan esté activo. "
+                                                        "Mientras tanto puedes agregar tus productos a mano.")
     return empresa_id

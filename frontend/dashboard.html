@@ -2035,7 +2035,9 @@ async function enviarTanda(blob, nombre) {
                                    ESPERA_TANDA_MS);
     if (!r.ok) {
         const err = await r.json().catch(() => ({}));
-        throw new Error(err.detail || `El servidor respondió ${r.status}`);
+        const e = new Error(err.detail || `El servidor respondió ${r.status}`);
+        e.bloqueante = (r.status === 401 || r.status === 403);   // sin sesión, no es tuya o sin pago: no sirve seguir
+        throw e;
     }
     return (await r.json()).productos || [];
 }
@@ -2096,6 +2098,8 @@ async function procesarArchivo(input) {
                     const p = await enviarTanda(tandas[i].blob, `parte_${i+1}_${file.name}`);
                     crudos = crudos.concat(p);
                 } catch (e) {
+                    // Sin permiso (sesión, dueño o pago) no tiene sentido seguir: se para y se dice por qué
+                    if (e.bloqueante) throw e;
                     // Una tanda que falla NO bota las demás: se anota y se sigue
                     console.error(`Tanda ${i+1}:`, e);
                     fallidas.push(i + 1);

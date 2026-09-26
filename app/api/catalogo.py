@@ -419,7 +419,7 @@ async def procesar_catalogo(
     Devuelve la lista de productos para previsualización — no los publica todavía.
     """
     # Primero quién es: esto gasta créditos de Anthropic, solo el dueño de la tienda
-    await exigir_duenio_tienda(request, tienda_id)
+    await exigir_duenio_tienda(request, tienda_id, pagado=True)
     _verificar_limite_ip(request)
     settings = get_settings()
     contenido = await archivo.read()
@@ -468,7 +468,7 @@ async def procesar_catalogo_url(data: CatalogoUrlRequest, request: Request):
     Recibe el link de una tienda existente (Shopify, WooCommerce, página propia),
     lee su contenido público y extrae productos con IA, igual que con un PDF.
     """
-    await exigir_duenio_tienda(request, data.tienda_id)
+    await exigir_duenio_tienda(request, data.tienda_id, pagado=True)
     _verificar_limite_ip(request)
     settings = get_settings()
     if not data.url.startswith(("http://", "https://")):
