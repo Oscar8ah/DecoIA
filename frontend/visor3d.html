@@ -151,6 +151,23 @@
         .galeria-tira .miniatura img { width:100%; height:100%; object-fit:cover; display:block; }
         .galeria-tira .miniatura.activa { border-color:#A78BFA; box-shadow:0 0 12px rgba(167,139,250,0.5); }
         .galeria-tira .miniatura span { position:absolute; bottom:3px; left:3px; font-size:10px; background:rgba(0,0,0,0.7); color:#fff; padding:1px 6px; border-radius:6px; }
+        .carrito { background:var(--oscuro2); border:1px solid rgba(124,58,237,0.25); border-radius:16px; padding:16px 18px; display:flex; flex-direction:column; gap:8px; }
+        .carrito-titulo { font-size:15px; font-weight:800; display:flex; align-items:center; gap:10px; }
+        .carrito-titulo span { font-size:12px; font-weight:600; color:var(--gris); }
+        .carrito-vacio { font-size:13px; color:var(--gris); line-height:1.6; }
+        .carrito-fila { display:grid; grid-template-columns:46px 1fr auto auto; gap:12px; align-items:center; padding:8px 0; border-top:1px solid rgba(124,58,237,0.12); }
+        .carrito-fila img, .carrito-sin-foto { width:46px; height:46px; border-radius:9px; object-fit:cover; background:var(--oscuro3); display:flex; align-items:center; justify-content:center; }
+        .carrito-nombre { font-size:13.5px; font-weight:700; }
+        .carrito-lugar { font-size:11.5px; color:var(--gris); margin-top:2px; }
+        .carrito-cant { font-size:12.5px; text-align:right; }
+        .carrito-cant span { display:block; font-size:11px; color:var(--gris); }
+        .carrito-sub { font-size:14px; font-weight:800; color:#6EE7B7; min-width:100px; text-align:right; }
+        .carrito-fila.ajena { opacity:0.55; }
+        .carrito-aviso { font-size:11.5px; color:#FCD34D; margin-top:6px; }
+        .carrito-total { display:flex; justify-content:space-between; align-items:center; border-top:2px solid rgba(124,58,237,0.35); padding-top:10px; margin-top:4px; font-size:14px; }
+        .carrito-total b { font-size:20px; color:#6EE7B7; }
+        .carrito-nota { font-size:11px; color:var(--gris); }
+        @media (max-width:600px) { .carrito-fila { grid-template-columns:40px 1fr; } .carrito-cant, .carrito-sub { grid-column:2; text-align:left; } }
         .btn-volver-planta { width:100%; background:rgba(124,58,237,0.12); border:1px solid rgba(124,58,237,0.35); color:#C4B5FD; padding:8px; border-radius:9px; font-size:12.5px; font-weight:700; cursor:pointer; font-family:inherit; }
         .btn-volver-planta:hover { background:rgba(124,58,237,0.22); }
         .aviso-regenerar { margin-top:10px; background:rgba(245,158,11,0.10); border:1px solid rgba(245,158,11,0.35); border-radius:10px; padding:10px; font-size:12px; color:#FCD34D; line-height:1.5; }
@@ -5525,6 +5542,123 @@ async function cargarFotoIA() {
     } catch(e){}
 }
 
+// ── CARRITO: productos del diseño, con cantidades y total ────────────────
+// Sale de lo que se eligió: el piso de cada cuarto en la planta y lo que se
+// puso en paredes en la cámara interior. Un mismo producto en varios cuartos
+// se suma y se calcula junto (salen menos cajas que por separado).
+const productosUsados = new Map();        // id → producto (se guarda al elegirlo)
+const productosSuperficies = {};          // superficie → { prodId, area, lugar }
+function productoPorId(id) { return productosUsados.get(id) || (todosProductos || []).find(p => p.id === id) || null; }
+
+function lineasCarrito() {
+    const grupos = new Map();   // prodId → { prod, area, lugares[] }
+    const sumar = (prodId, area, lugar) => {
+        const prod = productoPorId(prodId);
+        if (!prod || !(area > 0)) return;
+        const g = grupos.get(prodId) || { prod, area: 0, lugares: [] };
+        g.area += area; g.lugares.push(`${lugar} ${area.toFixed(1)} m²`);
+        grupos.set(prodId, g);
+    };
+    let areaPisos = 0;
+    modulosPlanta.forEach(m => {
+        if (!esCuarto(m.tipo) || !m.imagenPisoId) return;
+        const a = m.ancho * m.largo;
+        areaPisos += a;
+        sumar(m.imagenPisoId, a, `Piso ${m.nombre.replace(/^\S+\s/, '')}`);
+    });
+    Object.values(productosSuperficies).forEach(sp => sumar(sp.prodId, sp.area, sp.lugar));
+    const lineas = [...grupos.values()].map(g => {
+        const c = cantidadProducto(g.prod, g.area);
+        const deOtra = tiendaIdPropia && g.prod.tienda_id && g.prod.tienda_id !== tiendaIdPropia;
+        return { prod: g.prod, nombre: g.prod.nombre, imagen: g.prod.imagen_url, lugares: g.lugares, area: g.area, deOtra, ...c };
+    });
+    // Mortero para instalar los pisos, si la tienda tiene cemento y arena en su catálogo
+    const prodCemento = (todosProductos || []).find(p => p.tipo_calculo === 'cemento_arena' && p.datos_mortero?.material === 'cemento' && p.datos_mortero?.uso === 'piso');
+    const prodArena   = (todosProductos || []).find(p => p.tipo_calculo === 'cemento_arena' && p.datos_mortero?.material === 'arena'   && p.datos_mortero?.uso === 'piso');
+    if (areaPisos > 0 && (prodCemento || prodArena)) {
+        const base = prodCemento || prodArena;
+        const { bultosCemento, arenaM3 } = calcularCementoArena(areaPisos, base.datos_mortero.espesor_cm || 2.5, base.datos_mortero.proporcion || 4);
+        if (prodCemento) lineas.push({ prod: prodCemento, nombre: prodCemento.nombre, imagen: prodCemento.imagen_url, lugares: ['Para instalar los pisos'],
+            cantidad: bultosCemento, unidad: bultosCemento === 1 ? 'bulto' : 'bultos', precioUnidad: prodCemento.precio || 0,
+            subtotal: bultosCemento * (prodCemento.precio || 0), texto: `${bultosCemento} bulto${bultosCemento === 1 ? '' : 's'} de 50 kg` });
+        if (prodArena) { const m3 = Math.ceil(arenaM3);
+            lineas.push({ prod: prodArena, nombre: prodArena.nombre, imagen: prodArena.imagen_url, lugares: ['Para instalar los pisos'],
+            cantidad: m3, unidad: 'm³', precioUnidad: prodArena.precio || 0, subtotal: m3 * (prodArena.precio || 0), texto: `${m3} m³` }); }
+    }
+    return lineas;
+}
+
+function puedeVerCarrito() {
+    // Igual que el cálculo de materiales: Premium o Corporativo con pago activo
+    return !(rolUsuario === 'empresa' && (!['premium','corporativo'].includes(planEmpresaVisor) || estadoEmpresaVisor !== 'activo'));
+}
+const pesos = n => '$' + Math.round(n || 0).toLocaleString('es-CO');
+
+function htmlCarrito() {
+    if (!puedeVerCarrito()) return `<div class="carrito"><div class="carrito-titulo">🛒 Productos de este diseño</div>
+        <div class="carrito-vacio">🔒 El carrito con cantidades y total está disponible desde el plan <b>Premium</b> con el pago activo.</div></div>`;
+    const lineas = lineasCarrito();
+    if (!lineas.length) return `<div class="carrito"><div class="carrito-titulo">🛒 Productos de este diseño</div>
+        <div class="carrito-vacio">Aún no hay productos. Elige el <b>piso de cada cuarto</b> en el Editor Planta (Propiedades → portafolio) o viste una pared en la cámara interior del Entorno 3D.</div></div>`;
+    const propias = lineas.filter(l => !l.deOtra), ajenas = lineas.filter(l => l.deOtra);
+    const total = propias.reduce((t, l) => t + l.subtotal, 0);
+    const fila = l => `<div class="carrito-fila${l.deOtra ? ' ajena' : ''}">
+        ${l.imagen ? `<img src="${esc(l.imagen)}" alt="" loading="lazy">` : '<div class="carrito-sin-foto">📦</div>'}
+        <div class="carrito-info"><div class="carrito-nombre">${esc(l.nombre)}</div><div class="carrito-lugar">${esc(l.lugares.join(' · '))}</div></div>
+        <div class="carrito-cant">${esc(l.texto)}<span>${pesos(l.precioUnidad)} c/u</span></div>
+        <div class="carrito-sub">${pesos(l.subtotal)}</div></div>`;
+    return `<div class="carrito">
+        <div class="carrito-titulo">🛒 Productos de este diseño <span>${propias.length} producto${propias.length === 1 ? '' : 's'}</span></div>
+        ${propias.map(fila).join('')}
+        ${ajenas.length ? `<div class="carrito-aviso">De otra tienda (no entran en tu cotización):</div>${ajenas.map(fila).join('')}` : ''}
+        <div class="carrito-total"><span>Total estimado</span><b>${pesos(total)}</b></div>
+        <div class="carrito-nota">Cantidades con el desperdicio de cada producto. Para obras grandes, confírmalas con el maestro de obra.</div>
+        <div class="galeria-acciones" style="justify-content:flex-start;">
+            <button class="ga-whatsapp" onclick="enviarCotizacionWhatsApp()">💬 Enviar cotización + foto</button>
+            <button class="ga-superficies" onclick="cotizacionPDF()">🧾 Cotización en PDF</button>
+            <button class="ga-secundario" onclick="copiarCotizacion()">📋 Copiar</button>
+        </div></div>`;
+}
+function textoCotizacion() {
+    const propias = lineasCarrito().filter(l => !l.deOtra);
+    const total = propias.reduce((t, l) => t + l.subtotal, 0);
+    return 'Cotización de tu remodelación — DecoIArte 🏠\n\n'
+        + propias.map(l => `• ${l.nombre}: ${l.texto} → ${pesos(l.subtotal)}\n   (${l.lugares.join(', ')})`).join('\n')
+        + `\n\nTotal estimado: ${pesos(total)}\nCantidades incluyen desperdicio.`;
+}
+async function copiarCotizacion() {
+    try { await navigator.clipboard.writeText(textoCotizacion()); mostrarToast('📋 Cotización copiada'); }
+    catch (e) { mostrarToast('⚠️ No se pudo copiar'); }
+}
+async function enviarCotizacionWhatsApp() {
+    let texto = textoCotizacion();
+    const f = galeriaFotos.find(x => x.id === fotoGaleriaSel);
+    if (f) { try { texto += `\n\nAsí quedaría: ${await urlPublicaFoto(f)}`; } catch (e) {} }
+    window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank');
+}
+async function cotizacionPDF() {
+    const propias = lineasCarrito().filter(l => !l.deOtra && l.cantidad > 0);
+    if (!propias.length) { mostrarToast('⚠️ No hay productos de tu tienda en el carrito'); return; }
+    if (!tiendaIdPropia) { mostrarToast('⚠️ Inicia sesión con tu cuenta de tienda'); return; }
+    try {
+        mostrarToast('🧾 Generando la cotización…');
+        const { data: { session } } = await db.auth.getSession();
+        if (!session) throw new Error('Tu sesión expiró. Vuelve a iniciar sesión.');
+        const r = await fetch('https://decoia.onrender.com/generar-cotizacion', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+            body: JSON.stringify({ tienda_id: tiendaIdPropia, tienda_nombre: '',
+                items: propias.map(l => ({ nombre: l.nombre, cantidad: l.cantidad, unidad: l.unidad,
+                    precio_unitario: l.cantidad ? Math.round(l.subtotal / l.cantidad) : 0 })),
+                notas: 'Cantidades calculadas desde el diseño 3D, con el desperdicio de cada producto.' }),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.detail || ('Error ' + r.status));
+        window.open(d.url_pdf, '_blank');
+        mostrarToast(`🧾 Cotización ${d.numero || ''} lista`);
+    } catch (e) { mostrarToast('⚠️ ' + (e.message || 'No se pudo generar la cotización')); }
+}
+
 // ── GALERÍA DE FOTO IA ───────────────────────────────────────────────────
 // Toda foto que sale del visor llega aquí: las capturas ("Capturar render" y
 // la de la cámara interior) y las Foto IA. Se guardan en este navegador
@@ -5592,7 +5726,8 @@ function renderGaleria() {
     if (!galeriaFotos.length) {
         cont.innerHTML = `<div class="foto-empty"><div class="icon">📸</div>
             <p style="font-size:15px;margin-bottom:8px;">Aún no hay fotos de este proyecto</p>
-            <p style="font-size:13px;color:var(--gris);">En el Entorno 3D toca <b>📸 Capturar render</b> o <b>🤖 Foto IA</b>: todas las fotos llegan aquí.</p></div>`;
+            <p style="font-size:13px;color:var(--gris);">En el Entorno 3D toca <b>📸 Capturar render</b> o <b>🤖 Foto IA</b>: todas las fotos llegan aquí.</p></div>
+            <div class="galeria" style="padding-top:0;">${htmlCarrito()}</div>`;
         return;
     }
     const f = galeriaFotos.find(x => x.id === fotoGaleriaSel) || galeriaFotos[0];
@@ -5609,6 +5744,7 @@ function renderGaleria() {
         </div>
         <div class="galeria-tira">${galeriaFotos.map(x => `<div class="miniatura${x.id === f.id ? ' activa' : ''}" onclick="fotoGaleriaSel='${x.id}'; renderGaleria();">
             <img src="${esc(x.dataUrl || x.url)}" alt="" loading="lazy"><span>${(ETIQUETA_FOTO[x.tipo] || '📸').split(' ')[0]}</span></div>`).join('')}</div>
+        ${htmlCarrito()}
     </div>`;
 }
 // Remodelar y el Editor de superficies reciben la foto por su dirección web.
@@ -5954,6 +6090,12 @@ function aplicarProductoASuperficie(prod, superficie) {
     if (!mesh) { mostrarToast('⚠️ Superficie no disponible'); return; }
 
     const etiqueta = etiquetaSuperficie(superficie);
+    // Se anota qué producto quedó en esta superficie y su área, para el carrito
+    // (antes solo se ponía la textura y no quedaba registro de qué se usó).
+    const areaSup = (superficie === 'piso' || superficie === 'techo') ? estado.ancho * estado.largo
+        : (superficie === 'paredTrasera' || superficie === 'paredFrontal') ? estado.ancho * estado.alto : estado.largo * estado.alto;
+    productosUsados.set(prod.id, prod);
+    productosSuperficies[superficie] = { prodId: prod.id, area: areaSup, lugar: etiqueta };
 
     if (prod.imagen_url) {
         const loader = new THREE.TextureLoader();
@@ -7216,6 +7358,22 @@ function renderPortafolioPisoModulo() {
     }
 }
 
+// Cuánto producto lleva un área: cajas si el producto tiene rendimiento por
+// caja, si no m² directos. Incluye el desperdicio del producto (10 % si no
+// tiene). La usan el panel de Propiedades y el carrito: mismos números.
+function cantidadProducto(prod, areaM2) {
+    const desperdicio = (prod.desperdicio_pct ?? 10) / 100;
+    const areaCon = areaM2 * (1 + desperdicio);
+    if (prod.rendimiento_m2 && prod.rendimiento_m2 > 0) {
+        const cajas = Math.ceil(areaCon / prod.rendimiento_m2);
+        return { cantidad: cajas, unidad: cajas === 1 ? 'caja' : 'cajas', precioUnidad: prod.precio || 0,
+                 subtotal: cajas * (prod.precio || 0), texto: `${cajas} caja${cajas === 1 ? '' : 's'} (${prod.rendimiento_m2} m²/caja)`, desperdicio, areaCon };
+    }
+    const m2 = Math.round(areaCon * 100) / 100;
+    return { cantidad: m2, unidad: prod.unidad || 'm²', precioUnidad: prod.precio || 0,
+             subtotal: areaCon * (prod.precio || 0), texto: `${areaCon.toFixed(2)} m²`, desperdicio, areaCon };
+}
+
 function calcularCementoArena(areaM2, espesorCm, proporcion) {
     // Fórmula estándar de dosificación de mortero por volumen (obra civil):
     // 1) volumen de mortero compactado = área × espesor
@@ -7340,18 +7498,9 @@ function calcularMaterialModulo() {
     }
 
     const areaModulo = moduloSeleccionado.ancho * moduloSeleccionado.largo;
-    const desperdicio = (prod.desperdicio_pct ?? 10) / 100;
-    const areaConDesperdicio = areaModulo * (1 + desperdicio);
-
-    let cantidadTexto, costoTotal;
-    if (prod.rendimiento_m2 && prod.rendimiento_m2 > 0) {
-        const cajas = Math.ceil(areaConDesperdicio / prod.rendimiento_m2);
-        cantidadTexto = `${cajas} caja${cajas === 1 ? '' : 's'} (${prod.rendimiento_m2} m²/caja)`;
-        costoTotal = cajas * (prod.precio || 0);
-    } else {
-        cantidadTexto = `${areaConDesperdicio.toFixed(2)} m²`;
-        costoTotal = areaConDesperdicio * (prod.precio || 0);
-    }
+    const calc = cantidadProducto(prod, areaModulo);
+    const desperdicio = calc.desperdicio;
+    const cantidadTexto = calc.texto, costoTotal = calc.subtotal;
 
     // Cemento y arena para instalar este piso — busca en el portafolio de la tienda
     // productos marcados como tipo_calculo='cemento_arena' con uso='piso'
@@ -7388,6 +7537,7 @@ function seleccionarPortafolioPiso(prodId) {
     if (!moduloSeleccionado) return;
     const prod = todosProductos.find(p => p.id === prodId);
     if (!prod) return;
+    productosUsados.set(prod.id, prod);
     moduloSeleccionado.imagenPisoId  = prod.id;
     moduloSeleccionado.imagenPisoUrl = prod.imagen_url;
     renderPortafolioPisoModulo();
