@@ -71,6 +71,15 @@
 
     ul{margin:8px 0 0 18px;font-size:13.5px}
     li{margin-bottom:5px}
+    .avance{display:grid;grid-template-columns:190px 1fr 52px;gap:8px 14px;align-items:center;margin:14px 0 6px}
+    .avance .nom{font-size:13.5px;color:var(--texto)} .avance .pct{font-size:13px;font-weight:700;text-align:right}
+    .barra{height:9px;border-radius:9px;background:rgba(139,139,167,.18);overflow:hidden}
+    .barra i{display:block;height:100%;border-radius:9px;background:linear-gradient(90deg,#3B82F6,#7C3AED)}
+    .total-avance{display:flex;flex-wrap:wrap;gap:12px;margin:18px 0 8px}
+    .total-avance div{flex:1;min-width:180px;padding:14px 16px;border-radius:14px;background:rgba(124,58,237,.10);border:1px solid rgba(124,58,237,.25)}
+    .total-avance b{display:block;font-size:26px}
+    .total-avance span{font-size:12.5px;color:var(--gris)}
+    @media (max-width:560px){.avance{grid-template-columns:120px 1fr 44px}}
     .prio{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:50px;white-space:nowrap}
         .p1{background:rgba(239,68,68,.15);color:#FCA5A5}
         .p2{background:rgba(245,158,11,.15);color:#FCD34D}
@@ -232,6 +241,14 @@
     </div>
 
     <h2>Lo que falta</h2>
+    <h3 style="margin:6px 0 0;font-size:15px">Avance por partes</h3>
+    <div class="avance"><span class="nom" title="Falta: WhatsApp automático por tienda y velocidad del bot">Básico</span><div class="barra" title="Falta: WhatsApp automático por tienda y velocidad del bot"><i style="width:95%"></i></div><span class="pct">95%</span><span class="nom" title="Funciona completo; pulir según uso real">Profesional</span><div class="barra" title="Funciona completo; pulir según uso real"><i style="width:95%"></i></div><span class="pct">95%</span><span class="nom" title="Probar el cobro de $5.000 y el tope diario">Visitante / comprador</span><div class="barra" title="Probar el cobro de $5.000 y el tope diario"><i style="width:85%"></i></div><span class="pct">85%</span><span class="nom" title="Tema oscuro en todo, dispersión a tiendas">Marketplace</span><div class="barra" title="Tema oscuro en todo, dispersión a tiendas"><i style="width:80%"></i></div><span class="pct">80%</span><span class="nom" title="Cerrada el 25 sep">Seguridad (Fase 1)</span><div class="barra" title="Cerrada el 25 sep"><i style="width:100%"></i></div><span class="pct">100%</span><span class="nom" title="Cupo atómico hecho; faltan tope diario y dispersión">Plata (Fase 2)</span><div class="barra" title="Cupo atómico hecho; faltan tope diario y dispersión"><i style="width:40%"></i></div><span class="pct">40%</span><span class="nom" title="Guarda del visor, Ley 1581, unidades, WhatsApp, admin">Orden (Fase 3)</span><div class="barra" title="Guarda del visor, Ley 1581, unidades, WhatsApp, admin"><i style="width:15%"></i></div><span class="pct">15%</span><span class="nom" title="Faltan pared, pisos exteriores, cocina, escaleras, baño, cámara exterior">Premium</span><div class="barra" title="Faltan pared, pisos exteriores, cocina, escaleras, baño, cámara exterior"><i style="width:55%"></i></div><span class="pct">55%</span><span class="nom" title="Faltan varias cámaras y el trazo vectorial">Corporativo</span><div class="barra" title="Faltan varias cámaras y el trazo vectorial"><i style="width:65%"></i></div><span class="pct">65%</span></div>
+    <div class="total-avance">
+        <div><b>≈ 70 %</b><span>avance total del proyecto (promedio pesado: Premium y Corporativo pesan más porque son lo más grande)</span></div>
+        <div><b>≈ 20–25</b><span>sesiones como las de esta semana para terminar todo. Las 🔴 de "antes de vender" caben en 1–2</span></div>
+    </div>
+    <div class="nota" style="margin-top:6px">Son <b>estimados</b>, no promesas: se recalculan en cada revisión. Lo que más mueve el número es Premium
+        (el módulo cocina y el editor de pared solos son unas 6 sesiones). Actualizado el 26 de septiembre de 2026.</div>
     <div class="nota" style="margin-top:0">
         Revisado en el código el 25 de septiembre de 2026. <b>Básico, Profesional, Visitante y el marketplace
         ya funcionan de punta a punta</b>: lo que queda de ellos no es de producto sino de seguridad, plata y
@@ -247,7 +264,7 @@
         <tr><td><span class="prio p1">🔴 Antes de vender</span></td><td class="que">Probar logo (subir y eliminar), portafolio y baúl</td><td class="donde">Dashboard y <span class="ruta">/remodelar</span></td></tr>
         <tr><td><span class="prio p1">🔴 Antes de vender</span></td><td class="que">Verificación en dos pasos en la cuenta de Google del administrador y protección de contraseñas filtradas en Supabase</td><td class="donde">Fuera del código</td></tr>
 
-        <tr><td><span class="prio p2">🟠 Plata</span></td><td class="que"><b>Cupo atómico</b>: una función SQL que revise y descuente en un solo paso</td><td class="donde"><span class="ruta">limites_service.py</span> hoy lee y después actualiza: dos pedidos a la vez pueden pasarse del cupo</td></tr>
+        <tr><td><span class="prio p3">✅ Hecho 26 sep</span></td><td class="que"><b>Cupo atómico</b>: la función SQL <span class="ruta">descontar_foto_atomico</span> resta en un solo paso y nunca baja de cero (<span class="ruta">cupo_atomico.sql</span>). Probado con 20 generaciones simultáneas y 3 fotos: descontaron exactamente 3</td><td class="donde"><span class="ruta">limites_service.py</span>. Queda un caso chico: si llegan varias a la vez con la <b>última</b> foto, se entregan y quedan en el log como "foto sin cupo". Cerrarlo del todo = <b>reservar antes</b> de generar y devolver si falla</td></tr>
         <tr><td><span class="prio p2">🟠 Plata</span></td><td class="que">Tope diario de generaciones por comprador</td><td class="donde">Visitante · evita que una cuenta gaste IA sin pagar</td></tr>
         <tr><td><span class="prio p2">🟠 Plata</span></td><td class="que">Dispersión a las tiendas con Pagos a Terceros de Wompi</td><td class="donde">Marketplace · <b>antes, hablar con un contador</b></td></tr>
 
@@ -266,6 +283,7 @@
         <tr><td><span class="prio p4">🟣 Premium</span></td><td class="que">Definir el <b>precio</b> del plan</td><td class="donde">Decisión de negocio</td></tr>
         <tr><td><span class="prio p4">🔴 Corporativo</span></td><td class="que"><b>Varias cámaras de video</b> en un proyecto, cada una con su recorrido</td><td class="donde"><span class="ruta">/visor3d</span> · Editor de video (hoy hay una sola)</td></tr>
         <tr><td><span class="prio p4">🔴 Corporativo</span></td><td class="que"><b>Trazo de cámara tipo pluma vectorial</b>: curvas con manijas, suavizar, continua o punteada</td><td class="donde"><span class="ruta">/visor3d</span> · Editor de video (reemplaza <span class="ruta">dibujarLineaTrazo3D</span>)</td></tr>
+        <tr><td><span class="prio p2">🟠 Velocidad</span></td><td class="que"><b>Que el bot de WhatsApp responda más rápido.</b> Ideas en orden de impacto: calidad <span class="ruta">"medium"</span> en vez de <span class="ruta">"high"</span> para WhatsApp (menos tiempo y más barato) · analizar la foto sin bloquear el servidor y con un modelo más liviano · que Render no se duerma (cron al <span class="ruta">/salud</span> o plan pago)</td><td class="donde"><span class="ruta">whatsapp.py</span>, <span class="ruta">imagen_service.py</span>, <span class="ruta">openai_service.analizar_espacio_foto</span></td></tr>
         <tr><td><span class="prio p3">🟢 Orden</span></td><td class="que"><b>Tema oscuro en todo el marketplace.</b> El listado de tiendas ya está oscuro con las hojas moradas de fondo (25 sep). Falta llevar el mismo estilo a las tarjetas de producto, el modal del producto, el carrito, el pago y la vista de cada tienda, que siguen blancos</td><td class="donde"><span class="ruta">frontend/marketplace.html</span> · colores fijos en <span class="ruta">.producto-card</span>, <span class="ruta">.modal-prod-*</span>, <span class="ruta">#carritoPanel</span></td></tr>
     </table>
 
