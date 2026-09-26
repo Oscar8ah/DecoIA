@@ -88,6 +88,36 @@
         body.sin-panel #canvas3d { width:100vw !important; }
         .panel { position:fixed; top:56px; right:0; width:300px; bottom:0; background:var(--oscuro2); border-left:1px solid rgba(124,58,237,0.2); overflow-y:auto; display:flex; flex-direction:column; }
         .panel-section { padding:16px 20px; border-bottom:1px solid rgba(124,58,237,0.1); }
+        /* ── Panel derecho por pestaña: Planta = construir, Entorno 3D = vestir y recorrer ── */
+        #panelDerecho[data-vista-activa="planta"] .panel-section[data-vista="3d"],
+        #panelDerecho[data-vista-activa="3d"] .panel-section[data-vista="planta"] { display:none !important; }
+        #panelDerecho.sin-modelo .panel-section[data-vista="3d"]:not(#barraPanel3D),
+        #panelDerecho.sin-modelo .panel-section[data-vista="ambas"] { display:none !important; }
+        #panelDerecho[data-vista-activa="3d"] .panel-section[data-vista="3d"]:not(#barraPanel3D) > .panel-titulo:first-child { cursor:pointer; user-select:none; margin-bottom:0; }
+        #panelDerecho[data-vista-activa="3d"] .panel-section[data-vista="3d"]:not(#barraPanel3D) > .panel-titulo:first-child::after { content:'▾'; margin-left:auto; font-size:13px; color:var(--gris); transition:transform .2s; }
+        #panelDerecho[data-vista-activa="3d"] .panel-section[data-vista="3d"]:not(#barraPanel3D):not(.colapsada) > .panel-titulo:first-child { margin-bottom:14px; }
+        #panelDerecho[data-vista-activa="3d"] .panel-section.colapsada > .panel-titulo:first-child::after { transform:rotate(-90deg); }
+        #panelDerecho[data-vista-activa="3d"] .panel-section.colapsada > *:not(:first-child) { display:none !important; }
+        #panelDerecho[data-vista-activa="3d"] .panel-section[data-vista="3d"] { padding-top:13px; padding-bottom:13px; }
+        .panel-section.recien-abierta { animation:resaltarSeccion 1.2s ease; }
+        @keyframes resaltarSeccion { 0% { background:rgba(124,58,237,0.22); } 100% { background:transparent; } }
+        /* Superficie activa y luces de techo: no tenían estilo y salían como botones crudos del navegador */
+        .sup-hint { font-size:12px; color:var(--gris); line-height:1.5; margin-bottom:10px; }
+        .sup-grid, .luces-techo-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; }
+        .luces-techo-grid { grid-template-columns:repeat(2, 1fr); }
+        .sup-btn, .luz-techo-btn { display:flex; flex-direction:column; align-items:center; gap:3px; padding:8px 4px; border-radius:10px;
+            background:var(--oscuro); border:1px solid rgba(124,58,237,0.22); color:var(--texto); font-size:11.5px; font-weight:600;
+            cursor:pointer; font-family:inherit; transition:border-color .15s, background .15s; }
+        .sup-btn:hover, .luz-techo-btn:hover { border-color:rgba(124,58,237,0.55); background:rgba(124,58,237,0.10); }
+        .sup-btn.activo, .luz-techo-btn.activo { border-color:#F59E0B; background:rgba(245,158,11,0.14); color:#FDE68A; }
+        .sup-icon { font-size:17px; line-height:1; }
+        .btn-volver-planta { width:100%; background:rgba(124,58,237,0.12); border:1px solid rgba(124,58,237,0.35); color:#C4B5FD; padding:8px; border-radius:9px; font-size:12.5px; font-weight:700; cursor:pointer; font-family:inherit; }
+        .btn-volver-planta:hover { background:rgba(124,58,237,0.22); }
+        .aviso-regenerar { margin-top:10px; background:rgba(245,158,11,0.10); border:1px solid rgba(245,158,11,0.35); border-radius:10px; padding:10px; font-size:12px; color:#FCD34D; line-height:1.5; }
+        .aviso-regenerar button { margin-top:8px; width:100%; background:var(--degradado); color:#fff; border:none; padding:7px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; }
+        .aviso-sin-modelo { margin-top:10px; font-size:12px; color:var(--gris); line-height:1.6; }
+        @media (prefers-reduced-motion: reduce) { .panel-section.recien-abierta { animation:none; } }
+
         .panel-section:last-child { border-bottom:none; }
         .panel-titulo { font-size:12px; font-weight:700; color:#A78BFA; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
 
@@ -294,69 +324,7 @@
         <div style="font-size:10.5px;color:var(--gris);line-height:1.5;">Cuando dos zonas se tocan aparece un vano de 90cm sobre la pared. Haz clic en la barra para moverlo, cambiar su ancho, volverlo puerta con hoja, o agregar otro.</div>
     </div>
     </div><!-- /grupoPlanta -->
-    <!-- ENVOLVENTE: techo interior, fachada exterior y cubierta -->
-    <div style="border-top:1px solid rgba(56,189,248,0.2);margin-top:4px;padding-top:8px;display:flex;flex-direction:column;gap:6px;">
-        <div style="font-size:10.5px;font-weight:700;color:#7DD3FC;text-transform:uppercase;letter-spacing:0.05em;">🏠 Techos y fachada</div>
 
-        <button id="envTechos" onclick="cambiarEnvolvente('techos')" style="background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.3);color:#7DD3FC;padding:5px 10px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;">⬜ Techos: ocultos</button>
-
-        <label style="font-size:10px;color:var(--gris);text-transform:uppercase;">Material del techo</label>
-        <select id="envMaterialTecho" onchange="cambiarEnvolvente('materialTecho', this.value)"
-            style="background:var(--oscuro);border:1px solid rgba(56,189,248,0.25);border-radius:8px;padding:6px 8px;color:var(--texto);font-size:11.5px;outline:none;">
-            <option value="drywall">Drywall pintado</option>
-            <option value="concreto">Losa de concreto</option>
-            <option value="madera">Madera / machimbre</option>
-        </select>
-        <input type="color" id="envColorTecho" value="#F7F7F5" oninput="cambiarEnvolvente('colorTecho', this.value)"
-            style="width:100%;height:28px;background:var(--oscuro);border:1px solid rgba(56,189,248,0.25);border-radius:8px;padding:2px;cursor:pointer;">
-
-        <label style="font-size:11px;color:var(--gris);display:flex;align-items:center;gap:6px;margin-top:4px;cursor:pointer;">
-            <input type="checkbox" id="envFachadaActiva" checked onchange="cambiarEnvolvente('fachada', this.checked)" style="cursor:pointer;">
-            Acabado de fachada en muros exteriores
-        </label>
-        <select id="envMaterialFachada" onchange="cambiarEnvolvente('materialFachada', this.value)"
-            style="background:var(--oscuro);border:1px solid rgba(56,189,248,0.25);border-radius:8px;padding:6px 8px;color:var(--texto);font-size:11.5px;outline:none;">
-            <option value="pintura">Pintura de fachada</option>
-            <option value="ladrillo">Ladrillo a la vista</option>
-            <option value="estuco">Estuco / grano</option>
-            <option value="concreto">Concreto a la vista</option>
-        </select>
-        <input type="color" id="envColorFachada" value="#D9CFC2" oninput="cambiarEnvolvente('colorFachada', this.value)"
-            style="width:100%;height:28px;background:var(--oscuro);border:1px solid rgba(56,189,248,0.25);border-radius:8px;padding:2px;cursor:pointer;">
-
-        <label style="font-size:10px;color:var(--gris);text-transform:uppercase;margin-top:4px;">Cubierta</label>
-        <select id="envCubierta" onchange="cambiarEnvolvente('cubierta', this.value)"
-            style="background:var(--oscuro);border:1px solid rgba(56,189,248,0.25);border-radius:8px;padding:6px 8px;color:var(--texto);font-size:11.5px;outline:none;">
-            <option value="ninguna">Sin cubierta (ver desde arriba)</option>
-            <option value="losa">Plana / terraza</option>
-            <option value="un_agua">Un agua (inclinada)</option>
-            <option value="dos_aguas">Dos aguas</option>
-            <option value="cuatro_aguas">Cuatro aguas (a la holandesa)</option>
-            <option value="piramidal">Piramidal</option>
-            <option value="mariposa">Mariposa (invertida)</option>
-            <option value="mansarda">Mansarda</option>
-            <option value="gambrel">Gambrel / holandesa</option>
-            <option value="saltbox">Saltbox (faldones desiguales)</option>
-            <option value="en_m">En M (dos dos-aguas)</option>
-        </select>
-        <div style="display:flex;gap:6px;">
-            <div style="flex:1;">
-                <label style="font-size:10px;color:var(--gris);text-transform:uppercase;">Pendiente %</label>
-                <input type="number" id="envPendiente" min="5" max="120" step="5" value="35" oninput="cambiarEnvolvente('pendiente', parseFloat(this.value))"
-                    style="width:100%;background:var(--oscuro);border:1px solid rgba(56,189,248,0.25);border-radius:7px;padding:5px 8px;color:var(--texto);font-size:11px;outline:none;">
-            </div>
-            <div style="flex:1;">
-                <label style="font-size:10px;color:var(--gris);text-transform:uppercase;">Alero (m)</label>
-                <input type="number" id="envAlero" min="0" max="2" step="0.1" value="0.5" oninput="cambiarEnvolvente('alero', parseFloat(this.value))"
-                    style="width:100%;background:var(--oscuro);border:1px solid rgba(56,189,248,0.25);border-radius:7px;padding:5px 8px;color:var(--texto);font-size:11px;outline:none;">
-            </div>
-        </div>
-        <label style="font-size:11px;color:var(--gris);display:flex;align-items:center;gap:6px;cursor:pointer;">
-            <input type="checkbox" id="envGirarCubierta" onchange="cambiarEnvolvente('girarCubierta', this.checked)" style="cursor:pointer;">
-            Girar la cumbrera 90°
-        </label>
-        <div style="font-size:10px;color:var(--gris);line-height:1.5;">Fachada y cubierta cambian la geometría: dale <b>Generar 3D</b> otra vez para verlas.</div>
-    </div>
 </div>
 <!-- TOOLBAR RECORRIDO — visible solo en pestaña recorrido -->
 <!-- ENTORNO 3D — panel izquierdo con las herramientas para GRABAR/DIBUJAR el recorrido -->
@@ -739,8 +707,17 @@
 </div>
 
 <div class="panel" id="panelDerecho">
+    <!-- Solo en Entorno 3D: ir y volver sin buscar, y aviso si la planta cambió -->
+    <div class="panel-section" id="barraPanel3D" data-vista="3d" style="padding:12px 16px;">
+        <button onclick="cambiarVista('planta')" class="btn-volver-planta">✏️ Volver a la planta</button>
+        <div id="avisoRegenerar" class="aviso-regenerar" style="display:none;">
+            <div>📐 Cambiaste la planta desde el último 3D.</div>
+            <button onclick="generarDesdePlanta()">🔄 Regenerar 3D</button>
+        </div>
+        <div id="avisoSinModelo" class="aviso-sin-modelo" style="display:none;">Todavía no hay modelo 3D. Arma tu distribución en la planta y dale <b>✨ Generar 3D</b>; aquí aparecerán los acabados, la luz, los muebles y la cámara.</div>
+    </div>
 
-    <div class="panel-section">
+    <div class="panel-section" id="panelPortafolio" data-vista="ambas">
         <div class="panel-titulo">🏪 Portafolio de tu tienda</div>
         <select id="selectorTiendaProductos" onchange="cambiarTiendaProductos(this.value)" style="display:none;width:100%;margin-bottom:12px;background:var(--oscuro);border:1px solid rgba(124,58,237,0.25);border-radius:8px;padding:8px 10px;color:var(--texto);font-size:12px;outline:none;">
         </select>
@@ -763,12 +740,12 @@
         <div id="portafolioContenido"><div class="loading-port"><div class="spinner-small"></div>Cargando portafolio...</div></div>
     </div>
 
-    <div class="panel-section" id="panelSinPlano" style="display:block;">
+    <div class="panel-section" id="panelSinPlano" data-vista="planta" style="display:block;">
         <div class="panel-titulo">📐 Sin plano generado</div>
-        <div style="font-size:12.5px;color:var(--gris);line-height:1.6;">Ve a <b style="color:var(--texto);">Editor Planta</b>, arma tu distribución y dale <b style="color:var(--texto);">"Generar 3D"</b>.</div>
+        <div style="font-size:12.5px;color:var(--gris);line-height:1.6;">Arma tu distribución con los módulos de la izquierda y dale <b style="color:var(--texto);">✨ Generar 3D</b>. Los acabados, la luz, los muebles y la cámara se trabajan después en <b style="color:var(--texto);">Entorno 3D</b>.</div>
     </div>
 
-    <div class="panel-section" id="panelPlanoInfo" style="display:none;">
+    <div class="panel-section" id="panelPlanoInfo" data-vista="planta" style="display:none;">
         <div class="panel-titulo">📊 Tu plano</div>
         <div class="stats-row">
             <div class="stat-item"><div class="stat-num" id="statArea">0</div><div class="stat-lbl">m² piso</div></div>
@@ -779,7 +756,7 @@
     </div>
 
     <!-- SELECTOR SUPERFICIE — solo visible en modo interior -->
-    <div class="panel-section superficie-selector" id="panelSuperficie">
+    <div class="panel-section superficie-selector" id="panelSuperficie" data-vista="3d" data-abierta="1">
         <div class="panel-titulo">🎯 Superficie activa</div>
         <div class="sup-hint" id="supHint">Entra al modo cámara interior para seleccionar superficies</div>
         <div class="sup-grid" style="margin-top:10px;">
@@ -819,7 +796,7 @@
         </div>
     </div>
 
-    <div class="panel-section">
+    <div class="panel-section" id="secMaterialPiso3D" data-vista="3d">
         <div class="panel-titulo">🎨 Material genérico piso</div>
         <div class="materiales-grid">
             <button class="material-btn activo" onclick="cambiarMaterialPiso('madera',this)"><span class="mat-icon">🪵</span>Madera</button>
@@ -831,7 +808,7 @@
         </div>
     </div>
 
-    <div class="panel-section">
+    <div class="panel-section" id="secColorParedes" data-vista="3d">
         <div class="panel-titulo">🎨 Color paredes</div>
         <div class="materiales-grid" style="margin-bottom:10px;">
             <button class="material-btn activo" onclick="cambiarColorPared('#F8F8F8',this)"><span class="mat-icon">⬜</span>Blanco</button>
@@ -844,7 +821,70 @@
         <input type="color" value="#F8F8F8" oninput="cambiarColorParedCustom(this.value)">
     </div>
 
-    <div class="panel-section">
+    <!-- ENVOLVENTE (se ve en Entorno 3D): techo interior, fachada exterior y cubierta -->
+    <div class="panel-section" id="secTechosFachada" data-vista="3d">
+        <div class="panel-titulo">🏠 Techos y fachada</div>
+
+        <button id="envTechos" onclick="cambiarEnvolvente('techos')" style="background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.3);color:#7DD3FC;padding:5px 10px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;">⬜ Techos: ocultos</button>
+
+        <label style="font-size:10px;color:var(--gris);text-transform:uppercase;">Material del techo</label>
+        <select id="envMaterialTecho" onchange="cambiarEnvolvente('materialTecho', this.value)"
+            style="background:var(--oscuro);border:1px solid rgba(56,189,248,0.25);border-radius:8px;padding:6px 8px;color:var(--texto);font-size:11.5px;outline:none;">
+            <option value="drywall">Drywall pintado</option>
+            <option value="concreto">Losa de concreto</option>
+            <option value="madera">Madera / machimbre</option>
+        </select>
+        <input type="color" id="envColorTecho" value="#F7F7F5" oninput="cambiarEnvolvente('colorTecho', this.value)"
+            style="width:100%;height:28px;background:var(--oscuro);border:1px solid rgba(56,189,248,0.25);border-radius:8px;padding:2px;cursor:pointer;">
+
+        <label style="font-size:11px;color:var(--gris);display:flex;align-items:center;gap:6px;margin-top:4px;cursor:pointer;">
+            <input type="checkbox" id="envFachadaActiva" checked onchange="cambiarEnvolvente('fachada', this.checked)" style="cursor:pointer;">
+            Acabado de fachada en muros exteriores
+        </label>
+        <select id="envMaterialFachada" onchange="cambiarEnvolvente('materialFachada', this.value)"
+            style="background:var(--oscuro);border:1px solid rgba(56,189,248,0.25);border-radius:8px;padding:6px 8px;color:var(--texto);font-size:11.5px;outline:none;">
+            <option value="pintura">Pintura de fachada</option>
+            <option value="ladrillo">Ladrillo a la vista</option>
+            <option value="estuco">Estuco / grano</option>
+            <option value="concreto">Concreto a la vista</option>
+        </select>
+        <input type="color" id="envColorFachada" value="#D9CFC2" oninput="cambiarEnvolvente('colorFachada', this.value)"
+            style="width:100%;height:28px;background:var(--oscuro);border:1px solid rgba(56,189,248,0.25);border-radius:8px;padding:2px;cursor:pointer;">
+
+        <label style="font-size:10px;color:var(--gris);text-transform:uppercase;margin-top:4px;">Cubierta</label>
+        <select id="envCubierta" onchange="cambiarEnvolvente('cubierta', this.value)"
+            style="background:var(--oscuro);border:1px solid rgba(56,189,248,0.25);border-radius:8px;padding:6px 8px;color:var(--texto);font-size:11.5px;outline:none;">
+            <option value="ninguna">Sin cubierta (ver desde arriba)</option>
+            <option value="losa">Plana / terraza</option>
+            <option value="un_agua">Un agua (inclinada)</option>
+            <option value="dos_aguas">Dos aguas</option>
+            <option value="cuatro_aguas">Cuatro aguas (a la holandesa)</option>
+            <option value="piramidal">Piramidal</option>
+            <option value="mariposa">Mariposa (invertida)</option>
+            <option value="mansarda">Mansarda</option>
+            <option value="gambrel">Gambrel / holandesa</option>
+            <option value="saltbox">Saltbox (faldones desiguales)</option>
+            <option value="en_m">En M (dos dos-aguas)</option>
+        </select>
+        <div style="display:flex;gap:6px;">
+            <div style="flex:1;">
+                <label style="font-size:10px;color:var(--gris);text-transform:uppercase;">Pendiente %</label>
+                <input type="number" id="envPendiente" min="5" max="120" step="5" value="35" oninput="cambiarEnvolvente('pendiente', parseFloat(this.value))"
+                    style="width:100%;background:var(--oscuro);border:1px solid rgba(56,189,248,0.25);border-radius:7px;padding:5px 8px;color:var(--texto);font-size:11px;outline:none;">
+            </div>
+            <div style="flex:1;">
+                <label style="font-size:10px;color:var(--gris);text-transform:uppercase;">Alero (m)</label>
+                <input type="number" id="envAlero" min="0" max="2" step="0.1" value="0.5" oninput="cambiarEnvolvente('alero', parseFloat(this.value))"
+                    style="width:100%;background:var(--oscuro);border:1px solid rgba(56,189,248,0.25);border-radius:7px;padding:5px 8px;color:var(--texto);font-size:11px;outline:none;">
+            </div>
+        </div>
+        <label style="font-size:11px;color:var(--gris);display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <input type="checkbox" id="envGirarCubierta" onchange="cambiarEnvolvente('girarCubierta', this.checked)" style="cursor:pointer;">
+            Girar la cumbrera 90°
+        </label>
+        <div style="font-size:10px;color:var(--gris);line-height:1.5;">Fachada y cubierta cambian la geometría: dale <b>Generar 3D</b> otra vez para verlas.</div>
+    </div>
+    <div class="panel-section" id="secIluminacion" data-vista="3d" data-abierta="1">
         <div class="panel-titulo">💡 Iluminación</div>
         <div class="control-grupo">
             <div class="control-label">Intensidad <span class="control-valor" id="valLuz">70%</span></div>
@@ -858,7 +898,7 @@
         </div>
     </div>
 
-    <div class="panel-section">
+    <div class="panel-section" id="secVistaCamara" data-vista="3d">
         <div class="panel-titulo">📷 Vista cámara</div>
         <div class="cam-grid">
             <button class="cam-btn" onclick="setCamara('frontal')">⬜ Frontal</button>
@@ -874,7 +914,7 @@
     </div>
 
     <!-- ── MUROS ── -->
-    <div class="panel-section">
+    <div class="panel-section" id="secMuros" data-vista="3d">
         <div class="panel-titulo">🧱 Muros</div>
         <button id="btnEliminarPared" onclick="modoEliminarPared ? salirModosPared() : activarEliminarPared()"
             style="width:100%;padding:9px;border-radius:8px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#FCA5A5;font-size:12px;font-weight:700;cursor:pointer;font-family:'Segoe UI',sans-serif;">🗑️ Eliminar un muro (tocar para elegir)</button>
@@ -882,7 +922,7 @@
     </div>
 
     <!-- ── EDITAR EN 3D: mover, rotar, escalar ── -->
-    <div class="panel-section">
+    <div class="panel-section" id="secEditar3D" data-vista="3d">
         <div class="panel-titulo">🔧 Editar en 3D</div>
         <button id="btnTransformar" onclick="toggleModoTransformar()"
             style="width:100%;padding:9px;border-radius:8px;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.35);color:#7DD3FC;font-size:12px;font-weight:700;cursor:pointer;font-family:'Segoe UI',sans-serif;">🔧 Activar edición (tocar para elegir)</button>
@@ -919,7 +959,7 @@
     </div>
 
     <!-- ── MOBILIARIO con controles de movimiento ── -->
-    <div class="panel-section">
+    <div class="panel-section" id="secMobiliario" data-vista="3d" data-abierta="1">
         <div class="panel-titulo">🛋️ Mobiliario</div>
         <div id="listaMuebles">
             <!-- generado dinámicamente -->
@@ -1397,7 +1437,8 @@ function pegarVentanaAPared(ventanaGrupo, ndc) {
 const PANEL_W  = 300;
 const HEADER_H = 96;
 function getCanvasSize() {
-    return { w: Math.max(window.innerWidth - PANEL_W, 100), h: Math.max(window.innerHeight - HEADER_H, 100) };
+    const anchoPanel = document.body.classList.contains('sin-panel') ? 0 : PANEL_W;
+    return { w: Math.max(window.innerWidth - anchoPanel, 100), h: Math.max(window.innerHeight - HEADER_H, 100) };
 }
 
 // ── THREE.JS SETUP ────────────────────────────────────────────────────────
@@ -1526,6 +1567,7 @@ window.soltarTransformar = function() {
 
 function seleccionarParaTransformar(obj) {
     objetoTransformar = obj;
+    abrirSeccionPanel('secEditar3D');
     // Se guarda el estado de partida: sirve para el "deshacer" y para calcular
     // el anclaje al escalar, que necesita saber dónde estaba cada cara.
     const escalaPrevia = obj.scale.clone();
@@ -3294,6 +3336,7 @@ function restaurarMobiliario(estadoGuardado) {
 
 function construirHabitacion() {
     salaConstruida = true;
+    if (typeof actualizarPanelDerecho === 'function') actualizarPanelDerecho();
     const _vacioEl = document.getElementById('entorno3dVacio');
     if (_vacioEl) _vacioEl.style.display = 'none';
     const _mobiliarioGuardado = capturarEstadoMobiliario();
@@ -3644,6 +3687,85 @@ cargarPlanBadge();
     }
 }
 
+// ── PANEL DERECHO: qué se ve en cada pestaña, acordeón y aviso ─────────
+let firmaUltimo3D = null;   // cómo estaba la planta la última vez que se generó el 3D
+
+// "Huella" de todo lo que cambia la geometría: si difiere de la del último
+// 3D generado, el modelo que se ve está viejo.
+function firmaPlanta() {
+    const e = configEnvolvente || {};
+    return JSON.stringify({
+        m: modulosPlanta.map(m => [m.id, m.tipo, m.px, m.pz, m.ancho, m.largo, m.alto, m.nivel, m.forma, m.alturaBase,
+            m.peralte, m.descuelgue, m.espesor, m.tipoTecho, m.pendiente, m.voladizo, m.orientacion,
+            m.materialPiso, m.imagenPisoUrl, m.colorPared, m.acabado, m.nivelExt, (m.paredesEliminadas || []).join()]),
+        v: vanosPlanta.map(v => [v.modulo_a, v.modulo_b, v.lado, v.centro, v.ancho, v.tipo, v.alto, v.bisagra, v.sentido, v.anguloApertura]),
+        n: typeof nivelesTotales !== 'undefined' ? nivelesTotales : 1,
+        e: [e.fachada, e.materialFachada, e.colorFachada, e.gruesoFachada, e.cubierta, e.pendiente, e.alero, e.girarCubierta],
+    });
+}
+
+function actualizarAvisoRegenerar() {
+    const av = document.getElementById('avisoRegenerar');
+    if (!av) return;
+    let viejo = false;
+    try { viejo = !!(salaConstruida && modulosPlanta.length && firmaUltimo3D && firmaPlanta() !== firmaUltimo3D); }
+    catch (e) { viejo = false; }   // durante la carga la planta todavía no existe
+    av.style.display = viejo ? 'block' : 'none';
+}
+
+function actualizarPanelDerecho() {
+    const pd = document.getElementById('panelDerecho');
+    if (!pd) return;
+    const vista = typeof vistaActual !== 'undefined' ? vistaActual : 'planta';
+    pd.dataset.vistaActiva = vista === '3d' ? '3d' : 'planta';
+    const sinModelo = vista === '3d' && !salaConstruida;
+    pd.classList.toggle('sin-modelo', sinModelo);
+    const avSin = document.getElementById('avisoSinModelo');
+    if (avSin) avSin.style.display = sinModelo ? 'block' : 'none';
+    // En el 3D lo primero es la superficie que se está vistiendo; en la planta, el portafolio
+    const port = document.getElementById('panelPortafolio'), sup = document.getElementById('panelSuperficie');
+    if (port && sup) {
+        if (vista === '3d') port.parentNode.insertBefore(sup, port);
+        else port.parentNode.insertBefore(port, sup);
+    }
+    actualizarAvisoRegenerar();
+}
+
+// Acordeón del Entorno 3D: cada sección se abre y cierra tocando su título,
+// y se recuerda cómo la dejó el usuario en este navegador.
+function prepararAcordeonPanel() {
+    let guardado = {};
+    try { guardado = JSON.parse(localStorage.getItem('decoia_panel3d') || '{}'); } catch (e) {}
+    document.querySelectorAll('#panelDerecho .panel-section[data-vista="3d"]:not(#barraPanel3D)').forEach(sec => {
+        const abierta = sec.id in guardado ? guardado[sec.id] : sec.dataset.abierta === '1';
+        sec.classList.toggle('colapsada', !abierta);
+        const titulo = sec.querySelector(':scope > .panel-titulo');
+        if (!titulo) return;
+        titulo.setAttribute('role', 'button');
+        titulo.tabIndex = 0;
+        const alternar = () => {
+            if (document.getElementById('panelDerecho').dataset.vistaActiva !== '3d') return;
+            sec.classList.toggle('colapsada');
+            try {
+                const g = JSON.parse(localStorage.getItem('decoia_panel3d') || '{}');
+                g[sec.id] = !sec.classList.contains('colapsada');
+                localStorage.setItem('decoia_panel3d', JSON.stringify(g));
+            } catch (e) {}
+        };
+        titulo.addEventListener('click', alternar);
+        titulo.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); alternar(); } });
+    });
+}
+
+// Tocar algo en el 3D abre la sección que lo controla y la deja a la vista
+function abrirSeccionPanel(id) {
+    const sec = document.getElementById(id);
+    if (!sec || typeof vistaActual === 'undefined' || vistaActual !== '3d') return;
+    sec.classList.remove('colapsada');
+    sec.classList.remove('recien-abierta'); void sec.offsetWidth; sec.classList.add('recien-abierta');
+    sec.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
 function cambiarVista(vista) {
     vistaActual=vista;
     document.getElementById('tab3d').classList.toggle('active',    vista==='3d');
@@ -3661,14 +3783,16 @@ function cambiarVista(vista) {
     document.getElementById('vistaFoto').style.display=vista==='foto'?'flex':'none';
     document.getElementById('vistaPlanta').style.display=vista==='planta'?'flex':'none';
     document.getElementById('entorno3dVacio').style.display=(vista==='3d' && !salaConstruida)?'flex':'none';
-    // El panel de la tienda (portafolio, pisos, enchapes, superficie activa)
-    // solo tiene sentido en Editor Planta, que es donde se le asigna material
-    // a cada cuarto. En las demás pestañas hablaba de cosas que no aplican
-    // — "sin plano generado" estando en el editor del plano, o "entra al modo
-    // cámara interior" estando en el editor de video — y confundía.
+    // Panel derecho por pestaña. Regla: la PLANTA es para construir (forma y
+    // medidas; el portafolio sirve para darle piso real a cada cuarto) y el
+    // ENTORNO 3D es para vestir y recorrer (superficie activa, luz, techos y
+    // fachada, muebles, gizmo, muros, cámara). Antes todo esto vivía en la
+    // planta, donde no se ve el 3D. En Nodos, Video y Foto IA no aplica.
     const pd = document.getElementById('panelDerecho');
-    if (pd) pd.style.display = vista==='planta' ? 'flex' : 'none';
-    document.body.classList.toggle('sin-panel', vista !== 'planta');
+    const conPanel = vista === 'planta' || vista === '3d';
+    if (pd) pd.style.display = conPanel ? 'flex' : 'none';
+    document.body.classList.toggle('sin-panel', !conPanel);
+    actualizarPanelDerecho();
     // El canvas cambia de ancho al recuperar los 300px, y el renderer no se
     // entera solo: sin esto la imagen sale estirada hasta el próximo resize.
     if (typeof onResize === 'function') requestAnimationFrame(onResize);
@@ -5261,6 +5385,7 @@ function salirCamaraPivote() {
 
 function seleccionarSuperficie(nombre, btn) {
     superficieActiva = nombre;
+    abrirSeccionPanel('panelSuperficie');
 
     // Actualizar botones
     document.querySelectorAll('.sup-btn').forEach(b => b.classList.remove('activo'));
@@ -6939,6 +7064,7 @@ function generarDesdePlanta() {
         }
     };
 
+    firmaUltimo3D = firmaPlanta();
     mostrarToast(`✨ Generando 3D con ${modulosPlanta.length} módulos...`);
     cambiarVista('3d');
     setTimeout(() => cargarDesdePlano(modelo3d), 300);
@@ -7005,6 +7131,7 @@ function cargarDesdePlano(modelo3d) {
     }
 
     salaConstruida = true;
+    if (typeof actualizarPanelDerecho === 'function') actualizarPanelDerecho();
     const _vacioEl = document.getElementById('entorno3dVacio');
     if (_vacioEl) _vacioEl.style.display = 'none';
 
@@ -7811,8 +7938,10 @@ function cambiarEnvolvente(campo, valor) {
     } else if (campo === 'materialTecho' || campo === 'colorTecho') {
         techosPlanta.forEach(t => { t.material = crearMaterialTecho(); });
     } else {
-        // Fachada, grosor y cubierta cambian la geometría: hay que rearmar
-        mostrarToast('🔄 Vuelve a generar el 3D para aplicar el cambio de fachada');
+        // Fachada, grosor y cubierta cambian la geometría: hay que rearmar.
+        // El aviso de arriba del panel ofrece el botón para hacerlo.
+        mostrarToast('🔄 Toca "Regenerar 3D" arriba del panel para aplicar el cambio');
+        actualizarAvisoRegenerar();
     }
     sincronizarUIEnvolvente();
 }
@@ -7876,6 +8005,10 @@ canvas.addEventListener('click', (e) => {
     const planoId = params.get('plano');
     if (planoId) await cargarPlanoDesdeBD(planoId);
 })();
+
+// Acordeón del panel del Entorno 3D (una sola vez, con el HTML ya cargado)
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', prepararAcordeonPanel);
+else prepararAcordeonPanel();
 </script>
 
 <!-- PANEL DIMENSIONES VENTANA -->
