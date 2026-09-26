@@ -196,6 +196,12 @@
         .ep-cancelar { background:none; border:1px solid rgba(148,163,184,0.35); color:var(--gris); padding:9px 16px; border-radius:10px; font-weight:700; cursor:pointer; font-family:inherit; }
         .ep-aplicar { background:var(--degradado); border:none; color:#fff; padding:10px 20px; border-radius:10px; font-weight:800; cursor:pointer; font-family:inherit; }
         @media (max-width:900px) { .ep-cuerpo { grid-template-columns:1fr; grid-template-rows:auto 1fr auto; } .ep-herramientas { flex-direction:row; flex-wrap:wrap; border-right:none; } .ep-ayuda { display:none; } }
+        /* "Grabar recorrido" sin Corporativo: pastilla chica arriba a la izquierda */
+        #toolbarEntorno3D.compacto { height:auto !important; width:auto !important; background:transparent !important; border:none !important; padding:10px 12px !important; overflow:visible !important; }
+        .pastilla-video { display:flex; align-items:center; gap:10px; flex-wrap:wrap; background:rgba(15,15,26,0.9); border:1px solid rgba(245,158,11,0.35);
+            border-radius:50px; padding:7px 14px; font-size:12px; font-weight:700; color:#E9D5FF; backdrop-filter:blur(6px); }
+        .pastilla-video .pv-candado { color:#FCD34D; font-size:11.5px; }
+        .pastilla-video a { color:#FCD34D; font-size:11.5px; font-weight:600; }
         .btn-volver-planta { width:100%; background:rgba(124,58,237,0.12); border:1px solid rgba(124,58,237,0.35); color:#C4B5FD; padding:8px; border-radius:9px; font-size:12.5px; font-weight:700; cursor:pointer; font-family:inherit; }
         .btn-volver-planta:hover { background:rgba(124,58,237,0.22); }
         .aviso-regenerar { margin-top:10px; background:rgba(245,158,11,0.10); border:1px solid rgba(245,158,11,0.35); border-radius:10px; padding:10px; font-size:12px; color:#FCD34D; line-height:1.5; }
@@ -470,12 +476,13 @@
     <div class="lo-pie">Toca un objeto para moverlo · 🔒 = no se puede agarrar en el 3D</div>
 </div>
 <div id="toolbarEntorno3D" style="display:none;position:fixed;top:100px;left:0;width:220px;flex-direction:column;z-index:500;background:var(--oscuro2);border-right:1px solid rgba(124,58,237,0.2);padding:12px;gap:8px;height:calc(100vh - 100px);overflow-y:auto;">
+    <!-- Sin Corporativo: solo una pastilla chica. Antes era una columna entera
+         que tapaba los controles de la cámara interior. -->
     <div id="bloqueoEntorno3D" style="display:none;">
-        <div style="font-size:11px;font-weight:700;color:#A78BFA;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;padding-bottom:8px;border-bottom:1px solid rgba(124,58,237,0.2);">🎬 Grabar recorrido</div>
-        <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:12px;margin-top:8px;">
-            <div style="font-size:13px;color:#FCD34D;font-weight:700;margin-bottom:6px;">🔒 Exclusivo del plan Corporativo</div>
-            <div style="font-size:12px;color:var(--gris);line-height:1.5;">Grabar recorridos y generar video con IA está disponible solo en el plan Corporativo.</div>
-            <a href="#" onclick="mostrarPagina && mostrarPagina('plan')" style="display:inline-block;margin-top:8px;color:#FCD34D;font-size:12px;font-weight:600;">Ver planes →</a>
+        <div class="pastilla-video">
+            <span>🎬 Grabar recorrido en video</span>
+            <span class="pv-candado">🔒 Corporativo</span>
+            <a href="/dashboard#plan" target="_blank">Ver planes →</a>
         </div>
     </div>
     <div id="contenidoEntorno3DReal" style="display:flex;flex-direction:column;gap:8px;">
@@ -2137,6 +2144,7 @@ window.soltarTransformar = function() {
 };
 
 function seleccionarParaTransformar(obj) {
+    if (obj === marcadorCamara && modoInterior) { mostrarToast('En la cámara interior tú eres la cámara: camina y mira'); return; }
     objetoTransformar = obj;
     abrirSeccionPanel('secEditar3D');
     setTimeout(() => renderListaObjetos(true), 0);
@@ -4240,6 +4248,8 @@ function animate() {
         marcadorCamara.quaternion.copy(camera.quaternion);
         cameraPreview.position.copy(camera.position);
         cameraPreview.quaternion.copy(camera.quaternion);
+        // Mismo lente que tu vista: al salir, la cámara conserva este campo visual
+        if (cameraPreview.fov !== camera.fov) { cameraPreview.fov = camera.fov; cameraPreview.updateProjectionMatrix(); }
     }
     // La mini-cámara sigue SIEMPRE a la camarita (no solo al reproducir), así
     // la pantalla en vivo muestra lo que la cámara ve mientras la arrastras.
@@ -4251,7 +4261,11 @@ function animate() {
     renderer.render(scene,camera);
 
     // Pantalla en vivo dentro de Entorno 3D
-    if (rendererVivo && vistaActual === '3d' && marcadorCamara.visible) {
+    // El gizmo (flechas y anillos) es ayuda del editor: se esconde mientras se
+    // dibuja la vista de la foto; antes aparecía como un punto azul y una línea.
+    const gizmoVisible = gizmo ? gizmo.visible : false;
+    if (gizmo) gizmo.visible = false;
+    if (rendererVivo && vistaActual === '3d' && (marcadorCamara.visible || modoInterior)) {
         try { rendererVivo.render(scene, cameraPreview); } catch (e) { /* ignorar */ }
     }
 
@@ -4262,6 +4276,7 @@ function animate() {
             console.error('Error renderizando la mini-pantalla (vista por dentro):', e);
         }
     }
+    if (gizmo) gizmo.visible = gizmoVisible;
 }
 
 // ── PESTAÑAS ──────────────────────────────────────────────────────────────
@@ -4980,6 +4995,7 @@ function actualizarCandadoEntorno3D() {
     if (!bloqueo || !contenido) return;
     bloqueo.style.display   = desbloqueado ? 'none' : 'block';
     contenido.style.display = desbloqueado ? 'flex' : 'none';
+    document.getElementById('toolbarEntorno3D').classList.toggle('compacto', !desbloqueado);
 }
 
 function actualizarCandadoRecorrido() {
@@ -6238,6 +6254,7 @@ let cuartoPivoteActual = null; // id del módulo donde está la cámara interior
 
 function activarCamaraPivote() {
     if(modoMover) desactivarMoverMueble();
+    if (objetoTransformar === marcadorCamara) salirModoTransformar();
     modoPivote=true;
     modoInterior=true;
     mostrarTechosInterior(true);
