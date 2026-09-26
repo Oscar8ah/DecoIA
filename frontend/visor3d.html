@@ -280,6 +280,11 @@
         <button onclick="agregarModulo('viga')"    style="background:rgba(146,124,88,0.18);border:1px solid rgba(146,124,88,0.4);color:#D9C9A8;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🪵 Viga</button>
         <div style="font-size:10px;color:var(--gris);line-height:1.5;">La columna va de piso a techo. La viga cuelga: ajusta <b>altura base</b> y <b>peralte</b> en el panel derecho.</div>
     </div>
+    <div style="border-top:1px solid rgba(132,204,22,0.25);margin-top:4px;padding-top:8px;display:flex;flex-direction:column;gap:6px;">
+        <div style="font-size:10.5px;font-weight:700;color:#BEF264;text-transform:uppercase;letter-spacing:0.05em;">🌳 Exteriores</div>
+        <button onclick="agregarModulo('exterior')" style="background:rgba(132,204,22,0.14);border:1px solid rgba(132,204,22,0.4);color:#D9F99D;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🟫 Piso exterior</button>
+        <div style="font-size:10px;color:var(--gris);line-height:1.5;">Andén, losa, patio o zona verde alrededor de la casa. Va sobre el suelo: no levanta muros ni suma área de la casa.</div>
+    </div>
     <div style="border-top:1px solid rgba(124,58,237,0.2);margin-top:4px;padding-top:8px;display:flex;flex-direction:column;gap:6px;">
         <button onclick="limpiarPlanta()" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#FCA5A5;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🗑️ Limpiar</button>
         <button onclick="generarDesdePlanta()" style="background:var(--degradado);color:white;border:none;padding:5px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">✨ Generar 3D</button>
@@ -607,6 +612,39 @@
                 <div id="infoCubierta" style="font-size:10.5px;color:var(--gris);margin-top:8px;line-height:1.6;"></div>
             </div>
             <!-- Solo para COLUMNA: sección cuadrada o redonda -->
+            <!-- Solo para PISO EXTERIOR: andén, losa, patio, zona verde -->
+            <div id="contExterior" style="display:none;flex-direction:column;gap:10px;">
+                <div>
+                    <label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;">Qué es</label>
+                    <select id="propSubtipoExt" onchange="cambiarSubtipoExterior()" style="width:100%;background:var(--oscuro);border:1px solid rgba(132,204,22,0.35);border-radius:8px;padding:8px 12px;color:var(--texto);font-size:13px;margin-top:4px;outline:none;">
+                        <option value="anden">Andén</option>
+                        <option value="losa">Losa / placa</option>
+                        <option value="patio">Patio</option>
+                        <option value="zona_verde">Zona verde</option>
+                        <option value="terraza">Terraza / deck</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;">Acabado</label>
+                    <select id="propAcabadoExt" onchange="actualizarPropModulo()" style="width:100%;background:var(--oscuro);border:1px solid rgba(132,204,22,0.35);border-radius:8px;padding:8px 12px;color:var(--texto);font-size:13px;margin-top:4px;outline:none;">
+                        <option value="concreto">Concreto</option>
+                        <option value="adoquin">Adoquín</option>
+                        <option value="baldosa">Baldosa exterior</option>
+                        <option value="gravilla">Gravilla</option>
+                        <option value="cesped">Césped / grama</option>
+                        <option value="deck">Deck de madera</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;">Espesor (m)</label>
+                    <input type="number" id="propEspesorExt" min="0.02" max="0.5" step="0.01" value="0.10" oninput="actualizarPropModulo()" style="width:100%;background:var(--oscuro);border:1px solid rgba(132,204,22,0.35);border-radius:8px;padding:8px 12px;color:var(--texto);font-size:13px;margin-top:4px;outline:none;">
+                </div>
+                <div>
+                    <label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;">Nivel respecto al piso de la casa (m)</label>
+                    <input type="number" id="propNivelExt" min="-1.5" max="1.5" step="0.05" value="0" oninput="actualizarPropModulo()" style="width:100%;background:var(--oscuro);border:1px solid rgba(132,204,22,0.35);border-radius:8px;padding:8px 12px;color:var(--texto);font-size:13px;margin-top:4px;outline:none;">
+                    <div style="font-size:10.5px;color:var(--gris);margin-top:6px;line-height:1.5;">0 = a ras con el piso de adentro. Un andén suele quedar un escalón más abajo: <b>-0.15</b>.</div>
+                </div>
+            </div>
             <div id="contColumna" style="display:none;">
                 <label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;">Sección</label>
                 <select id="propFormaColumna" onchange="actualizarPropModulo()"
@@ -3124,6 +3162,78 @@ const ACABADO_MATERIAL = {
     vinilo:      { roughness:0.45, metalness:0.0,  relieve:1.8, escalaNormal:0.45, contrasteRug:0.25 },
 };
 
+// Texturas dibujadas para los pisos exteriores (no dependen de internet).
+// Cada una representa un tramo de "tam" metros y se repite según el tamaño real.
+const _texturasExterior = {};
+function texturaExterior(acabado) {
+    if (_texturasExterior[acabado]) return _texturasExterior[acabado];
+    const N = 256, c = document.createElement('canvas'); c.width = c.height = N;
+    const g = c.getContext('2d');
+    const puntos = (colores, n, rMin, rMax) => { for (let i = 0; i < n; i++) {
+        g.fillStyle = colores[Math.floor(Math.random() * colores.length)];
+        g.beginPath(); g.arc(Math.random()*N, Math.random()*N, rMin + Math.random()*(rMax-rMin), 0, Math.PI*2); g.fill(); } };
+    let tam = 1;
+    if (acabado === 'adoquin') {             // adoquín de 20×10 cm trabado
+        tam = 0.8; g.fillStyle = '#6B3A26'; g.fillRect(0, 0, N, N);
+        const bw = N / 4, bh = N / 8;
+        for (let f = 0; f < 8; f++) for (let k = -1; k < 5; k++) {
+            const x0 = k * bw + (f % 2 ? bw / 2 : 0);
+            const t = 150 + Math.random() * 40;
+            g.fillStyle = `rgb(${t},${t*0.52},${t*0.36})`;
+            g.fillRect(x0 + 2, f * bh + 2, bw - 4, bh - 4);
+        }
+    } else if (acabado === 'baldosa') {      // baldosa de 40×40 cm con junta
+        tam = 0.8; g.fillStyle = '#8E8A82'; g.fillRect(0, 0, N, N);
+        for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) {
+            const t = 196 + Math.random() * 18;
+            g.fillStyle = `rgb(${t},${t-6},${t-16})`;
+            g.fillRect(i * N/2 + 3, j * N/2 + 3, N/2 - 6, N/2 - 6);
+        }
+        puntos(['rgba(120,110,100,0.12)'], 400, 0.5, 1.5);
+    } else if (acabado === 'gravilla') {
+        tam = 0.6; g.fillStyle = '#9C958A'; g.fillRect(0, 0, N, N);
+        puntos(['#C9C2B6','#7E776C','#B3A99A','#E2DCD2','#6A645B'], 1400, 1.5, 4.5);
+    } else if (acabado === 'cesped') {
+        tam = 0.6; g.fillStyle = '#3F6B2A'; g.fillRect(0, 0, N, N);
+        for (let i = 0; i < 2600; i++) {
+            const x0 = Math.random()*N, y0 = Math.random()*N, v = Math.random();
+            g.strokeStyle = v < 0.5 ? '#4F8A33' : (v < 0.8 ? '#5FA03C' : '#35592A');
+            g.lineWidth = 1; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x0 + (Math.random()-0.5)*3, y0 - 3 - Math.random()*4); g.stroke();
+        }
+    } else if (acabado === 'deck') {         // tablas de 14 cm
+        tam = 1.12; g.fillStyle = '#4A2E1A'; g.fillRect(0, 0, N, N);
+        const tb = N / 8;
+        for (let k = 0; k < 8; k++) {
+            const t = 128 + Math.random() * 30;
+            g.fillStyle = `rgb(${t},${t*0.66},${t*0.42})`;
+            g.fillRect(k * tb + 1.5, 0, tb - 3, N);
+            g.strokeStyle = 'rgba(60,35,18,0.25)';
+            for (let v = 0; v < 5; v++) { const xv = k*tb + 3 + Math.random()*(tb-6);
+                g.beginPath(); g.moveTo(xv, 0); g.bezierCurveTo(xv+3, N/3, xv-3, 2*N/3, xv, N); g.stroke(); }
+        }
+    } else {                                 // concreto con juntas cada metro
+        tam = 1; g.fillStyle = '#A3A09A'; g.fillRect(0, 0, N, N);
+        puntos(['rgba(80,78,74,0.10)','rgba(255,255,255,0.10)','rgba(60,58,54,0.08)'], 2200, 0.5, 2);
+        g.strokeStyle = 'rgba(70,68,64,0.55)'; g.lineWidth = 2;
+        g.strokeRect(1, 1, N - 2, N - 2);
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    if (THREE.sRGBEncoding) tex.encoding = THREE.sRGBEncoding;
+    return (_texturasExterior[acabado] = { tex, tam });
+}
+function crearMaterialesExterior(acabado, ancho, largo) {
+    const { tex, tam } = texturaExterior(acabado);
+    const t = tex.clone(); t.needsUpdate = true;
+    t.repeat.set(Math.max(1, ancho / tam), Math.max(1, largo / tam));
+    const rugoso = { concreto:0.92, adoquin:0.85, baldosa:0.6, gravilla:0.95, cesped:1.0, deck:0.7 }[acabado] ?? 0.9;
+    const arriba = new THREE.MeshStandardMaterial({ map: t, roughness: rugoso, metalness: 0 });
+    // Canto: tierra bajo la grama y la gravilla, el mismo material en lo demás
+    const colorCanto = { cesped:0x5A4330, gravilla:0x7A7368, deck:0x5B3A22, adoquin:0x8A5A40 }[acabado] ?? 0x8F8C86;
+    const canto  = new THREE.MeshStandardMaterial({ color: colorCanto, roughness: 0.95, metalness: 0 });
+    return [canto, canto, arriba, canto, canto, canto];   // orden de BoxGeometry: +x −x +y −y +z −z
+}
+
 function crearMaterialPiso(tipo) {
     const configs = {
         madera:     {color:0xC4913A,roughness:0.6,metalness:0.0},
@@ -5390,12 +5500,12 @@ function modulosEditables() {
 const COLORES_MODULO = {
     sala:'#3B82F6', cocina:'#10B981', habitacion:'#7C3AED',
     bano:'#F59E0B', pasillo:'#94A3B8', zona:'#EF4444', pared:'#78716C', vidrio:'#38BDF8',
-    columna:'#A8A29E', viga:'#927C58', plafon:'#C084FC', cubierta:'#F97316'
+    columna:'#A8A29E', viga:'#927C58', plafon:'#C084FC', cubierta:'#F97316', exterior:'#84CC16'
 };
 const EMOJIS_MODULO = {
     sala:'🛋️', cocina:'🍳', habitacion:'🛏️',
     bano:'🚿', pasillo:'🚶', zona:'📦', pared:'🧱', vidrio:'🪟',
-    columna:'🏛️', viga:'🪵', plafon:'⬜', cubierta:'🏠'
+    columna:'🏛️', viga:'🪵', plafon:'⬜', cubierta:'🏠', exterior:'🟫'
 };
 // ── ENVOLVENTE: techos interiores + fachada exterior ─────────────────────
 // "Techo" es el cielo raso de cada cuarto (se ve desde adentro).
@@ -5423,7 +5533,7 @@ let puertasPlanta  = [];   // { grupo, pivote, vano, angMax } — hojas abribles
 // Tipos que NO son un cuarto: no llevan piso, no abren vanos en el vecino y no
 // suman área habitable. Antes esta lista estaba escrita a mano en 5 sitios
 // distintos; centralizarla evita que columna/viga se cuelen en las estadísticas.
-const TIPOS_NO_CUARTO = ['pared', 'vidrio', 'columna', 'viga', 'plafon', 'cubierta'];
+const TIPOS_NO_CUARTO = ['pared', 'vidrio', 'columna', 'viga', 'plafon', 'cubierta', 'exterior'];
 const esCuarto = t => !TIPOS_NO_CUARTO.includes(t);
 
 function iniciarEditorPlanta() {
@@ -5561,6 +5671,29 @@ window.agregarPlafon = function(forma) {
     actualizarListaModulos();
 };
 
+// ── PISOS EXTERIORES ─────────────────────────────────────────────────────
+// El mismo rectángulo de la planta, pero acostado sobre el suelo: andenes,
+// losas, patios y zonas verdes alrededor de la casa. No es un cuarto (está en
+// TIPOS_NO_CUARTO): no levanta muros, no abre vanos y no suma área habitable.
+// "nivelExt" es la altura de su cara de arriba respecto al piso de adentro.
+const NOMBRE_EXTERIOR = { anden:'🟫 Andén', losa:'🟫 Losa', patio:'🟫 Patio', zona_verde:'🌿 Zona verde', terraza:'🪵 Terraza' };
+const DEFECTO_EXTERIOR = {
+    anden:      { acabado:'concreto', espesor:0.10, nivelExt:-0.15 },
+    losa:       { acabado:'concreto', espesor:0.12, nivelExt:0     },
+    patio:      { acabado:'adoquin',  espesor:0.08, nivelExt:-0.05 },
+    zona_verde: { acabado:'cesped',   espesor:0.05, nivelExt:-0.15 },
+    terraza:    { acabado:'deck',     espesor:0.10, nivelExt:0     },
+};
+function cambiarSubtipoExterior() {
+    if (!moduloSeleccionado || moduloSeleccionado.tipo !== 'exterior') return;
+    const sub = document.getElementById('propSubtipoExt').value;
+    const nombreEraAuto = Object.values(NOMBRE_EXTERIOR).includes(moduloSeleccionado.nombre);
+    moduloSeleccionado.subtipo = sub;
+    Object.assign(moduloSeleccionado, DEFECTO_EXTERIOR[sub] || {});
+    if (nombreEraAuto) moduloSeleccionado.nombre = NOMBRE_EXTERIOR[sub] || moduloSeleccionado.nombre;
+    seleccionarModulo(moduloSeleccionado.id);   // repinta el panel con los valores sugeridos
+}
+
 function agregarModulo(tipo) {
     document.getElementById('plantaInstruccion').style.display = 'none';
     const id = Date.now();
@@ -5578,6 +5711,7 @@ function agregarModulo(tipo) {
         viga:    { ancho:0.25, largo:4.00 },
         plafon:   { ancho:2.50, largo:2.50 },
         cubierta: { ancho:8.00, largo:6.00 },
+        exterior: { ancho:1.20, largo:6.00 },   // un andén típico
     };
     const med = MEDIDAS_DEFECTO[tipo] || { ancho:4, largo:4 };
     const nuevo = {
@@ -5609,6 +5743,9 @@ function agregarModulo(tipo) {
     }
     if (tipo === 'columna') {
         nuevo.forma = 'cuadrada';   // 'cuadrada' | 'redonda'
+    }
+    if (tipo === 'exterior') {
+        Object.assign(nuevo, DEFECTO_EXTERIOR.anden, { subtipo: 'anden', nombre: NOMBRE_EXTERIOR.anden });
     }
     if (tipo === 'viga') {
         nuevo.peralte     = 0.40;   // alto del elemento (canto de la viga)
@@ -5863,11 +6000,14 @@ function dibujarPlanta() {
     });
 
     // Módulos de la capa y el nivel activos
-    modulosEditables().forEach(m => {
+    // Los pisos exteriores van por debajo de todo: rodean la casa, no la tapan
+    [...modulosEditables()].sort((a, b) => (b.tipo === 'exterior') - (a.tipo === 'exterior')).forEach(m => {
         const pw = m.ancho * ESCALA;
         const ph = m.largo * ESCALA;
         const selec = moduloSeleccionado && moduloSeleccionado.id === m.id;
-        const color = COLORES_MODULO[m.tipo] || '#7C3AED';
+        const color = m.tipo === 'exterior'
+            ? ({ concreto:'#A3A3A3', adoquin:'#C2703D', baldosa:'#D6CFC4', gravilla:'#B8AE9C', cesped:'#65A30D', deck:'#A16207' }[m.acabado] || COLORES_MODULO.exterior)
+            : (COLORES_MODULO[m.tipo] || '#7C3AED');
 
         // Sombra
         ctx.shadowColor = color;
@@ -5878,7 +6018,7 @@ function dibujarPlanta() {
         // porque va por encima de la cabeza, no toca el piso.
         const esColumna2D = m.tipo === 'columna';
         const esViga2D    = m.tipo === 'viga';
-        ctx.fillStyle = esColumna2D ? color + 'CC' : color + (selec ? '40' : '25');
+        ctx.fillStyle = esColumna2D ? color + 'CC' : color + (m.tipo === 'exterior' ? (selec ? '70' : '55') : (selec ? '40' : '25'));
         trazarForma(m, pw, ph);
         ctx.fill();
 
@@ -5886,6 +6026,7 @@ function dibujarPlanta() {
         ctx.strokeStyle = selec ? color : color + '80';
         ctx.lineWidth   = selec ? 3 : 1.5;
         if (esViga2D) ctx.setLineDash([6, 4]);
+        if (m.tipo === 'exterior') ctx.setLineDash([3, 3]);   // punteado fino: está afuera, sobre el suelo
         ctx.stroke();
         ctx.setLineDash([]);
 
@@ -6226,6 +6367,17 @@ function seleccionarModulo(id) {
     document.getElementById('contPlafon').style.display  = esPlafon ? 'block' : 'none';
     const esCub = moduloSeleccionado.tipo === 'cubierta';
     document.getElementById('contCubierta').style.display = esCub ? 'block' : 'none';
+    const esExt = moduloSeleccionado.tipo === 'exterior';
+    document.getElementById('contExterior').style.display = esExt ? 'flex' : 'none';
+    // Un piso exterior no tiene "alto" de muro: su tercer eje es el espesor
+    document.getElementById('propAlto').parentElement.style.display = esExt ? 'none' : '';
+    document.getElementById('propColorPared').parentElement.style.display = esExt ? 'none' : '';
+    if (esExt) {
+        document.getElementById('propSubtipoExt').value = moduloSeleccionado.subtipo  || 'anden';
+        document.getElementById('propAcabadoExt').value = moduloSeleccionado.acabado  || 'concreto';
+        document.getElementById('propEspesorExt').value = moduloSeleccionado.espesor  ?? 0.10;
+        document.getElementById('propNivelExt').value   = moduloSeleccionado.nivelExt ?? 0;
+    }
     if (esCub) {
         document.getElementById('propTipoTecho').value   = moduloSeleccionado.tipoTecho   || 'dos_aguas';
         document.getElementById('propPendiente').value   = moduloSeleccionado.pendiente   ?? 35;
@@ -6327,6 +6479,42 @@ function calcularMaterialEstructura(m) {
     return { volumen, bultos, arena, grava, acero, formaleta };
 }
 
+// Cantidades para presupuestar un piso exterior según su acabado.
+function htmlMaterialExterior(m) {
+    const area = m.ancho * m.largo, esp = m.espesor ?? 0.10, ac = m.acabado || 'concreto';
+    const f = (n, d = 2) => n.toLocaleString('es-CO', { maximumFractionDigits: d });
+    let filas = [`Área: <b>${f(area)} m²</b>`];
+    if (ac === 'concreto') {
+        const r = calcularMaterialEstructura({ tipo:'columna', ancho: m.ancho, largo: m.largo, alto: esp });
+        filas.push(`Concreto: <b>${f(r.volumen, 3)} m³</b>`,
+                   `Cemento: <b>${r.bultos} bulto${r.bultos === 1 ? '' : 's'} de 50 kg</b>`,
+                   `Arena: <b>${f(r.arena, 3)} m³</b> · Grava: <b>${f(r.grava, 3)} m³</b>`,
+                   `Malla electrosoldada: <b>${f(area * 1.1, 1)} m²</b>`);
+    } else if (ac === 'adoquin') {
+        const und = Math.ceil(area * 50 * 1.05);
+        filas.push(`Adoquines de 20×10 cm: <b>${und.toLocaleString('es-CO')}</b> (50 por m² + 5 %)`,
+                   `Arena de base (4 cm): <b>${f(area * 0.04, 3)} m³</b>`,
+                   `Arena de sello: <b>${f(area * 0.005, 3)} m³</b>`);
+    } else if (ac === 'baldosa') {
+        filas.push(`Baldosa: <b>${f(area * 1.10)} m²</b> (con 10 % de desperdicio)`,
+                   `Placa de concreto de base: <b>${f(area * 0.08, 3)} m³</b>`);
+    } else if (ac === 'gravilla') {
+        filas.push(`Gravilla: <b>${f(area * esp * 1.1, 3)} m³</b>`, `Geotextil: <b>${f(area * 1.1, 1)} m²</b>`);
+    } else if (ac === 'cesped') {
+        filas.push(`Grama en tapete: <b>${f(area * 1.05)} m²</b>`, `Tierra negra (5 cm): <b>${f(area * 0.05, 3)} m³</b>`);
+    } else if (ac === 'deck') {
+        filas.push(`Deck: <b>${f(area * 1.10)} m²</b>`,
+                   `Tablas de 14 cm: <b>${f(area / 0.145 * 1.1, 0)} metros lineales</b>`,
+                   `Durmientes cada 40 cm: <b>${f(area / 0.4 * 1.05, 0)} metros lineales</b>`);
+    }
+    return `
+        <div style="background:rgba(132,204,22,0.08);border:1px solid rgba(132,204,22,0.3);border-radius:10px;padding:10px;font-size:12px;">
+            <div style="font-weight:700;color:#D9F99D;margin-bottom:4px;">🌳 Material de ${m.nombre}</div>
+            ${filas.map(t => `<div style="color:var(--texto);">${t}</div>`).join('')}
+            <div style="color:var(--gris);font-size:10px;margin-top:6px;line-height:1.5;">Cantidades para presupuestar con rendimientos usuales en Colombia; confírmalas con quien va a construir.</div>
+        </div>`;
+}
+
 function calcularMaterialModulo() {
     const cont = document.getElementById('calculoMaterialPiso');
     if (!cont || !moduloSeleccionado) return;
@@ -6345,6 +6533,11 @@ function calcularMaterialModulo() {
                 <div style="color:var(--texto);">Formaleta: <b>${r.formaleta.toFixed(2)} m²</b></div>
                 <div style="color:var(--gris);font-size:10px;margin-top:6px;line-height:1.5;">Concreto 3000 psi en dosificación 1:2:3 y cuantía de acero de ${esViga?'110':'80'} kg/m³, valores usuales en vivienda de 1 a 3 pisos. <b>El refuerzo real lo define un ingeniero calculista</b>; esto sirve para presupuestar, no para construir.</div>
             </div>`;
+        return;
+    }
+
+    if (moduloSeleccionado.tipo === 'exterior') {
+        cont.innerHTML = htmlMaterialExterior(moduloSeleccionado);
         return;
     }
 
@@ -6457,6 +6650,14 @@ function actualizarPropModulo() {
     }
     if (moduloSeleccionado.tipo === 'columna') {
         moduloSeleccionado.forma = document.getElementById('propFormaColumna').value;
+    }
+    if (moduloSeleccionado.tipo === 'exterior') {
+        const esp = parseFloat(document.getElementById('propEspesorExt').value);
+        const niv = parseFloat(document.getElementById('propNivelExt').value);
+        moduloSeleccionado.acabado  = document.getElementById('propAcabadoExt').value;
+        moduloSeleccionado.espesor  = Number.isFinite(esp) ? Math.min(0.5, Math.max(0.02, esp)) : 0.10;
+        moduloSeleccionado.nivelExt = Number.isFinite(niv) ? Math.min(1.5, Math.max(-1.5, niv)) : 0;
+        calcularMaterialModulo();
     }
     if (moduloSeleccionado.tipo === 'cubierta') {
         moduloSeleccionado.tipoTecho   = document.getElementById('propTipoTecho').value;
@@ -6625,7 +6826,10 @@ function generarDesdePlanta() {
             pendiente:   m.pendiente   ?? null,
             voladizo:    m.voladizo    ?? null,
             orientacion: m.orientacion ?? null,
-            espesor:     m.espesor     ?? null,   // plafón: canto
+            espesor:     m.espesor     ?? null,   // plafón: canto — piso exterior: grosor de la placa
+            subtipo:     m.subtipo     || null,   // piso exterior: anden | losa | patio | zona_verde | terraza
+            acabado:     m.acabado     || null,   // piso exterior: concreto | adoquin | baldosa | gravilla | cesped | deck
+            nivel_exterior: m.nivelExt ?? null,   // piso exterior: cara de arriba respecto al piso de la casa
             nivel:       nivelDe(m),
             capa:        capaDe(m),
         })),
@@ -6917,6 +7121,20 @@ function cargarDesdePlano(modelo3d) {
 
         // ── Elementos que NO son cuartos: pared fija, divisor de vidrio,
         //    COLUMNA (piso a techo) y VIGA (cuelga del techo) ──────────────
+        // ── PISO EXTERIOR: placa acostada sobre el suelo ─────────────────
+        if (mod.tipo === 'exterior') {
+            const esp  = Math.max(0.02, mod.espesor ?? 0.10);
+            const tope = baseY + (mod.nivel_exterior ?? 0);        // cara de arriba
+            const mats = crearMaterialesExterior(mod.acabado || 'concreto', ancho, largo);
+            const placa = new THREE.Mesh(new THREE.BoxGeometry(ancho, esp, largo), mats);
+            placa.position.set(x, tope - esp / 2, z);
+            placa.receiveShadow = true;
+            placa.castShadow = esp > 0.06;
+            placa.userData = { moduloId: mod.id, moduloNombre: mod.nombre, tipoEstructura: 'exterior' };
+            scene.add(placa);
+            return;   // no lleva muros, techo ni etiqueta flotante
+        }
+
         if (!esCuarto(mod.tipo)) {
             const esVidrio  = mod.tipo === 'vidrio';
             const esColumna = mod.tipo === 'columna';

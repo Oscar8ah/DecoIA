@@ -114,6 +114,15 @@
         .tienda-miniaturas { min-width: 0; overflow: hidden; }
         .btn-ver-tienda { white-space: nowrap; flex-shrink: 0; padding: 10px 22px; font-size: 14px; }
         @media (max-width: 480px) { .tienda-miniaturas img:nth-child(n+4) { display: none; } }
+        /* Celular: el título no se parte en dos líneas y el carrito no tapa el logo de la primera tienda */
+        @media (max-width: 480px) {
+            .titulo-bloque { gap: 12px; }
+            .titulo-ico { width: 34px; height: 34px; }
+            .section-header h2#tituloSeccion { font-size: 21px; }
+            .titulo-sub { font-size: 13.5px; }
+            .tienda-miniaturas img:nth-child(n+3) { display: none; }
+            body #carritoBtn { width: 52px; height: 52px; left: auto; right: 16px; bottom: 18px; }
+        }
         .pin-ico { width: 16px; height: 16px; fill: #A78BFA; flex-shrink: 0; }
         .tienda-card .tienda-nombre { font-size: 17px; }
         .tienda-card .tienda-desc { font-size: 14px; }
