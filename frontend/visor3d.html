@@ -92,7 +92,8 @@
         #panelDerecho[data-vista-activa="planta"] .panel-section[data-vista="3d"],
         #panelDerecho[data-vista-activa="3d"] .panel-section[data-vista="planta"] { display:none !important; }
         #panelDerecho.sin-modelo .panel-section[data-vista="3d"]:not(#barraPanel3D),
-        #panelDerecho.sin-modelo .panel-section[data-vista="ambas"] { display:none !important; }
+        #panelDerecho.sin-modelo .panel-section[data-vista="ambas"],
+        #panelDerecho[data-vista-activa="3d"]:not(.con-superficie) #panelPortafolio { display:none !important; }
         #panelDerecho[data-vista-activa="3d"] .panel-section[data-vista="3d"]:not(#barraPanel3D) > .panel-titulo:first-child { cursor:pointer; user-select:none; margin-bottom:0; }
         #panelDerecho[data-vista-activa="3d"] .panel-section[data-vista="3d"]:not(#barraPanel3D) > .panel-titulo:first-child::after { content:'▾'; margin-left:auto; font-size:13px; color:var(--gris); transition:transform .2s; }
         #panelDerecho[data-vista-activa="3d"] .panel-section[data-vista="3d"]:not(#barraPanel3D):not(.colapsada) > .panel-titulo:first-child { margin-bottom:14px; }
@@ -316,6 +317,10 @@
         <div style="font-size:10px;color:var(--gris);line-height:1.5;">Andén, losa, patio o zona verde alrededor de la casa. Va sobre el suelo: no levanta muros ni suma área de la casa.</div>
     </div>
     <div style="border-top:1px solid rgba(124,58,237,0.2);margin-top:4px;padding-top:8px;display:flex;flex-direction:column;gap:6px;">
+        <div style="display:flex;gap:6px;">
+            <button id="btnDeshacerPlanta" onclick="deshacerPlanta()" title="Deshacer (Ctrl+Z)" disabled style="flex:1;padding:5px 8px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.3);color:#C4B5FD;font-family:inherit;">↶ Deshacer</button>
+            <button id="btnRehacerPlanta"  onclick="rehacerPlanta()"  title="Rehacer (Ctrl+Y)"  disabled style="flex:1;padding:5px 8px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.3);color:#C4B5FD;font-family:inherit;">↷ Rehacer</button>
+        </div>
         <button onclick="limpiarPlanta()" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#FCA5A5;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🗑️ Limpiar</button>
         <button onclick="generarDesdePlanta()" style="background:var(--degradado);color:white;border:none;padding:5px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">✨ Generar 3D</button>
     </div>
@@ -334,7 +339,7 @@
 <div id="pantallaVivoEntorno3D" style="display:none;position:fixed;top:116px;right:316px;z-index:600;border:2px solid #FCD34D;border-radius:10px;overflow:hidden;background:#000;box-shadow:0 8px 30px rgba(0,0,0,0.6);">
     <div style="background:rgba(252,211,77,0.15);color:#FCD34D;font-size:11px;font-weight:700;padding:5px 8px;display:flex;align-items:center;gap:6px;">
         <span style="width:8px;height:8px;border-radius:50%;background:#EF4444;display:inline-block;"></span>
-        VISTA DE LA CÁMARA
+        <span id="tituloVistaCamara">VISTA DE LA CÁMARA</span>
     </div>
     <canvas id="canvasVivoEntorno3D" width="340" height="220" style="width:340px;height:220px;display:block;"></canvas>
 </div>
@@ -884,6 +889,19 @@
         </label>
         <div style="font-size:10px;color:var(--gris);line-height:1.5;">Fachada y cubierta cambian la geometría: dale <b>Generar 3D</b> otra vez para verlas.</div>
     </div>
+    <div class="panel-section" id="secCamaraFoto" data-vista="3d" data-abierta="1">
+        <div class="panel-titulo" id="tituloSecCamara">📸 Cámara de fotos</div>
+        <div style="font-size:11.5px;color:var(--gris);line-height:1.55;margin-bottom:10px;">La <b style="color:var(--texto)">Foto IA</b> sale desde esta cámara. Busca la toma que te guste y toca <b style="color:var(--texto)">📍 Traer la cámara a mi vista</b>. En la cámara interior, tú eres la cámara.</div>
+        <button onclick="traerCamaraAMiVista()" style="width:100%;background:var(--degradado);color:#fff;border:none;padding:9px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px;">📍 Traer la cámara a mi vista</button>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+            <button onclick="moverCamaraConFlechas()" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:8px 6px;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">✥ Mover con flechas</button>
+            <button onclick="verDesdeLaCamara()" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:8px 6px;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">👁️ Ver lo que ve</button>
+            <button onclick="rotarCamaraVideo('yaw', 1)" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:8px 6px;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">⟲ Girar izq.</button>
+            <button onclick="rotarCamaraVideo('yaw', -1)" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:8px 6px;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">⟳ Girar der.</button>
+            <button onclick="rotarCamaraVideo('pitch', 1)" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:8px 6px;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">⤒ Mirar arriba</button>
+            <button onclick="rotarCamaraVideo('pitch', -1)" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:8px 6px;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">⤓ Mirar abajo</button>
+        </div>
+    </div>
     <div class="panel-section" id="secIluminacion" data-vista="3d" data-abierta="1">
         <div class="panel-titulo">💡 Iluminación</div>
         <div class="control-grupo">
@@ -950,7 +968,9 @@
                 </label>
             </div>
             <div style="display:flex;gap:4px;margin-top:8px;">
-                <button onclick="reiniciarTransformacion()" style="flex:1;padding:6px;border-radius:6px;font-size:10.5px;font-weight:700;cursor:pointer;border:1px solid rgba(148,163,184,0.3);background:rgba(255,255,255,0.04);color:var(--gris);">↺ Deshacer</button>
+                <button onclick="reiniciarTransformacion()" style="flex:1;padding:6px;border-radius:6px;font-size:10.5px;font-weight:700;cursor:pointer;border:1px solid rgba(148,163,184,0.3);background:rgba(255,255,255,0.04);color:var(--gris);" title="Devolver la pieza a como estaba al tocarla">↺ Original</button>
+                <button id="btnDeshacer3D" onclick="deshacer3D()" title="Deshacer el último movimiento (Ctrl+Z)" disabled style="flex:1;padding:6px;border-radius:6px;font-size:10.5px;font-weight:700;cursor:pointer;border:1px solid rgba(124,58,237,0.35);background:rgba(124,58,237,0.12);color:#C4B5FD;">↶</button>
+                <button id="btnRehacer3D" onclick="rehacer3D()" title="Rehacer (Ctrl+Y)" disabled style="flex:1;padding:6px;border-radius:6px;font-size:10.5px;font-weight:700;cursor:pointer;border:1px solid rgba(124,58,237,0.35);background:rgba(124,58,237,0.12);color:#C4B5FD;">↷</button>
                 <button onclick="soltarTransformar()" style="flex:1;padding:6px;border-radius:6px;font-size:10.5px;font-weight:700;cursor:pointer;border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.12);color:#FCA5A5;">✕ Soltar</button>
             </div>
             <div id="tfMedidas" style="font-size:10.5px;color:var(--gris);margin-top:8px;line-height:1.6;"></div>
@@ -1504,7 +1524,10 @@ function iniciarGizmo() {
     gizmo.setScaleSnap(0.05);
     // Mientras se arrastra el gizmo hay que soltar la órbita, si no la cámara
     // se mueve al mismo tiempo y no se puede apuntar.
-    gizmo.addEventListener('dragging-changed', e => { controls.enabled = !e.value; });
+    gizmo.addEventListener('dragging-changed', e => {
+        controls.enabled = !e.value;
+        if (e.value) guardarPaso3D();   // al empezar a arrastrar: foto de cómo estaba, para Ctrl+Z
+    });
     gizmo.addEventListener('objectChange', alTransformar);
     scene.add(gizmo);
     return true;
@@ -1841,6 +1864,40 @@ gizmoPivote.add(
     crearAnilloRot(0xEF4444, 'pitch'),
     crearAnilloRot(0x3B82F6, 'roll'),
 );
+// La camarita de VIDEO de arriba queda como una forma; al lado va una cámara
+// de FOTOS compacta y plana. Se muestra una u otra según el plan: el video es
+// solo de Corporativo, Premium solo toma fotos (ver actualizarFormaCamara).
+const formaVideoCam = new THREE.Group();
+[...marcadorCamara.children].forEach(h => formaVideoCam.add(h));
+marcadorCamara.add(formaVideoCam);
+const formaFotoCam = (() => {
+    const g = new THREE.Group();
+    const matPlata = new THREE.MeshStandardMaterial({ color: 0xC9CDD3, metalness: 0.8, roughness: 0.3 });
+    const matNegro = new THREE.MeshStandardMaterial({ color: 0x1B1D22, metalness: 0.3, roughness: 0.55 });
+    const cuerpo = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.21, 0.08), matPlata);          // cuerpo plano
+    const agarre = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.19, 0.03), matNegro);          // empuñadura
+    agarre.position.set(-0.13, 0, -0.05);
+    const aro   = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.08, 0.05, 32), matNegro); // lente
+    aro.rotation.x = Math.PI / 2; aro.position.set(0.03, 0, -0.065);
+    const tubo  = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.066, 0.045, 32), matPlata);
+    tubo.rotation.x = Math.PI / 2; tubo.position.set(0.03, 0, -0.11);
+    const vidrio = new THREE.Mesh(new THREE.CircleGeometry(0.046, 32), matVidrioCam);
+    vidrio.rotation.y = Math.PI; vidrio.position.set(0.03, 0, -0.1335);
+    const flash = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.025, 0.01),
+        new THREE.MeshStandardMaterial({ color: 0xF8FAFC, emissive: 0xE0F2FE, emissiveIntensity: 0.6 }));
+    flash.position.set(0.12, 0.07, -0.043);
+    const disparador = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.02, 20),
+        new THREE.MeshStandardMaterial({ color: 0xDC2626, metalness: 0.4, roughness: 0.4 }));
+    disparador.position.set(-0.11, 0.115, 0);
+    const pantallaTrasera = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.14),
+        new THREE.MeshStandardMaterial({ color: 0x0B1220, emissive: 0x1E3A5F, emissiveIntensity: 0.5 }));
+    pantallaTrasera.position.set(0.03, 0, 0.041);
+    g.add(cuerpo, agarre, aro, tubo, vidrio, flash, disparador, pantallaTrasera);
+    g.visible = false;
+    return g;
+})();
+marcadorCamara.add(formaFotoCam);
+
 marcadorCamara.add(gizmoPivote);
 
 // ESCALA: el modelo base mide ~0.65m (tamaño real de una cámara profesional).
@@ -3585,7 +3642,7 @@ function capturarRender() {
     renderer.render(scene,camera);
     const link=document.createElement('a');
     link.download=`render_decoiarte_${Date.now()}.png`;
-    link.href=canvas.toDataURL('image/png',1.0); link.click();
+    link.href=capturaDesdeCamaraFoto(); link.click();
     mostrarToast('📸 ¡Render guardado!');
 }
 
@@ -3621,9 +3678,19 @@ function animate() {
     // siempre, y el usuario puede orbitar libremente mientras ve la camarita.
     controls.update();
 
+    // En la cámara interior TÚ eres la cámara: la camarita se esconde (antes
+    // quedaba flotando delante y tapaba la vista) y la sigue a donde mires;
+    // al salir, queda justo donde estabas mirando.
+    if (modoInterior && !reproduciendoRecorrido && salaConstruida) {
+        marcadorCamara.visible = false;
+        marcadorCamara.position.copy(camera.position);
+        marcadorCamara.quaternion.copy(camera.quaternion);
+        cameraPreview.position.copy(camera.position);
+        cameraPreview.quaternion.copy(camera.quaternion);
+    }
     // La mini-cámara sigue SIEMPRE a la camarita (no solo al reproducir), así
     // la pantalla en vivo muestra lo que la cámara ve mientras la arrastras.
-    if (marcadorCamara.visible && !reproduciendoRecorrido) {
+    else if (marcadorCamara.visible && !reproduciendoRecorrido) {
         cameraPreview.position.copy(marcadorCamara.position);
         cameraPreview.quaternion.copy(marcadorCamara.quaternion);
     }
@@ -4352,7 +4419,18 @@ function descargarJSONRecorrido() {
     URL.revokeObjectURL(url);
 }
 
+function actualizarFormaCamara() {
+    const video = PLANES_CON_VIDEO.includes(planActualUsuario);
+    formaVideoCam.visible = video;
+    formaFotoCam.visible  = !video;
+    const t = document.getElementById('tituloVistaCamara');
+    if (t) t.textContent = video ? 'VISTA DE LA CÁMARA' : '📸 VISTA DE LA FOTO';
+    const tp = document.getElementById('tituloSecCamara');
+    if (tp) tp.textContent = video ? '🎥 Cámara' : '📸 Cámara de fotos';
+}
+
 function actualizarCandadoEntorno3D() {
+    actualizarFormaCamara();
     const desbloqueado = PLANES_CON_VIDEO.includes(planActualUsuario) && estadoActualUsuario === 'activo';
     const bloqueo    = document.getElementById('bloqueoEntorno3D');
     const contenido  = document.getElementById('contenidoEntorno3DReal');
@@ -4666,11 +4744,59 @@ function agregarPuntoTrazo3D(hit) {
 let modoArrastrarCamara = false;
 let arrastrandoCamara   = false;
 
+// ── CÁMARA PARA TODOS LOS PLANES: traerla, moverla y ver lo que ve ────────
+function traerCamaraAMiVista() {
+    if (!salaConstruida) { mostrarToast('⚠️ Genera un modelo 3D primero'); return; }
+    marcadorCamara.position.copy(camera.position);
+    marcadorCamara.quaternion.copy(camera.quaternion);
+    marcadorCamara.visible = !modoInterior;
+    mostrarToast('📍 La cámara quedó donde estás mirando — la vista previa muestra la foto');
+}
+function moverCamaraConFlechas() {
+    if (!salaConstruida) { mostrarToast('⚠️ Genera un modelo 3D primero'); return; }
+    if (modoInterior) { mostrarToast('En la cámara interior tú eres la cámara: camina y mira'); return; }
+    marcadorCamara.visible = true;
+    if (!modoTransformar) activarModoTransformar();
+    seleccionarParaTransformar(marcadorCamara);
+    mostrarToast('✥ Arrastra las flechas para moverla y los anillos para girarla (W mover · E girar · Esc salir)');
+}
+function verDesdeLaCamara() {
+    if (!salaConstruida) { mostrarToast('⚠️ Genera un modelo 3D primero'); return; }
+    const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(marcadorCamara.quaternion);
+    camera.position.copy(marcadorCamara.position).addScaledVector(dir, -0.6);
+    controls.target.copy(marcadorCamara.position).addScaledVector(dir, 2);
+    controls.update();
+    mostrarToast('👁️ Estás viendo desde la cámara');
+}
+
+// Foto limpia desde la cámara: se dibuja con una copia de la cámara de la
+// vista previa, que solo ve la casa (capa 0), sin la camarita, el gizmo ni el
+// tubo del recorrido. Antes la foto salía de la vista del usuario, con todas
+// esas ayudas encima, y así se le mandaba a la IA. En la cámara interior la
+// foto es exactamente lo que el usuario ve.
+function capturaDesdeCamaraFoto() {
+    if (!salaConstruida) return canvas.toDataURL('image/png', 1.0);
+    const cam = cameraPreview.clone();
+    cam.layers.set(0);
+    if (modoInterior) { cam.position.copy(camera.position); cam.quaternion.copy(camera.quaternion); cam.fov = camera.fov; }
+    cam.aspect = canvas.width / canvas.height;
+    cam.updateProjectionMatrix();
+    const gizmoVisible = gizmo ? gizmo.visible : false;   // el gizmo no sale en la foto
+    if (gizmo) gizmo.visible = false;
+    renderer.render(scene, cam);
+    const url = canvas.toDataURL('image/png', 1.0);
+    if (gizmo) gizmo.visible = gizmoVisible;
+    renderer.render(scene, camera);
+    return url;
+}
+
 // ── CONTROL MANUAL DE LA CÁMARA DE VIDEO ─────────────────────────────────
 const PASO_ROTACION = Math.PI / 18; // 10 grados por clic
 
 function rotarCamaraVideo(eje, dir) {
-    if (!marcadorCamara.visible) { mostrarToast('⚠️ Genera un modelo 3D primero'); return; }
+    if (!salaConstruida) { mostrarToast('⚠️ Genera un modelo 3D primero'); return; }
+    if (modoInterior) { mostrarToast('En la cámara interior tú eres la cámara: gira con el mouse'); return; }
+    marcadorCamara.rotation.order = 'YXZ';   // girar y mirar arriba sin que se ladee
     if (eje === 'yaw')   marcadorCamara.rotation.y += PASO_ROTACION * dir;
     if (eje === 'pitch') marcadorCamara.rotation.x += PASO_ROTACION * dir;
     // Si ya hay un trazo, guardar esta orientación en el último punto para
@@ -5141,7 +5267,7 @@ async function capturarYGenerarIA() {
     mostrarToast('🤖 IA procesando tu render...');
     try {
         renderer.render(scene, camera);
-        const base64Canvas = canvas.toDataURL('image/png', 1.0).split(',')[1];
+        const base64Canvas = capturaDesdeCamaraFoto().split(',')[1];
         const { ancho, largo, alto } = estado;
 
         // Describir muebles con posición (excluye ventanas/puerta, que tienen descripción propia más abajo)
@@ -5359,13 +5485,15 @@ function capturarDesdeInterior() {
     if (imagenBloqueada()) { mostrarModalBloqueo(); return; }
     renderer.render(scene,camera);
     const link=document.createElement('a'); link.download=`render_interior_${Date.now()}.png`;
-    link.href=canvas.toDataURL('image/png',1.0); link.click();
+    link.href=capturaDesdeCamaraFoto(); link.click();
     mostrarToast('📸 ¡Render interior guardado!');
 }
 
 function salirCamaraPivote() {
     modoPivote=false;
     modoInterior=false;
+    if (salaConstruida && vistaActual === '3d') marcadorCamara.visible = true;   // queda donde estabas mirando
+    document.getElementById('panelDerecho')?.classList.remove('con-superficie');
     document.getElementById('camaraPivote').classList.remove('activa');
     mostrarTechosInterior(false);
     // Restaurar botón
@@ -5385,6 +5513,9 @@ function salirCamaraPivote() {
 
 function seleccionarSuperficie(nombre, btn) {
     superficieActiva = nombre;
+    // En el 3D el portafolio solo aparece al vestir una superficie (enchapar o
+    // pintar una pared): los pisos de cada cuarto se eligen en la planta.
+    document.getElementById('panelDerecho')?.classList.add('con-superficie');
     abrirSeccionPanel('panelSuperficie');
 
     // Actualizar botones
@@ -5685,11 +5816,18 @@ function iniciarEditorPlanta() {
             dibujarPlanta();
         };
 
-        // Tecla Delete para eliminar módulo seleccionado
+        // Tecla Supr/Retroceso para eliminar el módulo seleccionado.
+        // OJO: antes borraba el cuarto aunque el usuario estuviera ESCRIBIENDO en
+        // una casilla (corregir "6.5" en el ancho con Retroceso se llevaba el
+        // cuarto entero). Ahora solo actúa en la planta y fuera de las casillas.
         document.onkeydown = (e) => {
-            if ((e.key === 'Delete' || e.key === 'Backspace') && moduloSeleccionado) {
-                eliminarModuloSeleccionado();
-            }
+            if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+            const el = document.activeElement;
+            if (el && (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable)) return;
+            if (vistaActual !== 'planta' || !moduloSeleccionado) return;
+            e.preventDefault();
+            eliminarModuloSeleccionado();
+            mostrarToast('🗑️ Módulo eliminado — Ctrl+Z para recuperarlo');
         };
 }
 
@@ -5737,7 +5875,7 @@ window.duplicarNivel = function() {
     const destino = nivelesTotales - 1;
     origen.forEach(m => {
         const copia = JSON.parse(JSON.stringify(m));
-        copia.id = Date.now() + Math.floor(Math.random()*10000);
+        copia.id = nuevoIdModulo();
         copia.nivel = destino;
         modulosPlanta.push(copia);
     });
@@ -5819,9 +5957,20 @@ function cambiarSubtipoExterior() {
     seleccionarModulo(moduloSeleccionado.id);   // repinta el panel con los valores sugeridos
 }
 
+// Identificadores de módulo únicos. Antes eran "el milisegundo actual": dos
+// módulos creados en el mismo milisegundo quedaban con el mismo id y el visor
+// los confundía (un vano "de la Sala hacia la Sala"). Copiar un piso usaba
+// milisegundo + azar, que también podía repetirse con muchos cuartos.
+let _ultimoIdModulo = 0;
+function nuevoIdModulo() {
+    let id = Math.max(Date.now(), _ultimoIdModulo + 1);
+    while (modulosPlanta.some(m => m.id === id)) id++;
+    return (_ultimoIdModulo = id);
+}
+
 function agregarModulo(tipo) {
     document.getElementById('plantaInstruccion').style.display = 'none';
-    const id = Date.now();
+    const id = nuevoIdModulo();
     const c  = document.getElementById('canvasPlanta');
     const px = 100 + (modulosPlanta.length % 3) * (4 * ESCALA + 10);
     const pz = 80  + Math.floor(modulosPlanta.length / 3) * (4 * ESCALA + 10);
@@ -5940,6 +6089,134 @@ const claveMuro = o => `${o.modulo_a}|${o.modulo_b}|${o.lado}`;
 // vuelve a abrir un arco solo. Se reabren con el botón ＋ de la planta.
 const murosCerrados = new Set();
 let botonesMasVano = [];   // { px, pz, contacto } — los ＋ dibujados en la planta
+
+// ── DESHACER / REHACER (Ctrl+Z / Ctrl+Y) ─────────────────────────────────
+// PLANTA: en vez de engancharse a cada una de las funciones que cambian algo
+// (y arriesgar que se escape una), cada redibujo compara una foto de la planta
+// (módulos, vanos, muros cerrados, niveles) con la última guardada. Si cambió,
+// la anterior va a la pila. Los cambios seguidos — escribir un ancho, arrastrar
+// un cuarto — esperan a que el usuario termine y quedan como UN solo paso.
+// 3D: cada arrastre del gizmo (mover, rotar, escalar) es un paso.
+const HISTORIAL_MAX = 60;
+var pilaDeshacer = [], pilaRehacer = [];
+var _timerHistorial = null, _restaurandoHistorial = false, _punteroAbajoPlanta = false;
+function estadoPlantaJSON() {
+    return JSON.stringify({ m: modulosPlanta, v: vanosPlanta, c: [...murosCerrados], n: nivelesTotales });
+}
+var estadoConfirmado = estadoPlantaJSON();
+
+function registrarCambioPlanta() {
+    if (_restaurandoHistorial) return;
+    clearTimeout(_timerHistorial);
+    _timerHistorial = setTimeout(confirmarCambioPlanta, 350);
+}
+function confirmarCambioPlanta() {
+    clearTimeout(_timerHistorial);
+    if (_punteroAbajoPlanta) { _timerHistorial = setTimeout(confirmarCambioPlanta, 250); return; }   // sigue arrastrando
+    const actual = estadoPlantaJSON();
+    if (actual === estadoConfirmado) return;
+    pilaDeshacer.push(estadoConfirmado);
+    if (pilaDeshacer.length > HISTORIAL_MAX) pilaDeshacer.shift();
+    pilaRehacer = [];
+    estadoConfirmado = actual;
+    actualizarBotonesHistorial();
+}
+function aplicarEstadoPlanta(json) {
+    const e = JSON.parse(json);
+    _restaurandoHistorial = true;
+    modulosPlanta = e.m;
+    vanosPlanta   = e.v;
+    murosCerrados.clear(); (e.c || []).forEach(k => murosCerrados.add(k));
+    nivelesTotales = e.n || 1;
+    if (nivelActivo > nivelesTotales - 1) nivelActivo = nivelesTotales - 1;
+    estadoConfirmado = json;
+    const idSel = moduloSeleccionado ? moduloSeleccionado.id : null;
+    moduloSeleccionado = null; vanoSeleccionado = null;
+    if (idSel && modulosPlanta.some(m => m.id === idSel)) seleccionarModulo(idSel);
+    else document.getElementById('panelPropiedades').style.display = 'none';
+    if (typeof renderPanelVano === 'function') renderPanelVano();
+    refrescarEtiquetaNivel();
+    dibujarPlanta();
+    actualizarListaModulos();
+    _restaurandoHistorial = false;
+    actualizarBotonesHistorial();
+    if (typeof actualizarAvisoRegenerar === 'function') actualizarAvisoRegenerar();
+}
+function deshacerPlanta() {
+    confirmarCambioPlanta();   // si había un cambio a medio guardar, primero se guarda
+    if (!pilaDeshacer.length) { mostrarToast('Nada que deshacer'); return; }
+    pilaRehacer.push(estadoConfirmado);
+    aplicarEstadoPlanta(pilaDeshacer.pop());
+    mostrarToast(`↶ Deshecho — quedan ${pilaDeshacer.length} paso${pilaDeshacer.length === 1 ? '' : 's'} atrás`);
+}
+function rehacerPlanta() {
+    confirmarCambioPlanta();
+    if (!pilaRehacer.length) { mostrarToast('Nada que rehacer'); return; }
+    pilaDeshacer.push(estadoConfirmado);
+    aplicarEstadoPlanta(pilaRehacer.pop());
+    mostrarToast('↷ Rehecho');
+}
+
+var pila3D = [], pila3DRehacer = [];
+function fotoObjeto(o) { return { o, p: o.position.clone(), r: o.rotation.clone(), s: o.scale.clone() }; }
+function ponerFoto(f) {
+    f.o.position.copy(f.p); f.o.rotation.copy(f.r); f.o.scale.copy(f.s);
+    if (objetoTransformar === f.o && typeof mostrarMedidasTF === 'function') mostrarMedidasTF();
+}
+function guardarPaso3D() {
+    if (!objetoTransformar) return;
+    pila3D.push(fotoObjeto(objetoTransformar));
+    if (pila3D.length > HISTORIAL_MAX) pila3D.shift();
+    pila3DRehacer = [];
+    actualizarBotonesHistorial();
+}
+function deshacer3D() {
+    const f = pila3D.pop();
+    // La pieza pudo desaparecer al regenerar el 3D: esos pasos ya no aplican
+    if (!f || !f.o.parent) { pila3D = []; actualizarBotonesHistorial(); mostrarToast('Nada que deshacer en el 3D'); return; }
+    pila3DRehacer.push(fotoObjeto(f.o));
+    ponerFoto(f);
+    actualizarBotonesHistorial();
+    mostrarToast('↶ Movimiento deshecho');
+}
+function rehacer3D() {
+    const f = pila3DRehacer.pop();
+    if (!f || !f.o.parent) { pila3DRehacer = []; actualizarBotonesHistorial(); mostrarToast('Nada que rehacer en el 3D'); return; }
+    pila3D.push(fotoObjeto(f.o));
+    ponerFoto(f);
+    actualizarBotonesHistorial();
+    mostrarToast('↷ Movimiento rehecho');
+}
+function actualizarBotonesHistorial() {
+    const set = (id, on) => { const b = document.getElementById(id); if (b) { b.disabled = !on; b.style.opacity = on ? '1' : '0.4'; } };
+    set('btnDeshacerPlanta', pilaDeshacer.length > 0);
+    set('btnRehacerPlanta',  pilaRehacer.length > 0);
+    set('btnDeshacer3D',     pila3D.length > 0);
+    set('btnRehacer3D',      pila3DRehacer.length > 0);
+}
+
+// Mientras el dedo o el mouse sigan abajo en la planta, el cambio no se cierra
+document.getElementById('canvasPlanta')?.addEventListener('pointerdown', () => { _punteroAbajoPlanta = true; });
+document.addEventListener('pointerup', () => { if (_punteroAbajoPlanta) { _punteroAbajoPlanta = false; registrarCambioPlanta(); } });
+
+document.addEventListener('keydown', (e) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    const k = (e.key || '').toLowerCase();
+    if (k !== 'z' && k !== 'y') return;
+    if (vistaActual !== 'planta' && vistaActual !== '3d') return;
+    // También dentro de las casillas manda NUESTRO historial. El Ctrl+Z del
+    // navegador no deshace solo esa casilla sino la última escritura de toda la
+    // página, y encima de valores que el visor cambió por código: pulsarlo en
+    // "Nombre" dejaba el ancho en 44 en vez de 4. Cada cambio de casilla ya es
+    // un paso de nuestro historial, así que no se pierde nada.
+    // (Los textos largos —textarea, como las indicaciones— sí usan el del navegador.)
+    const el = document.activeElement;
+    if (el && el.tagName === 'TEXTAREA') return;
+    if (el && (el.tagName === 'INPUT' || el.tagName === 'SELECT')) el.blur();
+    const rehacer = k === 'y' || e.shiftKey;
+    if (vistaActual === 'planta')  { e.preventDefault(); rehacer ? rehacerPlanta() : deshacerPlanta(); }
+    else if (vistaActual === '3d') { e.preventDefault(); rehacer ? rehacer3D() : deshacer3D(); }
+});
 
 function crearVanoEnContacto(c) {
     const largo = c.fin - c.ini;
@@ -6103,6 +6380,7 @@ function renderPanelVano() {
 }
 
 function dibujarPlanta() {
+    registrarCambioPlanta();
     const c   = document.getElementById('canvasPlanta');
     if (!c) return;
     const ctx = c.getContext('2d');
@@ -7408,6 +7686,7 @@ function cargarDesdePlano(modelo3d) {
             const spriteP = new THREE.Sprite(new THREE.SpriteMaterial({ map: texP, transparent: true }));
             spriteP.position.set(x, baseY + alturaTope + 0.35, z);
             spriteP.scale.set(2.0, 0.5, 1);
+            soloEnEditor(spriteP);   // la etiqueta flotante es ayuda del editor: no sale en fotos ni video
             scene.add(spriteP);
             return; // no piso, no paredes huecas, no sigue con el resto del módulo
         }
@@ -7604,6 +7883,7 @@ function cargarDesdePlano(modelo3d) {
         const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
         sprite.position.set(x, baseY + alto * 0.5, z);
         sprite.scale.set(2.0, 0.5, 1);
+        soloEnEditor(sprite);   // la etiqueta "Sala", "Cocina"… es ayuda del editor: no sale en fotos ni video
         scene.add(sprite);
 
         // El cuarto queda como UN objeto con pivote en su centro, a media
