@@ -112,6 +112,45 @@
         .sup-btn:hover, .luz-techo-btn:hover { border-color:rgba(124,58,237,0.55); background:rgba(124,58,237,0.10); }
         .sup-btn.activo, .luz-techo-btn.activo { border-color:#F59E0B; background:rgba(245,158,11,0.14); color:#FDE68A; }
         .sup-icon { font-size:17px; line-height:1; }
+        /* Lista de objetos del 3D */
+        #listaObjetos3D { position:fixed; top:392px; right:316px; width:344px; max-height:calc(100vh - 410px); z-index:590;
+            background:rgba(15,15,26,0.94); backdrop-filter:blur(8px); border:1px solid rgba(124,58,237,0.3); border-radius:12px;
+            display:flex; flex-direction:column; overflow:hidden; box-shadow:0 8px 30px rgba(0,0,0,0.35); }
+        .lo-cabeza { display:flex; align-items:center; justify-content:space-between; padding:9px 12px; font-size:11px; font-weight:700;
+            color:#A78BFA; text-transform:uppercase; letter-spacing:0.05em; border-bottom:1px solid rgba(124,58,237,0.18); }
+        .lo-cabeza button { background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.35); color:#FCA5A5; font-size:11px; font-weight:700;
+            padding:4px 9px; border-radius:7px; cursor:pointer; font-family:inherit; text-transform:none; letter-spacing:0; }
+        #loItems { overflow-y:auto; padding:6px; display:flex; flex-direction:column; gap:4px; }
+        .lo-item { display:flex; align-items:center; gap:8px; padding:7px 9px; border-radius:9px; cursor:pointer; font-size:12.5px;
+            color:var(--texto); border:1px solid transparent; transition:background .15s, border-color .15s; }
+        .lo-item:hover { background:rgba(124,58,237,0.10); }
+        .lo-item .lo-nom { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .lo-item .lo-luz { width:8px; height:8px; border-radius:50%; background:rgba(148,163,184,0.35); flex-shrink:0; }
+        .lo-item.en-uso { background:rgba(34,197,94,0.14); border-color:rgba(34,197,94,0.55); }
+        .lo-item.en-uso .lo-luz { background:#22C55E; box-shadow:0 0 8px #22C55E; }
+        .lo-item.en-uso .lo-nom::after { content:' · en uso'; color:#86EFAC; font-size:11px; font-weight:600; }
+        .lo-item.bloqueado { opacity:0.55; }
+        .lo-candado { background:none; border:none; cursor:pointer; font-size:14px; padding:2px 4px; border-radius:6px; }
+        .lo-candado:hover { background:rgba(255,255,255,0.08); }
+        .lo-pie { font-size:10.5px; color:var(--gris); padding:7px 12px; border-top:1px solid rgba(124,58,237,0.12); }
+        @media (max-width:768px) { #listaObjetos3D { display:none !important; } }
+        /* Galería de Foto IA */
+        .galeria { width:100%; max-width:1100px; margin:0 auto; display:flex; flex-direction:column; gap:14px; padding:18px 20px 30px; }
+        .galeria-principal { position:relative; border-radius:16px; overflow:hidden; border:1px solid rgba(124,58,237,0.3); background:#000; }
+        .galeria-principal img { width:100%; max-height:62vh; object-fit:contain; display:block; }
+        .galeria-etiqueta { position:absolute; top:12px; left:12px; background:rgba(15,15,26,0.85); color:#E9D5FF; font-size:12px; font-weight:700; padding:5px 11px; border-radius:50px; }
+        .galeria-acciones { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
+        .galeria-acciones button { border:none; border-radius:11px; padding:11px 16px; font-size:13.5px; font-weight:700; cursor:pointer; font-family:inherit; color:#fff; }
+        .ga-remodelar { background:linear-gradient(135deg,#8B5CF6,#7C3AED); }
+        .ga-superficies { background:linear-gradient(135deg,#3B82F6,#2563EB); }
+        .ga-whatsapp { background:linear-gradient(135deg,#22C55E,#16A34A); }
+        .ga-secundario { background:rgba(124,58,237,0.14) !important; border:1px solid rgba(124,58,237,0.35) !important; color:#C4B5FD !important; }
+        .ga-quitar { background:rgba(239,68,68,0.12) !important; border:1px solid rgba(239,68,68,0.35) !important; color:#FCA5A5 !important; }
+        .galeria-tira { display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; }
+        .galeria-tira .miniatura { position:relative; flex-shrink:0; width:120px; height:80px; border-radius:10px; overflow:hidden; cursor:pointer; border:2px solid transparent; background:#000; }
+        .galeria-tira .miniatura img { width:100%; height:100%; object-fit:cover; display:block; }
+        .galeria-tira .miniatura.activa { border-color:#A78BFA; box-shadow:0 0 12px rgba(167,139,250,0.5); }
+        .galeria-tira .miniatura span { position:absolute; bottom:3px; left:3px; font-size:10px; background:rgba(0,0,0,0.7); color:#fff; padding:1px 6px; border-radius:6px; }
         .btn-volver-planta { width:100%; background:rgba(124,58,237,0.12); border:1px solid rgba(124,58,237,0.35); color:#C4B5FD; padding:8px; border-radius:9px; font-size:12.5px; font-weight:700; cursor:pointer; font-family:inherit; }
         .btn-volver-planta:hover { background:rgba(124,58,237,0.22); }
         .aviso-regenerar { margin-top:10px; background:rgba(245,158,11,0.10); border:1px solid rgba(245,158,11,0.35); border-radius:10px; padding:10px; font-size:12px; color:#FCD34D; line-height:1.5; }
@@ -342,6 +381,17 @@
         <span id="tituloVistaCamara">VISTA DE LA CÁMARA</span>
     </div>
     <canvas id="canvasVivoEntorno3D" width="340" height="220" style="width:340px;height:220px;display:block;"></canvas>
+</div>
+<!-- Objetos que se pueden mover con el gizmo: el que está en uso se enciende,
+     y cada uno se puede bloquear para no agarrarlo sin querer (el piso en vez
+     de la cámara, por ejemplo). -->
+<div id="listaObjetos3D" style="display:none;">
+    <div class="lo-cabeza">
+        <span>🧩 Objetos de la escena</span>
+        <button onclick="salirModoTransformar(); renderListaObjetos(true);" title="Soltar lo que está seleccionado">✖ Soltar</button>
+    </div>
+    <div id="loItems"></div>
+    <div class="lo-pie">Toca un objeto para moverlo · 🔒 = no se puede agarrar en el 3D</div>
 </div>
 <div id="toolbarEntorno3D" style="display:none;position:fixed;top:100px;left:0;width:220px;flex-direction:column;z-index:500;background:var(--oscuro2);border-right:1px solid rgba(124,58,237,0.2);padding:12px;gap:8px;height:calc(100vh - 100px);overflow-y:auto;">
     <div id="bloqueoEntorno3D" style="display:none;">
@@ -1581,9 +1631,90 @@ function salirModoTransformar() {
     document.getElementById('panelTransformar').style.display = 'none';
 }
 
+// ── LISTA DE OBJETOS DEL 3D, con "en uso" y candado ──────────────────────
+// Los cuartos arrancan bloqueados: se arman en la planta y moverlos en el 3D
+// casi siempre es sin querer (se agarraba el piso en vez de la cámara).
+const bloqueosObjetos = new Map();   // clave → true/false (lo que decidió el usuario)
+function claveObjeto(o) {
+    const u = o.userData || {};
+    if (o === marcadorCamara) return 'camara';
+    if (u.tipoEstructura) return `${u.tipoEstructura}:${u.moduloId ?? o.uuid}`;
+    const k = Object.keys(typeof mobiliarioMeshes !== 'undefined' ? mobiliarioMeshes : {}).find(k => mobiliarioMeshes[k] === o);
+    return k ? 'mueble:' + k : o.uuid;
+}
+function estaBloqueado(o) {
+    const c = claveObjeto(o);
+    if (bloqueosObjetos.has(c)) return bloqueosObjetos.get(c);
+    return (o.userData || {}).tipoEstructura === 'cuarto';
+}
+function objetosEditables() {
+    const lista = [];
+    scene.traverse(o => {
+        const u = o.userData || {};
+        if (u.tipoEstructura) lista.push(o);
+    });
+    if (typeof mobiliarioMeshes !== 'undefined') Object.values(mobiliarioMeshes).forEach(o => { if (o && o.parent) lista.push(o); });
+    // Solo los de más arriba (un objeto dentro de otro de la lista no se repite)
+    const set = new Set(lista);
+    const arriba = lista.filter(o => { let p = o.parent; while (p && p !== scene) { if (set.has(p)) return false; p = p.parent; } return true; });
+    const orden = { camara:0, cuarto:1, columna:2, viga:2, plafon:3, cubierta:3, exterior:4 };
+    return arriba.sort((a, b) => (orden[(a.userData||{}).tipoEstructura] ?? 5) - (orden[(b.userData||{}).tipoEstructura] ?? 5));
+}
+function nombreObjeto(o) {
+    const u = o.userData || {};
+    if (o === marcadorCamara) return formaVideoCam.visible ? '🎥 Cámara de video' : '📸 Cámara de fotos';
+    if (u.tipoEstructura === 'cuarto') return u.moduloNombre || 'Cuarto';
+    if (u.moduloNombre) return u.moduloNombre;
+    // Columnas y vigas no traen el nombre pegado: se busca su módulo en la planta
+    const mod = u.moduloId != null ? modulosPlanta.find(m => m.id === u.moduloId) : null;
+    if (mod) return mod.nombre;
+    const c = claveObjeto(o);
+    return c.startsWith('mueble:') ? '🛋️ ' + c.slice(7).replace(/_/g, ' ') : (u.tipoEstructura || 'Objeto');
+}
+let _firmaLista = '';
+function renderListaObjetos(forzar) {
+    const caja = document.getElementById('listaObjetos3D');
+    if (!caja) return;
+    const mostrar = vistaActual === '3d' && salaConstruida && !modoInterior;
+    caja.style.display = mostrar ? 'flex' : 'none';
+    if (!mostrar) return;
+    const objs = objetosEditables();
+    const firma = objs.map(o => claveObjeto(o) + (estaBloqueado(o) ? '1' : '0') + (o === objetoTransformar ? '*' : '')).join('|');
+    if (!forzar && firma === _firmaLista) return;
+    _firmaLista = firma;
+    window._objetosLista = objs;
+    document.getElementById('loItems').innerHTML = objs.map((o, i) => {
+        const bloq = estaBloqueado(o), uso = o === objetoTransformar;
+        return `<div class="lo-item${uso ? ' en-uso' : ''}${bloq ? ' bloqueado' : ''}" onclick="elegirObjetoLista(${i})">
+            <span class="lo-luz"></span><span class="lo-nom">${esc(nombreObjeto(o))}</span>
+            <button class="lo-candado" onclick="event.stopPropagation(); alternarBloqueo(${i})" title="${bloq ? 'Bloqueado: toca para desbloquear' : 'Toca para bloquear'}">${bloq ? '🔒' : '🔓'}</button>
+        </div>`;
+    }).join('') || '<div style="font-size:12px;color:var(--gris);padding:8px;">No hay objetos para mover.</div>';
+}
+function elegirObjetoLista(i) {
+    const o = (window._objetosLista || [])[i];
+    if (!o) return;
+    if (estaBloqueado(o)) { mostrarToast('🔒 Está bloqueado — toca el candado para poder moverlo'); return; }
+    if (o === marcadorCamara) marcadorCamara.visible = true;
+    if (!modoTransformar) activarModoTransformar();
+    seleccionarParaTransformar(o);
+}
+function alternarBloqueo(i) {
+    const o = (window._objetosLista || [])[i];
+    if (!o) return;
+    const nuevo = !estaBloqueado(o);
+    bloqueosObjetos.set(claveObjeto(o), nuevo);
+    if (nuevo && objetoTransformar === o) salirModoTransformar();
+    mostrarToast(nuevo ? `🔒 ${nombreObjeto(o)} bloqueado` : `🔓 ${nombreObjeto(o)} se puede mover`);
+    renderListaObjetos(true);
+}
+// Los muebles se cargan sin aviso: la lista se revisa sola cada segundo en el 3D
+setInterval(() => { if (vistaActual === '3d') renderListaObjetos(); }, 1000);
+
 window.soltarTransformar = function() {
     if (gizmo) gizmo.detach();
     objetoTransformar = null;
+    renderListaObjetos(true);
     document.getElementById('tfObjeto').textContent = 'Nada seleccionado';
     document.getElementById('tfMedidas').innerHTML = '';
 };
@@ -1591,6 +1722,7 @@ window.soltarTransformar = function() {
 function seleccionarParaTransformar(obj) {
     objetoTransformar = obj;
     abrirSeccionPanel('secEditar3D');
+    setTimeout(() => renderListaObjetos(true), 0);
     // Se guarda el estado de partida: sirve para el "deshacer" y para calcular
     // el anclaje al escalar, que necesita saber dónde estaba cada cara.
     const escalaPrevia = obj.scale.clone();
@@ -1692,11 +1824,14 @@ canvas.addEventListener('click', (e) => {
     mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     raycaster.setFromCamera(mouse, camera);
     const hits = raycaster.intersectObjects(scene.children, true);
+    let habiaBloqueado = false;
     for (const h of hits) {
         if (gizmo && (h.object === gizmo || gizmo.getObjectById(h.object.id))) continue;
         const obj = objetoEditableDesde(h.object);
+        if (obj && estaBloqueado(obj)) { habiaBloqueado = true; continue; }   // se sigue buscando detrás (la cámara sobre el piso)
         if (obj) { seleccionarParaTransformar(obj); return; }
     }
+    if (habiaBloqueado) { mostrarToast('🔒 Eso está bloqueado — desbloquéalo en la lista de objetos'); return; }
     mostrarToast('Eso no se puede editar — prueba con una cubierta, un plafón, una columna, una viga, una puerta o un mueble');
 });
 
@@ -3641,9 +3776,10 @@ function capturarRender() {
     if (imagenBloqueada()) { mostrarModalBloqueo(); return; }
     renderer.render(scene,camera);
     const link=document.createElement('a');
-    link.download=`render_decoiarte_${Date.now()}.png`;
-    link.href=capturaDesdeCamaraFoto(); link.click();
-    mostrarToast('📸 ¡Render guardado!');
+    // Ya no se descarga sola: llega a la galería de Foto IA, y desde ahí se
+    // descarga, se lleva a Remodelar o al Editor de superficies, o se envía.
+    agregarFotoGaleria('captura', capturaDesdeCamaraFoto());
+    mostrarToast('📸 Guardada en Foto IA — desde ahí la llevas a Remodelar o al Editor de superficies');
 }
 
 let toastTimer;
@@ -3796,6 +3932,7 @@ function actualizarPanelDerecho() {
         else port.parentNode.insertBefore(port, sup);
     }
     actualizarAvisoRegenerar();
+    if (typeof renderListaObjetos === 'function') renderListaObjetos(true);
 }
 
 // Acordeón del Entorno 3D: cada sección se abre y cierra tocando su título,
@@ -3863,18 +4000,7 @@ function cambiarVista(vista) {
     // El canvas cambia de ancho al recuperar los 300px, y el renderer no se
     // entera solo: sin esto la imagen sale estirada hasta el próximo resize.
     if (typeof onResize === 'function') requestAnimationFrame(onResize);
-    if (vista==='foto' && fotoIaUrl) {
-        document.getElementById('fotoIaContenido').innerHTML=`<div class="foto-ia-container"><img src="${esc(fotoIaUrl)}" alt="Foto generada por IA"></div>`;
-        document.getElementById('btnEnviarCliente').style.display='flex';
-        // El editor de superficies permite probar materiales sobre esta misma
-        // imagen sin gastar otra generación de IA (que sí cuesta dinero).
-        const btnEd = document.getElementById('btnEditorSuperficiesVisor');
-        if (btnEd) {
-            btnEd.style.display = 'block';
-            btnEd.href = `/editor-superficies?img=${encodeURIComponent(fotoIaUrl)}&volver=${encodeURIComponent('/visor3d')}`
-                       + (tiendaIdPropia ? `&tienda=${encodeURIComponent(tiendaIdPropia)}` : '');
-        }
-    }
+    if (vista==='foto') renderGaleria();
     if (vista==='planta') iniciarEditorPlanta();
     if (vista==='3d') {
         actualizarCandadoEntorno3D();
@@ -5358,6 +5484,7 @@ async function capturarYGenerarIA() {
         if (data.status === 'error') throw new Error(data.mensaje || data.error || 'Error desconocido');
         if (!data.url_imagen) throw new Error('No se recibió URL de imagen');
         fotoIaUrl = data.url_imagen;
+        agregarFotoGaleria('ia', data.url_imagen);
         document.getElementById('tabFoto').textContent = '📸 Render IA ✅';
         mostrarToast('✅ ¡Render generado! Abriendo pestaña...');
         setTimeout(() => cambiarVista('foto'), 1500);
@@ -5381,20 +5508,163 @@ async function obtenerEmpresaId() {
 async function cargarFotoIA() {
     const params=new URLSearchParams(window.location.search);
     const urlParam=params.get('foto');
-    if(urlParam){fotoIaUrl=decodeURIComponent(urlParam);document.getElementById('tabFoto').textContent='📸 Foto IA ✅';return;}
+    cargarGaleria();
+    if(urlParam){fotoIaUrl=decodeURIComponent(urlParam);agregarFotoGaleria('whatsapp', fotoIaUrl);return;}
     try {
         const {data:{session}}=await db.auth.getSession();
         if(!session) return;
         const {data:empresa}=await db.from('empresas').select('id').eq('email',session.user.email).maybeSingle();
         if(!empresa) return;
         const {data:img}=await db.from('imagenes').select('url_generada').eq('empresa_id',empresa.id).order('created_at',{ascending:false}).limit(1).maybeSingle();
-        if(img?.url_generada){fotoIaUrl=img.url_generada;document.getElementById('tabFoto').textContent='📸 Foto IA ✅';}
+        // La última foto del bot de WhatsApp va al final y con su etiqueta: antes
+        // aparecía sola en Foto IA y parecía del proyecto.
+        if(img?.url_generada){ fotoIaUrl=img.url_generada;
+            galeriaFotos.push({ id:'wa_ultima', tipo:'whatsapp', url:img.url_generada, fecha:0 });
+            if (!fotoGaleriaSel) fotoGaleriaSel = galeriaFotos[0].id;
+            actualizarPestanaFoto(); if (vistaActual==='foto') renderGaleria(); }
     } catch(e){}
 }
 
-function enviarAlCliente() {
-    if(!fotoIaUrl) return;
-    const msg=encodeURIComponent(`Hola! Te comparto el render de tu espacio remodelado con DecoIArte 🏠✨\n\nVer imagen: ${fotoIaUrl}`);
+// ── GALERÍA DE FOTO IA ───────────────────────────────────────────────────
+// Toda foto que sale del visor llega aquí: las capturas ("Capturar render" y
+// la de la cámara interior) y las Foto IA. Se guardan en este navegador
+// (IndexedDB) para que no se pierdan al recargar. Desde aquí se llevan a
+// Remodelar o al Editor de superficies, se mandan al cliente o se descargan.
+let galeriaFotos = [];
+let fotoGaleriaSel = null;
+const GALERIA_MAX = 40;
+function _dbGaleria() {
+    return new Promise((ok, mal) => {
+        const req = indexedDB.open('decoia_visor', 1);
+        req.onupgradeneeded = () => req.result.createObjectStore('fotos', { keyPath: 'id' });
+        req.onsuccess = () => ok(req.result);
+        req.onerror = () => mal(req.error);
+    });
+}
+async function _galeriaGuardar(f) {
+    try { const d = await _dbGaleria(); d.transaction('fotos', 'readwrite').objectStore('fotos').put(f); } catch (e) {}
+}
+async function _galeriaBorrar(id) {
+    try { const d = await _dbGaleria(); d.transaction('fotos', 'readwrite').objectStore('fotos').delete(id); } catch (e) {}
+}
+async function cargarGaleria() {
+    try {
+        const d = await _dbGaleria();
+        const todas = await new Promise(ok => { const r = d.transaction('fotos').objectStore('fotos').getAll(); r.onsuccess = () => ok(r.result || []); r.onerror = () => ok([]); });
+        const ya = new Set(galeriaFotos.map(f => f.id));
+        galeriaFotos = [...galeriaFotos, ...todas.filter(f => !ya.has(f.id))].sort((a, b) => b.fecha - a.fecha);
+        if (!fotoGaleriaSel && galeriaFotos.length) fotoGaleriaSel = galeriaFotos[0].id;
+        actualizarPestanaFoto();
+        if (vistaActual === 'foto') renderGaleria();
+    } catch (e) {}
+}
+// Una captura PNG pesa varios MB: se guarda en JPEG, que se ve igual y pesa poco
+function _aJPEG(dataUrl) {
+    return new Promise(ok => {
+        const im = new Image();
+        im.onload = () => { const c = document.createElement('canvas'); c.width = im.width; c.height = im.height;
+            c.getContext('2d').drawImage(im, 0, 0); ok(c.toDataURL('image/jpeg', 0.9)); };
+        im.onerror = () => ok(dataUrl);
+        im.src = dataUrl;
+    });
+}
+async function agregarFotoGaleria(tipo, fuente) {
+    const f = { id: 'f_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6), tipo, fecha: Date.now() };
+    if (fuente.startsWith('data:')) f.dataUrl = await _aJPEG(fuente); else f.url = fuente;
+    galeriaFotos.unshift(f);
+    while (galeriaFotos.length > GALERIA_MAX) { const v = galeriaFotos.pop(); if (v.tipo !== 'whatsapp') _galeriaBorrar(v.id); }
+    fotoGaleriaSel = f.id;
+    if (tipo !== 'whatsapp') _galeriaGuardar(f);
+    actualizarPestanaFoto();
+    if (vistaActual === 'foto') renderGaleria();
+    return f;
+}
+function actualizarPestanaFoto() {
+    const n = galeriaFotos.length;
+    document.getElementById('tabFoto').textContent = n ? `📸 Foto IA (${n})` : '📸 Foto IA';
+}
+const ETIQUETA_FOTO = { captura:'📸 Captura del 3D', ia:'✨ Foto IA', whatsapp:'💬 Del bot de WhatsApp' };
+function renderGaleria() {
+    const cont = document.getElementById('fotoIaContenido');
+    document.getElementById('btnEnviarCliente').style.display = 'none';
+    const btnEdViejo = document.getElementById('btnEditorSuperficiesVisor');
+    if (btnEdViejo) btnEdViejo.style.display = 'none';
+    if (!galeriaFotos.length) {
+        cont.innerHTML = `<div class="foto-empty"><div class="icon">📸</div>
+            <p style="font-size:15px;margin-bottom:8px;">Aún no hay fotos de este proyecto</p>
+            <p style="font-size:13px;color:var(--gris);">En el Entorno 3D toca <b>📸 Capturar render</b> o <b>🤖 Foto IA</b>: todas las fotos llegan aquí.</p></div>`;
+        return;
+    }
+    const f = galeriaFotos.find(x => x.id === fotoGaleriaSel) || galeriaFotos[0];
+    fotoGaleriaSel = f.id;
+    const src = f.dataUrl || f.url;
+    cont.innerHTML = `<div class="galeria">
+        <div class="galeria-principal"><img src="${esc(src)}" alt="Foto del proyecto"><span class="galeria-etiqueta">${ETIQUETA_FOTO[f.tipo] || '📸 Foto'}</span></div>
+        <div class="galeria-acciones">
+            <button class="ga-remodelar" onclick="llevarFotoA('remodelar')">🛋️ Llevar a Remodelar</button>
+            <button class="ga-superficies" onclick="llevarFotoA('superficies')">🧱 Llevar al Editor de superficies</button>
+            <button class="ga-whatsapp" onclick="enviarAlCliente()">💬 Enviar al cliente</button>
+            <button class="ga-secundario" onclick="descargarFotoGaleria()">⬇ Descargar</button>
+            ${f.tipo !== 'whatsapp' ? '<button class="ga-quitar" onclick="quitarFotoGaleria()">🗑 Quitar</button>' : ''}
+        </div>
+        <div class="galeria-tira">${galeriaFotos.map(x => `<div class="miniatura${x.id === f.id ? ' activa' : ''}" onclick="fotoGaleriaSel='${x.id}'; renderGaleria();">
+            <img src="${esc(x.dataUrl || x.url)}" alt="" loading="lazy"><span>${(ETIQUETA_FOTO[x.tipo] || '📸').split(' ')[0]}</span></div>`).join('')}</div>
+    </div>`;
+}
+// Remodelar y el Editor de superficies reciben la foto por su dirección web.
+// Las capturas viven solo en este navegador: se suben una vez a la carpeta de
+// la tienda (bucket portafolio, <empresa>/visor/…) y se recuerda la dirección.
+async function urlPublicaFoto(f) {
+    if (f.url) return f.url;
+    if (f.urlSubida) return f.urlSubida;
+    const empresaId = await obtenerEmpresaId();
+    if (!empresaId) throw new Error('Inicia sesión con tu cuenta de tienda para llevar la foto.');
+    const blob = await (await fetch(f.dataUrl)).blob();
+    const ruta = `${empresaId}/visor/${f.id}.jpg`;
+    const { error } = await db.storage.from('portafolio').upload(ruta, blob, { upsert: true, contentType: 'image/jpeg' });
+    if (error) throw error;
+    f.urlSubida = db.storage.from('portafolio').getPublicUrl(ruta).data.publicUrl;
+    _galeriaGuardar(f);
+    return f.urlSubida;
+}
+async function llevarFotoA(destino) {
+    const f = galeriaFotos.find(x => x.id === fotoGaleriaSel);
+    if (!f) return;
+    try {
+        mostrarToast('⏳ Preparando la foto…');
+        const url = await urlPublicaFoto(f);
+        const volver = encodeURIComponent('/visor3d');
+        const tienda = (typeof tiendaIdPropia !== 'undefined' && tiendaIdPropia) ? `&tienda=${encodeURIComponent(tiendaIdPropia)}` : '';
+        location.href = destino === 'remodelar'
+            ? `/remodelar?img=${encodeURIComponent(url)}${tienda}`
+            : `/editor-superficies?img=${encodeURIComponent(url)}&volver=${volver}${tienda}`;
+    } catch (e) {
+        mostrarToast('⚠️ ' + (e.message || 'No se pudo preparar la foto'));
+    }
+}
+function descargarFotoGaleria() {
+    const f = galeriaFotos.find(x => x.id === fotoGaleriaSel);
+    if (!f) return;
+    const a = document.createElement('a');
+    a.href = f.dataUrl || f.url; a.download = `decoiarte_${f.tipo}_${f.fecha}.jpg`; a.target = '_blank';
+    a.click();
+}
+function quitarFotoGaleria() {
+    const f = galeriaFotos.find(x => x.id === fotoGaleriaSel);
+    if (!f || !confirm('¿Quitar esta foto de la galería?')) return;
+    galeriaFotos = galeriaFotos.filter(x => x.id !== f.id);
+    _galeriaBorrar(f.id);
+    fotoGaleriaSel = galeriaFotos[0]?.id || null;
+    actualizarPestanaFoto();
+    renderGaleria();
+}
+
+async function enviarAlCliente() {
+    const f = galeriaFotos.find(x => x.id === fotoGaleriaSel);
+    let url = fotoIaUrl;
+    if (f) { try { url = await urlPublicaFoto(f); } catch (e) { mostrarToast('⚠️ ' + e.message); return; } }
+    if (!url) return;
+    const msg=encodeURIComponent(`Hola! Te comparto el render de tu espacio remodelado con DecoIArte 🏠✨\n\nVer imagen: ${url}`);
     window.open(`https://wa.me/?text=${msg}`,'_blank');
 }
 
@@ -5445,9 +5715,31 @@ function activarCamaraPivote() {
         cuartoPivoteActual = modulosActuales3D[0]?.id ?? null;
     }
 
+    // Si la cámara quedó dentro de un cuarto, se entra DESDE ella: mismo sitio
+    // y misma dirección. Antes se entraba al centro del cuarto más cercano a la
+    // vista y parecía otra cámara.
+    const pc = marcadorCamara.position;
+    const dentro = modulosActuales3D.find(m => Math.abs(pc.x - m.cx) < m.ancho / 2 && Math.abs(pc.z - m.cz) < m.largo / 2);
+    if (dentro && pc.lengthSq() > 0) {
+        cuartoPivoteActual = dentro.id;
+        if (select) select.value = dentro.id;
+    }
     controls.enabled=false;
     aplicarLimitesCuartoPivote();
-    mostrarToast('📷 Modo cámara interior — arrastra para mirar');
+    if (dentro && pc.lengthSq() > 0) {
+        const lim = (v, a) => Math.max(-a, Math.min(a, v));
+        document.getElementById('cpX').value = lim(pc.x - dentro.cx, dentro.ancho / 2 - 0.4);
+        document.getElementById('cpZ').value = lim(pc.z - dentro.cz, dentro.largo / 2 - 0.4);
+        document.getElementById('cpY').value = Math.max(0.3, Math.min(dentro.alto - 0.3, pc.y));
+        moverCamaraPivote(dentro.cx, dentro.cz);
+        const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(marcadorCamara.quaternion);
+        controls.target.copy(camera.position).addScaledVector(dir, 0.3);
+        controls.update();
+        mostrarToast('📷 Entraste desde la cámara — arrastra para mirar');
+    } else {
+        mostrarToast('📷 Modo cámara interior — arrastra para mirar');
+    }
+    renderListaObjetos(true);
 }
 
 function aplicarLimitesCuartoPivote() {
@@ -5477,22 +5769,25 @@ function moverCamaraPivote(offsetX=null, offsetZ=null) {
     const z=parseFloat(document.getElementById('cpZ').value)+baseZ;
     const fov=parseFloat(document.getElementById('cpFov').value);
     camera.position.set(x,y,z); camera.fov=fov; camera.updateProjectionMatrix();
-    controls.enabled=true; controls.target.set(x,y,z-2);
+    // El punto de mira va a 0,3 m (dentro de los límites 0,1–0,5 de abajo).
+    // Antes iba a 2 m y los controles empujaban la cámara 1,5 m hacia adelante:
+    // nunca quedaba donde marcaban los deslizadores.
+    controls.enabled=true; controls.target.set(x,y,z-0.3);
     controls.minDistance=0.1; controls.maxDistance=0.5; controls.update();
 }
 
 function capturarDesdeInterior() {
     if (imagenBloqueada()) { mostrarModalBloqueo(); return; }
     renderer.render(scene,camera);
-    const link=document.createElement('a'); link.download=`render_interior_${Date.now()}.png`;
-    link.href=capturaDesdeCamaraFoto(); link.click();
-    mostrarToast('📸 ¡Render interior guardado!');
+    agregarFotoGaleria('captura', capturaDesdeCamaraFoto());
+    mostrarToast('📸 Guardada en Foto IA');
 }
 
 function salirCamaraPivote() {
     modoPivote=false;
     modoInterior=false;
     if (salaConstruida && vistaActual === '3d') marcadorCamara.visible = true;   // queda donde estabas mirando
+    setTimeout(() => renderListaObjetos(true), 0);
     document.getElementById('panelDerecho')?.classList.remove('con-superficie');
     document.getElementById('camaraPivote').classList.remove('activa');
     mostrarTechosInterior(false);
