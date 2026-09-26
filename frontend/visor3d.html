@@ -399,6 +399,7 @@
         <div style="font-size:10.5px;font-weight:700;color:#D6D3D1;text-transform:uppercase;letter-spacing:0.05em;">🏗️ Estructura</div>
         <button onclick="agregarModulo('columna')" style="background:rgba(168,162,158,0.15);border:1px solid rgba(168,162,158,0.35);color:#E7E5E4;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🏛️ Columna</button>
         <button onclick="agregarModulo('viga')"    style="background:rgba(146,124,88,0.18);border:1px solid rgba(146,124,88,0.4);color:#D9C9A8;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🪵 Viga</button>
+        <button onclick="agregarModulo('escalera')" style="background:rgba(245,158,11,0.14);border:1px solid rgba(245,158,11,0.4);color:#FCD34D;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🪜 Escalera</button>
         <div style="font-size:10px;color:var(--gris);line-height:1.5;">La columna va de piso a techo. La viga cuelga: ajusta <b>altura base</b> y <b>peralte</b> en el panel derecho.</div>
     </div>
     <div style="border-top:1px solid rgba(132,204,22,0.25);margin-top:4px;padding-top:8px;display:flex;flex-direction:column;gap:6px;">
@@ -718,6 +719,33 @@
                 <div id="infoCubierta" style="font-size:10.5px;color:var(--gris);margin-top:8px;line-height:1.6;"></div>
             </div>
             <!-- Solo para COLUMNA: sección cuadrada o redonda -->
+            <!-- Solo para ESCALERA -->
+            <div id="contEscalera" style="display:none;flex-direction:column;gap:10px;">
+                <div><label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;">Forma</label>
+                    <select id="propFormaEsc" onchange="cambiarFormaEscalera()" style="width:100%;background:var(--oscuro);border:1px solid rgba(245,158,11,0.35);border-radius:8px;padding:8px 12px;color:var(--texto);font-size:13px;margin-top:4px;outline:none;">
+                        <option value="recta">Recta</option><option value="L">En L</option>
+                        <option value="U">En U</option><option value="caracol">Caracol</option></select></div>
+                <div><label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;">El primer escalón queda hacia</label>
+                    <select id="propArranqueEsc" onchange="actualizarPropModulo()" style="width:100%;background:var(--oscuro);border:1px solid rgba(245,158,11,0.35);border-radius:8px;padding:8px 12px;color:var(--texto);font-size:13px;margin-top:4px;outline:none;">
+                        <option value="sur">⬇ Abajo (sur)</option><option value="norte">⬆ Arriba (norte)</option>
+                        <option value="este">➡ Derecha (este)</option><option value="oeste">⬅ Izquierda (oeste)</option></select></div>
+                <div id="filaGiroEsc"><label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;">Gira hacia</label>
+                    <select id="propGiroEsc" onchange="actualizarPropModulo()" style="width:100%;background:var(--oscuro);border:1px solid rgba(245,158,11,0.35);border-radius:8px;padding:8px 12px;color:var(--texto);font-size:13px;margin-top:4px;outline:none;">
+                        <option value="der">A la derecha</option><option value="izq">A la izquierda</option></select></div>
+                <div><label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;">Altura a subir (m)</label>
+                    <input type="number" id="propAltoEsc" min="0.3" max="6" step="0.05" oninput="actualizarPropModulo()" style="width:100%;background:var(--oscuro);border:1px solid rgba(245,158,11,0.35);border-radius:8px;padding:8px 12px;color:var(--texto);font-size:13px;margin-top:4px;outline:none;"></div>
+                <div id="filaTramoEsc"><label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;">Ancho de cada tramo (m)</label>
+                    <input type="number" id="propTramoEsc" min="0.6" max="2" step="0.05" oninput="actualizarPropModulo()" style="width:100%;background:var(--oscuro);border:1px solid rgba(245,158,11,0.35);border-radius:8px;padding:8px 12px;color:var(--texto);font-size:13px;margin-top:4px;outline:none;"></div>
+                <div><label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;">Estilo</label>
+                    <select id="propEstiloEsc" onchange="actualizarPropModulo()" style="width:100%;background:var(--oscuro);border:1px solid rgba(245,158,11,0.35);border-radius:8px;padding:8px 12px;color:var(--texto);font-size:13px;margin-top:4px;outline:none;">
+                        <option value="maciza">Maciza (concreto)</option><option value="flotante">Flotante (huellas sobre zancas)</option></select></div>
+                <div><label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;">Acabado</label>
+                    <select id="propAcabadoEsc" onchange="actualizarPropModulo()" style="width:100%;background:var(--oscuro);border:1px solid rgba(245,158,11,0.35);border-radius:8px;padding:8px 12px;color:var(--texto);font-size:13px;margin-top:4px;outline:none;">
+                        <option value="concreto">Concreto</option><option value="madera">Madera</option>
+                        <option value="porcelanato">Porcelanato</option><option value="marmol">Mármol</option></select></div>
+                <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--texto);cursor:pointer;">
+                    <input type="checkbox" id="propBarandaEsc" onchange="actualizarPropModulo()"> Con baranda</label>
+            </div>
             <!-- Solo para PISO EXTERIOR: andén, losa, patio, zona verde -->
             <div id="contExterior" style="display:none;flex-direction:column;gap:10px;">
                 <div>
@@ -2079,7 +2107,7 @@ function objetosEditables() {
     // Solo los de más arriba (un objeto dentro de otro de la lista no se repite)
     const set = new Set(lista);
     const arriba = lista.filter(o => { let p = o.parent; while (p && p !== scene) { if (set.has(p)) return false; p = p.parent; } return true; });
-    const orden = { camara:0, cuarto:1, columna:2, viga:2, plafon:3, cubierta:3, exterior:4 };
+    const orden = { camara:0, cuarto:1, columna:2, viga:2, escalera:2, plafon:3, cubierta:3, exterior:4 };
     return arriba.sort((a, b) => (orden[(a.userData||{}).tipoEstructura] ?? 5) - (orden[(b.userData||{}).tipoEstructura] ?? 5));
 }
 function nombreObjeto(o) {
@@ -4332,7 +4360,8 @@ function firmaPlanta() {
     return JSON.stringify({
         m: modulosPlanta.map(m => [m.id, m.tipo, m.px, m.pz, m.ancho, m.largo, m.alto, m.nivel, m.forma, m.alturaBase,
             m.peralte, m.descuelgue, m.espesor, m.tipoTecho, m.pendiente, m.voladizo, m.orientacion,
-            m.materialPiso, m.imagenPisoUrl, m.colorPared, m.acabado, m.nivelExt, (m.paredesEliminadas || []).join(), JSON.stringify(m.disenoParedes || null)]),
+            m.materialPiso, m.imagenPisoUrl, m.colorPared, m.acabado, m.nivelExt,
+            m.formaEscalera, m.arranque, m.giro, m.alturaSubir, m.anchoTramo, m.estiloEscalera, m.baranda, (m.paredesEliminadas || []).join(), JSON.stringify(m.disenoParedes || null)]),
         v: vanosPlanta.map(v => [v.modulo_a, v.modulo_b, v.lado, v.centro, v.ancho, v.tipo, v.alto, v.bisagra, v.sentido, v.anguloApertura]),
         n: typeof nivelesTotales !== 'undefined' ? nivelesTotales : 1,
         e: [e.fachada, e.materialFachada, e.colorFachada, e.gruesoFachada, e.cubierta, e.pendiente, e.alero, e.girarCubierta],
@@ -6629,12 +6658,12 @@ function modulosEditables() {
 const COLORES_MODULO = {
     sala:'#3B82F6', cocina:'#10B981', habitacion:'#7C3AED',
     bano:'#F59E0B', pasillo:'#94A3B8', zona:'#EF4444', pared:'#78716C', vidrio:'#38BDF8',
-    columna:'#A8A29E', viga:'#927C58', plafon:'#C084FC', cubierta:'#F97316', exterior:'#84CC16'
+    columna:'#A8A29E', viga:'#927C58', plafon:'#C084FC', cubierta:'#F97316', exterior:'#84CC16', escalera:'#F59E0B'
 };
 const EMOJIS_MODULO = {
     sala:'🛋️', cocina:'🍳', habitacion:'🛏️',
     bano:'🚿', pasillo:'🚶', zona:'📦', pared:'🧱', vidrio:'🪟',
-    columna:'🏛️', viga:'🪵', plafon:'⬜', cubierta:'🏠', exterior:'🟫'
+    columna:'🏛️', viga:'🪵', plafon:'⬜', cubierta:'🏠', exterior:'🟫', escalera:'🪜'
 };
 // ── ENVOLVENTE: techos interiores + fachada exterior ─────────────────────
 // "Techo" es el cielo raso de cada cuarto (se ve desde adentro).
@@ -6662,7 +6691,7 @@ let puertasPlanta  = [];   // { grupo, pivote, vano, angMax } — hojas abribles
 // Tipos que NO son un cuarto: no llevan piso, no abren vanos en el vecino y no
 // suman área habitable. Antes esta lista estaba escrita a mano en 5 sitios
 // distintos; centralizarla evita que columna/viga se cuelen en las estadísticas.
-const TIPOS_NO_CUARTO = ['pared', 'vidrio', 'columna', 'viga', 'plafon', 'cubierta', 'exterior'];
+const TIPOS_NO_CUARTO = ['pared', 'vidrio', 'columna', 'viga', 'plafon', 'cubierta', 'exterior', 'escalera'];
 const esCuarto = t => !TIPOS_NO_CUARTO.includes(t);
 
 function iniciarEditorPlanta() {
@@ -6807,6 +6836,217 @@ window.agregarPlafon = function(forma) {
     actualizarListaModulos();
 };
 
+// ── ESCALERAS ────────────────────────────────────────────────────────────
+// Se trazan en un marco propio: W de ancho (x) por D de recorrido (z), con el
+// primer escalón en z = +D/2 subiendo hacia z = −D/2. Después se gira según
+// el lado donde arranca. El número de escalones sale de la altura a subir con
+// contrahuellas cercanas a 17,5 cm; la huella, del largo disponible.
+const ANGULO_ARRANQUE = { sur: 0, norte: Math.PI, este: Math.PI / 2, oeste: -Math.PI / 2 };
+const COLOR_ACABADO_ESC = { concreto: 0xA3A09A, madera: 0x8B5A2B, porcelanato: 0xE5E1DA, marmol: 0xF1EEE8 };
+function datosEscalera(m) {
+    const e = m.escalera || { forma: m.formaEscalera, arranque: m.arranque, giro: m.giro, alto: m.alturaSubir,
+        tramo: m.anchoTramo, estilo: m.estiloEscalera, acabado: m.acabado, baranda: m.baranda !== false };
+    const arr = e.arranque || 'sur';
+    const lateral = arr === 'este' || arr === 'oeste';
+    return { forma: e.forma || 'recta', arranque: arr, giro: e.giro || 'der', alto: e.alto || alturaEntrepiso,
+        w: e.tramo || 0.9, estilo: e.estilo || 'maciza', acabado: e.acabado || 'concreto', baranda: e.baranda !== false,
+        W: lateral ? m.largo : m.ancho, D: lateral ? m.ancho : m.largo, theta: ANGULO_ARRANQUE[arr] ?? 0 };
+}
+function trazaEscalera(e) {
+    const n = Math.max(2, Math.round(e.alto / 0.175)), c = e.alto / n;
+    const { W, D } = e, w = Math.min(e.w, W, D);
+    const pasos = [], descansos = [], ruta = [], barandas = [];
+    const sx = e.giro === 'izq' ? -1 : 1;
+    let huellaMin = Infinity;
+    if (e.forma === 'caracol') {
+        const R = Math.min(W, D) / 2, giro = e.giro === 'izq' ? -1 : 1;
+        const delta = Math.min(Math.PI / 6, (Math.PI * 2 * 0.92) / n);   // máx. 30° por escalón
+        for (let i = 0; i < n; i++) pasos.push({ sector: true, r: R, a0: giro > 0 ? i * delta : -(i + 1) * delta, da: delta, y: (i + 1) * c });
+        for (let i = 0; i <= n; i++) { const a = giro * (i + 0.5) * delta; ruta.push([R * 0.62 * Math.sin(a), R * 0.62 * Math.cos(a), Math.min(e.alto, (i + 0.5) * c)]); }
+        const borde = []; for (let i = 0; i <= n; i++) { const a = giro * i * delta; borde.push([R * 0.97 * Math.sin(a), R * 0.97 * Math.cos(a), i * c]); }
+        barandas.push(borde);
+        huellaMin = R * 0.62 * delta;   // huella medida en la línea de paso
+    } else if (e.forma === 'recta') {
+        const h = D / n; huellaMin = h;
+        for (let i = 0; i < n; i++) pasos.push({ x0: -W / 2, x1: W / 2, z0: D / 2 - (i + 1) * h, z1: D / 2 - i * h, y: (i + 1) * c });
+        ruta.push([0, D / 2, 0], [0, -D / 2, e.alto]);
+        // La baranda va 5 cm hacia adentro, para no salirse del módulo
+        barandas.push([[-W / 2 + 0.05, D / 2 - 0.05, c], [-W / 2 + 0.05, -D / 2 + 0.05, e.alto]], [[W / 2 - 0.05, D / 2 - 0.05, c], [W / 2 - 0.05, -D / 2 + 0.05, e.alto]]);
+    } else {
+        const n1 = Math.floor(n / 2), n2 = n - n1;
+        const x1a = -sx * W / 2, x1b = -sx * (W / 2 - w);                 // tramo 1, del lado contrario al giro
+        const x1lo = Math.min(x1a, x1b), x1hi = Math.max(x1a, x1b), xc1 = (x1lo + x1hi) / 2;
+        const h1 = (D - w) / n1; huellaMin = h1;
+        for (let i = 0; i < n1; i++) pasos.push({ x0: x1lo, x1: x1hi, z0: D / 2 - (i + 1) * h1, z1: D / 2 - i * h1, y: (i + 1) * c });
+        const yD = n1 * c;
+        if (e.forma === 'L') {
+            descansos.push({ x0: x1lo, x1: x1hi, z0: -D / 2, z1: -D / 2 + w, y: yD });
+            const R2 = W - w, h2 = R2 / n2; huellaMin = Math.min(huellaMin, h2);
+            const xIni = sx > 0 ? x1hi : x1lo;
+            for (let j = 0; j < n2; j++) { const a = xIni + sx * j * h2, b = xIni + sx * (j + 1) * h2;
+                pasos.push({ x0: Math.min(a, b), x1: Math.max(a, b), z0: -D / 2, z1: -D / 2 + w, y: yD + (j + 1) * c }); }
+            ruta.push([xc1, D / 2, 0], [xc1, -D / 2 + w / 2, yD], [sx * W / 2, -D / 2 + w / 2, e.alto]);
+            barandas.push([[x1b, D / 2, 0], [x1b, -D / 2 + w, yD]], [[xIni, -D / 2 + w - 0.04, yD], [sx * W / 2, -D / 2 + w - 0.04, e.alto]]);
+        } else {   // U
+            descansos.push({ x0: -W / 2, x1: W / 2, z0: -D / 2, z1: -D / 2 + w, y: yD });
+            const x2lo = sx > 0 ? W / 2 - w : -W / 2, x2hi = x2lo + w, xc2 = (x2lo + x2hi) / 2;
+            const h2 = (D - w) / n2; huellaMin = Math.min(huellaMin, h2);
+            for (let j = 0; j < n2; j++) pasos.push({ x0: x2lo, x1: x2hi, z0: -D / 2 + w + j * h2, z1: -D / 2 + w + (j + 1) * h2, y: yD + (j + 1) * c });
+            ruta.push([xc1, D / 2, 0], [xc1, -D / 2 + w / 2, yD], [xc2, -D / 2 + w / 2, yD], [xc2, D / 2, e.alto]);
+            const xin2 = sx > 0 ? x2lo : x2hi;
+            barandas.push([[x1b, D / 2, 0], [x1b, -D / 2 + w, yD]], [[xin2, -D / 2 + w, yD], [xin2, D / 2, e.alto]]);
+        }
+    }
+    return { n, c, huella: huellaMin, pasos, descansos, ruta, barandas, w };
+}
+// Local → mundo (giro alrededor de Y, igual que Object3D.rotation.y)
+function giroEsc(x, z, th) { return [x * Math.cos(th) + z * Math.sin(th), -x * Math.sin(th) + z * Math.cos(th)]; }
+
+function barraEntre(p1, p2, grueso, alto, mat) {
+    const a = new THREE.Vector3(...p1), b = new THREE.Vector3(...p2);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(grueso, alto, a.distanceTo(b)), mat);
+    m.position.copy(a).add(b).multiplyScalar(0.5);
+    m.lookAt(b);
+    return m;
+}
+function construirEscalera3D(mod, x, z, baseY) {
+    const e = datosEscalera(mod), t = trazaEscalera(e);
+    const g = new THREE.Group();   // se arma en su marco y al final se gira y se ubica
+    const mat = new THREE.MeshStandardMaterial({ color: COLOR_ACABADO_ESC[e.acabado] ?? 0xA3A09A,
+        roughness: e.acabado === 'porcelanato' || e.acabado === 'marmol' ? 0.35 : 0.8, metalness: 0 });
+    const matZanca = new THREE.MeshStandardMaterial({ color: 0x3F3F46, roughness: 0.6, metalness: 0.4 });
+    const matMetal = new THREE.MeshStandardMaterial({ color: 0x27272A, roughness: 0.35, metalness: 0.8 });
+    const maciza = e.estilo === 'maciza' && e.forma !== 'caracol';
+    const espHuella = 0.045;
+    t.pasos.forEach(p => {
+        let malla;
+        if (p.sector) {
+            malla = new THREE.Mesh(new THREE.CylinderGeometry(p.r, p.r, espHuella, 16, 1, false, p.a0, p.da), mat);
+            malla.position.set(0, p.y - espHuella / 2, 0);
+        } else {
+            const alto = maciza ? p.y : espHuella;
+            malla = new THREE.Mesh(new THREE.BoxGeometry(p.x1 - p.x0, alto, p.z1 - p.z0), mat);
+            malla.position.set((p.x0 + p.x1) / 2, p.y - alto / 2, (p.z0 + p.z1) / 2);
+        }
+        malla.castShadow = true; malla.receiveShadow = true;
+        g.add(malla);
+    });
+    t.descansos.forEach(d => {
+        const alto = maciza ? d.y : 0.12;
+        const malla = new THREE.Mesh(new THREE.BoxGeometry(d.x1 - d.x0, alto, d.z1 - d.z0), mat);
+        malla.position.set((d.x0 + d.x1) / 2, d.y - alto / 2, (d.z0 + d.z1) / 2);
+        malla.castShadow = true; malla.receiveShadow = true;
+        g.add(malla);
+    });
+    if (e.forma === 'caracol') {   // columna central
+        const col = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, e.alto + 1, 20), matMetal);
+        col.position.y = (e.alto + 1) / 2; g.add(col);
+    } else if (!maciza) {          // zancas bajo las huellas de cada tramo (siguen la ruta)
+        for (let i = 0; i < t.ruta.length - 1; i++) {
+            const [ax, az, ay] = t.ruta[i], [bx, bz, by] = t.ruta[i + 1];
+            if (Math.abs(ay - by) < 0.01) continue;   // tramo plano: es el descanso
+            g.add(barraEntre([ax, ay - 0.16, az], [bx, by - 0.16, bz], 0.14, 0.22, matZanca));
+        }
+    }
+    if (e.baranda) {
+        const H = 0.9;
+        t.barandas.forEach(linea => {
+            for (let i = 0; i < linea.length - 1; i++) {
+                const [ax, az, ay] = linea[i], [bx, bz, by] = linea[i + 1];
+                g.add(barraEntre([ax, ay + H, az], [bx, by + H, bz], 0.045, 0.045, matMetal));
+            }
+            // Parales cada ~1 m sobre toda la baranda
+            let total = 0; for (let i = 0; i < linea.length - 1; i++) total += Math.hypot(linea[i + 1][0] - linea[i][0], linea[i + 1][1] - linea[i][1]);
+            const cada = Math.max(2, Math.round(total / 1.0));
+            const punto = f => { let d = f * total;
+                for (let i = 0; i < linea.length - 1; i++) { const [ax, az, ay] = linea[i], [bx, bz, by] = linea[i + 1];
+                    const seg = Math.hypot(bx - ax, bz - az); if (d <= seg || i === linea.length - 2) { const k = seg ? Math.min(1, d / seg) : 0; return [ax + (bx - ax) * k, az + (bz - az) * k, ay + (by - ay) * k]; } d -= seg; } };
+            for (let k = 0; k <= cada; k++) { const [px, pz, py] = punto(k / cada);
+                const poste = new THREE.Mesh(new THREE.BoxGeometry(0.035, H, 0.035), matMetal);
+                poste.position.set(px, py + H / 2, pz); g.add(poste); }
+        });
+    }
+    g.rotation.y = e.theta;
+    g.position.set(x, baseY, z);
+    g.userData = { moduloId: mod.id, moduloNombre: mod.nombre, tipoEstructura: 'escalera' };
+    return g;
+}
+function dibujarEscaleraPlanta(ctx, m, color) {
+    const e = datosEscalera(m), t = trazaEscalera(e);
+    const cx = m.px + m.ancho * ESCALA / 2, cz = m.pz + m.largo * ESCALA / 2;
+    const P = (x, z) => { const [wx, wz] = giroEsc(x, z, e.theta); return [cx + wx * ESCALA, cz + wz * ESCALA]; };
+    ctx.save();
+    ctx.strokeStyle = color; ctx.lineWidth = 1;
+    t.pasos.forEach(p => {
+        ctx.beginPath();
+        if (p.sector) {
+            const n0 = P(0, 0), a = P(p.r * Math.sin(p.a0), p.r * Math.cos(p.a0));
+            ctx.moveTo(...n0); ctx.lineTo(...a);
+        } else { const q = [P(p.x0, p.z0), P(p.x1, p.z0), P(p.x1, p.z1), P(p.x0, p.z1)]; ctx.moveTo(...q[0]); q.slice(1).forEach(v => ctx.lineTo(...v)); ctx.closePath(); }
+        ctx.stroke();
+    });
+    if (e.forma === 'caracol') { const c0 = P(0, 0); ctx.beginPath(); ctx.arc(c0[0], c0[1], Math.min(e.W, e.D) / 2 * ESCALA, 0, Math.PI * 2); ctx.stroke(); }
+    t.descansos.forEach(d => { ctx.beginPath(); const q = [P(d.x0, d.z0), P(d.x1, d.z0), P(d.x1, d.z1), P(d.x0, d.z1)]; ctx.moveTo(...q[0]); q.slice(1).forEach(v => ctx.lineTo(...v)); ctx.closePath(); ctx.stroke(); });
+    // Flecha de "SUBE" por la línea de paso
+    ctx.strokeStyle = '#FDE68A'; ctx.fillStyle = '#FDE68A'; ctx.lineWidth = 1.8;
+    ctx.beginPath(); t.ruta.forEach(([x, z], i) => { const [px, pz] = P(x, z); i ? ctx.lineTo(px, pz) : ctx.moveTo(px, pz); }); ctx.stroke();
+    const [ux, uz] = P(t.ruta.at(-1)[0], t.ruta.at(-1)[1]), [vx, vz] = P(t.ruta.at(-2)[0], t.ruta.at(-2)[1]);
+    const ang = Math.atan2(uz - vz, ux - vx);
+    ctx.beginPath(); ctx.moveTo(ux, uz); ctx.lineTo(ux - 9 * Math.cos(ang - 0.45), uz - 9 * Math.sin(ang - 0.45)); ctx.lineTo(ux - 9 * Math.cos(ang + 0.45), uz - 9 * Math.sin(ang + 0.45)); ctx.closePath(); ctx.fill();
+    // "SUBE" sobre el primer escalón, hacia adentro de la escalera
+    const [sx0, sz0] = P(t.ruta[0][0], t.ruta[0][1]), [sx1, sz1] = P(t.ruta[1][0], t.ruta[1][1]);
+    const dl = Math.hypot(sx1 - sx0, sz1 - sz0) || 1;
+    ctx.font = 'bold 10px Segoe UI'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('SUBE', sx0 + (sx1 - sx0) / dl * 16, sz0 + (sz1 - sz0) / dl * 16);
+    ctx.restore();
+}
+function htmlMaterialEscalera(m) {
+    const e = datosEscalera(m), t = trazaEscalera(e);
+    const cCm = t.c * 100, hCm = t.huella * 100, blondel = 2 * cCm + hCm;
+    // En la caracol la huella se mide en la línea por donde uno camina (60 % del radio): ahí 20 cm ya es cómodo
+    const esCaracol = e.forma === 'caracol';
+    const bien = esCaracol ? (cCm <= 19.5 && hCm >= 20)
+                           : (cCm >= 15 && cCm <= 18.5 && blondel >= 60 && blondel <= 66 && hCm >= 25);
+    let consejo = '';
+    if (esCaracol && hCm < 20) consejo = 'La caracol quedó estrecha: agranda el diámetro del módulo.';
+    else if (!esCaracol && hCm < 25) consejo = 'La huella quedó corta: dale más largo al módulo o cambia a otra forma.';
+    else if (!esCaracol && blondel > 66) consejo = 'Paso largo: acorta un poco el módulo o sube la altura.';
+    else if (!esCaracol && blondel < 60) consejo = 'Paso corto: alarga el módulo.';
+    if (e.forma === 'U' && e.W < 2 * e.w) consejo = 'Para una U, el ancho del módulo debe ser al menos dos tramos (' + (2 * e.w).toFixed(2) + ' m).';
+    let material = '';
+    if (e.estilo === 'maciza' && e.forma !== 'caracol') {
+        let vol = 0;
+        t.pasos.forEach(p => vol += (p.x1 - p.x0) * (p.z1 - p.z0) * p.y);
+        t.descansos.forEach(d => vol += (d.x1 - d.x0) * (d.z1 - d.z0) * d.y);
+        vol *= 0.55;   // se funde en rampa con los escalones encima: aprox. la mitad del bloque lleno
+        const r = calcularMaterialEstructura({ tipo: 'columna', ancho: vol, largo: 1, alto: 1 });
+        material = `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.08);">Concreto: <b>${r.volumen.toFixed(2)} m³</b> · Cemento: <b>${r.bultos} bultos</b> · Acero: <b>${Math.round(r.acero)} kg</b></div>`;
+    } else {
+        const area = t.pasos.reduce((a, p) => a + (p.sector ? p.r * p.r * p.da / 2 : (p.x1 - p.x0) * (p.z1 - p.z0)), 0);
+        material = `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.08);">Huellas: <b>${t.pasos.length}</b> piezas · <b>${area.toFixed(2)} m²</b> de ${e.acabado}</div>`;
+    }
+    return `<div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:10px;font-size:12px;">
+        <div style="font-weight:700;color:#FCD34D;margin-bottom:4px;">🪜 ${t.n} escalones</div>
+        <div>Contrahuella: <b>${cCm.toFixed(1)} cm</b> · Huella: <b>${hCm.toFixed(1)} cm</b></div>
+        ${esCaracol ? `<div>Huella en la línea de paso: <b>${hCm.toFixed(1)} cm</b> ${bien ? '✅ cómoda' : '⚠️'}</div>`
+                    : `<div>Comodidad (2 contrahuellas + huella): <b>${blondel.toFixed(1)} cm</b> ${bien ? '✅ cómoda' : '⚠️'}</div>`}
+        ${consejo ? `<div style="color:#FCD34D;margin-top:4px;">${consejo}</div>` : ''}
+        ${material}
+        <div style="color:var(--gris);font-size:10px;margin-top:6px;line-height:1.5;">Lo cómodo: contrahuella de 15 a 18 cm, huella de 25 cm o más y 2 contrahuellas + huella entre 60 y 66 cm.</div>
+    </div>`;
+}
+// Medidas de fábrica que dan huellas cómodas con 2,80 m de altura y tramos de 90 cm
+const MEDIDAS_ESCALERA = { recta: [1.0, 4.5], L: [3.2, 3.2], U: [2.0, 3.2], caracol: [2.0, 2.0] };
+function cambiarFormaEscalera() {
+    const m = moduloSeleccionado;
+    if (!m || m.tipo !== 'escalera') return;
+    m.formaEscalera = document.getElementById('propFormaEsc').value;
+    const [an, la] = MEDIDAS_ESCALERA[m.formaEscalera] || [1, 4.5];
+    m.ancho = an; m.largo = la;
+    seleccionarModulo(m.id);
+    dibujarPlanta();
+}
+
 // ── PISOS EXTERIORES ─────────────────────────────────────────────────────
 // El mismo rectángulo de la planta, pero acostado sobre el suelo: andenes,
 // losas, patios y zonas verdes alrededor de la casa. No es un cuarto (está en
@@ -6859,6 +7099,7 @@ function agregarModulo(tipo) {
         plafon:   { ancho:2.50, largo:2.50 },
         cubierta: { ancho:8.00, largo:6.00 },
         exterior: { ancho:1.20, largo:6.00 },   // un andén típico
+        escalera: { ancho:1.00, largo:4.50 },   // recta de 16 escalones de 28 cm
     };
     const med = MEDIDAS_DEFECTO[tipo] || { ancho:4, largo:4 };
     const nuevo = {
@@ -6893,6 +7134,10 @@ function agregarModulo(tipo) {
     }
     if (tipo === 'exterior') {
         Object.assign(nuevo, DEFECTO_EXTERIOR.anden, { subtipo: 'anden', nombre: NOMBRE_EXTERIOR.anden });
+    }
+    if (tipo === 'escalera') {
+        Object.assign(nuevo, { formaEscalera: 'recta', arranque: 'sur', giro: 'der', alturaSubir: alturaEntrepiso,
+            anchoTramo: 0.9, estiloEscalera: 'maciza', acabado: 'concreto', baranda: true, nombre: '🪜 Escalera' });
     }
     if (tipo === 'viga') {
         nuevo.peralte     = 0.40;   // alto del elemento (canto de la viga)
@@ -7360,6 +7605,7 @@ function dibujarPlanta() {
         if (m.tipo === 'exterior') ctx.setLineDash([3, 3]);   // punteado fino: está afuera, sobre el suelo
         ctx.stroke();
         ctx.setLineDash([]);
+        if (m.tipo === 'escalera') dibujarEscaleraPlanta(ctx, m, color);
 
         // LIMATESAS Y CUMBRERA — así se lee un techo en un plano de verdad:
         // por dónde caen las aguas. Sin estas líneas dos cubiertas distintas
@@ -7726,9 +7972,24 @@ function seleccionarModulo(id) {
     document.getElementById('contCubierta').style.display = esCub ? 'block' : 'none';
     const esExt = moduloSeleccionado.tipo === 'exterior';
     document.getElementById('contExterior').style.display = esExt ? 'flex' : 'none';
+    const esEsc = moduloSeleccionado.tipo === 'escalera';
+    document.getElementById('contEscalera').style.display = esEsc ? 'flex' : 'none';
+    if (esEsc) {
+        const m = moduloSeleccionado;
+        document.getElementById('propFormaEsc').value    = m.formaEscalera || 'recta';
+        document.getElementById('propArranqueEsc').value = m.arranque || 'sur';
+        document.getElementById('propGiroEsc').value     = m.giro || 'der';
+        document.getElementById('propAltoEsc').value     = m.alturaSubir ?? alturaEntrepiso;
+        document.getElementById('propTramoEsc').value    = m.anchoTramo ?? 0.9;
+        document.getElementById('propEstiloEsc').value   = m.estiloEscalera || 'maciza';
+        document.getElementById('propAcabadoEsc').value  = m.acabado || 'concreto';
+        document.getElementById('propBarandaEsc').checked = m.baranda !== false;
+        document.getElementById('filaGiroEsc').style.display  = (m.formaEscalera || 'recta') === 'recta' ? 'none' : '';
+        document.getElementById('filaTramoEsc').style.display = ['L', 'U'].includes(m.formaEscalera) ? '' : 'none';
+    }
     // Un piso exterior no tiene "alto" de muro: su tercer eje es el espesor
-    document.getElementById('propAlto').parentElement.style.display = esExt ? 'none' : '';
-    document.getElementById('propColorPared').parentElement.style.display = esExt ? 'none' : '';
+    document.getElementById('propAlto').parentElement.style.display = (esExt || esEsc) ? 'none' : '';
+    document.getElementById('propColorPared').parentElement.style.display = (esExt || esEsc) ? 'none' : '';
     if (esExt) {
         document.getElementById('propSubtipoExt').value = moduloSeleccionado.subtipo  || 'anden';
         document.getElementById('propAcabadoExt').value = moduloSeleccionado.acabado  || 'concreto';
@@ -7913,6 +8174,10 @@ function calcularMaterialModulo() {
         cont.innerHTML = htmlMaterialExterior(moduloSeleccionado);
         return;
     }
+    if (moduloSeleccionado.tipo === 'escalera') {
+        cont.innerHTML = htmlMaterialEscalera(moduloSeleccionado);
+        return;
+    }
 
     const prodId = moduloSeleccionado.imagenPisoId;
     if (!prodId) { cont.innerHTML = ''; return; }
@@ -8015,6 +8280,28 @@ function actualizarPropModulo() {
     }
     if (moduloSeleccionado.tipo === 'columna') {
         moduloSeleccionado.forma = document.getElementById('propFormaColumna').value;
+    }
+    if (moduloSeleccionado.tipo === 'escalera') {
+        const m = moduloSeleccionado;
+        const alto = parseFloat(document.getElementById('propAltoEsc').value);
+        const tramo = parseFloat(document.getElementById('propTramoEsc').value);
+        // Pasar de norte/sur a este/oeste gira el recorrido 90°: se giran también
+        // las medidas del módulo para que la escalera no quede recorriendo el lado corto.
+        const nuevoArr = document.getElementById('propArranqueEsc').value;
+        const lateral = a => a === 'este' || a === 'oeste';
+        if (lateral(nuevoArr) !== lateral(m.arranque || 'sur')) {
+            [m.ancho, m.largo] = [m.largo, m.ancho];
+            document.getElementById('propAncho').value = m.ancho;
+            document.getElementById('propLargo').value = m.largo;
+        }
+        m.arranque       = nuevoArr;
+        m.giro           = document.getElementById('propGiroEsc').value;
+        m.estiloEscalera = document.getElementById('propEstiloEsc').value;
+        m.acabado        = document.getElementById('propAcabadoEsc').value;
+        m.baranda        = document.getElementById('propBarandaEsc').checked;
+        if (Number.isFinite(alto))  m.alturaSubir = Math.min(6, Math.max(0.3, alto));
+        if (Number.isFinite(tramo)) m.anchoTramo  = Math.min(2, Math.max(0.6, tramo));
+        calcularMaterialModulo();
     }
     if (moduloSeleccionado.tipo === 'exterior') {
         const esp = parseFloat(document.getElementById('propEspesorExt').value);
@@ -8201,6 +8488,8 @@ function generarDesdePlanta() {
             subtipo:     m.subtipo     || null,   // piso exterior: anden | losa | patio | zona_verde | terraza
             acabado:     m.acabado     || null,   // piso exterior: concreto | adoquin | baldosa | gravilla | cesped | deck
             nivel_exterior: m.nivelExt ?? null,   // piso exterior: cara de arriba respecto al piso de la casa
+            escalera: m.tipo === 'escalera' ? { forma: m.formaEscalera, arranque: m.arranque, giro: m.giro, alto: m.alturaSubir,
+                tramo: m.anchoTramo, estilo: m.estiloEscalera, acabado: m.acabado, baranda: m.baranda !== false } : null,
             nivel:       nivelDe(m),
             capa:        capaDe(m),
         })),
@@ -8494,6 +8783,11 @@ function cargarDesdePlano(modelo3d) {
 
         // ── Elementos que NO son cuartos: pared fija, divisor de vidrio,
         //    COLUMNA (piso a techo) y VIGA (cuelga del techo) ──────────────
+        // ── ESCALERA ─────────────────────────────────────────────────────
+        if (mod.tipo === 'escalera') {
+            scene.add(construirEscalera3D(mod, x, z, baseY));
+            return;
+        }
         // ── PISO EXTERIOR: placa acostada sobre el suelo ─────────────────
         if (mod.tipo === 'exterior') {
             const esp  = Math.max(0.02, mod.espesor ?? 0.10);
