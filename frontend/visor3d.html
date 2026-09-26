@@ -168,6 +168,34 @@
         .carrito-total b { font-size:20px; color:#6EE7B7; }
         .carrito-nota { font-size:11px; color:var(--gris); }
         @media (max-width:600px) { .carrito-fila { grid-template-columns:40px 1fr; } .carrito-cant, .carrito-sub { grid-column:2; text-align:left; } }
+        /* Editor de pared */
+        #editorPared { position:fixed; inset:0; z-index:3000; background:rgba(5,5,12,0.72); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; padding:24px; }
+        .ep-caja { width:min(1280px,100%); height:min(820px,100%); background:var(--oscuro2); border:1px solid rgba(124,58,237,0.35); border-radius:18px; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,0.5); }
+        .ep-cabeza { display:flex; align-items:center; gap:16px; padding:14px 18px; border-bottom:1px solid rgba(124,58,237,0.2); }
+        .ep-titulo { font-size:16px; font-weight:800; }
+        .ep-sub { font-size:12px; color:var(--gris); margin-top:2px; }
+        .ep-caras { margin-left:auto; display:flex; gap:6px; }
+        .ep-caras button, .ep-herramientas button { background:var(--oscuro); border:1px solid rgba(124,58,237,0.28); color:var(--texto); padding:8px 12px; border-radius:9px; font-size:12.5px; font-weight:600; cursor:pointer; font-family:inherit; text-align:left; }
+        .ep-caras button.activa, .ep-herramientas button.activa { background:rgba(124,58,237,0.28); border-color:#8B5CF6; color:#fff; }
+        .ep-caras button:disabled { opacity:0.35; cursor:not-allowed; }
+        .ep-cerrar { background:none; border:none; color:var(--gris); font-size:20px; cursor:pointer; padding:4px 8px; }
+        .ep-cuerpo { flex:1; display:grid; grid-template-columns:170px 1fr 250px; min-height:0; }
+        .ep-herramientas { padding:14px; display:flex; flex-direction:column; gap:7px; border-right:1px solid rgba(124,58,237,0.15); }
+        .ep-sep { height:1px; background:rgba(124,58,237,0.2); margin:4px 0; }
+        .ep-ayuda { font-size:11px; color:var(--gris); line-height:1.5; margin-top:6px; }
+        .ep-lienzo-caja { position:relative; min-width:0; min-height:0; background:#0B0B14; }
+        #epLienzo { position:absolute; inset:0; width:100%; height:100%; cursor:crosshair; touch-action:none; }
+        .ep-props { padding:14px; border-left:1px solid rgba(124,58,237,0.15); overflow-y:auto; display:flex; flex-direction:column; gap:10px; font-size:12.5px; }
+        .ep-props label { font-size:10.5px; color:var(--gris); text-transform:uppercase; letter-spacing:0.05em; font-weight:700; display:block; margin-bottom:4px; }
+        .ep-props input, .ep-props select { width:100%; background:var(--oscuro); border:1px solid rgba(124,58,237,0.28); border-radius:8px; padding:7px 9px; color:var(--texto); font-size:13px; font-family:inherit; }
+        .ep-props input[type=color] { height:36px; padding:3px; }
+        .ep-props .ep-dos { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+        .ep-props .ep-borrar { background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.35); color:#FCA5A5; padding:8px; border-radius:9px; font-weight:700; cursor:pointer; font-family:inherit; }
+        .ep-pie { display:flex; align-items:center; gap:10px; padding:12px 18px; border-top:1px solid rgba(124,58,237,0.2); }
+        .ep-pie span { margin-right:auto; font-size:12px; color:var(--gris); }
+        .ep-cancelar { background:none; border:1px solid rgba(148,163,184,0.35); color:var(--gris); padding:9px 16px; border-radius:10px; font-weight:700; cursor:pointer; font-family:inherit; }
+        .ep-aplicar { background:var(--degradado); border:none; color:#fff; padding:10px 20px; border-radius:10px; font-weight:800; cursor:pointer; font-family:inherit; }
+        @media (max-width:900px) { .ep-cuerpo { grid-template-columns:1fr; grid-template-rows:auto 1fr auto; } .ep-herramientas { flex-direction:row; flex-wrap:wrap; border-right:none; } .ep-ayuda { display:none; } }
         .btn-volver-planta { width:100%; background:rgba(124,58,237,0.12); border:1px solid rgba(124,58,237,0.35); color:#C4B5FD; padding:8px; border-radius:9px; font-size:12.5px; font-weight:700; cursor:pointer; font-family:inherit; }
         .btn-volver-planta:hover { background:rgba(124,58,237,0.22); }
         .aviso-regenerar { margin-top:10px; background:rgba(245,158,11,0.10); border:1px solid rgba(245,158,11,0.35); border-radius:10px; padding:10px; font-size:12px; color:#FCD34D; line-height:1.5; }
@@ -398,6 +426,37 @@
         <span id="tituloVistaCamara">VISTA DE LA CÁMARA</span>
     </div>
     <canvas id="canvasVivoEntorno3D" width="340" height="220" style="width:340px;height:220px;display:block;"></canvas>
+</div>
+<!-- EDITOR DE PARED: un muro visto de frente para dibujarle placas, enchapes y pintura -->
+<div id="editorPared" style="display:none;">
+    <div class="ep-caja">
+        <div class="ep-cabeza">
+            <div><div class="ep-titulo" id="epTitulo">🧱 Pared</div><div class="ep-sub" id="epSub"></div></div>
+            <div class="ep-caras" id="epCaras">
+                <button data-cara="afuera" onclick="epCambiarCara('afuera')">🏠 Cara de afuera</button>
+                <button data-cara="adentro" onclick="epCambiarCara('adentro')">🛋️ Cara de adentro</button>
+            </div>
+            <button class="ep-cerrar" onclick="cerrarEditorPared(false)" title="Cerrar sin guardar">✕</button>
+        </div>
+        <div class="ep-cuerpo">
+            <div class="ep-herramientas">
+                <button data-h="seleccionar" onclick="epHerramienta('seleccionar')">🖐️ Mover</button>
+                <button data-h="rect" onclick="epHerramienta('rect')">▭ Rectángulo</button>
+                <button data-h="cuadrado" onclick="epHerramienta('cuadrado')">◻ Cuadrado</button>
+                <button data-h="circulo" onclick="epHerramienta('circulo')">● Círculo</button>
+                <div class="ep-sep"></div>
+                <button onclick="epMediaPared()">▬ Media pared</button>
+                <div class="ep-ayuda">Arrastra sobre la pared para dibujar. Toca una figura para moverla; la esquina ◢ cambia el tamaño. Ajusta cada 5 cm.</div>
+            </div>
+            <div class="ep-lienzo-caja"><canvas id="epLienzo"></canvas></div>
+            <div class="ep-props" id="epProps"></div>
+        </div>
+        <div class="ep-pie">
+            <span id="epResumen"></span>
+            <button class="ep-cancelar" onclick="cerrarEditorPared(false)">Cancelar</button>
+            <button class="ep-aplicar" onclick="cerrarEditorPared(true)">✅ Aplicar al 3D</button>
+        </div>
+    </div>
 </div>
 <!-- Objetos que se pueden mover con el gizmo: el que está en uso se enciende,
      y cada uno se puede bloquear para no agarrarlo sin querer (el piso en vez
@@ -1001,6 +1060,8 @@
     <!-- ── MUROS ── -->
     <div class="panel-section" id="secMuros" data-vista="3d">
         <div class="panel-titulo">🧱 Muros</div>
+        <button id="btnDisenarPared" onclick="modoDisenarPared ? salirModosPared() : activarDisenarPared()"
+            style="width:100%;padding:9px;border-radius:8px;background:var(--degradado);border:none;color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px;">🎨 Diseñar un muro (tocar para elegir)</button>
         <button id="btnEliminarPared" onclick="modoEliminarPared ? salirModosPared() : activarEliminarPared()"
             style="width:100%;padding:9px;border-radius:8px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#FCA5A5;font-size:12px;font-weight:700;cursor:pointer;font-family:'Segoe UI',sans-serif;">🗑️ Eliminar un muro (tocar para elegir)</button>
         <div style="font-size:10.5px;color:var(--gris);margin-top:6px;line-height:1.5;">Los muros que se toquen al pasar el mouse se iluminan en rojo; haz click para eliminarlo.</div>
@@ -1370,9 +1431,23 @@ function activarElegirPared() {
     mostrarToast('👆 Pasa el mouse por los muros y haz click (Esc para cancelar)');
 }
 
+let modoDisenarPared = false;
+function activarDisenarPared() {
+    if (!salaConstruida) { mostrarToast('⚠️ Genera un modelo 3D primero'); return; }
+    salirModosPared();
+    modoDisenarPared = true;
+    controls.enabled  = false;
+    canvas.style.cursor = 'crosshair';
+    const b = document.getElementById('btnDisenarPared');
+    if (b) b.textContent = '✖ Cancelar (Esc)';
+    renderListaObjetos(true);
+    mostrarToast('👆 Pasa el mouse por los muros y toca el que quieras diseñar');
+}
+
 function activarEliminarPared() {
     modoEliminarPared = true;
     modoElegirPared   = false;
+    setTimeout(() => renderListaObjetos(true), 0);
     controls.enabled  = false;
     canvas.style.cursor = 'crosshair';
     document.getElementById('btnEliminarPared').textContent = '❌ Cancelar — tocando muro para eliminar';
@@ -1383,6 +1458,10 @@ function activarEliminarPared() {
 function salirModosPared() {
     modoElegirPared = false;
     modoEliminarPared = false;
+    modoDisenarPared = false;
+    const bd = document.getElementById('btnDisenarPared');
+    if (bd) bd.textContent = '🎨 Diseñar un muro (tocar para elegir)';
+    if (typeof renderListaObjetos === 'function') setTimeout(() => renderListaObjetos(true), 0);
     controls.enabled = true;
     canvas.style.cursor = 'default';
     if (paredHovered) { paredHovered.material.emissive.setHex(0x000000); paredHovered = null; }
@@ -1391,7 +1470,7 @@ function salirModosPared() {
 }
 
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && (modoElegirPared || modoEliminarPared)) salirModosPared();
+    if (e.key === 'Escape' && (modoElegirPared || modoEliminarPared || modoDisenarPared)) salirModosPared();
 });
 
 function actualizarHoverParedes(ndc) {
@@ -1401,7 +1480,7 @@ function actualizarHoverParedes(ndc) {
     const nuevoHover = hits.length ? hits[0].object : null;
     if (paredHovered && paredHovered !== nuevoHover) paredHovered.material.emissive.setHex(0x000000);
     if (nuevoHover) {
-        nuevoHover.material.emissive.setHex(modoEliminarPared ? 0xEF4444 : 0x7C3AED);
+        nuevoHover.material.emissive.setHex(modoEliminarPared ? 0xEF4444 : (modoDisenarPared ? 0x22C55E : 0x7C3AED));
         nuevoHover.material.emissiveIntensity = 0.6;
     }
     paredHovered = nuevoHover;
@@ -1410,6 +1489,15 @@ function actualizarHoverParedes(ndc) {
 function clickEnPared() {
     if (!paredHovered) { mostrarToast('⚠️ Apunta a un muro primero'); return; }
     const { moduloId, lado } = paredHovered.userData;
+
+    if (modoDisenarPared) {
+        const exterior = !!paredHovered.userData.esExterior;
+        paredHovered.material.emissive.setHex(0x000000);
+        paredHovered = null;
+        salirModosPared();
+        abrirEditorPared(moduloId, lado, exterior);
+        return;
+    }
 
     if (modoEliminarPared) {
         // Eliminar visualmente y marcar para que no se reconstruya al regenerar.
@@ -1648,6 +1736,316 @@ function salirModoTransformar() {
     document.getElementById('panelTransformar').style.display = 'none';
 }
 
+// ── EDITOR DE PARED ──────────────────────────────────────────────────────
+// Cada figura vive en el módulo de la planta: disenoParedes[lado] = [{ id,
+// forma:'rect'|'circulo', cara:'afuera'|'adentro', x, y, w, h (metros, desde la
+// esquina de abajo a la izquierda VISTA DE FRENTE), tipo:'placa'|'enchape'|
+// 'pintura', color, relieve (m) }]. En el 3D son piezas delgadas pegadas a la
+// cara del muro: se ven en las fotos y se reconstruyen al regenerar.
+const DIR_FUERA_LADO = { norte:[0,0,-1], sur:[0,0,1], oeste:[-1,0,0], este:[1,0,0] };
+const GRUESO_PARED_3D = 0.1;
+function geometriaCaraPared(info, lado, cara) {
+    const horizontal = lado === 'norte' || lado === 'sur';
+    const L = horizontal ? info.ancho : info.largo;
+    const fuera = new THREE.Vector3(...DIR_FUERA_LADO[lado]);
+    const n = cara === 'afuera' ? fuera.clone() : fuera.clone().negate();
+    // Distancia de la línea del muro a la cara: afuera con fachada = grosor de fachada + revoque
+    const conFachada = cara === 'afuera' && info.exterior && configEnvolvente.fachada;
+    const dist = conFachada ? (configEnvolvente.gruesoFachada || 0.20) - GRUESO_PARED_3D / 2 + 0.025 : GRUESO_PARED_3D / 2;
+    const linea = horizontal ? new THREE.Vector3(info.cx, 0, info.cz + (lado === 'norte' ? -info.largo / 2 : info.largo / 2))
+                             : new THREE.Vector3(info.cx + (lado === 'oeste' ? -info.ancho / 2 : info.ancho / 2), 0, info.cz);
+    const centro = linea.clone().addScaledVector(fuera, cara === 'afuera' ? dist : -dist);
+    const up = new THREE.Vector3(0, 1, 0);
+    const derecha = new THREE.Vector3().crossVectors(up, n).normalize();   // derecha vista de frente
+    const origen = centro.clone().addScaledVector(derecha, -L / 2);        // esquina izquierda
+    origen.y = info.baseY;
+    return { L, alto: info.alto, n, derecha, up, origen };
+}
+function materialFormaPared(f) {
+    const base = { roughness: f.tipo === 'pintura' ? 0.92 : (f.tipo === 'enchape' ? 0.35 : 0.7), metalness: 0 };
+    return new THREE.MeshStandardMaterial({ color: new THREE.Color(f.color || '#D6CFC4'), ...base });
+}
+function mallasDisenoPared(formas, info, lado) {
+    return (formas || []).map(f => {
+        const g = geometriaCaraPared(info, lado, f.cara || 'afuera');
+        const esp = f.tipo === 'pintura' ? 0.004 : Math.max(0.004, f.relieve ?? (f.tipo === 'placa' ? 0.03 : 0.012));
+        let geo;
+        if (f.forma === 'circulo') { geo = new THREE.CylinderGeometry(f.w / 2, f.w / 2, esp, 48); geo.rotateX(Math.PI / 2); }
+        else geo = new THREE.BoxGeometry(f.w, f.h, esp);
+        const malla = new THREE.Mesh(geo, materialFormaPared(f));
+        const cx = f.x + f.w / 2, cy = f.y + (f.forma === 'circulo' ? f.w : f.h) / 2;
+        malla.position.copy(g.origen).addScaledVector(g.derecha, cx).addScaledVector(g.up, cy).addScaledVector(g.n, esp / 2 + 0.002);
+        malla.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(g.derecha, g.up, g.n));
+        malla.castShadow = f.tipo === 'placa'; malla.receiveShadow = true;
+        malla.userData = { disenoPared: lado, formaId: f.id };
+        return malla;
+    });
+}
+
+let ep = null;   // estado del editor abierto
+function abrirEditorPared(moduloId, lado, exterior) {
+    const mod = modulosPlanta.find(m => m.id === moduloId);
+    const info3d = modulosActuales3D.find(m => m.id === moduloId);
+    if (!mod || !info3d) { mostrarToast('⚠️ Ese muro no pertenece a un cuarto de la planta'); return; }
+    const L = (lado === 'norte' || lado === 'sur') ? info3d.ancho : info3d.largo;
+    ep = { mod, lado, exterior, L, alto: info3d.alto, info3d,
+           formas: JSON.parse(JSON.stringify((mod.disenoParedes || {})[lado] || [])),
+           cara: exterior ? 'afuera' : 'adentro', herramienta: 'rect', sel: null, arrastre: null };
+    const nombreLado = { norte:'de atrás (norte)', sur:'del frente (sur)', oeste:'izquierda (oeste)', este:'derecha (este)' }[lado];
+    document.getElementById('epTitulo').textContent = `🧱 Pared ${nombreLado} — ${mod.nombre}`;
+    document.getElementById('epSub').textContent = `${L.toFixed(2)} m de largo × ${info3d.alto.toFixed(2)} m de alto · ${exterior ? 'da a la calle (fachada)' : 'interior'}`;
+    document.querySelectorAll('#epCaras button').forEach(b => { b.disabled = b.dataset.cara === 'afuera' && !exterior; });
+    document.getElementById('editorPared').style.display = 'flex';
+    epHerramienta('rect');
+    epCambiarCara(ep.cara);
+    requestAnimationFrame(epDibujar);
+}
+function cerrarEditorPared(aplicar) {
+    if (!ep) return;
+    if (aplicar) {
+        if (!ep.mod.disenoParedes) ep.mod.disenoParedes = {};
+        if (ep.formas.length) ep.mod.disenoParedes[ep.lado] = ep.formas;
+        else delete ep.mod.disenoParedes[ep.lado];
+        aplicarDisenoParedEn3D(ep.mod.id, ep.lado, ep.exterior);
+        registrarCambioPlanta();          // entra al historial (Ctrl+Z en la planta)
+        firmaUltimo3D = firmaPlanta();     // el 3D ya quedó al día: no pedir regenerar
+        actualizarAvisoRegenerar();
+        mostrarToast(`✅ Pared aplicada — ${ep.formas.length} figura${ep.formas.length === 1 ? '' : 's'}`);
+    }
+    document.getElementById('editorPared').style.display = 'none';
+    ep = null;
+}
+function aplicarDisenoParedEn3D(moduloId, lado, exterior) {
+    let cuarto = null;
+    scene.traverse(o => { if (o.userData && o.userData.tipoEstructura === 'cuarto' && o.userData.moduloId === moduloId) cuarto = o; });
+    const destino = cuarto || scene;
+    [...destino.children].filter(c => c.userData && c.userData.disenoPared === lado).forEach(c => {
+        destino.remove(c); c.geometry?.dispose(); c.material?.dispose();
+    });
+    const mod = modulosPlanta.find(m => m.id === moduloId);
+    const info = modulosActuales3D.find(m => m.id === moduloId);
+    if (!mod || !info) return;
+    destino.updateMatrixWorld(true);
+    mallasDisenoPared((mod.disenoParedes || {})[lado], { cx: info.cx, cz: info.cz, ancho: info.ancho, largo: info.largo, alto: info.alto, baseY: info.baseY, exterior }, lado)
+        .forEach(mm => { scene.add(mm); if (destino !== scene) destino.attach(mm); });
+}
+function epHerramienta(h) {
+    if (!ep) return;
+    ep.herramienta = h;
+    document.querySelectorAll('.ep-herramientas button[data-h]').forEach(b => b.classList.toggle('activa', b.dataset.h === h));
+    document.getElementById('epLienzo').style.cursor = h === 'seleccionar' ? 'default' : 'crosshair';
+}
+function epCambiarCara(c) {
+    if (!ep) return;
+    if (c === 'afuera' && !ep.exterior) c = 'adentro';
+    ep.cara = c; ep.sel = null;
+    document.querySelectorAll('#epCaras button').forEach(b => b.classList.toggle('activa', b.dataset.cara === c));
+    epPropiedades(); epDibujar();
+}
+function epMediaPared() {
+    if (!ep) return;
+    const f = { id: 'f' + Date.now(), forma: 'rect', cara: ep.cara, x: 0, y: 0, w: ep.L, h: 1.2, tipo: 'enchape', color: '#D6CFC4', relieve: 0.012 };
+    ep.formas.push(f); ep.sel = f.id; epHerramienta('seleccionar'); epPropiedades(); epDibujar();
+}
+// Escala del dibujo: la pared ocupa el lienzo con margen para las medidas
+function epVista() {
+    const c = document.getElementById('epLienzo');
+    const W = c.clientWidth, H = c.clientHeight;
+    const esc = Math.min((W - 90) / ep.L, (H - 80) / ep.alto);
+    const ox = (W - ep.L * esc) / 2, oy = (H + ep.alto * esc) / 2;   // oy = base de la pared en pantalla
+    return { W, H, esc, ox, oy, aPx: (x, y) => [ox + x * esc, oy - y * esc], aM: (px, py) => [(px - ox) / esc, (oy - py) / esc] };
+}
+const epSnap = v => Math.round(v / 0.05) * 0.05;
+const epFormasCara = () => ep.formas.filter(f => (f.cara || 'afuera') === ep.cara);
+function epAltoForma(f) { return f.forma === 'circulo' ? f.w : f.h; }
+function epDibujar() {
+    if (!ep) return;
+    const c = document.getElementById('epLienzo');
+    const dpr = window.devicePixelRatio || 1;
+    c.width = c.clientWidth * dpr; c.height = c.clientHeight * dpr;
+    const ctx = c.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const v = epVista();
+    ctx.clearRect(0, 0, v.W, v.H);
+    // Pared
+    const [x0, y0] = v.aPx(0, ep.alto);
+    ctx.fillStyle = ep.cara === 'afuera' && configEnvolvente.fachada ? '#CFC8BC' : '#E7E5E0';
+    ctx.fillRect(x0, y0, ep.L * v.esc, ep.alto * v.esc);
+    // Cuadrícula cada 50 cm
+    ctx.strokeStyle = 'rgba(15,23,42,0.08)'; ctx.lineWidth = 1;
+    for (let x = 0.5; x < ep.L; x += 0.5) { const [px] = v.aPx(x, 0); ctx.beginPath(); ctx.moveTo(px, y0); ctx.lineTo(px, v.oy); ctx.stroke(); }
+    for (let y = 0.5; y < ep.alto; y += 0.5) { const [, py] = v.aPx(0, y); ctx.beginPath(); ctx.moveTo(x0, py); ctx.lineTo(x0 + ep.L * v.esc, py); ctx.stroke(); }
+    // Puertas y vanos de este muro (como referencia; se avisa si una figura los tapa)
+    const huecosVista = [];
+    vanosPlanta.filter(vn => vn.modulo_a === ep.mod.id && vn.lado === ep.lado).forEach(vn => {
+        const horizontal = ep.lado === 'norte' || ep.lado === 'sur';
+        const inicioMod = horizontal ? ep.mod.px / ESCALA : ep.mod.pz / ESCALA;
+        let u = vn.centro - inicioMod;                          // desde el inicio del muro (x o z crecientes)
+        const g = geometriaCaraPared({ ...ep.info3d, exterior: ep.exterior }, ep.lado, ep.cara);
+        const eje = horizontal ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1);
+        if (g.derecha.dot(eje) < 0) u = ep.L - u;               // visto de frente, la derecha puede ir al revés
+        const altoV = vn.tipo === 'arco' ? ep.alto : (vn.alto || 2.1);
+        huecosVista.push({ x: u - vn.ancho / 2, w: vn.ancho, h: altoV });
+        const [px, py] = v.aPx(u - vn.ancho / 2, altoV);
+        ctx.fillStyle = '#0B0B14'; ctx.fillRect(px, py, vn.ancho * v.esc, altoV * v.esc);
+        ctx.setLineDash([5, 4]); ctx.strokeStyle = '#38BDF8'; ctx.strokeRect(px, py, vn.ancho * v.esc, altoV * v.esc); ctx.setLineDash([]);
+        ctx.fillStyle = '#7DD3FC'; ctx.font = '11px Segoe UI'; ctx.textAlign = 'center';
+        ctx.fillText(vn.tipo === 'puerta' ? '🚪 puerta' : vn.tipo === 'vano' ? 'vano' : 'arco', px + vn.ancho * v.esc / 2, py + 16);
+    });
+    // Figuras de esta cara
+    epFormasCara().forEach(f => {
+        const h = epAltoForma(f);
+        const [px, py] = v.aPx(f.x, f.y + h);
+        ctx.fillStyle = f.color || '#D6CFC4';
+        ctx.globalAlpha = f.tipo === 'pintura' ? 0.85 : 1;
+        if (f.forma === 'circulo') { ctx.beginPath(); ctx.arc(px + f.w * v.esc / 2, py + f.w * v.esc / 2, f.w * v.esc / 2, 0, Math.PI * 2); ctx.fill(); }
+        else ctx.fillRect(px, py, f.w * v.esc, h * v.esc);
+        ctx.globalAlpha = 1;
+        if (f.tipo === 'placa') {   // sombra de relieve
+            ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 2;
+            if (f.forma === 'circulo') { ctx.beginPath(); ctx.arc(px + f.w * v.esc / 2 + 1.5, py + f.w * v.esc / 2 + 1.5, f.w * v.esc / 2, 0.2, Math.PI * 0.9); ctx.stroke(); }
+            else { ctx.beginPath(); ctx.moveTo(px + f.w * v.esc, py + 2); ctx.lineTo(px + f.w * v.esc, py + h * v.esc); ctx.lineTo(px + 2, py + h * v.esc); ctx.stroke(); }
+        }
+        if (f.tipo === 'enchape' && f.forma !== 'circulo') {   // juntas cada 30 cm
+            ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.lineWidth = 1;
+            for (let a = 0.3; a < f.w; a += 0.3) { ctx.beginPath(); ctx.moveTo(px + a * v.esc, py); ctx.lineTo(px + a * v.esc, py + h * v.esc); ctx.stroke(); }
+            for (let a = 0.3; a < h; a += 0.3) { ctx.beginPath(); ctx.moveTo(px, py + a * v.esc); ctx.lineTo(px + f.w * v.esc, py + a * v.esc); ctx.stroke(); }
+        }
+        if (ep.sel === f.id) {
+            ctx.strokeStyle = '#A78BFA'; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
+            ctx.strokeRect(px - 2, py - 2, f.w * v.esc + 4, h * v.esc + 4); ctx.setLineDash([]);
+            ctx.fillStyle = '#8B5CF6'; ctx.fillRect(px + f.w * v.esc - 5, py + h * v.esc - 5, 11, 11);   // esquina ◢
+        }
+    });
+    // Borde y medidas
+    ctx.strokeStyle = '#94A3B8'; ctx.lineWidth = 1.5; ctx.strokeRect(x0, y0, ep.L * v.esc, ep.alto * v.esc);
+    ctx.fillStyle = '#CBD5E1'; ctx.font = '12px Segoe UI'; ctx.textAlign = 'center';
+    ctx.fillText(`${ep.L.toFixed(2)} m`, x0 + ep.L * v.esc / 2, v.oy + 22);
+    ctx.save(); ctx.translate(x0 - 18, y0 + ep.alto * v.esc / 2); ctx.rotate(-Math.PI / 2); ctx.fillText(`${ep.alto.toFixed(2)} m`, 0, 0); ctx.restore();
+    ctx.fillStyle = '#64748B'; ctx.font = '11px Segoe UI';
+    ctx.fillText('piso', x0 + ep.L * v.esc / 2, v.oy + 38);
+    const n = epFormasCara().length;
+    const tapa = epFormasCara().some(f => huecosVista.some(hv =>
+        f.x < hv.x + hv.w - 0.01 && f.x + f.w > hv.x + 0.01 && f.y < hv.h - 0.01));
+    const res = document.getElementById('epResumen');
+    res.innerHTML = `${n} figura${n === 1 ? '' : 's'} en la cara ${ep.cara === 'afuera' ? 'de afuera' : 'de adentro'} · ${ep.formas.length} en total`
+        + (tapa ? ' · <b style="color:#FCD34D">⚠️ Una figura tapa parte de una puerta o vano: en el 3D quedaría flotando en el hueco</b>' : '');
+}
+function epFormaEn(mx, my) {
+    const v = epVista(), [x, y] = v.aM(mx, my);
+    return [...epFormasCara()].reverse().find(f => {
+        if (f.forma === 'circulo') return Math.hypot(x - (f.x + f.w / 2), y - (f.y + f.w / 2)) <= f.w / 2;
+        return x >= f.x && x <= f.x + f.w && y >= f.y && y <= f.y + f.h;
+    }) || null;
+}
+function epLimitar(f) {
+    f.w = Math.max(0.05, Math.min(f.w, ep.L));
+    if (f.forma !== 'circulo') f.h = Math.max(0.05, Math.min(f.h, ep.alto)); else f.h = f.w;
+    f.x = Math.max(0, Math.min(f.x, ep.L - f.w));
+    f.y = Math.max(0, Math.min(f.y, ep.alto - epAltoForma(f)));
+    ['x', 'y', 'w', 'h'].forEach(k => f[k] = Math.round(f[k] * 1000) / 1000);
+}
+function epPropiedades() {
+    const caja = document.getElementById('epProps');
+    const f = ep && ep.formas.find(x => x.id === ep.sel);
+    if (!f) { caja.innerHTML = '<div style="color:var(--gris);line-height:1.6;">Dibuja una figura o toca una para editarla.<br><br><b style="color:var(--texto)">Placa</b>: sobresale de la pared (relieve).<br><b style="color:var(--texto)">Enchape</b>: zona enchapada, con juntas.<br><b style="color:var(--texto)">Pintura</b>: solo color.</div>'; return; }
+    const num = (k, et, paso = 0.05) => `<div><label>${et}</label><input type="number" step="${paso}" min="0" value="${f[k]}" oninput="epCampo('${k}', this.value)"></div>`;
+    caja.innerHTML = `
+        <div><label>Qué es</label><select onchange="epCampo('tipo', this.value)">
+            <option value="placa" ${f.tipo === 'placa' ? 'selected' : ''}>Placa en relieve</option>
+            <option value="enchape" ${f.tipo === 'enchape' ? 'selected' : ''}>Enchape</option>
+            <option value="pintura" ${f.tipo === 'pintura' ? 'selected' : ''}>Pintura</option></select></div>
+        <div><label>Color</label><input type="color" value="${f.color || '#D6CFC4'}" oninput="epCampo('color', this.value)"></div>
+        ${f.tipo === 'pintura' ? '' : `<div><label>Relieve (cm)</label><input type="number" min="0.5" max="20" step="0.5" value="${Math.round((f.relieve ?? 0.03) * 1000) / 10}" oninput="epCampo('relieve', this.value / 100)"></div>`}
+        <div class="ep-dos">${num('x', 'Desde la izquierda (m)')}${num('y', 'Desde el piso (m)')}</div>
+        <div class="ep-dos">${f.forma === 'circulo' ? num('w', 'Diámetro (m)') : num('w', 'Ancho (m)') + num('h', 'Alto (m)')}</div>
+        <button class="ep-borrar" onclick="epBorrar()">🗑 Borrar figura</button>`;
+}
+function epCampo(k, val) {
+    const f = ep && ep.formas.find(x => x.id === ep.sel);
+    if (!f) return;
+    if (['x', 'y', 'w', 'h', 'relieve'].includes(k)) { const n = parseFloat(val); if (!Number.isFinite(n)) return; f[k] = n; }
+    else f[k] = val;
+    if (k === 'tipo') { if (val === 'placa' && !(f.relieve > 0.012)) f.relieve = 0.03; if (val === 'enchape') f.relieve = 0.012; }
+    epLimitar(f); epDibujar();
+    if (k === 'tipo') epPropiedades();
+}
+function epBorrar() {
+    if (!ep || !ep.sel) return;
+    ep.formas = ep.formas.filter(f => f.id !== ep.sel); ep.sel = null; epPropiedades(); epDibujar();
+}
+(function iniciarLienzoPared() {
+    const c = document.getElementById('epLienzo');
+    if (!c) return;
+    const pos = e => { const r = c.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+    c.addEventListener('pointerdown', e => {
+        if (!ep) return;
+        c.setPointerCapture(e.pointerId);
+        const [mx, my] = pos(e), v = epVista(), [x, y] = v.aM(mx, my);
+        const sel = ep.formas.find(f => f.id === ep.sel);
+        if (sel) {   // ¿agarró la esquina ◢ de la seleccionada?
+            const [ex, ey] = v.aPx(sel.x + sel.w, sel.y);
+            if (Math.abs(mx - ex) < 10 && Math.abs(my - ey) < 10) { ep.arrastre = { modo: 'tamano', f: sel, x0: x, y0: y, w0: sel.w, h0: sel.h, top: sel.y + epAltoForma(sel) }; return; }
+        }
+        // Tocar una figura la agarra (con cualquier herramienta); tocar pared vacía dibuja
+        const f = epFormaEn(mx, my);
+        if (f) {
+            ep.sel = f.id; ep.arrastre = { modo: 'mover', f, dx: x - f.x, dy: y - f.y };
+            epPropiedades(); epDibujar(); return;
+        }
+        if (ep.herramienta === 'seleccionar') { ep.sel = null; epPropiedades(); epDibujar(); return; }
+        if (x < 0 || x > ep.L || y < 0 || y > ep.alto) return;
+        const nueva = { id: 'f' + Date.now() + Math.floor(Math.random() * 1000), forma: ep.herramienta === 'circulo' ? 'circulo' : 'rect',
+                        cuadrado: ep.herramienta === 'cuadrado', cara: ep.cara, x: epSnap(x), y: epSnap(y), w: 0.05, h: 0.05,
+                        tipo: ep.cara === 'afuera' ? 'placa' : 'enchape', color: ep.cara === 'afuera' ? '#8A8178' : '#D6CFC4', relieve: ep.cara === 'afuera' ? 0.03 : 0.012 };
+        ep.formas.push(nueva); ep.sel = nueva.id;
+        ep.arrastre = { modo: 'crear', f: nueva, x0: epSnap(x), y0: epSnap(y) };
+        epDibujar();
+    });
+    c.addEventListener('pointermove', e => {
+        if (!ep) return;
+        const [mx, my] = pos(e), v = epVista(), [x, y] = v.aM(mx, my);
+        const a = ep.arrastre;
+        if (!a) { const f = epFormaEn(mx, my); c.style.cursor = f ? 'move' : (ep.herramienta === 'seleccionar' ? 'default' : 'crosshair'); return; }
+        const f = a.f;
+        if (a.modo === 'mover') { f.x = epSnap(x - a.dx); f.y = epSnap(y - a.dy); }
+        if (a.modo === 'crear' || a.modo === 'tamano') {
+            const baseX = a.modo === 'crear' ? a.x0 : f.x;
+            let w = Math.abs(epSnap(x) - baseX), h;
+            if (a.modo === 'crear') {
+                h = Math.abs(epSnap(y) - a.y0);
+                f.x = Math.min(a.x0, epSnap(x)); f.y = Math.min(a.y0, epSnap(y));
+            } else {
+                w = Math.max(0.05, epSnap(x) - f.x);
+                h = Math.max(0.05, a.top - epSnap(y));      // la esquina ◢ baja: la parte de arriba se queda
+                f.y = a.top - h;
+            }
+            if (f.forma === 'circulo' || f.cuadrado) { const lado = Math.max(w, h); w = lado; h = lado; }
+            f.w = Math.max(0.05, w); f.h = Math.max(0.05, h);
+        }
+        epLimitar(f); epDibujar();
+    });
+    const soltar = () => {
+        if (!ep || !ep.arrastre) return;
+        const a = ep.arrastre; ep.arrastre = null;
+        if (a.modo === 'crear') {
+            if (a.f.w < 0.1 && epAltoForma(a.f) < 0.1) {   // un clic suelto: figura de 60 cm por defecto
+                a.f.w = 0.6; a.f.h = a.f.forma === 'rect' && !a.f.cuadrado ? 0.4 : 0.6; epLimitar(a.f);
+            }
+            epHerramienta('seleccionar');
+        }
+        epPropiedades(); epDibujar();
+    };
+    c.addEventListener('pointerup', soltar);
+    c.addEventListener('pointercancel', soltar);
+    window.addEventListener('resize', () => { if (ep) epDibujar(); });
+    document.addEventListener('keydown', e => {
+        if (!ep) return;
+        if (e.key === 'Escape') { e.stopPropagation(); cerrarEditorPared(false); }
+        const el = document.activeElement;
+        if ((e.key === 'Delete' || e.key === 'Backspace') && !(el && ['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName))) { e.preventDefault(); epBorrar(); }
+    }, true);
+})();
+
 // ── LISTA DE OBJETOS DEL 3D, con "en uso" y candado ──────────────────────
 // Los cuartos arrancan bloqueados: se arman en la planta y moverlos en el 3D
 // casi siempre es sin querer (se agarraba el piso en vez de la cámara).
@@ -1692,7 +2090,9 @@ let _firmaLista = '';
 function renderListaObjetos(forzar) {
     const caja = document.getElementById('listaObjetos3D');
     if (!caja) return;
-    const mostrar = vistaActual === '3d' && salaConstruida && !modoInterior;
+    // Se esconde mientras se elige un muro: está encima del 3D y tapaba los muros de atrás
+    const eligiendoMuro = (typeof modoDisenarPared !== 'undefined' && modoDisenarPared) || modoEliminarPared || modoElegirPared;
+    const mostrar = vistaActual === '3d' && salaConstruida && !modoInterior && !eligiendoMuro;
     caja.style.display = mostrar ? 'flex' : 'none';
     if (!mostrar) return;
     const objs = objetosEditables();
@@ -2649,7 +3049,7 @@ function getMouseNDC(event) {
 }
 
 canvas.addEventListener('mousedown', (e) => {
-    if (modoElegirPared || modoEliminarPared) {
+    if (modoElegirPared || modoEliminarPared || modoDisenarPared) {
         clickEnPared();
         e.stopPropagation();
         return;
@@ -2682,7 +3082,7 @@ canvas.addEventListener('mousedown', (e) => {
 });
 
 canvas.addEventListener('mousemove', (e) => {
-    if (modoElegirPared || modoEliminarPared) {
+    if (modoElegirPared || modoEliminarPared || modoDisenarPared) {
         actualizarHoverParedes(getMouseNDC(e));
         return;
     }
@@ -3917,7 +4317,7 @@ function firmaPlanta() {
     return JSON.stringify({
         m: modulosPlanta.map(m => [m.id, m.tipo, m.px, m.pz, m.ancho, m.largo, m.alto, m.nivel, m.forma, m.alturaBase,
             m.peralte, m.descuelgue, m.espesor, m.tipoTecho, m.pendiente, m.voladizo, m.orientacion,
-            m.materialPiso, m.imagenPisoUrl, m.colorPared, m.acabado, m.nivelExt, (m.paredesEliminadas || []).join()]),
+            m.materialPiso, m.imagenPisoUrl, m.colorPared, m.acabado, m.nivelExt, (m.paredesEliminadas || []).join(), JSON.stringify(m.disenoParedes || null)]),
         v: vanosPlanta.map(v => [v.modulo_a, v.modulo_b, v.lado, v.centro, v.ancho, v.tipo, v.alto, v.bisagra, v.sentido, v.anguloApertura]),
         n: typeof nivelesTotales !== 'undefined' ? nivelesTotales : 1,
         e: [e.fachada, e.materialFachada, e.colorFachada, e.gruesoFachada, e.cubierta, e.pendiente, e.alero, e.girarCubierta],
@@ -5526,7 +5926,9 @@ async function cargarFotoIA() {
     const params=new URLSearchParams(window.location.search);
     const urlParam=params.get('foto');
     cargarGaleria();
-    if(urlParam){fotoIaUrl=decodeURIComponent(urlParam);agregarFotoGaleria('whatsapp', fotoIaUrl);return;}
+    if(urlParam){fotoIaUrl=decodeURIComponent(urlParam);
+        if (!fotoOculta(fotoIaUrl) && !galeriaFotos.some(f => f.url === fotoIaUrl)) agregarFotoGaleria('whatsapp', fotoIaUrl);
+        return;}
     try {
         const {data:{session}}=await db.auth.getSession();
         if(!session) return;
@@ -5535,7 +5937,7 @@ async function cargarFotoIA() {
         const {data:img}=await db.from('imagenes').select('url_generada').eq('empresa_id',empresa.id).order('created_at',{ascending:false}).limit(1).maybeSingle();
         // La última foto del bot de WhatsApp va al final y con su etiqueta: antes
         // aparecía sola en Foto IA y parecía del proyecto.
-        if(img?.url_generada){ fotoIaUrl=img.url_generada;
+        if(img?.url_generada && !fotoOculta(img.url_generada) && !galeriaFotos.some(f => f.url === img.url_generada)){ fotoIaUrl=img.url_generada;
             galeriaFotos.push({ id:'wa_ultima', tipo:'whatsapp', url:img.url_generada, fecha:0 });
             if (!fotoGaleriaSel) fotoGaleriaSel = galeriaFotos[0].id;
             actualizarPestanaFoto(); if (vistaActual==='foto') renderGaleria(); }
@@ -5740,7 +6142,7 @@ function renderGaleria() {
             <button class="ga-superficies" onclick="llevarFotoA('superficies')">🧱 Llevar al Editor de superficies</button>
             <button class="ga-whatsapp" onclick="enviarAlCliente()">💬 Enviar al cliente</button>
             <button class="ga-secundario" onclick="descargarFotoGaleria()">⬇ Descargar</button>
-            ${f.tipo !== 'whatsapp' ? '<button class="ga-quitar" onclick="quitarFotoGaleria()">🗑 Quitar</button>' : ''}
+            <button class="ga-quitar" onclick="quitarFotoGaleria()">🗑 Quitar</button>
         </div>
         <div class="galeria-tira">${galeriaFotos.map(x => `<div class="miniatura${x.id === f.id ? ' activa' : ''}" onclick="fotoGaleriaSel='${x.id}'; renderGaleria();">
             <img src="${esc(x.dataUrl || x.url)}" alt="" loading="lazy"><span>${(ETIQUETA_FOTO[x.tipo] || '📸').split(' ')[0]}</span></div>`).join('')}</div>
@@ -5785,10 +6187,26 @@ function descargarFotoGaleria() {
     a.href = f.dataUrl || f.url; a.download = `decoiarte_${f.tipo}_${f.fecha}.jpg`; a.target = '_blank';
     a.click();
 }
+// Las fotos del bot no viven en este navegador (se leen de la base cada vez):
+// al quitarlas se anota su dirección para no volver a mostrarlas aquí. La foto
+// sigue existiendo para el cliente y en la bandeja del asesor.
+function fotoOculta(url) {
+    try { return (JSON.parse(localStorage.getItem('decoia_fotos_ocultas') || '[]')).includes(url); } catch (e) { return false; }
+}
+function ocultarFoto(url) {
+    try {
+        const l = JSON.parse(localStorage.getItem('decoia_fotos_ocultas') || '[]');
+        if (!l.includes(url)) { l.push(url); localStorage.setItem('decoia_fotos_ocultas', JSON.stringify(l.slice(-200))); }
+    } catch (e) {}
+}
 function quitarFotoGaleria() {
     const f = galeriaFotos.find(x => x.id === fotoGaleriaSel);
-    if (!f || !confirm('¿Quitar esta foto de la galería?')) return;
+    const aviso = f && f.tipo === 'whatsapp'
+        ? '¿Quitar esta foto de tu galería? (El cliente la sigue teniendo; solo deja de salir aquí.)'
+        : '¿Quitar esta foto de la galería?';
+    if (!f || !confirm(aviso)) return;
     galeriaFotos = galeriaFotos.filter(x => x.id !== f.id);
+    if (f.tipo === 'whatsapp' && f.url) ocultarFoto(f.url);
     _galeriaBorrar(f.id);
     fotoGaleriaSel = galeriaFotos[0]?.id || null;
     actualizarPestanaFoto();
@@ -6137,7 +6555,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     cargarFotoIA();
 });
-cargarFotoIA();
+// (Antes también se llamaba aquí, antes de revisar el plan: la foto del bot
+// entraba dos veces a la galería y se cargaba aunque el plan no tuviera acceso.)
 
 function mostrarBloqueoPlanVisor() {
     const pagoPendiente = ['profesional','premium','corporativo'].includes(planEmpresaVisor) && estadoEmpresaVisor !== 'activo';
@@ -7751,6 +8170,7 @@ function generarDesdePlanta() {
             material_piso:  m.materialPiso || (m.tipo === 'bano' ? 'ceramica' : 'ceramica'),
             imagen_piso:    m.imagenPisoUrl || null,
             paredes_eliminadas: m.paredesEliminadas || [],
+            diseno_paredes:     m.disenoParedes || null,   // editor de pared: placas, enchapes y pintura por lado
             // estructura
             forma:       m.forma       || null,   // columna: 'cuadrada'|'redonda' — plafón: 'rect'|'circulo'|'L'
             altura_base: m.alturaBase  ?? null,   // viga: desde el piso hasta su cara inferior
@@ -8337,6 +8757,13 @@ function cargarDesdePlano(modelo3d) {
         // pisosRaycastables: el raycast usa matrices de mundo, así que
         // cambiarles el padre no rompe ni el hover de muros ni el dibujo del
         // recorrido sobre el piso.
+        // Diseño de cada pared (editor de pared): va antes de agrupar para que
+        // quede dentro del cuarto y se mueva con él.
+        if (mod.diseno_paredes) Object.entries(mod.diseno_paredes).forEach(([lado, formas]) => {
+            if ((mod.paredes_eliminadas || []).includes(lado)) return;
+            mallasDisenoPared(formas, { cx: x, cz: z, ancho, largo, alto, baseY, exterior: !contactoPorLado[lado].length }, lado)
+                .forEach(mm => scene.add(mm));
+        });
         agruparEnPivote(marcaEscena,
             new THREE.Vector3(x, baseY + alto/2, z),
             { tipoEstructura: 'cuarto', moduloId: mod.id, moduloNombre: mod.nombre });
