@@ -202,6 +202,12 @@
             border-radius:50px; padding:7px 14px; font-size:12px; font-weight:700; color:#E9D5FF; backdrop-filter:blur(6px); }
         .pastilla-video .pv-candado { color:#FCD34D; font-size:11.5px; }
         .pastilla-video a { color:#FCD34D; font-size:11.5px; font-weight:600; }
+        .paleta-titulo { font-size:10.5px; color:var(--gris); text-transform:uppercase; letter-spacing:0.05em; font-weight:700; margin:10px 0 6px; }
+        .paleta-pintura { display:grid; grid-template-columns:repeat(5, 1fr); gap:6px; }
+        .paleta-pintura button { aspect-ratio:1; border-radius:50%; border:2px solid rgba(255,255,255,0.12); cursor:pointer; padding:0; transition:transform .12s; }
+        .paleta-pintura button:hover { transform:scale(1.12); }
+        .paleta-pintura button.activa { border-color:#A78BFA; box-shadow:0 0 0 2px rgba(167,139,250,0.45); }
+        .paleta-nombre { font-size:11.5px; color:#C4B5FD; margin-top:6px; min-height:15px; }
         .btn-volver-planta { width:100%; background:rgba(124,58,237,0.12); border:1px solid rgba(124,58,237,0.35); color:#C4B5FD; padding:8px; border-radius:9px; font-size:12.5px; font-weight:700; cursor:pointer; font-family:inherit; }
         .btn-volver-planta:hover { background:rgba(124,58,237,0.22); }
         .aviso-regenerar { margin-top:10px; background:rgba(245,158,11,0.10); border:1px solid rgba(245,158,11,0.35); border-radius:10px; padding:10px; font-size:12px; color:#FCD34D; line-height:1.5; }
@@ -809,6 +815,9 @@
                 <label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;">Color de pared</label>
                 <input type="color" id="propColorPared" value="#F5F5F5" oninput="actualizarPropModulo()"
                     style="width:100%;height:36px;background:var(--oscuro);border:1px solid rgba(124,58,237,0.2);border-radius:8px;padding:2px;margin-top:4px;cursor:pointer;">
+                <div class="paleta-titulo">🎨 Pinturas DecoIArte</div>
+                <div class="paleta-pintura" data-paleta="planta"></div>
+                <div class="paleta-nombre" id="nombrePinturaPlanta"></div>
             </div>
             <div id="contPortafolioPisoWrap">
                 <label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;">Piso del portafolio de la tienda</label>
@@ -976,15 +985,12 @@
 
     <div class="panel-section" id="secColorParedes" data-vista="3d">
         <div class="panel-titulo">🎨 Color paredes</div>
-        <div class="materiales-grid" style="margin-bottom:10px;">
-            <button class="material-btn activo" onclick="cambiarColorPared('#F8F8F8',this)"><span class="mat-icon">⬜</span>Blanco</button>
-            <button class="material-btn" onclick="cambiarColorPared('#E8DCC8',this)"><span class="mat-icon">🟨</span>Beige</button>
-            <button class="material-btn" onclick="cambiarColorPared('#C8D8E8',this)"><span class="mat-icon">🟦</span>Celeste</button>
-            <button class="material-btn" onclick="cambiarColorPared('#D8E8D8',this)"><span class="mat-icon">🟩</span>Verde</button>
-            <button class="material-btn" onclick="cambiarColorPared('#E8C8D8',this)"><span class="mat-icon">🟥</span>Rosa</button>
-            <button class="material-btn" onclick="cambiarColorPared('#2C2C2C',this)"><span class="mat-icon">⬛</span>Gris</button>
-        </div>
-        <input type="color" value="#F8F8F8" oninput="cambiarColorParedCustom(this.value)">
+        <div class="paleta-titulo" style="margin-top:0;">Pinturas DecoIArte · se pinta por dentro en toda la casa</div>
+        <div class="paleta-pintura" data-paleta="3d"></div>
+        <div class="paleta-nombre" id="nombrePintura3D"></div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--gris);margin-top:8px;">Otro color
+            <input type="color" value="#EFE9DD" oninput="pintarTodaLaCasa(this.value)" style="flex:1;height:30px;background:var(--oscuro);border:1px solid rgba(124,58,237,0.2);border-radius:8px;padding:2px;cursor:pointer;"></label>
+        <div style="font-size:10.5px;color:var(--gris);margin-top:6px;line-height:1.5;">Para pintar un solo cuarto, cámbiale el color en el Editor Planta. Las pinturas de las tiendas llegarán después al portafolio.</div>
     </div>
 
     <!-- ENVOLVENTE (se ve en Entorno 3D): techo interior, fachada exterior y cubierta -->
@@ -1054,13 +1060,34 @@
         <div class="panel-titulo" id="tituloSecCamara">📸 Cámara de fotos</div>
         <div style="font-size:11.5px;color:var(--gris);line-height:1.55;margin-bottom:10px;">La <b style="color:var(--texto)">Foto IA</b> sale desde esta cámara. Busca la toma que te guste y toca <b style="color:var(--texto)">📍 Traer la cámara a mi vista</b>. En la cámara interior, tú eres la cámara.</div>
         <button onclick="traerCamaraAMiVista()" style="width:100%;background:var(--degradado);color:#fff;border:none;padding:9px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px;">📍 Traer la cámara a mi vista</button>
+        <div id="lecturaCamara" style="font-size:11.5px;color:var(--gris);background:var(--oscuro);border-radius:8px;padding:6px 9px;margin-bottom:8px;">—</div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;font-size:11.5px;color:var(--gris);">
+            Giro <select id="pasoGrados" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:5px 6px;border-radius:8px;font-size:12px;font-family:inherit;"><option value="5">5°</option><option value="10">10°</option><option value="15" selected>15°</option><option value="30">30°</option><option value="45">45°</option><option value="90">90°</option></select>
+            Paso <select id="pasoMetros" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:5px 6px;border-radius:8px;font-size:12px;font-family:inherit;"><option value="0.1">10 cm</option><option value="0.25" selected>25 cm</option><option value="0.5">50 cm</option><option value="1">1 m</option></select>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:6px;">
+            <button onclick="lente('izq')" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:7px 4px;border-radius:9px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;" title="Girar a la izquierda">⟲ Girar</button>
+            <button onclick="lente('voltear')" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:7px 4px;border-radius:9px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;" title="Dar media vuelta">↩ 180°</button>
+            <button onclick="lente('der')" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:7px 4px;border-radius:9px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;" title="Girar a la derecha">Girar ⟳</button>
+            <button onclick="lente('arriba')" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:7px 4px;border-radius:9px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;">⤒ Mirar arriba</button>
+            <button onclick="lente('nivelar')" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:7px 4px;border-radius:9px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;" title="Mirar derecho al frente">⎯ Nivelar</button>
+            <button onclick="lente('abajo')" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:7px 4px;border-radius:9px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;">⤓ Mirar abajo</button>
+            <button onclick="lente('adelante')" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:7px 4px;border-radius:9px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;">⬆ Avanzar</button>
+            <button onclick="lente('ojos')" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:7px 4px;border-radius:9px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;" title="Poner la cámara a 1,60 m, la altura de los ojos">👁 1,60 m</button>
+            <button onclick="lente('atras')" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:7px 4px;border-radius:9px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;">⬇ Retroceder</button>
+            <button onclick="lente('subir')" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:7px 4px;border-radius:9px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;">⤴ Subir</button>
+            <button onclick="lente('izqLado')" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:7px 4px;border-radius:9px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;">⇠ Al lado</button>
+            <button onclick="lente('bajar')" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:7px 4px;border-radius:9px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;">⤵ Bajar</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:11.5px;color:var(--gris);">
+            🔒 Bloquear eje:
+            <button id="ejeX" onclick="alternarEje('x')" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:7px 4px;border-radius:9px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;">X</button>
+            <button id="ejeY" onclick="alternarEje('y')" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:7px 4px;border-radius:9px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;">Y (altura)</button>
+            <button id="ejeZ" onclick="alternarEje('z')" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:7px 4px;border-radius:9px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;">Z</button>
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
             <button onclick="moverCamaraConFlechas()" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:8px 6px;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">✥ Mover con flechas</button>
             <button onclick="verDesdeLaCamara()" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:8px 6px;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">👁️ Ver lo que ve</button>
-            <button onclick="rotarCamaraVideo('yaw', 1)" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:8px 6px;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">⟲ Girar izq.</button>
-            <button onclick="rotarCamaraVideo('yaw', -1)" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:8px 6px;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">⟳ Girar der.</button>
-            <button onclick="rotarCamaraVideo('pitch', 1)" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:8px 6px;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">⤒ Mirar arriba</button>
-            <button onclick="rotarCamaraVideo('pitch', -1)" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:var(--texto);padding:8px 6px;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">⤓ Mirar abajo</button>
         </div>
     </div>
     <div class="panel-section" id="secIluminacion" data-vista="3d" data-abierta="1">
@@ -1990,6 +2017,9 @@ function epPropiedades() {
             <option value="enchape" ${f.tipo === 'enchape' ? 'selected' : ''}>Enchape</option>
             <option value="pintura" ${f.tipo === 'pintura' ? 'selected' : ''}>Pintura</option></select></div>
         <div><label>Color</label><input type="color" value="${f.color || '#D6CFC4'}" oninput="epCampo('color', this.value)"></div>
+        ${f.tipo === 'pintura' ? `<div><label>Pinturas DecoIArte</label><div class="paleta-pintura" data-paleta="ep">${PINTURAS_DECOIARTE.map(([n, h]) =>
+            `<button type="button" style="background:${h}" title="${n}" data-hex="${h}" class="${h.toLowerCase() === String(f.color || '').toLowerCase() ? 'activa' : ''}" onclick="elegirPintura('ep', '${h}')"></button>`).join('')}</div>
+            <div class="paleta-nombre">${nombrePintura(f.color) ? 'Pintura DecoIArte · ' + nombrePintura(f.color) : ''}</div></div>` : ''}
         ${f.tipo === 'pintura' ? '' : `<div><label>Relieve (cm)</label><input type="number" min="0.5" max="20" step="0.5" value="${Math.round((f.relieve ?? 0.03) * 1000) / 10}" oninput="epCampo('relieve', this.value / 100)"></div>`}
         <div class="ep-dos">${num('x', 'Desde la izquierda (m)')}${num('y', 'Desde el piso (m)')}</div>
         <div class="ep-dos">${f.forma === 'circulo' ? num('w', 'Diámetro (m)') : num('w', 'Ancho (m)') + num('h', 'Alto (m)')}</div>
@@ -2174,6 +2204,7 @@ window.soltarTransformar = function() {
 function seleccionarParaTransformar(obj) {
     if (obj === marcadorCamara && modoInterior) { mostrarToast('En la cámara interior tú eres la cámara: camina y mira'); return; }
     objetoTransformar = obj;
+    aplicarEjesGizmo();
     abrirSeccionPanel('secEditar3D');
     setTimeout(() => renderListaObjetos(true), 0);
     // Se guarda el estado de partida: sirve para el "deshacer" y para calcular
@@ -3360,7 +3391,9 @@ function procesarMovimientoWASD() {
 
     const nuevoPos = camera.position.clone().add(mover);
 
-    if (modoCaminarLibre) {
+    if (lenteLibre) {
+        nuevoPos.y = Math.max(0.1, nuevoPos.y);   // por el lente se camina libre (puede estar afuera de la casa)
+    } else if (modoCaminarLibre) {
         // Límites del PLANO REAL (todas las habitaciones), no del cuarto viejo
         const lim = limitesModelo3D();
         const margen = 0.2;
@@ -3383,9 +3416,10 @@ function procesarMovimientoWASD() {
 
     if (modoPivote) {
         // Sincronizar sliders del panel (solo existen en modo pivote)
-        document.getElementById('cpX').value = nuevoPos.x.toFixed(2);
+        const cu = modulosActuales3D.find(m => m.id === cuartoPivoteActual) || { cx: 0, cz: 0 };
+        document.getElementById('cpX').value = (nuevoPos.x - cu.cx).toFixed(2);
         document.getElementById('cpY').value = nuevoPos.y.toFixed(2);
-        document.getElementById('cpZ').value = nuevoPos.z.toFixed(2);
+        document.getElementById('cpZ').value = (nuevoPos.z - cu.cz).toFixed(2);
     }
 
     controls.update();
@@ -5332,6 +5366,140 @@ function agregarPuntoTrazo3D(hit) {
 let modoArrastrarCamara = false;
 let arrastrandoCamara   = false;
 
+// ── PINTURAS DECOIARTE ───────────────────────────────────────────────────
+// Colores de pared listos para aplicar. No son productos: no entran al
+// carrito. Más adelante estarán también las pinturas que suban las tiendas.
+const PINTURAS_DECOIARTE = [
+    ['Blanco Hueso', '#EFE9DD'], ['Blanco Nube', '#F2F0EB'], ['Arena Cálida', '#E3D5BE'], ['Beige Lino', '#D8C9AF'], ['Greige', '#C9C1B4'],
+    ['Gris Perla', '#D1CFCA'], ['Gris Niebla', '#A7ABAE'], ['Grafito', '#4B4E53'], ['Verde Salvia', '#A9B49B'], ['Verde Oliva', '#7B7F5B'],
+    ['Azul Niebla', '#A3B6C3'], ['Azul Petróleo', '#2F5662'], ['Terracota', '#B8674B'], ['Rosa Palo', '#D9BAB0'], ['Mostaza', '#C9A33D'],
+];
+function nombrePintura(hex) {
+    const p = PINTURAS_DECOIARTE.find(([, h]) => h.toLowerCase() === String(hex || '').toLowerCase());
+    return p ? p[0] : null;
+}
+function prepararPaletas() {
+    document.querySelectorAll('.paleta-pintura').forEach(caja => {
+        caja.innerHTML = PINTURAS_DECOIARTE.map(([n, h]) =>
+            `<button type="button" style="background:${h}" title="Pintura DecoIArte · ${n}" data-hex="${h}"
+                onclick="elegirPintura('${caja.dataset.paleta}', '${h}')"></button>`).join('');
+    });
+}
+function marcarPaleta(cual, hex) {
+    document.querySelectorAll(`.paleta-pintura[data-paleta="${cual}"] button`).forEach(b =>
+        b.classList.toggle('activa', b.dataset.hex.toLowerCase() === String(hex || '').toLowerCase()));
+    const n = nombrePintura(hex);
+    const el = document.getElementById(cual === 'planta' ? 'nombrePinturaPlanta' : cual === '3d' ? 'nombrePintura3D' : 'nombrePinturaEP');
+    if (el) el.textContent = n ? `Pintura DecoIArte · ${n}` : '';
+}
+function elegirPintura(cual, hex) {
+    if (cual === 'planta') {
+        if (!moduloSeleccionado) return;
+        document.getElementById('propColorPared').value = hex;
+        actualizarPropModulo();
+        marcarPaleta('planta', hex);
+    } else if (cual === '3d') {
+        pintarTodaLaCasa(hex);
+    } else if (cual === 'ep') {
+        epCampo('color', hex); epPropiedades();
+    }
+}
+// Pinta por dentro todos los cuartos, en la planta y en el 3D al instante
+// (la fachada no se toca: tiene su propio acabado en Techos y fachada).
+function pintarTodaLaCasa(hex) {
+    if (!salaConstruida) { mostrarToast('⚠️ Genera un modelo 3D primero'); return; }
+    const ids = new Set();
+    modulosPlanta.forEach(m => { if (esCuarto(m.tipo)) { m.colorPared = hex; m.pinturaNombre = nombrePintura(hex); ids.add(m.id); } });
+    scene.traverse(o => {
+        const u = o.userData || {};
+        if (u.esPared && !u.esFachada && o.material && o.material.color && (ids.has(u.moduloId) || !modulosPlanta.length)) o.material.color.setStyle(hex);
+    });
+    estado.colorPared = hex;
+    ['paredTrasera', 'paredFrontal', 'paredIzq', 'paredDer'].forEach(k => { if (meshes[k]) meshes[k].material.color.setStyle(hex); });
+    registrarCambioPlanta();
+    firmaUltimo3D = firmaPlanta();   // el 3D ya quedó pintado: no pedir regenerar
+    actualizarAvisoRegenerar();
+    marcarPaleta('3d', hex);
+    const n = nombrePintura(hex);
+    mostrarToast(n ? `🎨 Casa pintada con Pintura DecoIArte · ${n}` : '🎨 Casa pintada');
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', prepararPaletas); else prepararPaletas();
+
+// ── MOVIMIENTOS PREDETERMINADOS DEL LENTE ────────────────────────────────
+// Afuera mueven la cámara; en la cámara interior (tú eres la cámara) mueven
+// tu vista. Giro e inclinación en grados exactos; pasos en metros exactos.
+function orientacionLente() {
+    if (modoInterior) {
+        const d = controls.target.clone().sub(camera.position).normalize();
+        return { yaw: Math.atan2(-d.x, -d.z), pitch: Math.asin(Math.max(-1, Math.min(1, d.y))), pos: camera.position };
+    }
+    const e = new THREE.Euler().setFromQuaternion(marcadorCamara.quaternion, 'YXZ');
+    return { yaw: e.y, pitch: e.x, pos: marcadorCamara.position };
+}
+function ponerOrientacionLente(yaw, pitch) {
+    const LIM = THREE.MathUtils.degToRad(85);
+    pitch = Math.max(-LIM, Math.min(LIM, pitch));
+    if (modoInterior) {
+        const d = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+        controls.target.copy(camera.position).addScaledVector(d, 0.3); controls.update();
+    } else {
+        marcadorCamara.rotation.set(pitch, yaw, 0, 'YXZ');
+    }
+}
+function lente(accion) {
+    if (!salaConstruida) { mostrarToast('⚠️ Genera un modelo 3D primero'); return; }
+    const g = THREE.MathUtils.degToRad(parseFloat(document.getElementById('pasoGrados').value) || 15);
+    const paso = parseFloat(document.getElementById('pasoMetros').value) || 0.25;
+    let { yaw, pitch, pos } = orientacionLente();
+    const frente = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+    const lado = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+    const mover = v => { pos.add(v); if (modoInterior) { controls.target.add(v); controls.update(); } };
+    switch (accion) {
+        case 'izq':      yaw += g; break;
+        case 'der':      yaw -= g; break;
+        case 'voltear':  yaw += Math.PI; break;
+        case 'arriba':   pitch += g; break;
+        case 'abajo':    pitch -= g; break;
+        case 'nivelar':  pitch = 0; break;
+        case 'adelante': if (!ejesBloqueados.x || !ejesBloqueados.z) mover(frente.multiplyScalar(paso).multiply(ejesLibres())); break;
+        case 'atras':    if (!ejesBloqueados.x || !ejesBloqueados.z) mover(frente.multiplyScalar(-paso).multiply(ejesLibres())); break;
+        case 'izqLado':  mover(lado.multiplyScalar(-paso).multiply(ejesLibres())); break;
+        case 'subir':    if (!ejesBloqueados.y) mover(new THREE.Vector3(0, paso, 0)); break;
+        case 'bajar':    if (!ejesBloqueados.y) { mover(new THREE.Vector3(0, -Math.min(paso, pos.y - 0.1), 0)); } break;
+        case 'ojos':     if (!ejesBloqueados.y) { const base = (modulosActuales3D.find(m => Math.abs(pos.x - m.cx) < m.ancho / 2 && Math.abs(pos.z - m.cz) < m.largo / 2) || {}).baseY || 0;
+                             mover(new THREE.Vector3(0, base + 1.6 - pos.y, 0)); } break;
+    }
+    if (['izq', 'der', 'voltear', 'arriba', 'abajo', 'nivelar'].includes(accion)) ponerOrientacionLente(yaw, pitch);
+    if (!modoInterior) marcadorCamara.visible = true;
+    leerLente();
+}
+function leerLente() {
+    const el = document.getElementById('lecturaCamara');
+    if (!el || !salaConstruida) return;
+    const { yaw, pitch, pos } = orientacionLente();
+    const grados = v => Math.round(THREE.MathUtils.radToDeg(v));
+    let giro = ((grados(yaw) % 360) + 360) % 360;
+    el.innerHTML = `Giro <b style="color:var(--texto)">${giro}°</b> · Inclinación <b style="color:var(--texto)">${grados(pitch) > 0 ? '+' : ''}${grados(pitch)}°</b> · Altura <b style="color:var(--texto)">${pos.y.toFixed(2)} m</b>${modoInterior ? ' · <span style="color:#86EFAC">por el lente</span>' : ''}`;
+}
+setInterval(() => { if (vistaActual === '3d') leerLente(); }, 400);
+
+// Candado por ejes: la cámara (y lo que se mueva con el gizmo) no se sale de ese eje
+const ejesBloqueados = { x: false, y: false, z: false };
+function ejesLibres() { return new THREE.Vector3(ejesBloqueados.x ? 0 : 1, ejesBloqueados.y ? 0 : 1, ejesBloqueados.z ? 0 : 1); }
+function aplicarEjesGizmo() {
+    if (gizmo) { gizmo.showX = !ejesBloqueados.x; gizmo.showY = !ejesBloqueados.y; gizmo.showZ = !ejesBloqueados.z; }
+    ['x', 'y', 'z'].forEach(k => {
+        const b = document.getElementById('eje' + k.toUpperCase());
+        if (b) { b.style.background = ejesBloqueados[k] ? 'rgba(245,158,11,0.2)' : 'var(--oscuro)'; b.style.borderColor = ejesBloqueados[k] ? '#F59E0B' : 'rgba(124,58,237,0.3)';
+                 b.textContent = (ejesBloqueados[k] ? '🔒 ' : '') + (k === 'y' ? 'Y (altura)' : k.toUpperCase()); }
+    });
+}
+function alternarEje(k) {
+    ejesBloqueados[k] = !ejesBloqueados[k];
+    aplicarEjesGizmo();
+    mostrarToast(ejesBloqueados[k] ? `🔒 Eje ${k.toUpperCase()} bloqueado: no se mueve en esa dirección` : `🔓 Eje ${k.toUpperCase()} libre`);
+}
+
 // ── CÁMARA PARA TODOS LOS PLANES: traerla, moverla y ver lo que ve ────────
 function traerCamaraAMiVista() {
     if (!salaConstruida) { mostrarToast('⚠️ Genera un modelo 3D primero'); return; }
@@ -6281,9 +6449,16 @@ function toggleCamaraInterior() {
 }
 let cuartoPivoteActual = null; // id del módulo donde está la cámara interior ahora
 
+// Al entrar se guarda TU vista del proyecto; al salir se devuelve tal cual y
+// la cámara se queda donde quedó el lente. Antes, al salir, tu vista se
+// quedaba en el lente y la cámara aparecía a tu lado.
+let vistaAntesDelLente = null;
+let lenteLibre = false;   // entraste por el lente: se camina sin los límites del cuarto
 function activarCamaraPivote() {
     if(modoMover) desactivarMoverMueble();
     if (objetoTransformar === marcadorCamara) salirModoTransformar();
+    if (!modoInterior) vistaAntesDelLente = { pos: camera.position.clone(), target: controls.target.clone(), fov: camera.fov,
+        min: controls.minDistance, max: controls.maxDistance, polar: controls.maxPolarAngle };
     modoPivote=true;
     modoInterior=true;
     mostrarTechosInterior(true);
@@ -6326,16 +6501,25 @@ function activarCamaraPivote() {
     }
     controls.enabled=false;
     aplicarLimitesCuartoPivote();
-    if (dentro && pc.lengthSq() > 0) {
-        const lim = (v, a) => Math.max(-a, Math.min(a, v));
-        document.getElementById('cpX').value = lim(pc.x - dentro.cx, dentro.ancho / 2 - 0.4);
-        document.getElementById('cpZ').value = lim(pc.z - dentro.cz, dentro.largo / 2 - 0.4);
-        document.getElementById('cpY').value = Math.max(0.3, Math.min(dentro.alto - 0.3, pc.y));
-        moverCamaraPivote(dentro.cx, dentro.cz);
+    lenteLibre = false;
+    if (pc.lengthSq() > 0) {
+        // "Desde la posición de la cámara": exactamente donde está el lente,
+        // aunque esté afuera de la casa, con su misma dirección y su mismo lente.
+        lenteLibre = true;
+        if (dentro) {
+            document.getElementById('cpX').value = pc.x - dentro.cx;
+            document.getElementById('cpZ').value = pc.z - dentro.cz;
+            document.getElementById('cpY').value = pc.y;
+        }
+        camera.position.copy(pc);
+        camera.fov = cameraPreview.fov || 60; camera.updateProjectionMatrix();
+        document.getElementById('cpFov').value = camera.fov;
         const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(marcadorCamara.quaternion);
-        controls.target.copy(camera.position).addScaledVector(dir, 0.3);
+        controls.enabled = true;
+        controls.target.copy(pc).addScaledVector(dir, 0.3);
+        controls.minDistance = 0.1; controls.maxDistance = 0.5;
         controls.update();
-        mostrarToast('📷 Entraste desde la cámara — arrastra para mirar');
+        mostrarToast('📷 Estás viendo por el lente de la cámara — arrastra para mirar, WASD para caminar');
     } else {
         mostrarToast('📷 Modo cámara interior — arrastra para mirar');
     }
@@ -6399,7 +6583,17 @@ function salirCamaraPivote() {
     // Quitar highlight de superficie
     quitarHighlightSuperficie();
     controls.minDistance=2; controls.maxDistance=25; controls.maxPolarAngle=Math.PI/1.8;
-    setCamara('libre'); mostrarToast('🔄 Vista libre restaurada');
+    lenteLibre = false;
+    // Vuelves a TU vista de antes de entrar; la cámara queda donde dejaste el lente
+    if (vistaAntesDelLente) {
+        const v = vistaAntesDelLente;
+        camera.position.copy(v.pos); camera.fov = v.fov; camera.updateProjectionMatrix();
+        controls.enabled = true;
+        controls.minDistance = v.min; controls.maxDistance = v.max; controls.maxPolarAngle = v.polar;
+        controls.target.copy(v.target); controls.update();
+        vistaAntesDelLente = null;
+        mostrarToast('🔄 Volviste a tu vista — la cámara quedó donde la dejaste');
+    } else { setCamara('libre'); mostrarToast('🔄 Vista libre restaurada'); }
 }
 
 
@@ -7959,6 +8153,7 @@ function seleccionarModulo(id) {
     document.getElementById('propAlto').value              = moduloSeleccionado.alto;
     document.getElementById('propMaterialPiso').value      = moduloSeleccionado.materialPiso || 'ceramica';
     document.getElementById('propColorPared').value        = moduloSeleccionado.colorPared || '#F5F5F5';
+    marcarPaleta('planta', moduloSeleccionado.colorPared);
 
     // Campos específicos de estructura. Una viga cuelga (necesita altura base y
     // peralte); una columna solo necesita saber si es cuadrada o redonda.
@@ -8274,6 +8469,7 @@ function actualizarPropModulo() {
     moduloSeleccionado.alto         = parseFloat(document.getElementById('propAlto').value)  || 2.6;
     moduloSeleccionado.materialPiso = document.getElementById('propMaterialPiso').value;
     moduloSeleccionado.colorPared   = document.getElementById('propColorPared').value;
+    moduloSeleccionado.pinturaNombre = nombrePintura(moduloSeleccionado.colorPared);
     if (moduloSeleccionado.tipo === 'viga') {
         moduloSeleccionado.alturaBase = parseFloat(document.getElementById('propAlturaBase').value) || 0;
         moduloSeleccionado.peralte    = parseFloat(document.getElementById('propPeralte').value)    || 0.4;
