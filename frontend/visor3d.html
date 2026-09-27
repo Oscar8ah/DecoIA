@@ -7,6 +7,7 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/objects/Sky.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
@@ -118,8 +119,18 @@
             display:flex; flex-direction:column; overflow:hidden; box-shadow:0 8px 30px rgba(0,0,0,0.35); }
         .lo-cabeza { display:flex; align-items:center; justify-content:space-between; padding:9px 12px; font-size:11px; font-weight:700;
             color:#A78BFA; text-transform:uppercase; letter-spacing:0.05em; border-bottom:1px solid rgba(124,58,237,0.18); }
-        .lo-cabeza button { background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.35); color:#FCA5A5; font-size:11px; font-weight:700;
+        .lo-cabeza .lo-soltar { background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.35); color:#FCA5A5; font-size:11px; font-weight:700;
             padding:4px 9px; border-radius:7px; cursor:pointer; font-family:inherit; text-transform:none; letter-spacing:0; }
+        .lo-cabeza .lo-titulo { flex:1; margin-left:8px; }
+        .lo-plegar { background:rgba(124,58,237,0.14); border:1px solid rgba(124,58,237,0.35); color:#C4B5FD; width:26px; height:24px; border-radius:7px; cursor:pointer; font-size:13px; padding:0; }
+        .lo-ico { width:20px; text-align:center; flex-shrink:0; }
+        /* Plegada: una columna delgada a la derecha, solo con el ícono y el candado */
+        #listaObjetos3D.plegada { width:74px; }
+        #listaObjetos3D.plegada .lo-titulo, #listaObjetos3D.plegada .lo-soltar, #listaObjetos3D.plegada .lo-nom,
+        #listaObjetos3D.plegada .lo-pie, #listaObjetos3D.plegada .lo-luz { display:none; }
+        #listaObjetos3D.plegada .lo-cabeza { justify-content:center; padding:8px 4px; }
+        #listaObjetos3D.plegada .lo-item { flex-direction:column; gap:2px; padding:6px 2px; }
+        #listaObjetos3D.plegada .lo-candado { font-size:11px; padding:0; }
         #loItems { overflow-y:auto; padding:6px; display:flex; flex-direction:column; gap:4px; }
         .lo-item { display:flex; align-items:center; gap:8px; padding:7px 9px; border-radius:9px; cursor:pointer; font-size:12.5px;
             color:var(--texto); border:1px solid transparent; transition:background .15s, border-color .15s; }
@@ -208,6 +219,25 @@
         .paleta-pintura button:hover { transform:scale(1.12); }
         .paleta-pintura button.activa { border-color:#A78BFA; box-shadow:0 0 0 2px rgba(167,139,250,0.45); }
         .paleta-nombre { font-size:11.5px; color:#C4B5FD; margin-top:6px; min-height:15px; }
+        /* Entorno y realismo */
+        #panelEntorno { position:fixed; top:152px; left:12px; width:236px; z-index:560; background:rgba(15,15,26,0.92); backdrop-filter:blur(8px);
+            border:1px solid rgba(124,58,237,0.3); border-radius:12px; overflow:hidden; box-shadow:0 8px 30px rgba(0,0,0,0.35); }
+        .pe-cabeza { display:flex; justify-content:space-between; align-items:center; padding:9px 12px; font-size:11px; font-weight:700; color:#A78BFA;
+            text-transform:uppercase; letter-spacing:0.05em; cursor:pointer; user-select:none; }
+        #panelEntorno.plegado .pe-cuerpo { display:none; }
+        .pe-cuerpo { padding:0 12px 12px; display:flex; flex-direction:column; gap:7px; }
+        .pe-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:5px; }
+        .pe-grid button, .pe-niveles button { background:var(--oscuro); border:1px solid rgba(124,58,237,0.25); color:var(--texto); border-radius:9px;
+            padding:6px 2px; font-size:11px; font-weight:600; cursor:pointer; font-family:inherit; display:flex; flex-direction:column; align-items:center; gap:2px; }
+        .pe-grid button span { font-size:17px; }
+        .pe-grid button.activo, .pe-niveles button.activo { background:rgba(124,58,237,0.28); border-color:#8B5CF6; color:#fff; }
+        .pe-niveles { display:grid; grid-template-columns:repeat(4,1fr); gap:4px; }
+        .pe-niveles button { padding:7px 2px; }
+        .pe-etiqueta { font-size:10.5px; color:var(--gris); text-transform:uppercase; letter-spacing:0.05em; font-weight:700; margin-top:4px; display:flex; justify-content:space-between; }
+        .pe-etiqueta span { color:#FCD34D; text-transform:none; }
+        #peSol { width:100%; accent-color:#F59E0B; }
+        .pe-nota { font-size:10.5px; color:var(--gris); line-height:1.45; }
+        @media (max-width:768px) { #panelEntorno { display:none !important; } }
         .btn-volver-planta { width:100%; background:rgba(124,58,237,0.12); border:1px solid rgba(124,58,237,0.35); color:#C4B5FD; padding:8px; border-radius:9px; font-size:12.5px; font-weight:700; cursor:pointer; font-family:inherit; }
         .btn-volver-planta:hover { background:rgba(124,58,237,0.22); }
         .aviso-regenerar { margin-top:10px; background:rgba(245,158,11,0.10); border:1px solid rgba(245,158,11,0.35); border-radius:10px; padding:10px; font-size:12px; color:#FCD34D; line-height:1.5; }
@@ -443,6 +473,29 @@
     </div>
     <canvas id="canvasVivoEntorno3D" width="340" height="220" style="width:340px;height:220px;display:block;"></canvas>
 </div>
+<!-- ENTORNO Y REALISMO: dónde está la casa y qué tan realista se ve (solo cálculo y GPU, sin IA) -->
+<div id="panelEntorno" style="display:none;">
+    <div class="pe-cabeza" onclick="plegarPanelEntorno()"><span>🌄 Entorno y realismo</span><b id="peFlecha">▾</b></div>
+    <div class="pe-cuerpo">
+        <div class="pe-grid">
+            <button onclick="elegirEntorno('estudio')" data-entorno="estudio"><span>🌑</span>Estudio</button>
+            <button onclick="elegirEntorno('bosque')" data-entorno="bosque"><span>🌲</span>Bosque</button>
+            <button onclick="elegirEntorno('tatacoa')" data-entorno="tatacoa"><span>🏜️</span>Tatacoa</button>
+            <button onclick="elegirEntorno('montana')" data-entorno="montana"><span>🏔️</span>Montaña</button>
+            <button onclick="elegirEntorno('playa')" data-entorno="playa"><span>🏖️</span>Playa</button>
+        </div>
+        <div class="pe-etiqueta">☀️ Hora del sol <span id="peHora">10:00</span></div>
+        <input type="range" id="peSol" min="6" max="18" step="0.25" value="10" oninput="cambiarHoraSol(this.value)">
+        <div class="pe-etiqueta">✨ Realismo</div>
+        <div class="pe-niveles">
+            <button onclick="elegirRealismo('basico')" data-nivel="basico">Básico</button>
+            <button onclick="elegirRealismo('realista')" data-nivel="realista">Realista</button>
+            <button onclick="elegirRealismo('alto')" data-nivel="alto">Alto</button>
+            <button onclick="elegirRealismo('ultra')" data-nivel="ultra">Ultra</button>
+        </div>
+        <div class="pe-nota" id="peNota">Todo se calcula en tu tarjeta gráfica. Si el equipo se pone lento, baja el nivel.</div>
+    </div>
+</div>
 <!-- EDITOR DE PARED: un muro visto de frente para dibujarle placas, enchapes y pintura -->
 <div id="editorPared" style="display:none;">
     <div class="ep-caja">
@@ -479,11 +532,12 @@
      de la cámara, por ejemplo). -->
 <div id="listaObjetos3D" style="display:none;">
     <div class="lo-cabeza">
-        <span>🧩 Objetos de la escena</span>
-        <button onclick="salirModoTransformar(); renderListaObjetos(true);" title="Soltar lo que está seleccionado">✖ Soltar</button>
+        <button class="lo-plegar" onclick="plegarListaObjetos()" title="Plegar / desplegar la lista">⟩</button>
+        <span class="lo-titulo">🧩 Objetos de la escena</span>
+        <button class="lo-soltar" onclick="salirModoTransformar(); renderListaObjetos(true);" title="Soltar lo que está seleccionado">✖ Soltar</button>
     </div>
     <div id="loItems"></div>
-    <div class="lo-pie">Toca un objeto para moverlo · 🔒 = no se puede agarrar en el 3D</div>
+    <div class="lo-pie">Toca un objeto para moverlo · 🔒 = no se puede agarrar en el 3D · ⟩ pliega la lista</div>
 </div>
 <div id="toolbarEntorno3D" style="display:none;position:fixed;top:100px;left:0;width:220px;flex-direction:column;z-index:500;background:var(--oscuro2);border-right:1px solid rgba(124,58,237,0.2);padding:12px;gap:8px;height:calc(100vh - 100px);overflow-y:auto;">
     <!-- Sin Corporativo: solo una pastilla chica. Antes era una columna entera
@@ -2179,12 +2233,23 @@ function renderListaObjetos(forzar) {
     window._objetosLista = objs;
     document.getElementById('loItems').innerHTML = objs.map((o, i) => {
         const bloq = estaBloqueado(o), uso = o === objetoTransformar;
-        return `<div class="lo-item${uso ? ' en-uso' : ''}${bloq ? ' bloqueado' : ''}" onclick="elegirObjetoLista(${i})">
-            <span class="lo-luz"></span><span class="lo-nom">${esc(nombreObjeto(o))}</span>
+        // El ícono va aparte del nombre: plegada, la lista muestra solo el ícono y el candado
+        const nom = nombreObjeto(o), m = nom.match(/^(\S+)\s+(.*)$/);
+        const ico = m && !/[a-záéíóúñ0-9]/i.test(m[1]) ? m[1] : '📦', texto = m && ico === m[1] ? m[2] : nom;
+        return `<div class="lo-item${uso ? ' en-uso' : ''}${bloq ? ' bloqueado' : ''}" onclick="elegirObjetoLista(${i})" title="${esc(nom)}">
+            <span class="lo-luz"></span><span class="lo-ico">${ico}</span><span class="lo-nom">${esc(texto)}</span>
             <button class="lo-candado" onclick="event.stopPropagation(); alternarBloqueo(${i})" title="${bloq ? 'Bloqueado: toca para desbloquear' : 'Toca para bloquear'}">${bloq ? '🔒' : '🔓'}</button>
         </div>`;
     }).join('') || '<div style="font-size:12px;color:var(--gris);padding:8px;">No hay objetos para mover.</div>';
 }
+function plegarListaObjetos(forzar) {
+    const caja = document.getElementById('listaObjetos3D');
+    const plegar = typeof forzar === 'boolean' ? forzar : !caja.classList.contains('plegada');
+    caja.classList.toggle('plegada', plegar);
+    caja.querySelector('.lo-plegar').textContent = plegar ? '⟨' : '⟩';
+    try { localStorage.setItem('decoia_lista_plegada', plegar ? '1' : '0'); } catch (e) {}
+}
+setTimeout(() => { try { if (localStorage.getItem('decoia_lista_plegada') === '1') plegarListaObjetos(true); } catch (e) {} }, 0);
 function elegirObjetoLista(i) {
     const o = (window._objetosLista || [])[i];
     if (!o) return;
@@ -4188,6 +4253,9 @@ function configurarLuces() {
     );
     lamp.position.set(0, altoEsc-0.2, 0);
     scene.add(lamp); luces.lampara = lamp;
+    // El entorno (bosque, Tatacoa…) manda sobre la luz de afuera: se reconstruye
+    // con el despeje a la medida de la casa y se ajustan sol, cielo y exposición.
+    if (typeof entornoActual !== 'undefined' && entornoActual !== 'estudio') { construirEntorno(); ajustarLucesEntorno(); }
 }
 
 // ── CAMBIOS ───────────────────────────────────────────────────────────────
@@ -5377,6 +5445,344 @@ function agregarPuntoTrazo3D(hit) {
 // ── ARRASTRAR LA CÁMARA — el camino que recorra queda grabado ─────────────
 let modoArrastrarCamara = false;
 let arrastrandoCamara   = false;
+
+// ── ENTORNOS Y REALISMO ──────────────────────────────────────────────────
+// El entorno no es una foto de fondo: es un cielo físico (Sky.js) con su sol,
+// un terreno con textura, vegetación y paisaje, y de ese cielo salen los
+// reflejos (mapa de entorno PMREM) y el color de la luz. Todo lo calcula la
+// tarjeta gráfica con three.js; no hay IA generando la imagen.
+const ENTORNOS = {
+    estudio: null,   // el lienzo oscuro de siempre, para trabajar sin distracciones
+    // Calibrado a ojo con capturas: el cielo físico es muy brillante por diseño
+    // (los ejemplos oficiales usan exposición ~0,5); con exposición 1 todo se lavaba.
+    bosque:  { sky: { turbidity: 8, rayleigh: 1.2, mie: 0.005, g: 0.8, azim: 140 }, suelo: 'pasto', vege: 'bosque',
+               niebla: 0x9DB3A6, nieblaCerca: 90, nieblaLejos: 520, sol: 0xFFEAC8, solI: 2.6, cielo: 0xB9D3EA, rebote: 0x3F5230, hemiI: 0.32, exp: 0.55 },
+    tatacoa: { sky: { turbidity: 5, rayleigh: 0.8, mie: 0.004, g: 0.75, azim: 200 }, suelo: 'tatacoa', vege: 'tatacoa',
+               niebla: 0xD9BC98, nieblaCerca: 120, nieblaLejos: 650, sol: 0xFFDDAA, solI: 3.0, cielo: 0xC9DCEF, rebote: 0x9C5530, hemiI: 0.3, exp: 0.5 },
+    montana: { sky: { turbidity: 3, rayleigh: 1.4, mie: 0.005, g: 0.8, azim: 110 }, suelo: 'montana', vege: 'montana',
+               niebla: 0xAFC0D0, nieblaCerca: 110, nieblaLejos: 700, sol: 0xFFF0D8, solI: 2.6, cielo: 0xBFD5EC, rebote: 0x46523F, hemiI: 0.32, exp: 0.55 },
+    playa:   { sky: { turbidity: 5, rayleigh: 1.7, mie: 0.004, g: 0.8, azim: 160 }, suelo: 'arena', vege: 'playa',
+               niebla: 0xBCD6E4, nieblaCerca: 110, nieblaLejos: 700, sol: 0xFFEFD2, solI: 2.8, cielo: 0xBFDDF3, rebote: 0xC9B48A, hemiI: 0.3, exp: 0.5 },
+};
+const NIVELES_REALISMO = {
+    basico:   { pr: 1,   sombra: 1024, suave: false, veg: 0.4, nota: 'Rápido: para equipos sencillos y celulares.' },
+    realista: { pr: 1.5, sombra: 2048, suave: true,  veg: 1.0, nota: 'Equilibrado: el recomendado para la mayoría de equipos.' },
+    alto:     { pr: 2,   sombra: 4096, suave: true,  veg: 1.7, nota: 'Sombras finas y más vegetación. Pide un equipo con buena tarjeta gráfica.' },
+    ultra:    { pr: 2,   sombra: 4096, suave: true,  veg: 2.5, nota: 'Máximo detalle para fotos. Solo en equipos potentes.' },
+};
+// "var" a propósito: configurarLuces() corre una vez al cargar la página, antes
+// de llegar aquí, y consulta entornoActual; con let rompería la carga.
+var entornoActual = 'estudio', realismoActual = 'realista', horaSol = 10;
+var grupoEntorno = null, cieloEntorno = null, texEntorno = null;
+try { entornoActual = localStorage.getItem('decoia_entorno') || 'estudio'; realismoActual = localStorage.getItem('decoia_realismo') || 'realista';
+      horaSol = parseFloat(localStorage.getItem('decoia_hora_sol')) || 10; } catch (e) {}
+if (!(entornoActual in ENTORNOS)) entornoActual = 'estudio';
+if (!(realismoActual in NIVELES_REALISMO)) realismoActual = 'realista';
+
+// Azar con semilla: el mismo entorno siempre queda igual (no "baila" al regenerar)
+function azarConSemilla(semilla) { let a = semilla >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+// Dirección del sol según la hora (6 a 18) y el rumbo del entorno
+function direccionSol(cfg) {
+    const t = (horaSol - 6) / 12;                                   // 0 amanecer · 0,5 mediodía · 1 atardecer
+    const elev = Math.max(3, Math.sin(Math.PI * t) * 72);           // grados sobre el horizonte
+    const azim = cfg.sky.azim + (t - 0.5) * 150;
+    return new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - elev), THREE.MathUtils.degToRad(azim));
+}
+
+function texturaSuelo(tipo) {
+    const N = 512, c = document.createElement('canvas'); c.width = c.height = N;
+    const g = c.getContext('2d'), R = azarConSemilla(tipo.length * 7919);
+    const base = { pasto: '#5A7440', tatacoa: '#B8754A', montana: '#5F6C4B', arena: '#E2CFA2' }[tipo] || '#777';
+    g.fillStyle = base; g.fillRect(0, 0, N, N);
+    const manchas = { pasto: ['#4E6838', '#66824A', '#6F8A4E', '#44602F'], tatacoa: ['#A8643C', '#C78557', '#9A5A36', '#8F8D86', '#B06D44'],
+                      montana: ['#566247', '#6B7654', '#77806A', '#4A5540'], arena: ['#D9C595', '#EAD9B0', '#D2BE8C', '#F0E2BF'] }[tipo];
+    for (let i = 0; i < 1800; i++) { g.globalAlpha = 0.18 + R() * 0.25; g.fillStyle = manchas[Math.floor(R() * manchas.length)];
+        g.beginPath(); g.arc(R() * N, R() * N, 2 + R() * 14, 0, Math.PI * 2); g.fill(); }
+    g.globalAlpha = 1;
+    if (tipo === 'pasto' || tipo === 'montana') {           // hojitas de pasto
+        for (let i = 0; i < 5000; i++) { const x = R() * N, y = R() * N; g.strokeStyle = R() < 0.5 ? '#6C8A4D' : '#3F5A2C'; g.globalAlpha = 0.5;
+            g.beginPath(); g.moveTo(x, y); g.lineTo(x + (R() - 0.5) * 3, y - 3 - R() * 4); g.stroke(); }
+    } else if (tipo === 'tatacoa') {                        // suelo seco agrietado del desierto
+        g.strokeStyle = '#7A4428'; g.globalAlpha = 0.45; g.lineWidth = 1.2;
+        for (let i = 0; i < 70; i++) { let x = R() * N, y = R() * N; g.beginPath(); g.moveTo(x, y);
+            for (let k = 0; k < 6; k++) { x += (R() - 0.5) * 60; y += (R() - 0.5) * 60; g.lineTo(x, y); } g.stroke(); }
+    } else if (tipo === 'arena') {                          // ondas del viento en la arena
+        g.strokeStyle = '#C9B383'; g.globalAlpha = 0.35;
+        for (let y = 0; y < N; y += 9) { g.beginPath(); for (let x = 0; x <= N; x += 16) g.lineTo(x, y + Math.sin(x * 0.05 + y) * 2.5); g.stroke(); }
+    }
+    g.globalAlpha = 1;
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    if (THREE.sRGBEncoding) tex.encoding = THREE.sRGBEncoding;
+    tex.anisotropy = renderer.capabilities.getMaxAnisotropy ? renderer.capabilities.getMaxAnisotropy() : 1;
+    return tex;
+}
+
+// Área de la casa (con sus exteriores) que el entorno deja despejada
+function areaCasa() {
+    const b = new THREE.Box3();
+    // Sin la camarita: si queda lejos, el despeje no debe estirarse hasta ella
+    scene.traverse(o => { const u = o.userData || {}; if ((u.tipoEstructura || u.esPared || u.esTecho) && u.tipoEstructura !== 'camara' && !u.esEntorno) b.expandByObject(o); });
+    if (b.isEmpty()) b.setFromCenterAndSize(new THREE.Vector3(), new THREE.Vector3(8, 3, 8));
+    return b;
+}
+
+function instanciar(geo, mat, n, colocar) {
+    const im = new THREE.InstancedMesh(geo, mat, n), m = new THREE.Matrix4(), c = new THREE.Color();
+    for (let i = 0; i < n; i++) { const r = colocar(i, m, c); im.setMatrixAt(i, m); if (r && im.setColorAt) im.setColorAt(i, c); }
+    im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    return im;
+}
+
+function construirEntorno() {
+    quitarEntorno(false);
+    const cfg = ENTORNOS[entornoActual];
+    if (!cfg) return;
+    const nivel = NIVELES_REALISMO[realismoActual];
+    grupoEntorno = new THREE.Group(); grupoEntorno.userData.esEntorno = true;
+
+    // ── Cielo físico: sol, dispersión, horizonte ──
+    if (THREE.Sky) {
+        cieloEntorno = new THREE.Sky(); cieloEntorno.scale.setScalar(450000);
+        const u = cieloEntorno.material.uniforms;
+        u.turbidity.value = cfg.sky.turbidity; u.rayleigh.value = cfg.sky.rayleigh;
+        u.mieCoefficient.value = cfg.sky.mie; u.mieDirectionalG.value = cfg.sky.g;
+        u.sunPosition.value.copy(direccionSol(cfg));
+        cieloEntorno.userData.esEntorno = true;
+        grupoEntorno.add(cieloEntorno);
+        // Reflejos: el mismo cielo, filtrado para materiales físicos (PMREM)
+        try {
+            const escenaCielo = new THREE.Scene(), c2 = new THREE.Sky(); c2.scale.setScalar(450000);
+            Object.keys(u).forEach(k => { if (c2.material.uniforms[k] && u[k].value && u[k].value.copy) c2.material.uniforms[k].value.copy(u[k].value); else if (c2.material.uniforms[k]) c2.material.uniforms[k].value = u[k].value; });
+            escenaCielo.add(c2);
+            const pmrem = new THREE.PMREMGenerator(renderer);
+            if (texEntorno) texEntorno.dispose();
+            texEntorno = pmrem.fromScene(escenaCielo).texture;
+            pmrem.dispose();
+        } catch (e) { texEntorno = null; }
+    }
+
+    // ── Terreno (despejado donde está la casa) ──
+    const casa = areaCasa();
+    const centro = casa.getCenter(new THREE.Vector3()), tam = casa.getSize(new THREE.Vector3());
+    // El terreno queda a ras con los andenes y zonas verdes (su cara de arriba)
+    let sueloY = -0.12;
+    modulosPlanta.forEach(m => { if (m.tipo === 'exterior' && (m.nivel || 0) === 0) sueloY = Math.min(sueloY, (m.nivelExt ?? 0) - 0.005); });
+    const texS = texturaSuelo(cfg.suelo); texS.repeat.set(120, 120);
+    const terreno = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1200), new THREE.MeshStandardMaterial({ map: texS, roughness: 0.95, metalness: 0, color: 0xFFFFFF, envMapIntensity: 0.35 }));
+    terreno.rotation.x = -Math.PI / 2; terreno.position.set(centro.x, sueloY, centro.z); terreno.receiveShadow = true;
+    terreno.userData.esEntorno = true;
+    grupoEntorno.add(terreno);
+    // Sobrecimiento: la casa asienta en el terreno en vez de flotar
+    if (sueloY < -0.1) modulosActuales3D.filter(m => (m.nivel || 0) === 0).forEach(m => {
+        const h = -0.1 - sueloY;
+        const base = new THREE.Mesh(new THREE.BoxGeometry(m.ancho + 0.2, h, m.largo + 0.2), new THREE.MeshStandardMaterial({ color: 0x9A968F, roughness: 0.95 }));
+        base.position.set(m.cx, sueloY + h / 2, m.cz); base.receiveShadow = true; base.castShadow = true;
+        grupoEntorno.add(base);
+    });
+
+    // ── Vegetación y paisaje ──
+    const R = azarConSemilla({ bosque: 11, tatacoa: 23, montana: 37, playa: 41 }[cfg.vege] || 1);
+    const radio0 = Math.max(tam.x, tam.z) / 2 + 7;              // despeje alrededor de la casa
+    const lejos = 150;
+    const punto = (min = radio0, max = lejos) => { const a = R() * Math.PI * 2, d = min + Math.sqrt(R()) * (max - min);
+        return [centro.x + Math.cos(a) * d, centro.z + Math.sin(a) * d]; };
+    const cant = n => Math.max(8, Math.round(n * nivel.veg));
+    const matTronco = new THREE.MeshStandardMaterial({ color: 0x4A3526, roughness: 0.9, envMapIntensity: 0.3 });
+    const matHoja = new THREE.MeshStandardMaterial({ color: 0xFFFFFF, roughness: 0.85, envMapIntensity: 0.3, flatShading: true });
+    const q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), sc = new THREE.Vector3();
+    if (cfg.vege === 'bosque' || cfg.vege === 'montana') {
+        const pinos = cfg.vege === 'montana', n = cant(pinos ? 260 : 320);
+        const pos = Array.from({ length: n }, () => punto()), tamA = pos.map(() => (pinos ? 0.9 : 0.8) + R() * 0.8);
+        grupoEntorno.add(instanciar(new THREE.CylinderGeometry(0.12, 0.2, 2.2, 6), matTronco, n, (i, m) => {
+            m.compose(p.set(pos[i][0], sueloY + 1.1 * tamA[i], pos[i][1]), q.identity(), sc.setScalar(tamA[i])); }));
+        const copa = pinos ? new THREE.ConeGeometry(1.1, 4.2, 8) : new THREE.IcosahedronGeometry(1.7, 1);
+        grupoEntorno.add(instanciar(copa, matHoja, n, (i, m, c) => {
+            m.compose(p.set(pos[i][0], sueloY + (pinos ? 3.6 : 3.2) * tamA[i], pos[i][1]), q.setFromEuler(e.set(0, R() * 6, 0)), sc.set(tamA[i], tamA[i] * (pinos ? 1 : 0.85 + R() * 0.3), tamA[i]));
+            c.setHSL(pinos ? 0.36 + R() * 0.04 : 0.24 + R() * 0.07, 0.45 + R() * 0.2, 0.13 + R() * 0.08); return true; }));
+    }
+    if (cfg.vege === 'montana') {   // cordillera al fondo: relieve irregular, roca y nieve en las cimas
+        const geoM = new THREE.ConeGeometry(1, 1, 18, 8);
+        const pos = geoM.attributes.position, colores = [], cRoca = new THREE.Color(0x5E6878), cNieve = new THREE.Color(0xF4F7FA), cVerde = new THREE.Color(0x4C5A42);
+        for (let i = 0; i < pos.count; i++) {
+            const y = pos.getY(i) + 0.5;                                  // 0 abajo · 1 cima
+            const f = 1 + (R() - 0.5) * 0.35 * (1 - y * 0.5);             // bordes quebrados
+            pos.setX(i, pos.getX(i) * f); pos.setZ(i, pos.getZ(i) * f); pos.setY(i, pos.getY(i) + (R() - 0.5) * 0.04);
+            const c = y > 0.72 ? cNieve : (y < 0.25 ? cVerde.clone().lerp(cRoca, y * 4) : cRoca.clone().lerp(cNieve, Math.max(0, (y - 0.6) * 3)));
+            colores.push(c.r, c.g, c.b);
+        }
+        geoM.setAttribute('color', new THREE.Float32BufferAttribute(colores, 3));
+        geoM.computeVertexNormals();
+        // Sin niebla: a esa distancia la niebla las borraba; el tono azulado lo da el color
+        const matM = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true, fog: false, envMapIntensity: 0.4 });
+        const n = 16;
+        grupoEntorno.add(instanciar(geoM, matM, n, (i, m) => {
+            const a = (i / n) * Math.PI * 2 + R() * 0.25, d = 480 + R() * 160, h = 110 + R() * 150;
+            m.compose(p.set(centro.x + Math.cos(a) * d, sueloY + h / 2 - 8, centro.z + Math.sin(a) * d), q.setFromEuler(e.set(0, R() * 3, 0)), sc.set(170 + R() * 120, h, 170 + R() * 120)); }));
+    }
+    if (cfg.vege === 'tatacoa') {
+        const n = cant(140), matC = new THREE.MeshStandardMaterial({ color: 0x4E6B3A, roughness: 0.8, envMapIntensity: 0.3 });
+        const pos = Array.from({ length: n }, () => punto()), tamC = pos.map(() => 0.7 + R() * 0.9);
+        grupoEntorno.add(instanciar(new THREE.CylinderGeometry(0.16, 0.2, 2.4, 8), matC, n, (i, m) => {       // cactus
+            m.compose(p.set(pos[i][0], sueloY + 1.2 * tamC[i], pos[i][1]), q.identity(), sc.setScalar(tamC[i])); }));
+        grupoEntorno.add(instanciar(new THREE.CylinderGeometry(0.11, 0.13, 0.9, 7), matC, n, (i, m) => {       // brazos
+            m.compose(p.set(pos[i][0] + 0.32 * tamC[i], sueloY + 1.55 * tamC[i], pos[i][1]), q.identity(), sc.setScalar(tamC[i])); }));
+        const nR = cant(90), matR = new THREE.MeshStandardMaterial({ color: 0xFFFFFF, roughness: 1, flatShading: true, envMapIntensity: 0.3 });
+        grupoEntorno.add(instanciar(new THREE.IcosahedronGeometry(1, 0), matR, nR, (i, m, c) => {             // cárcavas y rocas
+            const [x, z] = punto(radio0 + 8, 260), h = 1.5 + R() * (R() < 0.2 ? 14 : 5);
+            m.compose(p.set(x, sueloY + h * 0.35, z), q.setFromEuler(e.set(0, R() * 6, 0)), sc.set(2 + R() * 9, h, 2 + R() * 9));
+            if (R() < 0.35) c.setHSL(0.08, 0.06, 0.38 + R() * 0.08); else c.setHSL(0.04 + R() * 0.03, 0.55, 0.3 + R() * 0.08); return true; }));
+    }
+    if (cfg.vege === 'playa') {
+        const mar = new THREE.Mesh(new THREE.PlaneGeometry(3000, 1400), new THREE.MeshStandardMaterial({ color: 0x0E4C66, roughness: 0.08, metalness: 0, envMapIntensity: 0.9 }));
+        mar.rotation.x = -Math.PI / 2; mar.position.set(centro.x, sueloY + 0.02, centro.z - radio0 - 30 - 700); mar.userData.esEntorno = true;
+        grupoEntorno.add(mar);
+        const n = cant(70), pos = Array.from({ length: n }, () => { let pt; do { pt = punto(radio0, 120); } while (pt[1] < centro.z - radio0 - 25); return pt; });
+        const incl = pos.map(() => (R() - 0.5) * 0.35), alto = pos.map(() => 5 + R() * 3);
+        grupoEntorno.add(instanciar(new THREE.CylinderGeometry(0.14, 0.24, 1, 7), matTronco, n, (i, m) => {
+            m.compose(p.set(pos[i][0], sueloY + alto[i] / 2, pos[i][1]), q.setFromEuler(e.set(incl[i], 0, incl[i] * 0.6)), sc.set(1, alto[i], 1)); }));
+        const hojas = new THREE.BoxGeometry(3.2, 0.05, 0.7);
+        grupoEntorno.add(instanciar(hojas, matHoja, n * 6, (i, m, c) => {
+            const k = Math.floor(i / 6), a = (i % 6) / 6 * Math.PI * 2 + R() * 0.3;
+            const cx = pos[k][0] + Math.sin(incl[k] * 0.6) * alto[k] * 0.5, cz = pos[k][1] - Math.sin(incl[k]) * alto[k] * 0.5;
+            m.compose(p.set(cx + Math.cos(a) * 1.4, sueloY + alto[k] - 0.25, cz + Math.sin(a) * 1.4), q.setFromEuler(e.set(0, -a, -0.35)), sc.set(1, 1, 1));
+            c.setHSL(0.27 + R() * 0.05, 0.5, 0.2 + R() * 0.07); return true; }));
+    }
+    grupoEntorno.traverse(o => { o.userData.esEntorno = true; if (o.isInstancedMesh) { o.castShadow = nivel.veg >= 1.7; o.frustumCulled = false; } });
+    scene.add(grupoEntorno);
+
+    // ── Aire, fondo y alcance de la vista ──
+    scene.fog = new THREE.Fog(cfg.niebla, cfg.nieblaCerca, cfg.nieblaLejos);
+    scene.background = null;
+    scene.environment = texEntorno;
+    camera.far = 2000; camera.updateProjectionMatrix();
+    cameraPreview.far = 2000; cameraPreview.updateProjectionMatrix();
+    renderer.toneMappingExposure = cfg.exp;
+}
+
+function quitarEntorno(restaurarEstudio) {
+    if (grupoEntorno) {
+        scene.remove(grupoEntorno);
+        grupoEntorno.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { (Array.isArray(o.material) ? o.material : [o.material]).forEach(mm => { if (mm.map) mm.map.dispose(); mm.dispose(); }); } });
+        grupoEntorno = null; cieloEntorno = null;
+    }
+    if (restaurarEstudio) {
+        scene.fog = new THREE.Fog(0x0F0F1A, 20, 60);
+        scene.environment = null;
+        if (texEntorno) { texEntorno.dispose(); texEntorno = null; }
+        camera.far = 100; camera.updateProjectionMatrix();
+        cameraPreview.far = 100; cameraPreview.updateProjectionMatrix();
+        renderer.toneMappingExposure = 1.0;
+    }
+}
+
+// Sol, cielo y rebote del suelo según el entorno y la hora
+function ajustarLucesEntorno() {
+    const cfg = ENTORNOS[entornoActual];
+    if (!cfg) return;
+    const dir = direccionSol(cfg), casa = areaCasa(), centro = casa.getCenter(new THREE.Vector3());
+    const tam = casa.getSize(new THREE.Vector3()), R = Math.max(tam.x, tam.z, 6);
+    const t = (horaSol - 6) / 12, tarde = Math.pow(Math.abs(t - 0.5) * 2, 3);   // 0 al mediodía, 1 al amanecer/atardecer
+    const colorSol = new THREE.Color(cfg.sol).lerp(new THREE.Color(0xFF9A4D), tarde * 0.8);
+    if (luces.directional) {
+        const d = luces.directional;
+        d.color.copy(colorSol);
+        d.intensity = cfg.solI * (0.45 + 0.55 * Math.sin(Math.PI * Math.max(0.05, t))) * estado.intensidadLuz;
+        d.position.copy(centro).addScaledVector(dir, R * 2.2);
+        d.target.position.copy(centro); scene.add(d.target);
+        const m = R * 0.9;
+        Object.assign(d.shadow.camera, { left: -m, right: m, top: m, bottom: -m, near: 0.5, far: R * 5 });
+        d.shadow.camera.updateProjectionMatrix();
+    }
+    if (luces.hemi) { luces.hemi.color.set(cfg.cielo); luces.hemi.groundColor.set(cfg.rebote); luces.hemi.intensity = cfg.hemiI * estado.intensidadLuz; }
+    if (luces.ambient) luces.ambient.intensity = 0.1 * estado.intensidadLuz;
+    if (luces.fill) luces.fill.intensity = 0.1 * estado.intensidadLuz;
+    // Adentro: la luz de techo se compensa con la exposición, para que la casa
+    // conserve la calidez que tiene en Estudio (con exposición baja se apagaba).
+    const compensa = 1 / cfg.exp;
+    if (luces.point) luces.point.intensity = 0.5 * estado.intensidadLuz * compensa;
+    scene.traverse(o => { if (o.isLight && o.userData && o.userData.luzTecho) o.intensity = (o.userData.intBase ?? o.intensity) * compensa; });
+    // En la casa el cielo aporta REFLEJOS, no relleno: el mapa de entorno ilumina
+    // igual detrás de muros y techo, y a plena fuerza aplanaba y azulaba el interior.
+    scene.traverse(o => {
+        if (!o.isMesh || (o.userData && o.userData.esEntorno)) return;
+        (Array.isArray(o.material) ? o.material : [o.material]).forEach(mm => {
+            if (mm && mm.isMeshStandardMaterial) mm.envMapIntensity = mm.roughness < 0.4 ? 0.8 : 0.3;   // lo pulido refleja más
+        });
+    });
+    aplicarRealismo(false);
+}
+
+function aplicarRealismo(reconstruir) {
+    const n = NIVELES_REALISMO[realismoActual];
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, n.pr));
+    renderer.shadowMap.type = n.suave ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+    if (luces.directional) {
+        const sm = luces.directional.shadow;
+        if (sm.mapSize.x !== n.sombra) { sm.mapSize.set(n.sombra, n.sombra); if (sm.map) { sm.map.dispose(); sm.map = null; } }
+        sm.radius = n.suave ? 4 : 1;
+    }
+    if (reconstruir && entornoActual !== 'estudio') construirEntorno();
+}
+
+function elegirEntorno(nombre) {
+    if (!(nombre in ENTORNOS)) return;
+    entornoActual = nombre;
+    try { localStorage.setItem('decoia_entorno', nombre); } catch (e) {}
+    if (nombre === 'estudio') { quitarEntorno(true); configurarLuces(); }
+    else configurarLuces();     // configurarLuces construye el entorno y ajusta la luz
+    marcarPanelEntorno();
+    mostrarToast({ estudio: '🌑 Estudio: el lienzo de trabajo', bosque: '🌲 Tu casa en el bosque', tatacoa: '🏜️ Tu casa en el desierto de la Tatacoa',
+                   montana: '🏔️ Tu casa en la montaña', playa: '🏖️ Tu casa frente al mar' }[nombre]);
+}
+function elegirRealismo(nivel) {
+    if (!(nivel in NIVELES_REALISMO)) return;
+    realismoActual = nivel;
+    try { localStorage.setItem('decoia_realismo', nivel); } catch (e) {}
+    aplicarRealismo(true);
+    if (entornoActual !== 'estudio') ajustarLucesEntorno();
+    marcarPanelEntorno();
+}
+function cambiarHoraSol(v) {
+    horaSol = parseFloat(v) || 10;
+    try { localStorage.setItem('decoia_hora_sol', horaSol); } catch (e) {}
+    const h = Math.floor(horaSol), mi = Math.round((horaSol - h) * 60);
+    document.getElementById('peHora').textContent = `${h}:${String(mi).padStart(2, '0')}`;
+    const cfg = ENTORNOS[entornoActual];
+    if (cfg && cieloEntorno) {
+        cieloEntorno.material.uniforms.sunPosition.value.copy(direccionSol(cfg));
+        ajustarLucesEntorno();
+        clearTimeout(cambiarHoraSol._t);   // los reflejos del cielo se recalculan al soltar
+        cambiarHoraSol._t = setTimeout(() => construirEntorno(), 350);
+    }
+}
+function marcarPanelEntorno() {
+    document.querySelectorAll('#panelEntorno [data-entorno]').forEach(b => b.classList.toggle('activo', b.dataset.entorno === entornoActual));
+    document.querySelectorAll('#panelEntorno [data-nivel]').forEach(b => b.classList.toggle('activo', b.dataset.nivel === realismoActual));
+    document.getElementById('peNota').textContent = NIVELES_REALISMO[realismoActual].nota;
+    document.getElementById('peSol').value = horaSol;
+    const h = Math.floor(horaSol), mi = Math.round((horaSol - h) * 60);
+    document.getElementById('peHora').textContent = `${h}:${String(mi).padStart(2, '0')}`;
+}
+function plegarPanelEntorno() {
+    const p = document.getElementById('panelEntorno');
+    p.classList.toggle('plegado');
+    document.getElementById('peFlecha').textContent = p.classList.contains('plegado') ? '▸' : '▾';
+}
+// Se ve en el Entorno 3D con un modelo, fuera de la cámara interior; se corre a
+// la derecha si la columna de "Grabar recorrido" (Corporativo) está abierta.
+function actualizarPanelEntorno() {
+    const p = document.getElementById('panelEntorno');
+    if (!p) return;
+    const ver = vistaActual === '3d' && salaConstruida && !modoInterior;
+    p.style.display = ver ? 'block' : 'none';
+    const tb = document.getElementById('toolbarEntorno3D');
+    p.style.left = (tb && !tb.classList.contains('compacto') && getComputedStyle(tb).display !== 'none') ? '232px' : '12px';
+}
+setInterval(actualizarPanelEntorno, 500);
+setTimeout(() => { marcarPanelEntorno(); aplicarRealismo(false); }, 0);
 
 // ── PINTURAS DECOIARTE ───────────────────────────────────────────────────
 // Colores de pared listos para aplicar. No son productos: no entran al
@@ -6690,6 +7096,7 @@ function toggleLuzTecho(tipo, btn) {
         grupo.add(ledAncho, ledAncho2, ledLargo, ledLargo2);
         // Luz ambiental suave azulada
         const luzLed = new THREE.PointLight(cfg.color, cfg.intLuz, ancho + largo);
+        luzLed.userData.luzTecho = true; luzLed.userData.intBase = cfg.intLuz;   // para compensarla con la exposición del entorno
         luzLed.position.set(0, alto - 0.1, 0);
         grupo.add(luzLed);
 
@@ -6701,6 +7108,7 @@ function toggleLuzTecho(tipo, btn) {
             barra.position.set(x, alto - 0.05, 0);
             grupo.add(barra);
             const luz = new THREE.PointLight(0xFFFFEE, cfg.intLuz, cfg.rangeLuz);
+            luz.userData.luzTecho = true; luz.userData.intBase = cfg.intLuz;   // para compensarla con la exposición del entorno
             luz.position.set(x, alto - 0.15, 0);
             grupo.add(luz);
         });
@@ -6742,6 +7150,7 @@ function toggleLuzTecho(tipo, btn) {
 
             // Luz puntual
             const luz = new THREE.PointLight(cfg.color, cfg.intLuz, cfg.rangeLuz);
+            luz.userData.luzTecho = true; luz.userData.intBase = cfg.intLuz;   // para compensarla con la exposición del entorno
             luz.position.set(x, alto - 0.15, z);
             luz.castShadow = true;
             grupo.add(luz);
