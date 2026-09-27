@@ -4568,7 +4568,7 @@ function firmaPlanta() {
             m.materialPiso, m.imagenPisoUrl, m.colorPared, m.acabado, m.nivelExt,
             m.formaEscalera, m.arranque, m.giro, m.alturaSubir, m.anchoTramo, m.estiloEscalera, m.baranda, m.barandaLado, m.texturaPared, m.texturaLado,
             m.materialBaranda, m.alturaBaranda, m.baseBaranda, (m.paredesEliminadas || []).join(), JSON.stringify(m.disenoParedes || null)]),
-        v: vanosPlanta.map(v => [v.modulo_a, v.modulo_b, v.lado, v.centro, v.ancho, v.tipo, v.alto, v.bisagra, v.sentido, v.anguloApertura]),
+        v: vanosPlanta.map(v => [v.modulo_a, v.modulo_b, v.lado, v.centro, v.ancho, v.tipo, v.alto, v.bisagra, v.sentido, v.anguloApertura, v.estiloPuerta]),
         n: typeof nivelesTotales !== 'undefined' ? nivelesTotales : 1,
         e: [e.fachada, e.materialFachada, e.colorFachada, e.gruesoFachada, e.cubierta, e.pendiente, e.alero, e.girarCubierta],
     });
@@ -8521,6 +8521,12 @@ function actualizarVano(campo, valor) {
         }
     } else if (campo === 'bisagra' || campo === 'sentido') {
         vanoSeleccionado[campo] = valor;
+    } else if (campo === 'estilo') {
+        vanoSeleccionado.estiloPuerta = valor;
+        // Una doble o una corrediza necesitan más ancho que una sencilla
+        const minimo = { doble: 1.2, corrediza: 0.8, plegable: 0.8 }[valor];
+        const maxAncho = vanoSeleccionado.limFin - vanoSeleccionado.limIni;
+        if (minimo && vanoSeleccionado.ancho < minimo && maxAncho >= minimo) actualizarVano('ancho', minimo);
     } else if (campo === 'apertura') {
         const ang = Math.max(0, Math.min(90, parseFloat(valor) || 0));
         vanoSeleccionado.anguloApertura = ang;
@@ -8587,8 +8593,14 @@ function renderPanelVano() {
         <input type="range" min="1.6" max="2.5" step="0.05" value="${v.alto||2.1}" oninput="actualizarVano('alto', this.value)" style="width:100%;margin:4px 0 10px;">` : ''}
         ${esPuerta ? `
         <div style="border-top:1px solid rgba(245,158,11,0.25);padding-top:10px;margin-top:4px;">
+            <div style="font-size:10.5px;font-weight:700;color:#FCD34D;text-transform:uppercase;margin-bottom:6px;">Tipo de puerta</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:10px;">
+                ${[['sencilla','🚪 Sencilla'],['doble','🚪🚪 Doble'],['corrediza','↔ Corrediza'],['vidrio','🪟 Vidrio'],['plegable','〰 Plegable']].map(([k,et]) => {
+                    const on = (v.estiloPuerta || 'sencilla') === k;
+                    return `<button onclick="actualizarVano('estilo','${k}')" style="padding:6px 2px;border-radius:6px;font-size:10.5px;font-weight:700;cursor:pointer;border:1px solid ${on?'#F59E0B':'rgba(148,163,184,0.3)'};background:${on?'rgba(245,158,11,0.25)':'rgba(255,255,255,0.04)'};color:${on?'#FCD34D':'var(--gris)'};">${et}</button>`; }).join('')}
+            </div>
             <div style="font-size:10.5px;font-weight:700;color:#FCD34D;text-transform:uppercase;margin-bottom:6px;">Hoja de la puerta</div>
-            <label style="font-size:11px;color:var(--gris);display:block;margin-bottom:4px;">Bisagra</label>
+            <label style="font-size:11px;color:var(--gris);display:block;margin-bottom:4px;">${{corrediza:'Se corre hacia', plegable:'Se pliega hacia', doble:'Bisagras (a los dos lados)'}[v.estiloPuerta] || 'Bisagra'}</label>
             <div style="display:flex;gap:5px;margin-bottom:8px;">
                 <button onclick="actualizarVano('bisagra','izq')" style="flex:1;padding:6px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid ${(v.bisagra||'izq')==='izq'?'#F59E0B':'rgba(148,163,184,0.3)'};background:${(v.bisagra||'izq')==='izq'?'rgba(245,158,11,0.25)':'rgba(255,255,255,0.04)'};color:${(v.bisagra||'izq')==='izq'?'#FCD34D':'var(--gris)'};">◀ Izquierda</button>
                 <button onclick="actualizarVano('bisagra','der')" style="flex:1;padding:6px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid ${v.bisagra==='der'?'#F59E0B':'rgba(148,163,184,0.3)'};background:${v.bisagra==='der'?'rgba(245,158,11,0.25)':'rgba(255,255,255,0.04)'};color:${v.bisagra==='der'?'#FCD34D':'var(--gris)'};">Derecha ▶</button>
@@ -10300,47 +10312,91 @@ function cargarDesdePlano(modelo3d) {
 
         if (v.tipo !== 'puerta') return;   // 'vano' se queda solo con el marco
 
-        // HOJA — cuelga de un pivote puesto en la bisagra, que es lo que
-        // permite abrirla y cerrarla girando el pivote, no la hoja.
+        // TIPOS DE PUERTA: sencilla (batiente de madera), doble, corrediza,
+        // de vidrio y plegable. Todas guardan en puertasPlanta un "pivote" cuyo
+        // rotation.y va de 0 (cerrada) a angMax (abierta): las que no giran de una
+        // sola bisagra traducen ese valor a su propio movimiento, y así el clic
+        // para abrir/cerrar y su animación sirven igual para todas.
+        const estilo = v.estiloPuerta || 'sencilla';
         const bisagraIzq = (v.bisagra || 'izq') === 'izq';
-        const pivote = new THREE.Group();
-        pivote.position.set(bisagraIzq ? -W/2 : W/2, 0, 0);
-        grupo.add(pivote);
-
-        const anchoHoja = W - 0.02;
-        const altoHoja  = H - 0.03;
-        const matHoja   = new THREE.MeshStandardMaterial({ color:0x6B4423, roughness:0.6, metalness:0.0 });
-        const hoja = new THREE.Mesh(new THREE.BoxGeometry(anchoHoja, altoHoja, 0.045), matHoja);
-        hoja.position.set((bisagraIzq ? 1 : -1) * anchoHoja/2, altoHoja/2, 0);
-        hoja.castShadow = true;
-        hoja.receiveShadow = true;
-        pivote.add(hoja);
-
-        // Entrepaños tallados, para que no parezca una tabla lisa
-        const matPanel = new THREE.MeshStandardMaterial({ color:0x5A3A1D, roughness:0.65 });
-        [0.30, 0.68].forEach(f => {
-            const panel = new THREE.Mesh(new THREE.BoxGeometry(anchoHoja*0.66, altoHoja*0.28, 0.008), matPanel);
-            panel.position.set(hoja.position.x, altoHoja*f, 0.024);
-            pivote.add(panel);
-        });
-
-        // Manija sobre el canto libre
-        const matManija = new THREE.MeshStandardMaterial({ color:0xD4AF37, metalness:0.75, roughness:0.28 });
-        const manija = new THREE.Mesh(new THREE.SphereGeometry(0.032, 12, 12), matManija);
-        manija.position.set((bisagraIzq ? 1 : -1) * (anchoHoja - 0.09), 1.02, 0.045);
-        pivote.add(manija);
-
-        // Hacia dónde barre. 'dentro' = hacia el cuarto A (el dueño del lado).
         const haciaDentro = (v.sentido || 'dentro') !== 'fuera';
         const signoZ = signoDentroLocal[v.lado] * (haciaDentro ? 1 : -1);
         const angMax = (bisagraIzq ? -1 : 1) * signoZ * Math.PI / 2;
-
         const t = (v.abierta === false ? 0 : (v.anguloApertura ?? 75)) / 90;
+        const altoHoja = H - 0.03;
+        const matMadera = new THREE.MeshStandardMaterial({ color:0x6B4423, roughness:0.6, metalness:0.0 });
+        const matTallado = new THREE.MeshStandardMaterial({ color:0x5A3A1D, roughness:0.65 });
+        const matMetalP = new THREE.MeshStandardMaterial({ color:0x2B2D31, roughness:0.35, metalness:0.8 });
+        const matDorado = new THREE.MeshStandardMaterial({ color:0xD4AF37, metalness:0.75, roughness:0.28 });
+        const matVidrioP = new THREE.MeshStandardMaterial({ color:0xD6E8F2, transparent:true, opacity:0.28, metalness:0, roughness:0.05, depthWrite:false, side:THREE.DoubleSide });
+        const mallas = [];
+        const hojaMadera = (ancho) => {   // hoja de madera con entrepaños, centrada en su propio origen
+            const g = new THREE.Group();
+            const h = new THREE.Mesh(new THREE.BoxGeometry(ancho, altoHoja, 0.045), matMadera); h.castShadow = h.receiveShadow = true; g.add(h); mallas.push(h);
+            [0.30, 0.68].forEach(f => { const p = new THREE.Mesh(new THREE.BoxGeometry(ancho * 0.66, altoHoja * 0.28, 0.008), matTallado); p.position.set(0, altoHoja * (f - 0.5), 0.024); g.add(p); });
+            return g;
+        };
+        const hojaVidrio = (ancho) => {   // marco metálico delgado con vidrio templado
+            const g = new THREE.Group(), m = 0.05;
+            [[ancho, m, 0, altoHoja / 2 - m / 2], [ancho, m, 0, -altoHoja / 2 + m / 2], [m, altoHoja, -ancho / 2 + m / 2, 0], [m, altoHoja, ancho / 2 - m / 2, 0]].forEach(([w, h, x, y]) => {
+                const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.045), matMetalP); b.position.set(x, y, 0); b.castShadow = true; g.add(b); mallas.push(b); });
+            const vi = new THREE.Mesh(new THREE.BoxGeometry(ancho - 2 * m, altoHoja - 2 * m, 0.012), matVidrioP); g.add(vi); mallas.push(vi);
+            return g;
+        };
+        const manijaEn = (padre, x, barra) => {
+            const mj = barra ? new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.45, 0.03), matMetalP) : new THREE.Mesh(new THREE.SphereGeometry(0.032, 12, 12), matDorado);
+            mj.position.set(x, barra ? 1.05 - altoHoja / 2 : 1.02 - altoHoja / 2, 0.045); padre.add(mj); mallas.push(mj);
+        };
+        let pivote;
+        if (estilo === 'doble') {
+            const med = W / 2 - 0.01;
+            const pI = new THREE.Group(), pD = new THREE.Group();
+            pI.position.set(-W / 2, 0, 0); pD.position.set(W / 2, 0, 0); grupo.add(pI, pD);
+            const hI = hojaMadera(med); hI.position.set(med / 2, altoHoja / 2, 0); pI.add(hI); manijaEn(hI, med / 2 - 0.08, false);
+            const hD = hojaMadera(med); hD.position.set(-med / 2, altoHoja / 2, 0); pD.add(hD); manijaEn(hD, -med / 2 + 0.08, false);
+            const a = Math.abs(angMax);   // cada hoja gira hacia el mismo lado del cuarto, en espejo
+            let val = 0;
+            pivote = { rotation: { get y() { return val; }, set y(v2) { val = v2; const f = v2 / angMax;
+                pI.rotation.y = -signoZ * a * f; pD.rotation.y = signoZ * a * f; } } };
+        } else if (estilo === 'corrediza') {
+            // Estilo granero: la hoja corre por un riel, pegada a la cara del muro
+            const riel = new THREE.Mesh(new THREE.BoxGeometry(W * 2.1, 0.05, 0.05), matMetalP);
+            const zC = -signoZ * 0.1;
+            riel.position.set(bisagraIzq ? -W * 0.55 : W * 0.55, H + 0.06, zC); grupo.add(riel);
+            const hoja = hojaMadera(W + 0.08); grupo.add(hoja);
+            manijaEn(hoja, bisagraIzq ? (W + 0.08) / 2 - 0.1 : -(W + 0.08) / 2 + 0.1, true);
+            let val = 0;
+            pivote = { rotation: { get y() { return val; }, set y(v2) { val = v2; const f = v2 / angMax;
+                hoja.position.set((bisagraIzq ? -1 : 1) * W * 1.02 * f, altoHoja / 2, zC); } } };
+        } else if (estilo === 'plegable') {
+            // Cuatro paneles que se pliegan en zigzag hacia la bisagra
+            const nP = 4, w = (W - 0.02) / nP, paneles = [];
+            for (let k = 0; k < nP; k++) { const p = hojaMadera(w); grupo.add(p); paneles.push(p); }
+            manijaEn(paneles[nP - 1], bisagraIzq ? w / 2 - 0.06 : -w / 2 + 0.06, true);
+            let val = 0;
+            pivote = { rotation: { get y() { return val; }, set y(v2) { val = v2; const f = v2 / angMax;
+                const ang = f * THREE.MathUtils.degToRad(80), dir = bisagraIzq ? 1 : -1;
+                let x = bisagraIzq ? -W / 2 : W / 2, z = 0;
+                paneles.forEach((p, k) => {
+                    const sz = (k % 2 === 0 ? 1 : -1) * signoZ;
+                    const dx = dir * w * Math.cos(ang), dz = sz * w * Math.sin(ang);
+                    p.position.set(x + dx / 2, altoHoja / 2, z + dz / 2);
+                    p.rotation.y = -Math.atan2(dz, dx) + (dir < 0 ? Math.PI : 0);
+                    x += dx; z += dz;
+                }); } } };
+        } else {
+            // Sencilla (madera) o de vidrio: una hoja que gira sobre su bisagra
+            const piv = new THREE.Group();
+            piv.position.set(bisagraIzq ? -W / 2 : W / 2, 0, 0); grupo.add(piv);
+            const anchoHoja = W - 0.02;
+            const hoja = estilo === 'vidrio' ? hojaVidrio(anchoHoja) : hojaMadera(anchoHoja);
+            hoja.position.set((bisagraIzq ? 1 : -1) * anchoHoja / 2, altoHoja / 2, 0); piv.add(hoja);
+            manijaEn(hoja, (bisagraIzq ? 1 : -1) * (anchoHoja / 2 - 0.09), estilo === 'vidrio');
+            pivote = piv;
+        }
         pivote.rotation.y = angMax * t;
-
-        hoja.userData   = { esPuerta: true, vanoId: v.id };
-        manija.userData = { esPuerta: true, vanoId: v.id };
-        puertasPlanta.push({ vanoId: v.id, pivote, angMax, meshes: [hoja, manija] });
+        mallas.forEach(m => { m.userData = { esPuerta: true, vanoId: v.id }; });
+        puertasPlanta.push({ vanoId: v.id, pivote, angMax, meshes: mallas });
     });
 
     // ── CUBIERTA (lo que se ve por encima desde afuera) ──────────────────
