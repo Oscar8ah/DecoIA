@@ -1328,7 +1328,10 @@ function construirGeometriaVentana(g, id, W, H) {
     const colorBrillo = id === 'ventana_blanca' ? 0xEEEEEE : 0x333333;
     const matAlum   = new THREE.MeshStandardMaterial({ color:colorAlum,   roughness:0.25, metalness:0.75 });
     const matBrillo = new THREE.MeshStandardMaterial({ color:colorBrillo, roughness:0.2,  metalness:0.85 });
-    const matVidrio = new THREE.MeshStandardMaterial({ color:0xBBCCDD, transparent:true, opacity:0.15, metalness:0.95, roughness:0.02, side:THREE.DoubleSide });
+    // Vidrio real: NO es metal (con 0,95 de metal salía gris o espejo). Casi
+    // transparente, liso y con el reflejo del cielo cuando hay entorno.
+    const matVidrio = new THREE.MeshStandardMaterial({ color:0xD6E8F2, transparent:true, opacity:0.2, metalness:0, roughness:0.04,
+        envMapIntensity:1.2, depthWrite:false, side:THREE.DoubleSide });
     const matManija = new THREE.MeshStandardMaterial({ color:0x111111, roughness:0.3, metalness:0.8 });
     const B = Math.max(0.025, W*0.028);
     const D = 0.055;
@@ -1516,43 +1519,83 @@ function aplicarDimensionesVentana() {
 
 const huecosVentana = {};
 
-function crearHuecoVentana(ventanaId, posVentana, rotY) {
-    if (huecosVentana[ventanaId]) { scene.remove(huecosVentana[ventanaId]); delete huecosVentana[ventanaId]; }
-    const g = mobiliarioMeshes[ventanaId];
-    if (!g) return;
-    const vW = g.userData.ventanaAncho || 1.2;
-    const vH = g.userData.ventanaAlto  || 0.9;
-
-    // El hueco simula la apertura en la pared
-    // Color muy oscuro, renderizado DETRÁS de la ventana
-    const matHueco = new THREE.MeshStandardMaterial({
-        color: 0x05080F, roughness: 1, metalness: 0,
-        side: THREE.DoubleSide, depthWrite: true
+// ── HUECO REAL DE LA VENTANA ─────────────────────────────────────────────
+// Antes el "hueco" era una caja casi negra pintada sobre el muro: aunque el
+// vidrio fuera transparente, detrás se veía esa caja. Ahora el muro que toca
+// la ventana se esconde y se reemplaza por sus pedazos alrededor del hueco
+// (izquierda, derecha, antepecho y dintel); al mover o quitar la ventana se
+// restaura. Por la ventana se ve de verdad el exterior (y el entorno).
+const recortesVentana = {};   // id → { ocultos: [muros], piezas: [pedazos] }
+function quitarRecorteVentana(id) {
+    const r = recortesVentana[id];
+    if (!r) return;
+    r.piezas.forEach(p => { if (p.parent) p.parent.remove(p); p.geometry.dispose(); if (p.userData._matPropio) p.material.dispose(); });
+    r.ocultos.forEach(w => {
+        w.userData._ventanasQueOcultan = (w.userData._ventanasQueOcultan || []).filter(x => x !== id);
+        if (!w.userData._ventanasQueOcultan.length) w.visible = true;
     });
-    const hueco = new THREE.Mesh(new THREE.BoxGeometry(vW - 0.01, vH - 0.01, 0.14), matHueco);
-    hueco.position.copy(posVentana);
-    hueco.rotation.y = rotY;
-    hueco.renderOrder = -1; // detrás de todo
-    scene.add(hueco);
-    huecosVentana[ventanaId] = hueco;
-
-    // Poner la ventana delante del hueco
+    delete recortesVentana[id];
+}
+function recortarMurosPorVentana(id) {
+    const g = mobiliarioMeshes[id];
+    if (!g) return 0;
+    g.updateMatrixWorld(true);
+    const W = g.userData.ventanaAncho || 1.2, H = g.userData.ventanaAlto || 0.9;
+    const c = g.getWorldPosition(new THREE.Vector3());
+    const aLoLargoX = Math.abs(Math.sin(g.rotation.y)) < 0.5;   // la ventana corre en X (muro norte/sur) o en Z
+    const a0 = (aLoLargoX ? c.x : c.z) - W / 2, a1 = a0 + W, y0 = c.y - H / 2, y1 = c.y + H / 2;
+    const r = { ocultos: [], piezas: [] };
+    const candidatos = [];
+    scene.traverse(o => { const u = o.userData || {};
+        if (o.isMesh && o.visible && (u.esPared || u.esFachada) && o.geometry && o.geometry.type === 'BoxGeometry') candidatos.push(o); });
+    candidatos.forEach(w => {
+        const b = new THREE.Box3().setFromObject(w);
+        const horizontal = (b.max.x - b.min.x) >= (b.max.z - b.min.z);
+        if (horizontal !== aLoLargoX) return;
+        const perp = aLoLargoX ? c.z : c.x, pmin = aLoLargoX ? b.min.z : b.min.x, pmax = aLoLargoX ? b.max.z : b.max.x;
+        if (perp < pmin - 0.25 || perp > pmax + 0.25) return;           // no es el muro donde está pegada
+        const wa0 = aLoLargoX ? b.min.x : b.min.z, wa1 = aLoLargoX ? b.max.x : b.max.z;
+        const i0 = Math.max(a0, wa0), i1 = Math.min(a1, wa1), j0 = Math.max(y0, b.min.y), j1 = Math.min(y1, b.max.y);
+        if (i1 - i0 < 0.02 || j1 - j0 < 0.02) return;                    // la ventana no lo toca
+        const esp = pmax - pmin, pc = (pmin + pmax) / 2, largoMuro = wa1 - wa0, altoMuro = b.max.y - b.min.y;
+        [[wa0, i0, b.min.y, b.max.y], [i1, wa1, b.min.y, b.max.y], [i0, i1, b.min.y, j0], [i0, i1, j1, b.max.y]]
+            .filter(([p0, p1, q0, q1]) => p1 - p0 > 0.01 && q1 - q0 > 0.01)
+            .forEach(([p0, p1, q0, q1]) => {
+                const geo = aLoLargoX ? new THREE.BoxGeometry(p1 - p0, q1 - q0, esp) : new THREE.BoxGeometry(esp, q1 - q0, p1 - p0);
+                let mat = w.material;
+                if (mat.map) {   // con textura: cada pedazo conserva la escala del muro
+                    mat = mat.clone(); const fx = (p1 - p0) / largoMuro, fy = (q1 - q0) / altoMuro;
+                    ['map', 'normalMap'].forEach(k => { if (mat[k]) { const t = mat[k].clone(); t.repeat.set(w.material[k].repeat.x * fx, w.material[k].repeat.y * fy); t.needsUpdate = true; mat[k] = t; } });
+                }
+                const m = new THREE.Mesh(geo, mat);
+                m.castShadow = w.castShadow; m.receiveShadow = w.receiveShadow;
+                m.userData = Object.assign({}, w.userData, { piezaVentana: id, _matPropio: mat !== w.material });
+                delete m.userData._ventanasQueOcultan;
+                const centro = aLoLargoX ? new THREE.Vector3((p0 + p1) / 2, (q0 + q1) / 2, pc) : new THREE.Vector3(pc, (q0 + q1) / 2, (p0 + p1) / 2);
+                w.parent.add(m); m.position.copy(w.parent.worldToLocal(centro));
+                r.piezas.push(m);
+            });
+        w.visible = false;
+        (w.userData._ventanasQueOcultan = w.userData._ventanasQueOcultan || []).push(id);
+        r.ocultos.push(w);
+    });
+    recortesVentana[id] = r;
+    return r.ocultos.length;
+}
+function crearHuecoVentana(ventanaId, posVentana, rotY) {
+    quitarRecorteVentana(ventanaId);
+    recortarMurosPorVentana(ventanaId);
+    huecosVentana[ventanaId] = new THREE.Object3D();   // marca "tiene hueco" (no se dibuja)
+    const g = mobiliarioMeshes[ventanaId];
     if (g) g.renderOrder = 1;
 }
-
 function actualizarHuecoVentana(ventanaId) {
-    const h = huecosVentana[ventanaId];
-    if (!h) return;
-    const g = mobiliarioMeshes[ventanaId];
-    if (!g) return;
-    const vW = g.userData.ventanaAncho||1.2;
-    const vH = g.userData.ventanaAlto||0.9;
-    h.geometry.dispose();
-    h.geometry = new THREE.BoxGeometry(vW-0.01, vH-0.01, 0.18);
+    if (!huecosVentana[ventanaId]) return;
+    quitarRecorteVentana(ventanaId);
+    recortarMurosPorVentana(ventanaId);
 }
-
 function limpiarHuecosVentana() {
-    Object.values(huecosVentana).forEach(h => scene.remove(h));
+    Object.keys(recortesVentana).forEach(quitarRecorteVentana);
     Object.keys(huecosVentana).forEach(k => delete huecosVentana[k]);
 }
 
@@ -2785,7 +2828,8 @@ function renderListaMuebles() {
 // ── TOGGLE MUEBLE ─────────────────────────────────────────────────────────
 function toggleMueble(id) {
     if (mobiliarioMeshes[id]) {
-        // Quitar de escena
+        // Quitar de escena (y devolverle el muro entero si tenía hueco)
+        quitarRecorteVentana(id); delete huecosVentana[id];
         scene.remove(mobiliarioMeshes[id]);
         delete mobiliarioMeshes[id];
         if (muebleSeleccionado === id) desactivarMoverMueble();
@@ -3203,10 +3247,8 @@ function rotarVentana(id) {
     // Alternar entre horizontal (0°) y vertical (90°) en la pared
     const actual = Math.round(g.rotation.y * 180 / Math.PI) % 180;
     g.rotation.y = (actual === 0) ? Math.PI/2 : 0;
-    // Actualizar hueco si existe
-    if (huecosVentana[id]) {
-        huecosVentana[id].rotation.y = g.rotation.y;
-    }
+    // Actualizar hueco si existe: se vuelve a recortar el muro con el nuevo giro
+    if (huecosVentana[id]) actualizarHuecoVentana(id);
     mostrarToast('⟂ Girada — arrastra para pegar a nueva pared');
 }
 function rotarMueble(id) {

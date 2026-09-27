@@ -721,6 +721,9 @@ async function cargarBaul() {
         return;
     }
     window._baulItems = data;
+    // Solo las 3 últimas aquí; todas quedan en Mi cuenta
+    const totalBaul = data.length;
+    data.splice(3);
     lista.innerHTML = data.map((it, i) => {
         const fecha = new Date(it.created_at).toLocaleString('es-CO',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
         const n = (it.productos || []).length;
@@ -736,6 +739,8 @@ async function cargarBaul() {
             </div>
         </div>`;
     }).join('');
+    if (totalBaul > 3) lista.insertAdjacentHTML('beforeend',
+        `<a href="/mi-cuenta" style="display:block;text-align:center;font-size:12px;font-weight:700;color:#6EE7B7;padding:8px 0 2px;">Ver las ${totalBaul} en Mi cuenta →</a>`);
 }
 
 window.abrirDelBaul = async function(i) {
@@ -843,11 +848,14 @@ async function cargarBandejaAsesor() {
             const cuerpo = await r.json().catch(() => ({}));
             throw new Error(cuerpo.detail || `El servidor respondió ${r.status}`);
         }
-        const { items } = await r.json();
+        let { items } = await r.json();
         if (!items.length) {
             lista.innerHTML = '<div style="font-size:12px;color:var(--gris);line-height:1.6;">Todavía no hay remodelaciones. Cuando un cliente le mande una foto a tu WhatsApp, el resultado aparece aquí con su número.</div>';
             return;
         }
+        // Solo las 3 últimas a la vista; el resto se despliega con "Ver todas"
+        const verTodas = lista.dataset.todas === '1', total = items.length;
+        if (!verTodas) items = items.slice(0, 3);
         lista.innerHTML = items.map(it => {
             const tel = it.telefono ? String(it.telefono).replace(/\D/g,'') : '';
             const fecha = it.creado_en ? new Date(it.creado_en).toLocaleString('es-CO',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
@@ -866,6 +874,10 @@ async function cargarBandejaAsesor() {
                 </div>
             </div>`;
         }).join('');
+        if (total > 3) lista.insertAdjacentHTML('beforeend',
+            `<button onclick="const l=document.getElementById('bandejaLista'); l.dataset.todas = l.dataset.todas === '1' ? '0' : '1'; cargarBandejaAsesor();"
+                style="width:100%;margin-top:8px;background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.35);color:#C4B5FD;padding:7px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">
+                ${verTodas ? 'Ver solo las 3 últimas' : `Ver todas (${total})`}</button>`);
     } catch (e) {
         // Se muestra el error real. El mensaje genérico de antes obligaba a
         // adivinar qué había fallado.
