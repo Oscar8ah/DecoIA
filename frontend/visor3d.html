@@ -232,6 +232,10 @@
         .pe-grid button span { font-size:17px; }
         .pe-grid button.activo, .pe-niveles button.activo { background:rgba(124,58,237,0.28); border-color:#8B5CF6; color:#fff; }
         .pe-niveles { display:grid; grid-template-columns:repeat(4,1fr); gap:4px; }
+        .pe-dianoche { display:grid; grid-template-columns:1fr 1fr; gap:5px; margin-top:2px; }
+        .pe-dianoche button { background:var(--oscuro); border:1px solid rgba(124,58,237,0.25); color:var(--texto); border-radius:9px; padding:7px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; }
+        .pe-dianoche button.activo { background:rgba(245,158,11,0.18); border-color:#F59E0B; color:#FDE68A; }
+        .pe-dianoche button[data-dn="noche"].activo { background:rgba(59,130,246,0.2); border-color:#3B82F6; color:#BFDBFE; }
         .pe-niveles button { padding:7px 2px; }
         .pe-etiqueta { font-size:10.5px; color:var(--gris); text-transform:uppercase; letter-spacing:0.05em; font-weight:700; margin-top:4px; display:flex; justify-content:space-between; }
         .pe-etiqueta span { color:#FCD34D; text-transform:none; }
@@ -435,6 +439,7 @@
         <div style="font-size:10.5px;font-weight:700;color:#D6D3D1;text-transform:uppercase;letter-spacing:0.05em;">🏗️ Estructura</div>
         <button onclick="agregarModulo('columna')" style="background:rgba(168,162,158,0.15);border:1px solid rgba(168,162,158,0.35);color:#E7E5E4;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🏛️ Columna</button>
         <button onclick="agregarModulo('viga')"    style="background:rgba(146,124,88,0.18);border:1px solid rgba(146,124,88,0.4);color:#D9C9A8;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🪵 Viga</button>
+        <button onclick="agregarModulo('baranda')" style="background:rgba(203,213,225,0.1);border:1px solid rgba(203,213,225,0.4);color:#E2E8F0;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🚧 Baranda</button>
         <button onclick="agregarModulo('hueco')" style="background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.4);color:#7DD3FC;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">⬚ Hueco</button>
         <button onclick="agregarModulo('escalera')" style="background:rgba(245,158,11,0.14);border:1px solid rgba(245,158,11,0.4);color:#FCD34D;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">🪜 Escalera</button>
         <div style="font-size:10px;color:var(--gris);line-height:1.5;">La columna va de piso a techo. La viga cuelga: ajusta <b>altura base</b> y <b>peralte</b> en el panel derecho.</div>
@@ -484,8 +489,14 @@
             <button onclick="elegirEntorno('montana')" data-entorno="montana"><span>🏔️</span>Montaña</button>
             <button onclick="elegirEntorno('playa')" data-entorno="playa"><span>🏖️</span>Playa</button>
         </div>
-        <div class="pe-etiqueta">☀️ Hora del sol <span id="peHora">10:00</span></div>
-        <input type="range" id="peSol" min="6" max="18" step="0.25" value="10" oninput="cambiarHoraSol(this.value)">
+        <div class="pe-dianoche">
+            <button onclick="elegirDiaNoche(false)" data-dn="dia">☀️ Día</button>
+            <button onclick="elegirDiaNoche(true)" data-dn="noche">🌙 Noche</button>
+        </div>
+        <div id="peFilaSol">
+            <div class="pe-etiqueta">☀️ Hora del sol <span id="peHora">10:00</span></div>
+            <input type="range" id="peSol" min="6" max="18" step="0.25" value="10" oninput="cambiarHoraSol(this.value)">
+        </div>
         <div class="pe-etiqueta">✨ Realismo</div>
         <div class="pe-niveles">
             <button onclick="elegirRealismo('basico')" data-nivel="basico">Básico</button>
@@ -782,6 +793,18 @@
                 <div id="infoCubierta" style="font-size:10.5px;color:var(--gris);margin-top:8px;line-height:1.6;"></div>
             </div>
             <!-- Solo para COLUMNA: sección cuadrada o redonda -->
+            <!-- Solo para BARANDA -->
+            <div id="contBaranda" style="display:none;flex-direction:column;gap:10px;">
+                <div><label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;">Material</label>
+                    <select id="propMatBaranda" onchange="actualizarPropModulo()" style="width:100%;background:var(--oscuro);border:1px solid rgba(148,163,184,0.4);border-radius:8px;padding:8px 12px;color:var(--texto);font-size:13px;margin-top:4px;outline:none;">
+                        <option value="madera">Madera (balaustres)</option><option value="metalica">Metálica (barrotes)</option>
+                        <option value="vidrio">Vidrio templado (pasamanos metálico)</option></select></div>
+                <div><label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;">Altura (m)</label>
+                    <input type="number" id="propAltoBaranda" min="0.6" max="1.5" step="0.05" oninput="actualizarPropModulo()" style="width:100%;background:var(--oscuro);border:1px solid rgba(148,163,184,0.4);border-radius:8px;padding:8px 12px;color:var(--texto);font-size:13px;margin-top:4px;outline:none;"></div>
+                <div><label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;">Desde el piso de este nivel (m)</label>
+                    <input type="number" id="propBaseBaranda" min="-1.5" max="3" step="0.05" oninput="actualizarPropModulo()" style="width:100%;background:var(--oscuro);border:1px solid rgba(148,163,184,0.4);border-radius:8px;padding:8px 12px;color:var(--texto);font-size:13px;margin-top:4px;outline:none;">
+                    <div style="font-size:10.5px;color:var(--gris);margin-top:5px;line-height:1.5;">0 = sobre el piso. Sobre un andén: su nivel (p. ej. -0.15). Ponla al borde de un hueco, balcón o terraza.</div></div>
+            </div>
             <!-- Solo para HUECO -->
             <div id="contHueco" style="display:none;font-size:12px;color:var(--gris);line-height:1.6;background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.3);border-radius:10px;padding:10px;">
                 <b style="color:#7DD3FC">⬚ Hueco</b>: al generar el 3D abre el <b style="color:var(--texto)">piso de este nivel</b> y el <b style="color:var(--texto)">techo del nivel de abajo</b> en esta área. Sirve para doble altura y para el hueco por donde llega una escalera. En el primer piso abre el techo (patio de luz). Estíralo desde su esquina a la medida que quieras.
@@ -2203,7 +2226,7 @@ function objetosEditables() {
     // Solo los de más arriba (un objeto dentro de otro de la lista no se repite)
     const set = new Set(lista);
     const arriba = lista.filter(o => { let p = o.parent; while (p && p !== scene) { if (set.has(p)) return false; p = p.parent; } return true; });
-    const orden = { camara:0, cuarto:1, columna:2, viga:2, escalera:2, plafon:3, cubierta:3, exterior:4 };
+    const orden = { camara:0, cuarto:1, columna:2, viga:2, escalera:2, baranda:2, plafon:3, cubierta:3, exterior:4 };
     return arriba.sort((a, b) => (orden[(a.userData||{}).tipoEstructura] ?? 5) - (orden[(b.userData||{}).tipoEstructura] ?? 5));
 }
 function nombreObjeto(o) {
@@ -4475,7 +4498,8 @@ function firmaPlanta() {
         m: modulosPlanta.map(m => [m.id, m.tipo, m.px, m.pz, m.ancho, m.largo, m.alto, m.nivel, m.forma, m.alturaBase,
             m.peralte, m.descuelgue, m.espesor, m.tipoTecho, m.pendiente, m.voladizo, m.orientacion,
             m.materialPiso, m.imagenPisoUrl, m.colorPared, m.acabado, m.nivelExt,
-            m.formaEscalera, m.arranque, m.giro, m.alturaSubir, m.anchoTramo, m.estiloEscalera, m.baranda, m.barandaLado, (m.paredesEliminadas || []).join(), JSON.stringify(m.disenoParedes || null)]),
+            m.formaEscalera, m.arranque, m.giro, m.alturaSubir, m.anchoTramo, m.estiloEscalera, m.baranda, m.barandaLado,
+            m.materialBaranda, m.alturaBaranda, m.baseBaranda, (m.paredesEliminadas || []).join(), JSON.stringify(m.disenoParedes || null)]),
         v: vanosPlanta.map(v => [v.modulo_a, v.modulo_b, v.lado, v.centro, v.ancho, v.tipo, v.alto, v.bisagra, v.sentido, v.anguloApertura]),
         n: typeof nivelesTotales !== 'undefined' ? nivelesTotales : 1,
         e: [e.fachada, e.materialFachada, e.colorFachada, e.gruesoFachada, e.cubierta, e.pendiente, e.alero, e.girarCubierta],
@@ -5472,10 +5496,10 @@ const NIVELES_REALISMO = {
 };
 // "var" a propósito: configurarLuces() corre una vez al cargar la página, antes
 // de llegar aquí, y consulta entornoActual; con let rompería la carga.
-var entornoActual = 'estudio', realismoActual = 'realista', horaSol = 10;
+var entornoActual = 'estudio', realismoActual = 'realista', horaSol = 10, esNoche = false;
 var grupoEntorno = null, cieloEntorno = null, texEntorno = null;
 try { entornoActual = localStorage.getItem('decoia_entorno') || 'estudio'; realismoActual = localStorage.getItem('decoia_realismo') || 'realista';
-      horaSol = parseFloat(localStorage.getItem('decoia_hora_sol')) || 10; } catch (e) {}
+      horaSol = parseFloat(localStorage.getItem('decoia_hora_sol')) || 10; esNoche = localStorage.getItem('decoia_noche') === '1'; } catch (e) {}
 if (!(entornoActual in ENTORNOS)) entornoActual = 'estudio';
 if (!(realismoActual in NIVELES_REALISMO)) realismoActual = 'realista';
 
@@ -5543,8 +5567,24 @@ function construirEntorno() {
     const nivel = NIVELES_REALISMO[realismoActual];
     grupoEntorno = new THREE.Group(); grupoEntorno.userData.esEntorno = true;
 
+    // ── NOCHE: cielo oscuro con estrellas y luna; la casa se ilumina por dentro ──
+    if (esNoche) {
+        const R0 = azarConSemilla(7), n = 1800, pts = new Float32Array(n * 3), cols = new Float32Array(n * 3);
+        for (let i = 0; i < n; i++) {
+            const u = R0() * 2 - 1, a = R0() * Math.PI * 2, rr = Math.sqrt(1 - u * u), y = Math.abs(u);
+            pts.set([rr * Math.cos(a) * 900, y * 900 + 20, rr * Math.sin(a) * 900], i * 3);
+            const b = 0.55 + R0() * 0.45; cols.set([b, b, Math.min(1, b + 0.1)], i * 3);
+        }
+        const geoE = new THREE.BufferGeometry();
+        geoE.setAttribute('position', new THREE.BufferAttribute(pts, 3)); geoE.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+        const estrellas = new THREE.Points(geoE, new THREE.PointsMaterial({ size: 1.6, sizeAttenuation: false, vertexColors: true, fog: false, transparent: true, opacity: 0.9 }));
+        grupoEntorno.add(estrellas);
+        const luna = new THREE.Mesh(new THREE.SphereGeometry(14, 24, 16), new THREE.MeshBasicMaterial({ color: 0xF2F0E6, fog: false }));
+        luna.position.copy(direccionLuna(cfg).multiplyScalar(850)); grupoEntorno.add(luna);
+        texEntorno = null;
+    }
     // ── Cielo físico: sol, dispersión, horizonte ──
-    if (THREE.Sky) {
+    if (THREE.Sky && !esNoche) {
         cieloEntorno = new THREE.Sky(); cieloEntorno.scale.setScalar(450000);
         const u = cieloEntorno.material.uniforms;
         u.turbidity.value = cfg.sky.turbidity; u.rayleigh.value = cfg.sky.rayleigh;
@@ -5654,12 +5694,16 @@ function construirEntorno() {
     scene.add(grupoEntorno);
 
     // ── Aire, fondo y alcance de la vista ──
-    scene.fog = new THREE.Fog(cfg.niebla, cfg.nieblaCerca, cfg.nieblaLejos);
-    scene.background = null;
+    scene.fog = esNoche ? new THREE.Fog(0x0A1020, 50, 380) : new THREE.Fog(cfg.niebla, cfg.nieblaCerca, cfg.nieblaLejos);
+    scene.background = esNoche ? new THREE.Color(0x050814) : null;
     scene.environment = texEntorno;
     camera.far = 2000; camera.updateProjectionMatrix();
     cameraPreview.far = 2000; cameraPreview.updateProjectionMatrix();
-    renderer.toneMappingExposure = cfg.exp;
+    renderer.toneMappingExposure = esNoche ? 0.95 : cfg.exp;
+}
+// La luna sale por el lado contrario al sol de la tarde, alta en el cielo
+function direccionLuna(cfg) {
+    return new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - 48), THREE.MathUtils.degToRad(cfg.sky.azim + 160));
 }
 
 function quitarEntorno(restaurarEstudio) {
@@ -5669,6 +5713,7 @@ function quitarEntorno(restaurarEstudio) {
         grupoEntorno = null; cieloEntorno = null;
     }
     if (restaurarEstudio) {
+        scene.background = null;
         scene.fog = new THREE.Fog(0x0F0F1A, 20, 60);
         scene.environment = null;
         if (texEntorno) { texEntorno.dispose(); texEntorno = null; }
@@ -5682,27 +5727,28 @@ function quitarEntorno(restaurarEstudio) {
 function ajustarLucesEntorno() {
     const cfg = ENTORNOS[entornoActual];
     if (!cfg) return;
-    const dir = direccionSol(cfg), casa = areaCasa(), centro = casa.getCenter(new THREE.Vector3());
+    const dir = esNoche ? direccionLuna(cfg) : direccionSol(cfg), casa = areaCasa(), centro = casa.getCenter(new THREE.Vector3());
     const tam = casa.getSize(new THREE.Vector3()), R = Math.max(tam.x, tam.z, 6);
     const t = (horaSol - 6) / 12, tarde = Math.pow(Math.abs(t - 0.5) * 2, 3);   // 0 al mediodía, 1 al amanecer/atardecer
-    const colorSol = new THREE.Color(cfg.sol).lerp(new THREE.Color(0xFF9A4D), tarde * 0.8);
+    const colorSol = esNoche ? new THREE.Color(0x9DB4FF) : new THREE.Color(cfg.sol).lerp(new THREE.Color(0xFF9A4D), tarde * 0.8);
     if (luces.directional) {
         const d = luces.directional;
         d.color.copy(colorSol);
-        d.intensity = cfg.solI * (0.45 + 0.55 * Math.sin(Math.PI * Math.max(0.05, t))) * estado.intensidadLuz;
+        d.intensity = esNoche ? 0.35 * estado.intensidadLuz : cfg.solI * (0.45 + 0.55 * Math.sin(Math.PI * Math.max(0.05, t))) * estado.intensidadLuz;
         d.position.copy(centro).addScaledVector(dir, R * 2.2);
         d.target.position.copy(centro); scene.add(d.target);
         const m = R * 0.9;
         Object.assign(d.shadow.camera, { left: -m, right: m, top: m, bottom: -m, near: 0.5, far: R * 5 });
         d.shadow.camera.updateProjectionMatrix();
     }
-    if (luces.hemi) { luces.hemi.color.set(cfg.cielo); luces.hemi.groundColor.set(cfg.rebote); luces.hemi.intensity = cfg.hemiI * estado.intensidadLuz; }
-    if (luces.ambient) luces.ambient.intensity = 0.1 * estado.intensidadLuz;
+    if (luces.hemi) { luces.hemi.color.set(esNoche ? 0x1E2A4A : cfg.cielo); luces.hemi.groundColor.set(esNoche ? 0x0B0E14 : cfg.rebote);
+                      luces.hemi.intensity = (esNoche ? 0.18 : cfg.hemiI) * estado.intensidadLuz; }
+    if (luces.ambient) luces.ambient.intensity = (esNoche ? 0.04 : 0.1) * estado.intensidadLuz;
     if (luces.fill) luces.fill.intensity = 0.1 * estado.intensidadLuz;
     // Adentro: la luz de techo se compensa con la exposición, para que la casa
     // conserve la calidez que tiene en Estudio (con exposición baja se apagaba).
-    const compensa = 1 / cfg.exp;
-    if (luces.point) luces.point.intensity = 0.5 * estado.intensidadLuz * compensa;
+    const compensa = esNoche ? 2.2 : 1 / cfg.exp;   // de noche la casa brilla por dentro
+    if (luces.point) { luces.point.intensity = 0.5 * estado.intensidadLuz * compensa; luces.point.color.set(esNoche ? 0xFFD49A : 0xFFFAE6); }
     scene.traverse(o => { if (o.isLight && o.userData && o.userData.luzTecho) o.intensity = (o.userData.intBase ?? o.intensity) * compensa; });
     // En la casa el cielo aporta REFLEJOS, no relleno: el mapa de entorno ilumina
     // igual detrás de muros y techo, y a plena fuerza aplanaba y azulaba el interior.
@@ -5751,14 +5797,24 @@ function cambiarHoraSol(v) {
     const h = Math.floor(horaSol), mi = Math.round((horaSol - h) * 60);
     document.getElementById('peHora').textContent = `${h}:${String(mi).padStart(2, '0')}`;
     const cfg = ENTORNOS[entornoActual];
-    if (cfg && cieloEntorno) {
+    if (cfg && cieloEntorno && !esNoche) {
         cieloEntorno.material.uniforms.sunPosition.value.copy(direccionSol(cfg));
         ajustarLucesEntorno();
         clearTimeout(cambiarHoraSol._t);   // los reflejos del cielo se recalculan al soltar
         cambiarHoraSol._t = setTimeout(() => construirEntorno(), 350);
     }
 }
+function elegirDiaNoche(noche) {
+    esNoche = !!noche;
+    try { localStorage.setItem('decoia_noche', esNoche ? '1' : '0'); } catch (e) {}
+    if (entornoActual === 'estudio') { mostrarToast('Elige un entorno (bosque, playa…) para ver el día y la noche'); marcarPanelEntorno(); return; }
+    configurarLuces();
+    marcarPanelEntorno();
+    mostrarToast(esNoche ? '🌙 De noche: la casa se ilumina por dentro' : '☀️ De día');
+}
 function marcarPanelEntorno() {
+    document.querySelectorAll('#panelEntorno [data-dn]').forEach(b => b.classList.toggle('activo', (b.dataset.dn === 'noche') === esNoche));
+    const fs = document.getElementById('peFilaSol'); if (fs) fs.style.display = esNoche ? 'none' : '';
     document.querySelectorAll('#panelEntorno [data-entorno]').forEach(b => b.classList.toggle('activo', b.dataset.entorno === entornoActual));
     document.querySelectorAll('#panelEntorno [data-nivel]').forEach(b => b.classList.toggle('activo', b.dataset.nivel === realismoActual));
     document.getElementById('peNota').textContent = NIVELES_REALISMO[realismoActual].nota;
@@ -7273,12 +7329,12 @@ function modulosEditables() {
 const COLORES_MODULO = {
     sala:'#3B82F6', cocina:'#10B981', habitacion:'#7C3AED',
     bano:'#F59E0B', pasillo:'#94A3B8', zona:'#EF4444', pared:'#78716C', vidrio:'#38BDF8',
-    columna:'#A8A29E', viga:'#927C58', plafon:'#C084FC', cubierta:'#F97316', exterior:'#84CC16', escalera:'#F59E0B', hueco:'#38BDF8'
+    columna:'#A8A29E', viga:'#927C58', plafon:'#C084FC', cubierta:'#F97316', exterior:'#84CC16', escalera:'#F59E0B', hueco:'#38BDF8', baranda:'#CBD5E1'
 };
 const EMOJIS_MODULO = {
     sala:'🛋️', cocina:'🍳', habitacion:'🛏️',
     bano:'🚿', pasillo:'🚶', zona:'📦', pared:'🧱', vidrio:'🪟',
-    columna:'🏛️', viga:'🪵', plafon:'⬜', cubierta:'🏠', exterior:'🟫', escalera:'🪜', hueco:'⬚'
+    columna:'🏛️', viga:'🪵', plafon:'⬜', cubierta:'🏠', exterior:'🟫', escalera:'🪜', hueco:'⬚', baranda:'🚧'
 };
 // ── ENVOLVENTE: techos interiores + fachada exterior ─────────────────────
 // "Techo" es el cielo raso de cada cuarto (se ve desde adentro).
@@ -7306,7 +7362,7 @@ let puertasPlanta  = [];   // { grupo, pivote, vano, angMax } — hojas abribles
 // Tipos que NO son un cuarto: no llevan piso, no abren vanos en el vecino y no
 // suman área habitable. Antes esta lista estaba escrita a mano en 5 sitios
 // distintos; centralizarla evita que columna/viga se cuelen en las estadísticas.
-const TIPOS_NO_CUARTO = ['pared', 'vidrio', 'columna', 'viga', 'plafon', 'cubierta', 'exterior', 'escalera', 'hueco'];
+const TIPOS_NO_CUARTO = ['pared', 'vidrio', 'columna', 'viga', 'plafon', 'cubierta', 'exterior', 'escalera', 'hueco', 'baranda'];
 const esCuarto = t => !TIPOS_NO_CUARTO.includes(t);
 
 function iniciarEditorPlanta() {
@@ -7468,6 +7524,55 @@ function restarHuecos(rect, huecos) {
         pedazos = nuevos;
     });
     return pedazos;
+}
+
+// ── BARANDAS ─────────────────────────────────────────────────────────────
+// Una línea en la planta (el lado largo del módulo). En madera: pasamanos y
+// balaustres; metálica: tubo y barrotes; vidrio: paneles de vidrio templado
+// con pasamanos metálico. Parales cada 1,2 m aprox.
+function datosBaranda(m) {
+    const b = m.baranda || { material: m.materialBaranda, alto: m.alturaBaranda, base: m.baseBaranda };
+    return { material: b.material || 'metalica', alto: b.alto ?? 0.95, base: b.base ?? 0, L: Math.max(m.ancho, m.largo), aLoLargoX: m.ancho >= m.largo };
+}
+function construirBaranda3D(mod, x, z, baseY) {
+    const d = datosBaranda(mod), g = new THREE.Group(), L = d.L, H = d.alto;
+    const madera = d.material === 'madera', vidrio = d.material === 'vidrio';
+    const matEst = madera ? new THREE.MeshStandardMaterial({ color: 0x7A4E2D, roughness: 0.6 })
+                          : new THREE.MeshStandardMaterial({ color: vidrio ? 0xB8BEC6 : 0x2A2B2E, roughness: 0.35, metalness: 0.8 });
+    const nPost = Math.max(2, Math.round(L / 1.2) + 1), grueso = madera ? 0.08 : 0.045;
+    const add = (geo, mat, px, py, pz) => { const m = new THREE.Mesh(geo, mat); m.position.set(px, py, pz); m.castShadow = true; m.receiveShadow = true; g.add(m); };
+    for (let i = 0; i < nPost; i++) add(new THREE.BoxGeometry(grueso, H, grueso), matEst, -L / 2 + i * L / (nPost - 1), H / 2, 0);
+    add(new THREE.BoxGeometry(L + grueso, madera ? 0.05 : 0.045, madera ? 0.1 : 0.05), matEst, 0, H, 0);          // pasamanos
+    if (vidrio) {
+        const matV = new THREE.MeshStandardMaterial({ color: 0xCFEFEA, roughness: 0.05, transparent: true, opacity: 0.32, depthWrite: false });
+        for (let i = 0; i < nPost - 1; i++) {
+            const tramo = L / (nPost - 1);
+            add(new THREE.BoxGeometry(tramo - 0.06, H - 0.15, 0.012), matV, -L / 2 + (i + 0.5) * tramo, 0.08 + (H - 0.15) / 2, 0);
+        }
+    } else {
+        add(new THREE.BoxGeometry(L, madera ? 0.05 : 0.03, madera ? 0.06 : 0.03), matEst, 0, 0.08, 0);             // travesaño de abajo
+        const paso = madera ? 0.13 : 0.11, n = Math.floor(L / paso);
+        for (let i = 1; i < n; i++) {                                                                                 // balaustres / barrotes
+            const px = -L / 2 + i * paso;
+            if (Math.abs(((px + L / 2) % (L / (nPost - 1)))) < 0.05) continue;   // no encima de un paral
+            add(madera ? new THREE.BoxGeometry(0.04, H - 0.13, 0.04) : new THREE.CylinderGeometry(0.008, 0.008, H - 0.12, 6), matEst, px, 0.08 + (H - 0.11) / 2, 0);
+        }
+    }
+    g.rotation.y = d.aLoLargoX ? 0 : Math.PI / 2;
+    g.position.set(x, baseY + d.base, z);
+    g.userData = { moduloId: mod.id, moduloNombre: mod.nombre, tipoEstructura: 'baranda' };
+    return g;
+}
+function htmlMaterialBaranda(m) {
+    const d = datosBaranda(m), nPost = Math.max(2, Math.round(d.L / 1.2) + 1);
+    const que = { madera: `balaustres de madera (${Math.floor(d.L / 0.13)} aprox.)`, metalica: `barrotes metálicos (${Math.floor(d.L / 0.11)} aprox.)`,
+                  vidrio: `vidrio templado: <b>${((d.alto - 0.15) * d.L).toFixed(2)} m²</b> en ${nPost - 1} paneles` }[d.material];
+    return `<div style="background:rgba(203,213,225,0.07);border:1px solid rgba(203,213,225,0.3);border-radius:10px;padding:10px;font-size:12px;">
+        <div style="font-weight:700;color:#E2E8F0;margin-bottom:4px;">🚧 ${d.L.toFixed(2)} metros lineales</div>
+        <div>Parales: <b>${nPost}</b> · Pasamanos: <b>${d.L.toFixed(2)} m</b></div>
+        <div>Relleno: ${que}</div>
+        <div style="color:var(--gris);font-size:10px;margin-top:6px;line-height:1.5;">En balcones y huecos la altura mínima usual es 0,90–1,00 m; confírmala con quien va a construir.</div>
+    </div>`;
 }
 
 // ── ESCALERAS ────────────────────────────────────────────────────────────
@@ -7764,6 +7869,7 @@ function agregarModulo(tipo) {
         exterior: { ancho:1.20, largo:6.00 },   // un andén típico
         escalera: { ancho:1.00, largo:4.50 },   // recta de 16 escalones de 28 cm
         hueco:    { ancho:1.20, largo:2.60 },   // lo justo para que llegue una escalera
+        baranda:  { ancho:3.00, largo:0.08 },   // una línea: el largo manda, el grosor casi no
     };
     const med = MEDIDAS_DEFECTO[tipo] || { ancho:4, largo:4 };
     const nuevo = {
@@ -7798,6 +7904,9 @@ function agregarModulo(tipo) {
     }
     if (tipo === 'exterior') {
         Object.assign(nuevo, DEFECTO_EXTERIOR.anden, { subtipo: 'anden', nombre: NOMBRE_EXTERIOR.anden });
+    }
+    if (tipo === 'baranda') {
+        Object.assign(nuevo, { materialBaranda: 'metalica', alturaBaranda: 0.95, baseBaranda: 0, nombre: '🚧 Baranda' });
     }
     if (tipo === 'escalera') {
         Object.assign(nuevo, { formaEscalera: 'recta', arranque: 'sur', giro: 'der', alturaSubir: alturaEntrepiso,
@@ -8314,6 +8423,14 @@ function dibujarPlanta() {
         ctx.stroke();
         ctx.setLineDash([]);
         if (m.tipo === 'escalera') dibujarEscaleraPlanta(ctx, m, color);
+        if (m.tipo === 'baranda') {   // en planta: la línea con sus parales
+            const larga = m.ancho >= m.largo, L = Math.max(m.ancho, m.largo), n = Math.max(2, Math.round(L / 1.2) + 1);
+            ctx.save(); ctx.fillStyle = color;
+            for (let i = 0; i < n; i++) { const f = i / (n - 1);
+                const px = larga ? m.px + f * pw : m.px + pw / 2, pz = larga ? m.pz + ph / 2 : m.pz + f * ph;
+                ctx.beginPath(); ctx.arc(px, pz, 3, 0, Math.PI * 2); ctx.fill(); }
+            ctx.restore();
+        }
         if (m.tipo === 'hueco') {   // así se dibuja un vacío en un plano: la cruz de esquina a esquina
             ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 1.2; ctx.setLineDash([5, 4]);
             ctx.beginPath(); ctx.moveTo(m.px, m.pz); ctx.lineTo(m.px + pw, m.pz + ph); ctx.moveTo(m.px + pw, m.pz); ctx.lineTo(m.px, m.pz + ph); ctx.stroke();
@@ -8693,6 +8810,13 @@ function seleccionarModulo(id) {
     document.getElementById('contEscalera').style.display = esEsc ? 'flex' : 'none';
     const esHueco = moduloSeleccionado.tipo === 'hueco';
     document.getElementById('contHueco').style.display = esHueco ? 'block' : 'none';
+    const esBar = moduloSeleccionado.tipo === 'baranda';
+    document.getElementById('contBaranda').style.display = esBar ? 'flex' : 'none';
+    if (esBar) {
+        document.getElementById('propMatBaranda').value  = moduloSeleccionado.materialBaranda || 'metalica';
+        document.getElementById('propAltoBaranda').value = moduloSeleccionado.alturaBaranda ?? 0.95;
+        document.getElementById('propBaseBaranda').value = moduloSeleccionado.baseBaranda ?? 0;
+    }
     if (esEsc) {
         const m = moduloSeleccionado;
         document.getElementById('propFormaEsc').value    = m.formaEscalera || 'recta';
@@ -8707,8 +8831,8 @@ function seleccionarModulo(id) {
         document.getElementById('filaTramoEsc').style.display = ['L', 'U'].includes(m.formaEscalera) ? '' : 'none';
     }
     // Un piso exterior no tiene "alto" de muro: su tercer eje es el espesor
-    document.getElementById('propAlto').parentElement.style.display = (esExt || esEsc || esHueco) ? 'none' : '';
-    document.getElementById('propColorPared').parentElement.style.display = (esExt || esEsc || esHueco) ? 'none' : '';
+    document.getElementById('propAlto').parentElement.style.display = (esExt || esEsc || esHueco || esBar) ? 'none' : '';
+    document.getElementById('propColorPared').parentElement.style.display = (esExt || esEsc || esHueco || esBar) ? 'none' : '';
     if (esExt) {
         document.getElementById('propSubtipoExt').value = moduloSeleccionado.subtipo  || 'anden';
         document.getElementById('propAcabadoExt').value = moduloSeleccionado.acabado  || 'concreto';
@@ -8897,6 +9021,10 @@ function calcularMaterialModulo() {
         cont.innerHTML = htmlMaterialEscalera(moduloSeleccionado);
         return;
     }
+    if (moduloSeleccionado.tipo === 'baranda') {
+        cont.innerHTML = htmlMaterialBaranda(moduloSeleccionado);
+        return;
+    }
 
     const prodId = moduloSeleccionado.imagenPisoId;
     if (!prodId) { cont.innerHTML = ''; return; }
@@ -9000,6 +9128,14 @@ function actualizarPropModulo() {
     }
     if (moduloSeleccionado.tipo === 'columna') {
         moduloSeleccionado.forma = document.getElementById('propFormaColumna').value;
+    }
+    if (moduloSeleccionado.tipo === 'baranda') {
+        const m = moduloSeleccionado;
+        const h = parseFloat(document.getElementById('propAltoBaranda').value), b0 = parseFloat(document.getElementById('propBaseBaranda').value);
+        m.materialBaranda = document.getElementById('propMatBaranda').value;
+        if (Number.isFinite(h))  m.alturaBaranda = Math.min(1.5, Math.max(0.6, h));
+        if (Number.isFinite(b0)) m.baseBaranda   = Math.min(3, Math.max(-1.5, b0));
+        calcularMaterialModulo();
     }
     if (moduloSeleccionado.tipo === 'escalera') {
         const m = moduloSeleccionado;
@@ -9210,6 +9346,7 @@ function generarDesdePlanta() {
             subtipo:     m.subtipo     || null,   // piso exterior: anden | losa | patio | zona_verde | terraza
             acabado:     m.acabado     || null,   // piso exterior: concreto | adoquin | baldosa | gravilla | cesped | deck
             nivel_exterior: m.nivelExt ?? null,   // piso exterior: cara de arriba respecto al piso de la casa
+            baranda: m.tipo === 'baranda' ? { material: m.materialBaranda || 'metalica', alto: m.alturaBaranda ?? 0.95, base: m.baseBaranda ?? 0 } : null,
             escalera: m.tipo === 'escalera' ? { forma: m.formaEscalera, arranque: m.arranque, giro: m.giro, alto: m.alturaSubir,
                 tramo: m.anchoTramo, estilo: m.estiloEscalera, acabado: m.acabado, baranda: m.baranda !== false, barandaLado: barandaDe(m) } : null,
             nivel:       nivelDe(m),
@@ -9514,6 +9651,11 @@ function cargarDesdePlano(modelo3d) {
 
         // ── Elementos que NO son cuartos: pared fija, divisor de vidrio,
         //    COLUMNA (piso a techo) y VIGA (cuelga del techo) ──────────────
+        // ── BARANDA ──────────────────────────────────────────────────────
+        if (mod.tipo === 'baranda') {
+            scene.add(construirBaranda3D(mod, x, z, baseY));
+            return;
+        }
         // ── ESCALERA ─────────────────────────────────────────────────────
         if (mod.tipo === 'escalera') {
             scene.add(construirEscalera3D(mod, x, z, baseY));
