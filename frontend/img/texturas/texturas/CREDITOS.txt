@@ -1,0 +1,15 @@
+TEXTURAS DE DECOIARTE — procedencia y licencias
+===============================================
+
+Fotos reales (Babylon.js Assets — https://github.com/BabylonJS/Assets)
+Licencia: Creative Commons Attribution 4.0 International (CC BY 4.0)
+https://creativecommons.org/licenses/by/4.0/
+Se redimensionaron a 1024 px y se guardaron en JPEG.
+  arena.jpg             ← textures/sand.jpg        (arena_n.jpg: relieve calculado a partir de la foto)
+  pasto_hojas.jpg       ← textures/grass.jpg       (pasto_hojas_n.jpg ← textures/grassn.png)
+  tierra_agrietada.jpg  ← textures/ground.jpg      (tierra_agrietada_n.jpg: relieve calculado)
+  piedras.jpg           ← textures/rockyGround_basecolor.png (piedras_n.jpg ← rockyGround_normal.png)
+  pared_piedra.jpg      ← textures/floor.png       (pared_piedra_n.jpg ← textures/floorn.png)
+
+Generadas por DecoIArte (por código, sin licencia de terceros):
+  pared_ladrillo, pared_estuco, pared_concreto, pared_madera, asfalto, anden_losetas (y sus _n)

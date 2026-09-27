@@ -218,6 +218,10 @@
         .paleta-pintura button { aspect-ratio:1; border-radius:50%; border:2px solid rgba(255,255,255,0.12); cursor:pointer; padding:0; transition:transform .12s; }
         .paleta-pintura button:hover { transform:scale(1.12); }
         .paleta-pintura button.activa { border-color:#A78BFA; box-shadow:0 0 0 2px rgba(167,139,250,0.45); }
+        .paleta-texturas { display:grid; grid-template-columns:repeat(5, 1fr); gap:6px; }
+        .paleta-texturas button { aspect-ratio:1; border-radius:8px; border:2px solid rgba(255,255,255,0.12); cursor:pointer; padding:0; background-size:200% 200%; transition:transform .12s; }
+        .paleta-texturas button:hover { transform:scale(1.1); }
+        .paleta-texturas button.activa { border-color:#A78BFA; box-shadow:0 0 0 2px rgba(167,139,250,0.45); }
         .paleta-nombre { font-size:11.5px; color:#C4B5FD; margin-top:6px; min-height:15px; }
         /* Entorno y realismo */
         #panelEntorno { position:fixed; top:152px; left:12px; width:236px; z-index:560; background:rgba(15,15,26,0.92); backdrop-filter:blur(8px);
@@ -488,6 +492,7 @@
             <button onclick="elegirEntorno('tatacoa')" data-entorno="tatacoa"><span>🏜️</span>Tatacoa</button>
             <button onclick="elegirEntorno('montana')" data-entorno="montana"><span>🏔️</span>Montaña</button>
             <button onclick="elegirEntorno('playa')" data-entorno="playa"><span>🏖️</span>Playa</button>
+            <button onclick="elegirEntorno('ciudad')" data-entorno="ciudad"><span>🏙️</span>Ciudad</button>
         </div>
         <div class="pe-dianoche">
             <button onclick="elegirDiaNoche(false)" data-dn="dia">☀️ Día</button>
@@ -505,6 +510,7 @@
             <button onclick="elegirRealismo('ultra')" data-nivel="ultra">Ultra</button>
         </div>
         <div class="pe-nota" id="peNota">Todo se calcula en tu tarjeta gráfica. Si el equipo se pone lento, baja el nivel.</div>
+        <div class="pe-nota" style="font-size:9.5px;opacity:0.75;">Fotos de arena, pasto, tierra y piedra: <a href="img/texturas/CREDITOS.txt" target="_blank" style="color:#A78BFA;">Babylon.js Assets, CC BY 4.0</a></div>
     </div>
 </div>
 <!-- EDITOR DE PARED: un muro visto de frente para dibujarle placas, enchapes y pintura -->
@@ -902,10 +908,12 @@
             </div>
             <div>
                 <label style="font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:0.05em;">Color de pared</label>
-                <input type="color" id="propColorPared" value="#F5F5F5" oninput="actualizarPropModulo()"
+                <input type="color" id="propColorPared" value="#F5F5F5" oninput="if (moduloSeleccionado) moduloSeleccionado.texturaPared = null; actualizarPropModulo()"
                     style="width:100%;height:36px;background:var(--oscuro);border:1px solid rgba(124,58,237,0.2);border-radius:8px;padding:2px;margin-top:4px;cursor:pointer;">
                 <div class="paleta-titulo">🎨 Pinturas DecoIArte</div>
                 <div class="paleta-pintura" data-paleta="planta"></div>
+                <div class="paleta-titulo">🧱 Texturas DecoIArte</div>
+                <div class="paleta-texturas" data-paleta="planta"></div>
                 <div class="paleta-nombre" id="nombrePinturaPlanta"></div>
             </div>
             <div id="contPortafolioPisoWrap">
@@ -1076,6 +1084,8 @@
         <div class="panel-titulo">🎨 Color paredes</div>
         <div class="paleta-titulo" style="margin-top:0;">Pinturas DecoIArte · se pinta por dentro en toda la casa</div>
         <div class="paleta-pintura" data-paleta="3d"></div>
+        <div class="paleta-titulo">🧱 Texturas DecoIArte · en toda la casa</div>
+        <div class="paleta-texturas" data-paleta="3d"></div>
         <div class="paleta-nombre" id="nombrePintura3D"></div>
         <label style="display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--gris);margin-top:8px;">Otro color
             <input type="color" value="#EFE9DD" oninput="pintarTodaLaCasa(this.value)" style="flex:1;height:30px;background:var(--oscuro);border:1px solid rgba(124,58,237,0.2);border-radius:8px;padding:2px;cursor:pointer;"></label>
@@ -4498,7 +4508,7 @@ function firmaPlanta() {
         m: modulosPlanta.map(m => [m.id, m.tipo, m.px, m.pz, m.ancho, m.largo, m.alto, m.nivel, m.forma, m.alturaBase,
             m.peralte, m.descuelgue, m.espesor, m.tipoTecho, m.pendiente, m.voladizo, m.orientacion,
             m.materialPiso, m.imagenPisoUrl, m.colorPared, m.acabado, m.nivelExt,
-            m.formaEscalera, m.arranque, m.giro, m.alturaSubir, m.anchoTramo, m.estiloEscalera, m.baranda, m.barandaLado,
+            m.formaEscalera, m.arranque, m.giro, m.alturaSubir, m.anchoTramo, m.estiloEscalera, m.baranda, m.barandaLado, m.texturaPared,
             m.materialBaranda, m.alturaBaranda, m.baseBaranda, (m.paredesEliminadas || []).join(), JSON.stringify(m.disenoParedes || null)]),
         v: vanosPlanta.map(v => [v.modulo_a, v.modulo_b, v.lado, v.centro, v.ancho, v.tipo, v.alto, v.bisagra, v.sentido, v.anguloApertura]),
         n: typeof nivelesTotales !== 'undefined' ? nivelesTotales : 1,
@@ -5470,6 +5480,106 @@ function agregarPuntoTrazo3D(hit) {
 let modoArrastrarCamara = false;
 let arrastrandoCamara   = false;
 
+// ── TEXTURAS DECOIARTE (img/texturas) ────────────────────────────────────
+// Generadas por procedimiento, sin costuras y con mapa de relieve (_n). Se
+// pueden cambiar por fotos reales CC0 (Poly Haven, ambientCG) con el mismo nombre.
+const _cacheTex = {};
+const _cargadorTex = new THREE.TextureLoader();
+// Copias hechas antes de que llegue la imagen: en three 0.128 una copia NO se
+// entera cuando la imagen termina de descargar (el loader solo le pone la
+// imagen al original). Sin esto, la primera vez la textura salía en blanco.
+const _copiasPendientes = {};
+function texturaDeco(nombre, relieve) {
+    const clave = nombre + (relieve ? '_n' : '');
+    if (!_cacheTex[clave]) {
+        _copiasPendientes[clave] = [];
+        const t = _cargadorTex.load(`img/texturas/${clave}.jpg`, () => {
+            t.needsUpdate = true;
+            _copiasPendientes[clave].forEach(c => { c.image = t.image; c.needsUpdate = true; });
+            _copiasPendientes[clave] = [];
+        });
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        if (!relieve && THREE.sRGBEncoding) t.encoding = THREE.sRGBEncoding;
+        t.anisotropy = renderer.capabilities.getMaxAnisotropy ? Math.min(8, renderer.capabilities.getMaxAnisotropy()) : 1;
+        _cacheTex[clave] = t;
+    }
+    return _cacheTex[clave];
+}
+// Ejecuta fn cuando la imagen (y su relieve) ya estén: al instante si ya llegaron
+function alCargarTextura(nombre, fn) {
+    const base = texturaDeco(nombre, false); texturaDeco(nombre, true);
+    if (base.image) { fn(); return; }
+    const espera = setInterval(() => { if (base.image) { clearInterval(espera); fn(); } }, 150);
+    setTimeout(() => clearInterval(espera), 30000);
+}
+// Copia con su propia repetición (la imagen se comparte: no se descarga dos veces)
+function texturaRepetida(nombre, rx, ry, relieve) {
+    const base = texturaDeco(nombre, relieve), t = base.clone();
+    t.repeat.set(rx, ry);
+    if (base.image) t.needsUpdate = true;
+    else _copiasPendientes[nombre + (relieve ? '_n' : '')].push(t);   // recibirá la imagen al llegar
+    return t;
+}
+
+// Texturas de pared: tramo que cubre la imagen en metros (ancho, alto) y su rugosidad
+const TEXTURAS_PARED = [
+    { clave: 'ladrillo', nombre: 'Ladrillo a la vista', img: 'pared_ladrillo', tramo: [1.0, 1.0],  rug: 0.85, relieve: 1.0 },
+    { clave: 'piedra',   nombre: 'Piedra',              img: 'pared_piedra',   tramo: [1.4, 1.4],  rug: 0.9,  relieve: 1.2 },
+    { clave: 'estuco',   nombre: 'Estuco',              img: 'pared_estuco',   tramo: [1.5, 1.5],  rug: 0.95, relieve: 0.6 },
+    { clave: 'concreto', nombre: 'Concreto a la vista', img: 'pared_concreto', tramo: [2.4, 2.4],  rug: 0.8,  relieve: 0.7 },
+    { clave: 'madera',   nombre: 'Madera en listones',  img: 'pared_madera',   tramo: [1.2, 1.2],  rug: 0.6,  relieve: 0.8 },
+];
+function texturaParedPorClave(k) { return TEXTURAS_PARED.find(t => t.clave === k) || null; }
+
+// Aplica la textura elegida a los muros de cada cuarto (por dentro), con la
+// escala real del material según el largo y alto de cada tramo de muro.
+function aplicarTexturasParedes() {
+    scene.traverse(o => {
+        const u = o.userData || {};
+        if (!o.isMesh || !u.esPared || u.esFachada) return;
+        const mod = modulosPlanta.find(m => m.id === u.moduloId);
+        const tx = mod && texturaParedPorClave(mod.texturaPared);
+        if (!tx && !u._texPared) return;
+        if (!u._matPropio) { o.material = o.material.clone(); u._matPropio = true; }
+        const mm = o.material;
+        if (tx) {
+            const p = o.geometry.parameters || {};
+            const L = Math.max(p.width || 1, p.depth || 1), H = p.height || 2.6;
+            mm.map = texturaRepetida(tx.img, L / tx.tramo[0], H / tx.tramo[1], false);
+            mm.normalMap = texturaRepetida(tx.img, L / tx.tramo[0], H / tx.tramo[1], true);
+            mm.normalScale = new THREE.Vector2(tx.relieve, tx.relieve);
+            mm.color.set(0xFFFFFF); mm.roughness = tx.rug;
+            u._texPared = tx.clave;
+        } else {
+            mm.map = null; mm.normalMap = null; mm.roughness = 0.85;
+            mm.color.set(mod ? (mod.colorPared || '#F5F5F5') : '#F5F5F5');
+            u._texPared = null;
+        }
+        mm.needsUpdate = true;
+    });
+}
+function elegirTexturaPared(cual, clave) {
+    const tx = texturaParedPorClave(clave);
+    if (cual === 'planta') {
+        if (!moduloSeleccionado) return;
+        moduloSeleccionado.texturaPared = clave;
+        dibujarPlanta();
+    } else {
+        if (!salaConstruida) { mostrarToast('⚠️ Genera un modelo 3D primero'); return; }
+        modulosPlanta.forEach(m => { if (esCuarto(m.tipo)) m.texturaPared = clave; });
+        registrarCambioPlanta();
+    }
+    if (salaConstruida) { aplicarTexturasParedes(); firmaUltimo3D = firmaPlanta(); actualizarAvisoRegenerar(); }
+    marcarTexturas(cual, clave);
+    mostrarToast(`🧱 ${tx ? tx.nombre : 'Textura'} DecoIArte ${cual === 'planta' ? 'en ' + (moduloSeleccionado?.nombre || 'el cuarto') : 'en toda la casa'}`);
+}
+function marcarTexturas(cual, clave) {
+    document.querySelectorAll(`.paleta-texturas[data-paleta="${cual}"] button`).forEach(b => b.classList.toggle('activa', b.dataset.clave === clave));
+    const tx = texturaParedPorClave(clave);
+    const el = document.getElementById(cual === 'planta' ? 'nombrePinturaPlanta' : 'nombrePintura3D');
+    if (el && tx) el.textContent = `Textura DecoIArte · ${tx.nombre}`;
+}
+
 // ── ENTORNOS Y REALISMO ──────────────────────────────────────────────────
 // El entorno no es una foto de fondo: es un cielo físico (Sky.js) con su sol,
 // un terreno con textura, vegetación y paisaje, y de ese cielo salen los
@@ -5485,6 +5595,8 @@ const ENTORNOS = {
                niebla: 0xD9BC98, nieblaCerca: 120, nieblaLejos: 650, sol: 0xFFDDAA, solI: 3.0, cielo: 0xC9DCEF, rebote: 0x9C5530, hemiI: 0.3, exp: 0.5 },
     montana: { sky: { turbidity: 3, rayleigh: 1.4, mie: 0.005, g: 0.8, azim: 110 }, suelo: 'montana', vege: 'montana',
                niebla: 0xAFC0D0, nieblaCerca: 110, nieblaLejos: 700, sol: 0xFFF0D8, solI: 2.6, cielo: 0xBFD5EC, rebote: 0x46523F, hemiI: 0.32, exp: 0.55 },
+    ciudad:  { sky: { turbidity: 9, rayleigh: 1.0, mie: 0.006, g: 0.8, azim: 150 }, suelo: 'asfalto', vege: 'ciudad',
+               niebla: 0xB4BCC6, nieblaCerca: 120, nieblaLejos: 650, sol: 0xFFF0DA, solI: 2.6, cielo: 0xC2D5EA, rebote: 0x5A5C60, hemiI: 0.3, exp: 0.55 },
     playa:   { sky: { turbidity: 5, rayleigh: 1.7, mie: 0.004, g: 0.8, azim: 160 }, suelo: 'arena', vege: 'playa',
                niebla: 0xBCD6E4, nieblaCerca: 110, nieblaLejos: 700, sol: 0xFFEFD2, solI: 2.8, cielo: 0xBFDDF3, rebote: 0xC9B48A, hemiI: 0.3, exp: 0.5 },
 };
@@ -5513,35 +5625,6 @@ function direccionSol(cfg) {
     const elev = Math.max(3, Math.sin(Math.PI * t) * 72);           // grados sobre el horizonte
     const azim = cfg.sky.azim + (t - 0.5) * 150;
     return new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - elev), THREE.MathUtils.degToRad(azim));
-}
-
-function texturaSuelo(tipo) {
-    const N = 512, c = document.createElement('canvas'); c.width = c.height = N;
-    const g = c.getContext('2d'), R = azarConSemilla(tipo.length * 7919);
-    const base = { pasto: '#5A7440', tatacoa: '#B8754A', montana: '#5F6C4B', arena: '#E2CFA2' }[tipo] || '#777';
-    g.fillStyle = base; g.fillRect(0, 0, N, N);
-    const manchas = { pasto: ['#4E6838', '#66824A', '#6F8A4E', '#44602F'], tatacoa: ['#A8643C', '#C78557', '#9A5A36', '#8F8D86', '#B06D44'],
-                      montana: ['#566247', '#6B7654', '#77806A', '#4A5540'], arena: ['#D9C595', '#EAD9B0', '#D2BE8C', '#F0E2BF'] }[tipo];
-    for (let i = 0; i < 1800; i++) { g.globalAlpha = 0.18 + R() * 0.25; g.fillStyle = manchas[Math.floor(R() * manchas.length)];
-        g.beginPath(); g.arc(R() * N, R() * N, 2 + R() * 14, 0, Math.PI * 2); g.fill(); }
-    g.globalAlpha = 1;
-    if (tipo === 'pasto' || tipo === 'montana') {           // hojitas de pasto
-        for (let i = 0; i < 5000; i++) { const x = R() * N, y = R() * N; g.strokeStyle = R() < 0.5 ? '#6C8A4D' : '#3F5A2C'; g.globalAlpha = 0.5;
-            g.beginPath(); g.moveTo(x, y); g.lineTo(x + (R() - 0.5) * 3, y - 3 - R() * 4); g.stroke(); }
-    } else if (tipo === 'tatacoa') {                        // suelo seco agrietado del desierto
-        g.strokeStyle = '#7A4428'; g.globalAlpha = 0.45; g.lineWidth = 1.2;
-        for (let i = 0; i < 70; i++) { let x = R() * N, y = R() * N; g.beginPath(); g.moveTo(x, y);
-            for (let k = 0; k < 6; k++) { x += (R() - 0.5) * 60; y += (R() - 0.5) * 60; g.lineTo(x, y); } g.stroke(); }
-    } else if (tipo === 'arena') {                          // ondas del viento en la arena
-        g.strokeStyle = '#C9B383'; g.globalAlpha = 0.35;
-        for (let y = 0; y < N; y += 9) { g.beginPath(); for (let x = 0; x <= N; x += 16) g.lineTo(x, y + Math.sin(x * 0.05 + y) * 2.5); g.stroke(); }
-    }
-    g.globalAlpha = 1;
-    const tex = new THREE.CanvasTexture(c);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    if (THREE.sRGBEncoding) tex.encoding = THREE.sRGBEncoding;
-    tex.anisotropy = renderer.capabilities.getMaxAnisotropy ? renderer.capabilities.getMaxAnisotropy() : 1;
-    return tex;
 }
 
 // Área de la casa (con sus exteriores) que el entorno deja despejada
@@ -5610,8 +5693,21 @@ function construirEntorno() {
     // El terreno queda a ras con los andenes y zonas verdes (su cara de arriba)
     let sueloY = -0.12;
     modulosPlanta.forEach(m => { if (m.tipo === 'exterior' && (m.nivel || 0) === 0) sueloY = Math.min(sueloY, (m.nivelExt ?? 0) - 0.005); });
-    const texS = texturaSuelo(cfg.suelo); texS.repeat.set(120, 120);
-    const terreno = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1200), new THREE.MeshStandardMaterial({ map: texS, roughness: 0.95, metalness: 0, color: 0xFFFFFF, envMapIntensity: 0.35 }));
+    // Textura real del suelo (con relieve), a escala: un tramo cada pocos metros
+    // Fotos reales (Babylon.js Assets, CC BY 4.0 — ver img/texturas/CREDITOS.txt): [imagen, metros por tramo, tinte]
+    const SUELO_IMG = { pasto: ['pasto_hojas', 4, 0xFFFFFF], montana: ['piedras', 6, 0xD8DCCB], tatacoa: ['tierra_agrietada', 6, 0xE8A07A],
+                        arena: ['arena', 4, 0xFFFFFF], asfalto: ['asfalto', 5, 0xFFFFFF] }[cfg.suelo];
+    const rep = 1200 / SUELO_IMG[1];
+    // Mientras llega la foto, el suelo muestra un color parecido (sin foto se vería negro)
+    const COLOR_ESPERA = { pasto: 0x4E6B35, montana: 0x7E8072, tatacoa: 0xB06F45, arena: 0xD9C6A0, asfalto: 0x3A3B3E }[cfg.suelo] || 0x777777;
+    const matTerreno = new THREE.MeshStandardMaterial({ color: COLOR_ESPERA, normalScale: new THREE.Vector2(0.9, 0.9),
+        roughness: cfg.suelo === 'asfalto' ? 0.9 : 0.97, metalness: 0, envMapIntensity: 0.35 });
+    alCargarTextura(SUELO_IMG[0], () => {
+        matTerreno.map = texturaRepetida(SUELO_IMG[0], rep, rep);
+        matTerreno.normalMap = texturaRepetida(SUELO_IMG[0], rep, rep, true);
+        matTerreno.color.set(SUELO_IMG[2]); matTerreno.needsUpdate = true;
+    });
+    const terreno = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1200), matTerreno);
     terreno.rotation.x = -Math.PI / 2; terreno.position.set(centro.x, sueloY, centro.z); terreno.receiveShadow = true;
     terreno.userData.esEntorno = true;
     grupoEntorno.add(terreno);
@@ -5675,6 +5771,7 @@ function construirEntorno() {
             m.compose(p.set(x, sueloY + h * 0.35, z), q.setFromEuler(e.set(0, R() * 6, 0)), sc.set(2 + R() * 9, h, 2 + R() * 9));
             if (R() < 0.35) c.setHSL(0.08, 0.06, 0.38 + R() * 0.08); else c.setHSL(0.04 + R() * 0.03, 0.55, 0.3 + R() * 0.08); return true; }));
     }
+    if (cfg.vege === 'ciudad') construirCiudad(grupoEntorno, centro, tam, sueloY, R, nivel);
     if (cfg.vege === 'playa') {
         const mar = new THREE.Mesh(new THREE.PlaneGeometry(3000, 1400), new THREE.MeshStandardMaterial({ color: 0x0E4C66, roughness: 0.08, metalness: 0, envMapIntensity: 0.9 }));
         mar.rotation.x = -Math.PI / 2; mar.position.set(centro.x, sueloY + 0.02, centro.z - radio0 - 30 - 700); mar.userData.esEntorno = true;
@@ -5704,6 +5801,100 @@ function construirEntorno() {
 // La luna sale por el lado contrario al sol de la tarde, alta en el cielo
 function direccionLuna(cfg) {
     return new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - 48), THREE.MathUtils.degToRad(cfg.sky.azim + 160));
+}
+
+// ── CIUDAD: manzanas con edificios, andenes, calles y postes ─────────────
+// La casa queda en su lote con jardín; alrededor, manzanas de 40 m con calles
+// de 16 m. Las fachadas son texturas de ventanas que se encienden de noche.
+function texturaFachada(variante, noche) {
+    const N = 1024, B = 8, c = document.createElement('canvas'); c.width = c.height = N;
+    const g = c.getContext('2d'), R = azarConSemilla(100 + variante), paso = N / B;
+    const muro = ['#8E8A84', '#9B5A43', '#5E6F7E'][variante];
+    g.fillStyle = noche ? '#000' : muro; g.fillRect(0, 0, N, N);
+    for (let fy = 0; fy < B; fy++) for (let fx = 0; fx < B; fx++) {
+        const x = fx * paso, y = fy * paso, vidrioTodo = variante === 2;
+        const wx = x + (vidrioTodo ? 6 : 22), wy = y + (vidrioTodo ? 6 : 26), ww = paso - (vidrioTodo ? 12 : 44), wh = paso - (vidrioTodo ? 12 : 46);
+        if (noche) {
+            if (R() < 0.42) { const k = 0.6 + R() * 0.4; g.fillStyle = `rgba(255,${Math.round(200 + R() * 40)},${Math.round(130 + R() * 60)},${k})`; g.fillRect(wx, wy, ww, wh); }
+        } else {
+            const grd = g.createLinearGradient(wx, wy, wx + ww, wy + wh);
+            grd.addColorStop(0, '#3E5566'); grd.addColorStop(0.55, '#7C95A6'); grd.addColorStop(1, '#2C3E4B');
+            g.fillStyle = grd; g.fillRect(wx, wy, ww, wh);
+            g.strokeStyle = variante === 1 ? '#E9E4DA' : '#2A2D31'; g.lineWidth = 4; g.strokeRect(wx, wy, ww, wh);
+            g.beginPath(); g.moveTo(wx + ww / 2, wy); g.lineTo(wx + ww / 2, wy + wh); g.stroke();
+            if (!vidrioTodo) { g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(x, y + paso - 8, paso, 8); }   // cornisa de cada piso
+        }
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    if (THREE.sRGBEncoding) t.encoding = THREE.sRGBEncoding;
+    return t;
+}
+// Caja con UV escaladas: la textura (8 × 8 ventanas = 24 × 25,6 m) queda a escala real en cada edificio
+function cajaEdificio(w, h, d) {
+    const geo = new THREE.BoxGeometry(w, h, d), uv = geo.attributes.uv, TW = 24, TH = 25.6;
+    const anchoCara = [d, d, w, w, w, w];
+    for (let cara = 0; cara < 6; cara++) for (let k = 0; k < 4; k++) {
+        const i = cara * 4 + k;
+        if (cara === 2 || cara === 3) { uv.setXY(i, 0, 0); continue; }    // techo y piso: color plano
+        uv.setXY(i, uv.getX(i) * anchoCara[cara] / TW, uv.getY(i) * h / TH);
+    }
+    uv.needsUpdate = true;
+    return geo;
+}
+function construirCiudad(grupo, centro, tam, sueloY, R, nivel) {
+    const lote = Math.max(tam.x, tam.z) + 14;                 // la casa con su jardín
+    const MZ = Math.max(40, lote), CALLE = 16, PASO = MZ + CALLE;
+    // Lote con jardín y su andén alrededor
+    const jardin = new THREE.Mesh(new THREE.PlaneGeometry(lote, lote), new THREE.MeshStandardMaterial({
+        map: texturaRepetida('pasto_hojas', lote / 4, lote / 4), normalMap: texturaRepetida('pasto_hojas', lote / 4, lote / 4, true), roughness: 0.97, envMapIntensity: 0.3 }));
+    jardin.rotation.x = -Math.PI / 2; jardin.position.set(centro.x, sueloY + 0.01, centro.z); jardin.receiveShadow = true; grupo.add(jardin);
+    const matAnden = new THREE.MeshStandardMaterial({ map: texturaRepetida('anden_losetas', 1, 1), normalMap: texturaRepetida('anden_losetas', 1, 1, true), roughness: 0.9, envMapIntensity: 0.3 });
+    const andenes = [];
+    const anillo = (cx, cz, lado, ancho) => {       // un andén alrededor de un rectángulo lado × lado
+        [[0, -1], [0, 1], [-1, 0], [1, 0]].forEach(([sx, sz]) => {
+            const largo = sx ? lado : lado + ancho * 2, w = sx ? ancho : largo, d = sx ? largo : ancho;
+            const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.15, d), matAnden.clone());
+            m.material.map = texturaRepetida('anden_losetas', w / 2.4, d / 2.4); m.material.normalMap = texturaRepetida('anden_losetas', w / 2.4, d / 2.4, true);
+            m.position.set(cx + sx * (lado / 2 + ancho / 2), sueloY + 0.075, cz + sz * (lado / 2 + ancho / 2)); m.receiveShadow = true; grupo.add(m); andenes.push(m);
+        });
+    };
+    anillo(centro.x, centro.z, lote, 3);
+    // Manzanas alrededor
+    const matFach = [0, 1, 2].map(v => new THREE.MeshStandardMaterial({ map: texturaFachada(v, false), emissiveMap: texturaFachada(v, true),
+        emissive: new THREE.Color(0xFFD9A0), emissiveIntensity: esNoche ? 1.3 : 0, roughness: v === 2 ? 0.25 : 0.8, envMapIntensity: v === 2 ? 0.9 : 0.35 }));
+    const matTecho = new THREE.MeshStandardMaterial({ color: 0x6B6B6B, roughness: 0.95 });
+    const matManzana = new THREE.MeshStandardMaterial({ map: texturaRepetida('anden_losetas', MZ / 2.4, MZ / 2.4), normalMap: texturaRepetida('anden_losetas', MZ / 2.4, MZ / 2.4, true), roughness: 0.9, envMapIntensity: 0.3 });
+    const radioC = realismoActual === 'basico' ? 170 : (realismoActual === 'realista' ? 260 : 340);
+    const nB = Math.ceil(radioC / PASO);
+    const matPoste = new THREE.MeshStandardMaterial({ color: 0x2F3236, roughness: 0.5, metalness: 0.7 });
+    const matFarol = new THREE.MeshStandardMaterial({ color: 0xF4F1E6, emissive: 0xFFE2A8, emissiveIntensity: esNoche ? 2.2 : 0 });
+    const postes = [];
+    for (let i = -nB; i <= nB; i++) for (let j = -nB; j <= nB; j++) {
+        const bx = centro.x + i * PASO, bz = centro.z + j * PASO;
+        if (i === 0 && j === 0) continue;                               // manzana de la casa
+        if (Math.hypot(i, j) * PASO > radioC) continue;
+        const base = new THREE.Mesh(new THREE.BoxGeometry(MZ, 0.15, MZ), matManzana);
+        base.position.set(bx, sueloY + 0.075, bz); base.receiveShadow = true; grupo.add(base);
+        const nEd = 1 + Math.floor(R() * 4), cerca = Math.hypot(i, j) <= 1.5;
+        for (let k = 0; k < nEd; k++) {
+            const w = 10 + R() * 14, d = 10 + R() * 14;
+            const h = (cerca ? 6 + R() * 14 : 9 + R() * 55) * (R() < 0.08 ? 2 : 1);
+            const px = bx + (R() - 0.5) * (MZ - w - 4), pz = bz + (R() - 0.5) * (MZ - d - 4);
+            const ed = new THREE.Mesh(cajaEdificio(w, h, d), [0, 1, 2, 3, 4, 5].map(f => f === 2 || f === 3 ? matTecho : matFach[Math.floor(R() * 3)]));
+            ed.position.set(px, sueloY + 0.15 + h / 2, pz); ed.castShadow = cerca; ed.receiveShadow = true; grupo.add(ed);
+        }
+        // Postes de luz en las esquinas de la manzana
+        [[-1, -1], [1, 1]].forEach(([sx, sz]) => postes.push([bx + sx * (MZ / 2 - 1), bz + sz * (MZ / 2 - 1)]));
+    }
+    // Postes también alrededor del lote de la casa
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz]) => postes.push([centro.x + sx * (lote / 2 + 1.5), centro.z + sz * (lote / 2 + 1.5)]));
+    grupo.add(instanciar(new THREE.CylinderGeometry(0.07, 0.1, 7, 8), matPoste, postes.length, (i, m) => {
+        m.compose(new THREE.Vector3(postes[i][0], sueloY + 3.6, postes[i][1]), new THREE.Quaternion(), new THREE.Vector3(1, 1, 1)); }));
+    grupo.add(instanciar(new THREE.BoxGeometry(0.5, 0.14, 0.26), matFarol, postes.length, (i, m) => {
+        m.compose(new THREE.Vector3(postes[i][0], sueloY + 7.05, postes[i][1]), new THREE.Quaternion(), new THREE.Vector3(1, 1, 1)); }));
+    // De noche, los postes junto a la casa iluminan de verdad
+    if (esNoche) postes.slice(-4).forEach(([x, z]) => { const l = new THREE.PointLight(0xFFD9A0, 1.4, 22, 2); l.position.set(x, sueloY + 6.8, z); grupo.add(l); });
 }
 
 function quitarEntorno(restaurarEstudio) {
@@ -5781,7 +5972,7 @@ function elegirEntorno(nombre) {
     else configurarLuces();     // configurarLuces construye el entorno y ajusta la luz
     marcarPanelEntorno();
     mostrarToast({ estudio: '🌑 Estudio: el lienzo de trabajo', bosque: '🌲 Tu casa en el bosque', tatacoa: '🏜️ Tu casa en el desierto de la Tatacoa',
-                   montana: '🏔️ Tu casa en la montaña', playa: '🏖️ Tu casa frente al mar' }[nombre]);
+                   montana: '🏔️ Tu casa en la montaña', playa: '🏖️ Tu casa frente al mar', ciudad: '🏙️ Tu casa en la ciudad' }[nombre]);
 }
 function elegirRealismo(nivel) {
     if (!(nivel in NIVELES_REALISMO)) return;
@@ -5853,6 +6044,11 @@ function nombrePintura(hex) {
     return p ? p[0] : null;
 }
 function prepararPaletas() {
+    document.querySelectorAll('.paleta-texturas').forEach(caja => {
+        caja.innerHTML = TEXTURAS_PARED.map(t =>
+            `<button type="button" style="background-image:url('img/texturas/${t.img}.jpg')" title="Textura DecoIArte · ${t.nombre}" data-clave="${t.clave}"
+                onclick="elegirTexturaPared('${caja.dataset.paleta}', '${t.clave}')"></button>`).join('');
+    });
     document.querySelectorAll('.paleta-pintura').forEach(caja => {
         caja.innerHTML = PINTURAS_DECOIARTE.map(([n, h]) =>
             `<button type="button" style="background:${h}" title="Pintura DecoIArte · ${n}" data-hex="${h}"
@@ -5869,6 +6065,8 @@ function marcarPaleta(cual, hex) {
 function elegirPintura(cual, hex) {
     if (cual === 'planta') {
         if (!moduloSeleccionado) return;
+        moduloSeleccionado.texturaPared = null;
+        marcarTexturas('planta', null);
         document.getElementById('propColorPared').value = hex;
         actualizarPropModulo();
         marcarPaleta('planta', hex);
@@ -5883,7 +6081,8 @@ function elegirPintura(cual, hex) {
 function pintarTodaLaCasa(hex) {
     if (!salaConstruida) { mostrarToast('⚠️ Genera un modelo 3D primero'); return; }
     const ids = new Set();
-    modulosPlanta.forEach(m => { if (esCuarto(m.tipo)) { m.colorPared = hex; m.pinturaNombre = nombrePintura(hex); ids.add(m.id); } });
+    modulosPlanta.forEach(m => { if (esCuarto(m.tipo)) { m.colorPared = hex; m.pinturaNombre = nombrePintura(hex); m.texturaPared = null; ids.add(m.id); } });
+    aplicarTexturasParedes();   // quita las texturas antes de pintar
     scene.traverse(o => {
         const u = o.userData || {};
         if (u.esPared && !u.esFachada && o.material && o.material.color && (ids.has(u.moduloId) || !modulosPlanta.length)) o.material.color.setStyle(hex);
@@ -8793,6 +8992,7 @@ function seleccionarModulo(id) {
     document.getElementById('propMaterialPiso').value      = moduloSeleccionado.materialPiso || 'ceramica';
     document.getElementById('propColorPared').value        = moduloSeleccionado.colorPared || '#F5F5F5';
     marcarPaleta('planta', moduloSeleccionado.colorPared);
+    marcarTexturas('planta', moduloSeleccionado.texturaPared || null);
 
     // Campos específicos de estructura. Una viga cuelga (necesita altura base y
     // peralte); una columna solo necesita saber si es cuadrada o redonda.
@@ -10111,6 +10311,7 @@ function cargarDesdePlano(modelo3d) {
     if (trazo3D.length)     actualizarCamaraMientrasDibuja();
 
     configurarLuces();
+    aplicarTexturasParedes();
 
     // Re-agregar mobiliario/ventanas que estaban en escena antes de regenerar, con su posición y huecos
     restaurarMobiliario(mobiliarioActivoAntes);
