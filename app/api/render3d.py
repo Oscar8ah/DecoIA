@@ -11,7 +11,7 @@ from openai import OpenAI
 from app.utils.config import get_settings
 from app.utils.supabase_client import get_supabase
 from app.services.limites_service import tiene_fotos_disponibles, descontar_foto
-from app.api.compras import usuario_de_sesion, guardar_para_venta
+from app.api.compras import usuario_de_sesion, guardar_para_venta, verificar_tope_diario
 from app.utils.auth import exigir_duenio, ADMIN_EMAIL
 
 logger = logging.getLogger(__name__)
@@ -74,6 +74,8 @@ async def generar_render_3d(data: RenderRequest, request: Request):
     # Comprar exige sesión: se identifica ANTES de gastar en la IA.
     es_comprador = not data.empresa_id and bool(data.tienda_id)
     comprador = await usuario_de_sesion(request) if es_comprador else None
+    if comprador:
+        verificar_tope_diario(comprador)   # antes de gastar en la IA
 
     # Es una empresa usando SU cupo (visor 3D, /remodelar del asesor). Antes se
     # creía el empresa_id del navegador, y ese id es público: cualquiera podía

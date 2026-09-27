@@ -1722,7 +1722,9 @@ document.getElementById('campoDimensiones').style.display=(p.modelo_3d_tipo&&p.m
 }
 
 // ── SUBIR DE PLAN (pagando la diferencia con Wompi) ─────────────────────
-const WOMPI_LLAVE_PUBLICA = 'pub_test_VWTmTBcjGHtKGRGcBtuWZwDlWJn0xAzF';
+// La llave pública la entrega el servidor con la firma (la del ambiente que
+// esté en Render: pruebas o producción). Antes estaba la de pruebas escrita aquí.
+let WOMPI_LLAVE_PUBLICA = '';
 
 function renderAvisoSolicitudPlan() {
     const aviso = document.getElementById('solicitudPlanAviso');
@@ -1771,6 +1773,8 @@ async function generarFirmaWompiDash(referencia, monto, moneda) {
             body: JSON.stringify({ referencia, monto, moneda })
         });
         const data = await r.json();
+        WOMPI_LLAVE_PUBLICA = data.llave_publica || '';
+        if (!WOMPI_LLAVE_PUBLICA) { console.error('El servidor no tiene configurada la llave pública de Wompi'); return null; }
         return data.firma;
     } catch(e) { console.error('Error generando firma:', e); return null; }
 }

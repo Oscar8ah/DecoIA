@@ -22,6 +22,15 @@ class FirmaRequest(BaseModel):
 
 class FirmaResponse(BaseModel):
     firma: str
+    llave_publica: str = ""   # la del ambiente activo (pruebas o producción), la que está en Render
+
+
+def wompi_api_base(settings: Settings) -> str:
+    """Producción o pruebas según la llave privada configurada en Render.
+    Antes la consulta estaba escrita fija contra sandbox: con llaves de
+    producción habría fallado siempre."""
+    llave = (settings.wompi_llave_privada or "").strip()
+    return "https://production.wompi.co/v1" if llave.startswith("prv_prod") else "https://sandbox.wompi.co/v1"
 
 
 @router.post("/firma", response_model=FirmaResponse)
@@ -38,7 +47,7 @@ async def generar_firma(
         cadena = f"{body.referencia}{body.monto}{body.moneda}{settings.wompi_secreto_integridad}"
         firma  = hashlib.sha256(cadena.encode()).hexdigest()
         logger.info(f"Firma Wompi generada para referencia: {body.referencia}")
-        return FirmaResponse(firma=firma)
+        return FirmaResponse(firma=firma, llave_publica=settings.wompi_llave_publica)
     except Exception as e:
         logger.error(f"Error generando firma Wompi: {e}")
         raise
@@ -51,7 +60,7 @@ async def consultar_estado_pago(
 ):
     """Consulta el estado de una transacción en Wompi."""
     try:
-        url = f"https://sandbox.wompi.co/v1/transactions?reference={referencia}"
+        url = f"{wompi_api_base(settings)}/transactions?reference={referencia}"
         headers = {"Authorization": f"Bearer {settings.wompi_llave_privada}"}
         async with httpx.AsyncClient() as client:
             r = await client.get(url, headers=headers)
@@ -110,7 +119,7 @@ async def _procesar_pago_cambio_plan(referencia: str, monto_cop: float, metodo: 
     solicitud = None
     try:
         r = supabase.table("solicitudes_plan").select(
-            "id, plan_solicitado_id"
+            "id, plan_solicitado_id, plan_actual_id"
         ).eq("empresa_id", empresa_id).eq("estado", "pagando") \
          .order("created_at", desc=True).limit(1).maybe_single().execute()
         solicitud = r.data
@@ -131,6 +140,26 @@ async def _procesar_pago_cambio_plan(referencia: str, monto_cop: float, metodo: 
     if not plan_nuevo:
         logger.error(f"Plan solicitado {solicitud['plan_solicitado_id']} no existe — requiere revisión manual")
         return {"status": "ok", "mensaje": "plan no encontrado, requiere revisión manual"}
+
+    # ── El monto pagado debe cubrir la diferencia REAL entre planes ──────────
+    # El navegador calcula la diferencia y el servidor firma cualquier monto,
+    # así que sin esta revisión alguien podía pagar $1.000 y quedar con el
+    # plan Corporativo. Los precios se leen de la base, nunca del navegador.
+    try:
+        ids = [x for x in [solicitud.get("plan_actual_id"), plan_nuevo["id"]] if x]
+        rp = supabase.table("planes").select("id, precio").in_("id", ids).execute()
+        precios = {p["id"]: float(p.get("precio") or 0) for p in (rp.data or [])}
+        esperado = max(precios.get(plan_nuevo["id"], 0) - precios.get(solicitud.get("plan_actual_id"), 0), 0)
+    except Exception as e:
+        logger.error(f"No se pudo leer el precio de los planes para {referencia}: {e} — no se activa, requiere revisión manual")
+        return {"status": "ok", "mensaje": "no se pudo verificar el monto, requiere revisión manual"}
+    if monto_cop + 1 < esperado:   # 1 peso de tolerancia por redondeo
+        logger.error(f"⚠️ Pago de plan {referencia} por ${monto_cop:,.0f} NO cubre la diferencia de ${esperado:,.0f} — plan NO activado")
+        try:
+            supabase.table("solicitudes_plan").update({"estado": "monto_invalido"}).eq("id", solicitud["id"]).execute()
+        except Exception:
+            pass
+        return {"status": "ok", "mensaje": "monto insuficiente, plan no activado"}
 
     fotos_usadas = empresa.get("fotos_usadas") or 0
     fotos_nuevas_disponibles = max((plan_nuevo.get("fotos_incluidas") or 0) - fotos_usadas, 0)

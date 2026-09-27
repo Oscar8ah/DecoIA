@@ -20,7 +20,7 @@ import hashlib
 import io
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, HTTPException, Request
 from PIL import Image, ImageDraw, ImageFont
@@ -90,6 +90,29 @@ def marca_de_agua(imagen_bytes: bytes) -> bytes:
 
 
 # ── Guardar para vender (lo llama render3d) ─────────────────────────────
+# Tope diario del comprador: imágenes generadas SIN pagar en las últimas 24 h.
+# Cada generación le cuesta a DecoIArte en OpenAI aunque nadie la compre; sin
+# tope, una sola cuenta podía generar sin fin. Las pagadas no cuentan.
+TOPE_DIARIO_SIN_PAGAR = 8
+
+def verificar_tope_diario(usuario: dict) -> None:
+    desde = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    try:
+        r = get_supabase().table("imagenes_compra").select("id", count="exact") \
+            .eq("user_id", usuario["id"]).or_("pagada.is.null,pagada.eq.false") \
+            .gte("created_at", desde).execute()
+        n = r.count or 0
+    except Exception as e:
+        # Si la base falla, no se le bloquea al cliente (queda en los logs)
+        logger.error(f"No se pudo revisar el tope diario de {usuario.get('email')}: {e}")
+        return
+    if n >= TOPE_DIARIO_SIN_PAGAR:
+        logger.warning(f"Tope diario alcanzado por {usuario.get('email')}: {n} imágenes sin pagar en 24 h")
+        raise HTTPException(status_code=429, detail=(
+            f"Ya generaste {TOPE_DIARIO_SIN_PAGAR} imágenes sin comprar en las últimas 24 horas. "
+            "Compra la que más te guste para seguir, o vuelve mañana."))
+
+
 async def guardar_para_venta(imagen_bytes: bytes, usuario: dict,
                              empresa_id: str | None, tienda_id: str | None) -> dict:
     sb = get_supabase()
