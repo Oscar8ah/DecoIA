@@ -190,6 +190,30 @@ async def pagar_imagen(compra_id: str, request: Request):
     }
 
 
+@router.get("/imagenes/pendiente")
+async def imagen_pendiente(request: Request):
+    """
+    La última imagen SIN pagar del comprador (de los últimos 7 días). Sirve
+    para retomar el cobro cuando el navegador perdió los datos de la compra:
+    al volver de Wompi en otra pestaña o al abrir la imagen desde "Mis
+    remodelaciones". Antes, en esos casos, "Pagar y desbloquear" mandaba al
+    marketplace en vez de cobrar la imagen.
+    """
+    usuario = await usuario_de_sesion(request)
+    desde = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    try:
+        r = get_supabase().table("imagenes_compra").select("id, referencia, url_preview, monto") \
+            .eq("user_id", usuario["id"]).or_("pagada.is.null,pagada.eq.false") \
+            .gte("created_at", desde).order("created_at", desc=True).limit(1).execute()
+    except Exception as e:
+        logger.error(f"No se pudo buscar la imagen pendiente de {usuario.get('email')}: {e}")
+        raise HTTPException(status_code=503, detail="No se pudo consultar tu compra, intenta de nuevo")
+    fila = (r.data or [None])[0]
+    if not fila:
+        return {"pendiente": None}
+    return {"pendiente": {"id": fila["id"], "referencia": fila.get("referencia"), "url_preview": fila.get("url_preview"), "monto": fila.get("monto")}}
+
+
 @router.get("/imagen/{compra_id}")
 async def estado_imagen(compra_id: str, request: Request):
     """Si ya se pagó, entrega el enlace temporal a la imagen limpia."""

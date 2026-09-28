@@ -544,6 +544,19 @@ async function pagarImagen() {
     }
 }
 
+async function recuperarCompraPendiente() {
+    try {
+        const r = await fetch('https://decoia.onrender.com/api/compras/imagenes/pendiente', { headers: await cabecerasSesion() });
+        const d = await r.json().catch(() => ({}));
+        if (r.ok && d.pendiente) {
+            compraImagen = { id: d.pendiente.id, referencia: d.pendiente.referencia, monto: d.pendiente.monto };
+            sessionStorage.setItem('deco_compra_imagen', JSON.stringify(compraImagen));
+            return d.pendiente;
+        }
+    } catch (_) {}
+    return null;
+}
+
 // Wompi confirma por webhook unos segundos después: se pregunta hasta que llegue
 async function esperarPagoImagen(id) {
     toast('⏳ Confirmando tu pago…');
@@ -553,6 +566,21 @@ async function esperarPagoImagen(id) {
                                   { headers: await cabecerasSesion() });
             const d = await r.json().catch(() => ({}));
             if (r.ok && d.pagada && d.url_descarga) { await desbloquearImagen(d.url_descarga); return; }
+            // Al volver de Wompi sin pago aprobado (rechazado, con error, o en otra
+            // pestaña sin los datos): se vuelve a mostrar la imagen con su botón de
+            // pagar, para reintentar ahí mismo.
+            if (r.ok && !d.pagada && i === 0) {
+                compraImagen = compraImagen || { id, referencia: d.referencia };
+                sessionStorage.setItem('deco_compra_imagen', JSON.stringify(compraImagen));
+                if (!resultadoUrl && d.url_preview) {
+                    resultadoUrl = d.url_preview; resultadoPagado = false;
+                    sessionStorage.setItem('deco_resultado_url', resultadoUrl);
+                    await mostrarResultado(resultadoUrl, true); actualizarPasos(4);
+                }
+            }
+            if (r.ok && !d.pagada && i === 3) {
+                toast('Si el pago no se completó, toca "💳 Pagar y desbloquear imagen" para intentarlo de nuevo');
+            }
             if (r.status === 401 || r.status === 403 || r.status === 404) { toast('No se pudo verificar esa compra desde esta cuenta'); return; }
         } catch (_) {}
         await new Promise(res => setTimeout(res, 2500));
@@ -1274,8 +1302,13 @@ function renderCarrito() {
 
 async function irAPagar() {
     if (!await requerirCuenta('Crea tu cuenta gratis para completar tu compra')) return;
-    // Si hay una imagen sin pagar, primero se cobra la imagen ($5.000)
+    // Si hay una imagen sin pagar, primero se cobra la imagen ($5.000).
+    // Si el navegador perdió los datos de la compra (volver de Wompi en otra
+    // pestaña, abrirla desde "Mis remodelaciones"), se recupera del servidor:
+    // antes, en ese caso, este botón mandaba al marketplace en vez de cobrar.
+    if (!compraImagen && resultadoUrl && !resultadoPagado && rolUsuario !== 'empresa') await recuperarCompraPendiente();
     if (compraImagen && !resultadoPagado) { await pagarImagen(); return; }
+    if (!carrito.length) { toast('Agrega a tu lista los productos que quieres comprar'); return; }
     sessionStorage.setItem('carrito_remodelar', JSON.stringify(carrito));
     sessionStorage.setItem('imagen_resultado', resultadoUrl || '');
     toast('💳 Redirigiendo al pago...');

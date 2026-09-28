@@ -80,6 +80,13 @@
         .tienda-ciudad { font-size: 12px; color: var(--gris); }
         .btn-ver-tienda { background: var(--degradado); color: white; padding: 8px 18px; border-radius: 50px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: opacity 0.3s; font-family: 'Segoe UI', sans-serif; }
         .btn-ver-tienda:hover { opacity: 0.85; }
+        /* Remodelar desde el marketplace: el comprador no tiene que buscarlo en el inicio */
+        .tienda-botones { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+        .btn-remodelar-tienda { background: rgba(167,139,250,0.14); border: 1px solid rgba(167,139,250,0.45); color: #DDD6FE; padding: 8px 14px;
+            border-radius: 50px; font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+        .btn-remodelar-tienda:hover { background: rgba(167,139,250,0.28); }
+        .nav-remodelar { color: #C4B5FD !important; font-weight: 700; }
+        @media (max-width: 480px) { .tienda-botones { flex-direction: column; align-items: stretch; } .btn-remodelar-tienda { text-align: center; } }
         body::before, body::after { content: ''; position: fixed; z-index: -1; pointer-events: none; border-radius: 50%; }
         /* Hojas tropicales moradas de fondo (arriba a la derecha y la planta abajo a la derecha).
            Son decoración: fijas, detrás de todo, sin recibir clics y más tenues en el celular. */
@@ -300,6 +307,7 @@
     <div class="panel-seccion">
         <div class="panel-seccion-titulo">Plataforma</div>
         <a href="/marketplace" class="panel-item active"><span class="p-icon">🏪</span> Explorar Tiendas</a>
+        <a href="/remodelar" class="panel-item"><span class="p-icon">🪄</span> Remodelar mi espacio</a>
         <a href="/dashboard" class="panel-item"><span class="p-icon">👤</span> Mi Cuenta</a>
         <a href="/" class="panel-item"><span class="p-icon">🏠</span> Inicio</a>
     </div>
@@ -327,6 +335,7 @@
     <div class="nav-links-pc">
         <a href="/">Inicio</a>
         <a href="/marketplace">Marketplace</a>
+        <a href="/remodelar" class="nav-remodelar">🪄 Remodelar mi espacio</a>
         <a href="/mi-cuenta">Mi cuenta</a>
         <a href="/registro" class="btn-nav">Registrar tienda</a>
     </div>
@@ -552,7 +561,10 @@ function renderTiendas(tiendas) {
                 <span class="tienda-ciudad"><svg class="pin-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-6.3 7-12a7 7 0 1 0-14 0c0 5.7 7 12 7 12z"/><circle cx="12" cy="10" r="2.6" fill="var(--oscuro2)"/></svg>${esc(t.ciudad) || 'Colombia'}</span>
                 <div class="tienda-meta">
                     <div class="tienda-miniaturas">${miniaturas.map(u => `<img src="${esc(u)}" alt="" loading="lazy" onerror="this.remove()">`).join('')}</div>
-                    <button class="btn-ver-tienda">Ver tienda →</button>
+                    <div class="tienda-botones">
+                        <a class="btn-remodelar-tienda" href="/remodelar?tienda=${encodeURIComponent(t.id)}" onclick="event.stopPropagation()" title="Sube la foto de tu espacio y mira cómo queda con los productos de ${esc(t.nombre)}">🪄 Probar en mi espacio</a>
+                        <button class="btn-ver-tienda">Ver tienda →</button>
+                    </div>
                 </div>
             </div>
         </div>`;
@@ -770,6 +782,37 @@ let carrito = {};
 function carritoInit() {
     try { const s = localStorage.getItem('decoiarte_carrito'); if (s) carrito = JSON.parse(s); } catch(e) { carrito = {}; }
     carritoRenderBadge();
+    importarCarritoRemodelar();
+}
+
+// La lista de compra que el cliente armó en /remodelar llega aquí. Antes
+// Remodelar la guardaba pero el marketplace no la leía: el cliente llegaba
+// con el carrito vacío y sin saber qué hacer.
+async function importarCarritoRemodelar() {
+    let lista = [];
+    try { lista = JSON.parse(sessionStorage.getItem('carrito_remodelar') || '[]'); } catch (e) {}
+    sessionStorage.removeItem('carrito_remodelar');
+    lista = (lista || []).filter(p => p && p.id && p.tienda_id);
+    if (!lista.length) return;
+    try {
+        const ids = [...new Set(lista.map(p => p.tienda_id))];
+        const { data: tiendas } = await db.from('tiendas').select('id, nombre, ciudad, whatsapp_contacto').in('id', ids);
+        const porId = Object.fromEntries((tiendas || []).map(t => [t.id, t]));
+        let n = 0;
+        lista.forEach(prod => {
+            const t = porId[prod.tienda_id]; if (!t) return;
+            const tid = t.id;
+            if (!carrito[tid]) carrito[tid] = { tienda: { id: t.id, nombre: t.nombre, ciudad: t.ciudad || 'Colombia', whatsapp: t.whatsapp_contacto || '' }, items: [] };
+            const ex = carrito[tid].items.find(i => i.prod.id === prod.id);
+            if (ex) ex.qty += 1; else carrito[tid].items.push({ prod, qty: 1, seleccionado: true });
+            n++;
+        });
+        if (!n) return;
+        carritoGuardar(); carritoRenderPanel();
+        const panel = document.getElementById('carritoPanel');
+        if (panel && !panel.classList.contains('open')) carritoTogglePanel();
+        mostrarToastCarrito(`🛒 Tu lista de Remodelar está aquí: ${n} producto${n === 1 ? '' : 's'}. Revisa y paga.`);
+    } catch (e) { console.error('No se pudo traer la lista de Remodelar:', e); }
 }
 
 function carritoGuardar() {
