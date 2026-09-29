@@ -423,7 +423,7 @@
             <div id="modalResenas" style="margin-top:14px;"></div>
             <div class="modal-prod-acciones">
                 <button class="modal-btn-carrito" id="modalBtnCarrito" onclick="modalAgregarCarrito()">🛒 Añadir al carrito</button>
-                <a class="modal-btn-pedir" id="modalBtnPedir" href="#" target="_blank" style="flex:none;padding:14px 18px;">💬 Pedir</a>
+                <button class="modal-btn-pedir" id="modalBtnPedir" onclick="agregarDesdeModal()" style="flex:none;padding:14px 18px;border:none;cursor:pointer;">🛒 Agregar al carrito</button>
             </div>
             <a id="modalBtnAR" href="#" style="display:none;width:100%;margin-top:10px;padding:14px;border-radius:12px;background:linear-gradient(135deg,#3B82F6 0%,#7C3AED 100%);color:white;font-size:15px;font-weight:800;text-decoration:none;text-align:center;box-sizing:border-box;">📱 Ver en tu espacio</a>
             <button class="modal-btn-cerrar-prod" onclick="cerrarModalProducto()" style="width:100%;margin-top:10px;">Cerrar</button>
@@ -456,9 +456,7 @@
             <span id="carritoTotal">$0</span>
         </div>
         <div class="carrito-nota">* El precio final incluye el domicilio que cada tienda confirmará.</div>
-        <button class="carrito-btn-todo" onclick="carritoSolicitarTodo()">
-            💬 Cotizar a todas las tiendas
-        </button>
+
     </div>
 </div>
 
@@ -579,7 +577,6 @@ async function verTienda(tiendaId) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     const emoji = EMOJIS_CAT[tienda.categoria_principal] || '🏪';
     const color = COLORES_CAT[tienda.categoria_principal] || 'linear-gradient(135deg,#3B82F6,#7C3AED)';
-    const waLink = tienda.whatsapp_contacto ? `https://wa.me/${tienda.whatsapp_contacto}?text=Hola,%20vi%20tu%20tienda%20en%20DecoIArte` : '#';
     const logoGrande = tienda.logo_url ? `<img src="${esc(tienda.logo_url)}" class="logo-grande" alt="${esc(tienda.nombre)}" onerror="this.style.display='none'">` : '';
     // Portada con las fotos de sus productos, igual que en su tarjeta (el fondo blanco era del tema claro)
     const fotosT = ((window._fotosTienda || {})[tiendaId] || []).slice(0, 3);
@@ -594,7 +591,7 @@ async function verTienda(tiendaId) {
                 <div class="tienda-desc-grande">${esc(tienda.descripcion) || ''}</div>
                 <div style="margin-top:10px;font-size:13px;color:var(--gris)">📍 ${esc(tienda.ciudad) || 'Colombia'}</div>
             </div>
-            ${tienda.whatsapp_contacto ? `<a href="${waLink}" target="_blank" class="btn-contactar">💬 Contactar por WhatsApp</a>` : ''}
+
         </div>`;
     document.getElementById('productosGrid').innerHTML = `<div class="empty-state"><div class="icon" style="font-size:28px;margin-bottom:10px">⏳</div><p>Cargando productos...</p></div>`;
     const { data: productos } = await db.from('productos').select('*').eq('tienda_id', tiendaId).eq('activo', true).order('created_at', { ascending: false });
@@ -611,7 +608,6 @@ function renderProductos(productos, tienda) {
         grid.innerHTML = `<div class="empty-state"><div class="icon">📦</div><h3>Próximamente</h3><p>Esta tienda aún no ha publicado productos.</p></div>`;
         return;
     }
-    const waBase = tienda.whatsapp_contacto ? `https://wa.me/${tienda.whatsapp_contacto}?text=Hola,%20quiero%20comprar:` : '#';
     grid.innerHTML = productos.map(p => {
         const desc = esc(p.descripcion) || '';
         const tieneDesc = desc.length > 0;
@@ -638,7 +634,7 @@ function renderProductos(productos, tienda) {
                 </div>
                 <div class="producto-footer">
                     ${p.stock > 0 ? `<span class="stock-ok">✓ Disponible</span>` : `<span class="stock-no">✗ Agotado</span>`}
-                    <a href="${waBase} ${encodeURIComponent(p.nombre)}" target="_blank" class="btn-comprar">💬 Pedir</a>
+                    <button class="btn-comprar" onclick="event.stopPropagation(); agregarPorId('${p.id}')">🛒 Agregar</button>
                 </div>
             </div>
         </div>`;
@@ -714,6 +710,16 @@ function aplicarFiltros() {
 }
 
 // ── MODAL PRODUCTO ────────────────────────────────────────────────
+// Comprar SIEMPRE por DecoIArte (sin salidas a WhatsApp): así la venta queda
+// registrada, protegida y con la comisión que sostiene la plataforma.
+function agregarPorId(prodId) {
+    const prod = (window._productosVista || []).find(p => p.id === prodId);
+    if (prod) carritoAgregar(prod, window._tiendaVista || {});
+}
+function agregarDesdeModal() {
+    if (window._modalProd) carritoAgregar(window._modalProd, window._modalTienda || window._tiendaVista || {});
+}
+
 function abrirModalPorId(prodId) {
     const prod = (window._productosVista || []).find(p => p.id === prodId);
     if (prod) abrirModalProducto(prod, window._tiendaVista || {});
@@ -748,8 +754,7 @@ function abrirModalProducto(p, tienda) {
     if (p.stock > 0) { stockEl.textContent = '✓ Disponible'; stockEl.className = 'modal-prod-stock ok'; }
     else             { stockEl.textContent = '✗ Agotado';    stockEl.className = 'modal-prod-stock no'; }
     document.getElementById('modalProdTienda').innerHTML = `🏪 <strong>${esc(tienda.nombre)}</strong> · 📍 ${esc(tienda.ciudad) || 'Colombia'}`;
-    document.getElementById('modalBtnPedir').href = tienda.whatsapp_contacto
-        ? `https://wa.me/${tienda.whatsapp_contacto}?text=Hola,%20quiero%20consultar%20sobre:%20${encodeURIComponent(p.nombre)}` : '#';
+    window._modalProd = p; window._modalTienda = tienda;
     // Botón "Ver en tu espacio" — solo para pisos/enchapes con imagen, que son
     // los que se pueden mostrar como una superficie sobre el piso real. Los
     // muebles necesitarían un modelo 3D de verdad (Meshy), aún no disponible.
@@ -912,34 +917,13 @@ function carritoRenderPanel() {
                 <span>Subtotal ${grupo.tienda.nombre}</span>
                 <strong>${carritoFormatPrecio(subtotal)}</strong>
             </div>
-            <button class="carrito-btn-solicitar" onclick="carritoSolicitarTienda('${tid}')">💬 Cotizar por WhatsApp</button>
-            <button class="carrito-btn-wompi" onclick="pagarConWompi('${tid}')">💳 Pagar ahora con Wompi</button>
+            <button class="carrito-btn-wompi" onclick="pagarConWompi('${tid}')">🚚 Pedir a ${esc(grupo.tienda.nombre)}</button>
+            <div style="font-size:11px;color:#6B7280;margin-top:4px;text-align:center;">La tienda cotiza el domicilio y pagas el total en Mi cuenta. No se cobra nada ahora.</div>
         </div>`;
     }).join('');
     document.getElementById('carritoTotal').textContent = carritoFormatPrecio(carritoTotalGeneral());
 }
 
-function carritoSolicitarTienda(tid) {
-    const grupo = carrito[tid];
-    if (!grupo) return;
-    const items = grupo.items.filter(i => i.seleccionado);
-    if (!items.length) { alert('Selecciona al menos un producto'); return; }
-    const subtotal = carritoTotalTienda(tid);
-    const lista = items.map(i => `  • ${i.prod.nombre} x${i.qty} = ${carritoFormatPrecio(i.prod.precio * i.qty)}`).join('\n');
-    const mensaje = `🛒 *Pedido desde DecoIArte Marketplace*\n\nHola! Quiero cotizar los siguientes productos:\n\n${lista}\n\n*Subtotal productos:* ${carritoFormatPrecio(subtotal)}\n\n📦 ¿Cuál es el costo de domicilio a mi dirección?\n(Una vez confirmado, procedemos con el pago)`;
-    if (!grupo.tienda.whatsapp) { alert('Esta tienda no tiene WhatsApp registrado'); return; }
-    window.open(`https://wa.me/${grupo.tienda.whatsapp}?text=${encodeURIComponent(mensaje)}`, '_blank');
-    notificarAdminPedido(grupo, items, subtotal);
-}
-
-async function notificarAdminPedido(grupo, items, subtotal) {
-    try {
-        await fetch('https://decoia.onrender.com/notificar-pedido', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tienda_nombre: grupo.tienda.nombre, tienda_ciudad: grupo.tienda.ciudad, productos: items.map(i => `${i.prod.nombre} x${i.qty}`).join(', '), subtotal, origen: 'marketplace_web' })
-        });
-    } catch(e) {}
-}
 
 function mostrarAvisoPedidoEnviado(tienda, referencia, subtotal) {
     const d = document.createElement('div');
@@ -958,7 +942,6 @@ function mostrarAvisoPedidoEnviado(tienda, referencia, subtotal) {
     document.body.appendChild(d);
 }
 
-function carritoSolicitarTodo() { Object.keys(carrito).forEach(tid => carritoSolicitarTienda(tid)); }
 
 function carritoTogglePanel() {
     const panel   = document.getElementById('carritoPanel');

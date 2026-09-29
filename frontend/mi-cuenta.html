@@ -213,13 +213,33 @@ async function confirmarRecibido(ref) {
     } catch (e) { alert('No se pudo confirmar: ' + e.message); }
 }
 
+// Imágenes compradas: son una compra más, así que salen en Mis pedidos con su
+// descarga (limpia, sin marca de agua). Antes no aparecían en ningún lado.
+async function htmlImagenesCompradas() {
+    try {
+        const r = await fetch(API + '/api/compras/imagenes', { headers: await cabeceras() });
+        const d = await r.json().catch(() => ({}));
+        const pagadas = r.ok ? (d.imagenes || []).filter(i => i.pagada) : [];
+        if (!pagadas.length) return '';
+        return `<div class="carta"><b>🖼️ Imágenes que compraste</b>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:10px;">
+            ${pagadas.map(i => `<div style="border:1px solid rgba(124,58,237,.25);border-radius:12px;overflow:hidden;">
+                <img src="${esc(i.url_preview || '')}" alt="" style="width:100%;height:100px;object-fit:cover;display:block;">
+                <div style="padding:8px;font-size:12px;color:var(--gris);">${i.pagada_en ? new Date(i.pagada_en).toLocaleDateString('es-CO') : ''} · ${pesos(i.monto)}</div>
+                ${i.url_descarga ? `<a class="btn btn-prim" style="display:block;margin:0 8px 8px;text-align:center;" href="${esc(i.url_descarga)}" target="_blank" download>⬇️ Descargar completa</a>` : ''}
+            </div>`).join('')}</div>
+            <div style="font-size:11.5px;color:var(--gris);margin-top:8px;">El enlace de descarga es temporal por seguridad: si vence, recarga esta página.</div></div>`;
+    } catch (_) { return ''; }
+}
+
 async function cargarPedidos() {
     const panel = document.getElementById('panel-pedidos');
     try {
-        const r = await fetch(API + '/api/cuenta/pedidos', { headers: await cabeceras() });
+        const [r, htmlImgs] = await Promise.all([fetch(API + '/api/cuenta/pedidos', { headers: await cabeceras() }), htmlImagenesCompradas()]);
         const d = await r.json();
         if (!r.ok) throw new Error(d.detail || r.status);
         const pedidos = d.pedidos || [];
+        if (!pedidos.length && htmlImgs) { panel.innerHTML = htmlImgs; return; }
         if (!pedidos.length) {
             panel.innerHTML = '<div class="vacio">Todavía no tienes pedidos.<br><br><a class="btn btn-prim" href="/marketplace">Ir al marketplace</a></div>';
             return;
@@ -229,7 +249,7 @@ async function cargarPedidos() {
             const { data: prods } = await db.from('productos').select('id, nombre, imagen_url').in('id', ids);
             (prods || []).forEach(p => productosCache[p.id] = p);
         }
-        panel.innerHTML = pedidos.map(p => {
+        panel.innerHTML = htmlImgs + pedidos.map(p => {
             const clase = ['pagado','enviado','entregado','pendiente'].includes(p.estado) ? p.estado : (p.estado === 'por_pagar' ? 'pendiente' : 'otro');
             const texto = { cotizando:'La tienda cotiza el domicilio', por_pagar:'Listo para pagar', pagado:'Pagado · la tienda lo prepara',
                             enviado:'En camino', entregado:'Recibido', pendiente:'Pendiente de pago' }[p.estado] || (p.estado || '—');

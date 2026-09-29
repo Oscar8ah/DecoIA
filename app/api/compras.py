@@ -190,6 +190,30 @@ async def pagar_imagen(compra_id: str, request: Request):
     }
 
 
+@router.get("/imagenes")
+async def mis_imagenes(request: Request):
+    """
+    Las imágenes del comprador: las pagadas con su enlace de descarga (limpia,
+    sin marca de agua) y las pendientes. Sirve para "Mis pedidos" en Mi cuenta
+    y para que Remodelar sepa si la imagen que se ve ya está pagada.
+    """
+    usuario = await usuario_de_sesion(request)
+    try:
+        r = get_supabase().table("imagenes_compra").select("id, referencia, url_preview, monto, pagada, pagada_en, created_at, ruta_limpia") \
+            .eq("user_id", usuario["id"]).order("created_at", desc=True).limit(60).execute()
+    except Exception as e:
+        logger.error(f"No se pudieron leer las imágenes de {usuario.get('email')}: {e}")
+        raise HTTPException(status_code=503, detail="No se pudieron cargar tus imágenes, intenta de nuevo")
+    salida = []
+    for f in (r.data or []):
+        item = {"id": f["id"], "referencia": f.get("referencia"), "url_preview": f.get("url_preview"), "monto": f.get("monto"),
+                "pagada": bool(f.get("pagada")), "pagada_en": f.get("pagada_en"), "created_at": f.get("created_at")}
+        if item["pagada"] and f.get("ruta_limpia"):
+            item["url_descarga"] = _enlace_descarga(f["ruta_limpia"])
+        salida.append(item)
+    return {"imagenes": salida}
+
+
 @router.get("/imagenes/pendiente")
 async def imagen_pendiente(request: Request):
     """
