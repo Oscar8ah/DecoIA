@@ -74,3 +74,35 @@ async def enviar_notificacion_asesor(telefono_cliente: str):
 
     except Exception as e:
         logger.error(f"Error enviando email: {e}")
+
+def _enviar_smtp(para: str, asunto: str, html: str) -> None:
+    settings = get_settings()
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = asunto
+    msg["From"] = settings.gmail_user
+    msg["To"] = para
+    msg.attach(MIMEText(html, "html"))
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        server.login(settings.gmail_user, settings.gmail_app_password)
+        server.sendmail(settings.gmail_user, [para], msg.as_string())
+
+
+async def enviar_correo(para: str, asunto: str, cuerpo_html: str) -> bool:
+    """Correo general (pedidos: comprador, tienda y administrador). Nunca rompe
+    el flujo: si falla, queda en los registros y el aviso sigue en el panel."""
+    import asyncio
+    if not para:
+        return False
+    html = f"""<html><body style="font-family:Segoe UI,Arial,sans-serif;background:#F4F4F7;padding:24px;">
+      <div style="max-width:560px;margin:auto;background:#fff;border-radius:14px;padding:24px;color:#1F2937;">
+        <div style="font-size:20px;font-weight:800;color:#7C3AED;margin-bottom:12px;">DecoIArte</div>
+        {cuerpo_html}
+        <p style="font-size:12px;color:#6B7280;margin-top:22px;">Este correo lo envía DecoIArte automáticamente.</p>
+      </div></body></html>"""
+    try:
+        await asyncio.to_thread(_enviar_smtp, para, asunto, html)
+        logger.info(f"Correo enviado a {para}: {asunto}")
+        return True
+    except Exception as e:
+        logger.error(f"No se pudo enviar el correo a {para} ({asunto}): {e}")
+        return False

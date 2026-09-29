@@ -202,6 +202,7 @@
             <span class="icon">🏪</span> Tiendas
             <span class="nav-badge" id="badgePendientes" style="display:none;">0</span>
         </button>
+        <button class="nav-item" onclick="mostrarPagina('ventas', this); cargarVentasAdmin();"><span class="icon">🧾</span> Ventas y comisiones <span id="badgeVentas" style="display:none;background:#F59E0B;color:#1F1300;font-size:10px;font-weight:800;padding:2px 7px;border-radius:20px;margin-left:auto;"></span></button>
         <button class="nav-item" onclick="mostrarPagina('pagos', this)"><span class="icon">💰</span> Pagos</button>
         <button class="nav-item" onclick="mostrarPagina('whatsapp', this)"><span class="icon">📱</span> WhatsApp <span id="badgeWaPendientes" style="display:none;background:#EF4444;color:white;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;margin-left:auto;"></span></button>
         <button class="nav-item" onclick="mostrarPagina('imagenes', this)"><span class="icon">🖼️</span> Imágenes</button>
@@ -305,6 +306,20 @@
     </div>
 
     <!-- PAGOS -->
+    <div class="page" id="pagina-ventas">
+        <div class="page-header"><h1>🧾 Ventas y comisiones</h1><p>Cada venta del marketplace: de quién a quién, tu comisión, el costo de Wompi y lo que le debes a cada tienda.</p></div>
+        <div class="stats-grid" id="ventasTotales"></div>
+        <div style="font-size:12.5px;color:var(--gris);margin:4px 0 14px;line-height:1.6;">
+            El dinero de la tienda se <b>libera</b> cuando el comprador confirma que recibió, o solo a los <b>5 días hábiles</b> del envío (te avisamos por correo).
+            Mientras no esté activo <b>Wompi Pagos a Terceros</b>, tú le transfieres a la tienda y lo registras aquí. Días hábiles = lunes a viernes (los festivos no se descuentan).
+        </div>
+        <div class="tabla-container">
+            <div class="tabla-header"><span class="tabla-titulo">Pedidos</span></div>
+            <div style="overflow-x:auto;"><table><thead><tr><th>Pedido</th><th>De → a</th><th>Estado</th><th>Productos</th><th>Domicilio</th><th>Cobrado</th><th>Tu comisión</th><th>Wompi</th><th>Te queda</th><th>Para la tienda</th><th>Acción</th></tr></thead>
+            <tbody id="tablaVentasAdmin"><tr><td colspan="11" style="color:var(--gris)">Cargando…</td></tr></tbody></table></div>
+        </div>
+    </div>
+
     <div class="page" id="pagina-pagos">
         <div class="page-header"><h1>💰 Pagos</h1><p>Historial de transacciones</p></div>
         <div class="tabla-container">
@@ -805,6 +820,64 @@ function verificacionBadge(estado) {
 function formatFecha(fecha) {
     if (!fecha) return '—';
     return new Date(fecha).toLocaleDateString('es-CO',{day:'numeric',month:'short',year:'numeric'});
+}
+
+// Texto seguro para meter en el HTML (nombres y referencias vienen de la base)
+const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// ── VENTAS Y COMISIONES (servidor: /admin/pedidos, solo el administrador) ──
+const copA = n => (Number(n) < 0 ? '−$' : '$') + Math.abs(Math.round(Number(n) || 0)).toLocaleString('es-CO');
+async function llamarAdmin(ruta, metodo, cuerpo) {
+    const { data: { session } } = await db.auth.getSession();
+    const r = await fetch('https://decoia.onrender.com' + ruta, { method: metodo || 'GET',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token }, body: cuerpo ? JSON.stringify(cuerpo) : undefined });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.detail || ('Error ' + r.status));
+    return d;
+}
+async function cargarVentasAdmin() {
+    const tb = document.getElementById('tablaVentasAdmin');
+    try {
+        const d = await llamarAdmin('/admin/pedidos');
+        const t = d.totales, tarjeta = (et, v, sub, color) => `<div class="stat-card"><div class="stat-label">${et}</div><div class="stat-valor" style="font-size:clamp(17px,2.1vw,26px);word-break:break-all;line-height:1.15;">${copA(v)}</div><div class="stat-sub">${sub}</div></div>`;
+        document.getElementById('ventasTotales').innerHTML =
+            tarjeta('💳 Cobrado a compradores', t.cobrado, 'pedidos pagados') +
+            tarjeta('💜 Tus comisiones', t.comisiones, 'sobre los productos', '#C4B5FD') +
+            tarjeta('🏦 Costo Wompi (estimado)', t.costo_wompi, 'lo asumes tú', '#FCA5A5') +
+            tarjeta('✅ Te queda neto', t.neto, 'comisiones − Wompi', t.neto < 0 ? '#FCA5A5' : '#6EE7B7') +
+            tarjeta('⏳ Debes a tiendas', t.por_pagar_tiendas, 'liberado, sin transferir', '#FCD34D') +
+            tarjeta('💸 Ya pagado a tiendas', t.pagado_tiendas, 'transferido', '#6EE7B7');
+        const pend = d.pedidos.filter(p => (p.liberado_at && !p.pagado_tienda_at) || (p.estado === 'enviado' && !p.liberado_at)).length;
+        const b = document.getElementById('badgeVentas'); b.style.display = pend ? 'inline' : 'none'; b.textContent = pend;
+        const estadoTxt = { cotizando: '🚚 Tienda cotiza domicilio', por_pagar: '💳 Esperando pago', pagado: '📦 Pagado, por despachar', enviado: '🚚 Enviado', entregado: '✅ Recibido', revisar: '⚠️ Revisar monto' };
+        tb.innerHTML = d.pedidos.map(p => {
+            let accion = '';
+            if (p.pagado_tienda_at) accion = `<span style="color:#6EE7B7">💸 Pagado${p.comprobante_tienda ? ' · ' + esc(p.comprobante_tienda) : ''}</span>`;
+            else if (p.liberado_at) accion = `<button class="btn-accion" onclick="registrarPagoTienda('${esc(p.referencia)}', ${p.para_tienda}, '${esc(p.tienda || '')}')">💸 Ya le transferí ${copA(p.para_tienda)}</button>
+                <div style="font-size:11px;color:var(--gris)">liberado por ${esc(p.liberado_por || '')}</div>`;
+            else if (p.estado === 'enviado') accion = `<div style="font-size:12px;color:#FCD34D;font-weight:700">Día ${p.dias_habiles} de ${p.dias_para_liberar}</div>
+                <button class="btn-accion" onclick="liberarAdmin('${esc(p.referencia)}')">Liberar ya</button>`;
+            return `<tr>
+                <td><div style="font-weight:700;font-size:12px">${esc(p.referencia)}</div><div style="font-size:11px;color:var(--gris)">${p.creado ? new Date(p.creado).toLocaleString('es-CO') : ''}</div></td>
+                <td style="font-size:12.5px">${esc(p.comprador || p.comprador_email || '—')}<br>→ <b>${esc(p.tienda || '—')}</b></td>
+                <td style="font-size:12px">${estadoTxt[p.estado] || esc(p.estado)}</td>
+                <td>${copA(p.subtotal)}</td><td>${p.domicilio == null ? '—' : copA(p.domicilio)}</td>
+                <td style="font-weight:700">${copA(p.total)}</td>
+                <td style="color:#C4B5FD">${copA(p.comision)} <span style="font-size:11px;color:var(--gris)">(${p.comision_porcentaje || 5}%)</span></td>
+                <td style="color:#FCA5A5">${p.costo_wompi ? copA(p.costo_wompi) : '—'}</td>
+                <td style="font-weight:700;color:${p.neto_decoiarte < 0 ? '#FCA5A5' : '#6EE7B7'}">${p.costo_wompi ? copA(p.neto_decoiarte) : '—'}</td>
+                <td style="color:#6EE7B7;font-weight:700">${copA(p.para_tienda)}</td>
+                <td>${accion}</td></tr>`;
+        }).join('') || '<tr><td colspan="11" style="color:var(--gris)">Todavía no hay pedidos.</td></tr>';
+    } catch (e) { tb.innerHTML = `<tr><td colspan="11" style="color:#FCA5A5">No se pudo cargar: ${esc(e.message)}</td></tr>`; }
+}
+async function liberarAdmin(ref) {
+    if (!confirm('¿Liberar ya el pago de la tienda para este pedido (sin esperar los 5 días hábiles)?')) return;
+    try { await llamarAdmin('/admin/pedido/' + encodeURIComponent(ref) + '/liberar', 'POST'); cargarVentasAdmin(); } catch (e) { alert('❌ ' + e.message); }
+}
+async function registrarPagoTienda(ref, monto, tienda) {
+    const comp = prompt(`¿Ya le transferiste ${copA(monto)} a ${tienda}? Escribe el número del comprobante (o déjalo vacío):`);
+    if (comp === null) return;
+    try { await llamarAdmin('/admin/pedido/' + encodeURIComponent(ref) + '/pagado-tienda', 'POST', { comprobante: comp }); cargarVentasAdmin(); } catch (e) { alert('❌ ' + e.message); }
 }
 
 function mostrarPagina(nombre, btn) {

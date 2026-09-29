@@ -7,6 +7,8 @@ from fastapi import APIRouter, Depends, Request, HTTPException
 from pydantic import BaseModel
 from app.utils.config import get_settings, Settings
 from app.utils.supabase_client import get_supabase
+from app.utils.dinero import pesos
+from app.utils.auth import ADMIN_EMAIL
 from app.services.recibo_service import generar_pdf_recibo, guardar_recibo
 
 logger = logging.getLogger(__name__)
@@ -23,6 +25,14 @@ class FirmaRequest(BaseModel):
 class FirmaResponse(BaseModel):
     firma: str
     llave_publica: str = ""   # la del ambiente activo (pruebas o producción), la que está en Render
+
+
+def _correo_de_empresa(empresa_id) -> str:
+    try:
+        r = get_supabase().table("empresas").select("email").eq("id", empresa_id).maybe_single().execute()
+        return ((r.data if r else None) or {}).get("email") or ""
+    except Exception:
+        return ""
 
 
 def wompi_api_base(settings: Settings) -> str:
@@ -257,13 +267,16 @@ async def checkout_pedido(
     # No dejar pagar dos veces el mismo pedido
     if pedido.get("estado") in ("pagado", "enviado", "entregado"):
         raise HTTPException(status_code=409, detail="Este pedido ya fue pagado.")
+    # Primero la tienda cotiza el domicilio; sin eso no hay total para cobrar
+    if pedido.get("estado") == "cotizando":
+        raise HTTPException(status_code=409, detail="La tienda aún está cotizando el domicilio. Te avisamos cuando puedas pagar.")
 
     total = float(pedido.get("total") or 0)
     if total <= 0:
         raise HTTPException(status_code=400, detail="El pedido no tiene un total válido.")
 
-    # Wompi cobra en centavos y en entero
-    monto_centavos = int(round(total * 100))
+    # Wompi cobra en centavos y en entero (pesos enteros × 100)
+    monto_centavos = pesos(total) * 100
     moneda = "COP"
 
     # Misma fórmula que /firma: SHA256(referencia + monto + moneda + secreto)
@@ -401,30 +414,24 @@ async def webhook_wompi(
         except Exception as e:
             logger.error(f"Error actualizando el pedido {referencia}: {e}")
 
-        # ── Pago aprobado — buscar la tienda por la referencia ────────────
-        # La referencia tiene formato: DECO-{tienda_id_8chars}-{timestamp}
+        # ── Pago aprobado — la tienda sale del PEDIDO ─────────────────────
+        # Antes se sacaba de la referencia con el formato viejo
+        # DECO-{tienda}-{hora}; las referencias ahora son aleatorias, así que
+        # nunca la encontraba: ni se registraba el pago ni le llegaba el aviso.
         empresa_id = None
         tienda_nombre = "DecoIArte"
-
+        pedido_pagado = None
         try:
-            # Extraer tienda_id de la referencia: DECO-f4c1517e-1781842211218
-            partes = referencia.split("-")
-            if len(partes) >= 2:
-                tienda_id_partial = partes[1]  # primeros 8 chars del tienda_id
-                supabase = get_supabase()
-
-                # Buscar tienda que empiece con ese ID
-                r = supabase.table("tiendas").select(
-                    "id, nombre, empresa_id"
-                ).ilike("id", f"{tienda_id_partial}%").maybe_single().execute()
-
-                if r.data:
-                    empresa_id    = r.data.get("empresa_id")
-                    tienda_nombre = r.data.get("nombre", "Tu tienda")
-                    logger.info(f"Tienda encontrada: {tienda_nombre} — empresa: {empresa_id}")
-
+            supabase = get_supabase()
+            rp2 = supabase.table("pedidos").select("*, tiendas(id, nombre, empresa_id)").eq("referencia", referencia).maybe_single().execute()
+            if rp2 and rp2.data:
+                pedido_pagado = rp2.data
+                t = pedido_pagado.get("tiendas") or {}
+                empresa_id    = t.get("empresa_id") or pedido_pagado.get("empresa_id")
+                tienda_nombre = t.get("nombre") or "Tu tienda"
+                logger.info(f"Tienda del pedido {referencia}: {tienda_nombre} — empresa {empresa_id}")
         except Exception as e:
-            logger.error(f"Error buscando tienda: {e}")
+            logger.error(f"Error buscando la tienda del pedido {referencia}: {e}")
 
         # ── Generar y guardar el recibo/comprobante de pago ───────────────
         url_recibo = None
@@ -471,6 +478,26 @@ async def webhook_wompi(
                     }
                 }).execute()
                 logger.info(f"Pago y notificación registrados para empresa {empresa_id}")
+                # Avisos por correo: tienda (despacha), comprador (recibo) y administrador (comisión)
+                if pedido_pagado:
+                    from app.services.email_service import enviar_correo
+                    from app.utils.dinero import pesos as _p, en_letras as _l
+                    def f(valor):
+                        return "$" + f"{_p(valor):,}".replace(",", ".")
+                    await enviar_correo(_correo_de_empresa(empresa_id), f"💰 Pagado: despacha el pedido {referencia}",
+                        f"<p style='font-size:15px'>El cliente pagó <b>{f(monto_cop)}</b>.</p>"
+                        f"<p>Te corresponden <b>{f(pedido_pagado.get('monto_tienda'))}</b> cuando el cliente confirme que lo recibió "
+                        "(o a los 5 días hábiles del envío).</p><p>Ya puedes ver la dirección y el teléfono en tu dashboard. "
+                        "Al despachar, márcalo como <b>Enviado</b>.</p>")
+                    await enviar_correo(pedido_pagado.get("comprador_email"), f"✅ Pago recibido — {tienda_nombre}",
+                        f"<p style='font-size:15px'>Recibimos tu pago de <b>{f(monto_cop)}</b> ({_l(_p(monto_cop))} pesos).</p>"
+                        "<p>La tienda ya está preparando tu pedido.</p>")
+                    await enviar_correo(ADMIN_EMAIL, f"🧾 Venta {f(monto_cop)} — {tienda_nombre}",
+                        f"<p>Pedido <b>{referencia}</b> · {pedido_pagado.get('comprador_nombre')} → {tienda_nombre}</p>"
+                        f"<p>Cobrado: <b>{f(monto_cop)}</b><br>Tu comisión: <b>{f(pedido_pagado.get('comision_monto'))}</b><br>"
+                        f"Costo Wompi (estimado): {f(pedido_pagado.get('costo_wompi'))}<br>"
+                        f"Te queda neto: <b>{f(pedido_pagado.get('neto_decoiarte'))}</b><br>"
+                        f"Para la tienda (al liberarse): <b>{f(pedido_pagado.get('monto_tienda'))}</b></p>")
 
             except Exception as e:
                 logger.error(f"Error insertando pago/notificación: {e}")

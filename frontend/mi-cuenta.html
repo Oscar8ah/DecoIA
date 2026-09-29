@@ -171,6 +171,48 @@ async function cerrarSesion() { await db.auth.signOut(); location.href = '/marke
 })();
 
 // ── Mis pedidos ───────────────────────────────────────────────────────
+// Monto en palabras (igual que app/utils/dinero.py): para que nadie se equivoque de ceros
+function enLetras(n) {
+    n = Math.round(Number(n) || 0);
+    if (n === 0) return 'cero';
+    const U = ['','uno','dos','tres','cuatro','cinco','seis','siete','ocho','nueve','diez','once','doce','trece','catorce','quince','dieciséis','diecisiete','dieciocho','diecinueve','veinte','veintiuno','veintidós','veintitrés','veinticuatro','veinticinco','veintiséis','veintisiete','veintiocho','veintinueve'];
+    const D = ['','','','treinta','cuarenta','cincuenta','sesenta','setenta','ochenta','noventa'];
+    const C = ['','ciento','doscientos','trescientos','cuatrocientos','quinientos','seiscientos','setecientos','ochocientos','novecientos'];
+    const h999 = x => { if (x === 100) return 'cien'; const c = Math.floor(x/100), r = x%100, p = c ? [C[c]] : [];
+        if (r) p.push(r < 30 ? U[r] : D[Math.floor(r/10)] + (r%10 ? ' y ' + U[r%10] : '')); return p.join(' '); };
+    const apo = t => t.endsWith('veintiuno') ? t.slice(0,-9)+'veintiún' : (t.endsWith('uno') ? t.slice(0,-3)+'un' : t);
+    const mill = Math.floor(n/1e6), resto = n%1e6, miles = Math.floor(resto/1000), uni = resto%1000, p = [];
+    if (mill) p.push(mill === 1 ? 'un millón' : apo(h999(mill)) + ' millones');
+    if (miles) p.push(miles === 1 ? 'mil' : apo(h999(miles)) + ' mil');
+    if (uni) p.push(h999(uni));
+    return p.join(' ');
+}
+const cop = n => '$' + Math.round(Number(n)||0).toLocaleString('es-CO');
+
+async function pagarPedido(ref) {
+    try {
+        const r = await fetch(API + '/wompi/checkout-pedido/' + encodeURIComponent(ref), { headers: await cabeceras() });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.detail || ('Error ' + r.status));
+        if (!window.WidgetCheckout) await new Promise((ok, mal) => { const s = document.createElement('script');
+            s.src = 'https://checkout.wompi.co/widget.js'; s.onload = ok; s.onerror = () => mal(new Error('No cargó la pasarela')); document.head.appendChild(s); });
+        new WidgetCheckout({ currency: d.moneda, amountInCents: d.monto_centavos, reference: d.referencia, publicKey: d.llave_publica,
+            signature: { integrity: d.firma }, redirectUrl: 'https://decoiarte.com/mi-cuenta' })
+            .open(res => { const st = res?.transaction?.status;
+                alert(st === 'APPROVED' ? '✅ ¡Pago aprobado! La tienda ya está preparando tu pedido.' : st === 'DECLINED' ? '❌ El pago fue rechazado. Puedes intentar de nuevo.' : '⏳ Pago pendiente de confirmación.');
+                setTimeout(cargarPedidos, 3000); });
+    } catch (e) { alert('No se pudo iniciar el pago: ' + e.message); }
+}
+async function confirmarRecibido(ref) {
+    if (!confirm('¿Confirmas que recibiste tu pedido completo y en buen estado?')) return;
+    try {
+        const r = await fetch(API + '/pedido/' + encodeURIComponent(ref) + '/recibido', { method: 'POST', headers: await cabeceras() });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.detail || ('Error ' + r.status));
+        alert('✅ ¡Gracias! Confirmaste que lo recibiste.'); cargarPedidos();
+    } catch (e) { alert('No se pudo confirmar: ' + e.message); }
+}
+
 async function cargarPedidos() {
     const panel = document.getElementById('panel-pedidos');
     try {
@@ -188,8 +230,9 @@ async function cargarPedidos() {
             (prods || []).forEach(p => productosCache[p.id] = p);
         }
         panel.innerHTML = pedidos.map(p => {
-            const clase = ['pagado','enviado','entregado','pendiente'].includes(p.estado) ? p.estado : 'otro';
-            const texto = { pagado:'Pagado', enviado:'Enviado', entregado:'Entregado', pendiente:'Pendiente de pago' }[p.estado] || (p.estado || '—');
+            const clase = ['pagado','enviado','entregado','pendiente'].includes(p.estado) ? p.estado : (p.estado === 'por_pagar' ? 'pendiente' : 'otro');
+            const texto = { cotizando:'La tienda cotiza el domicilio', por_pagar:'Listo para pagar', pagado:'Pagado · la tienda lo prepara',
+                            enviado:'En camino', entregado:'Recibido', pendiente:'Pendiente de pago' }[p.estado] || (p.estado || '—');
             const fecha = p.created_at ? new Date(p.created_at).toLocaleDateString('es-CO', { day:'numeric', month:'short', year:'numeric' }) : '';
             const items = (p.items || []).map(i => {
                 const prod = productosCache[i.producto_id] || {};
@@ -206,6 +249,12 @@ async function cargarPedidos() {
                 </div>
                 <div style="margin-top:10px;">${items}</div>
                 ${p.direccion ? `<div style="font-size:12px;color:var(--gris);margin-top:8px;">📍 ${esc(p.direccion)}</div>` : ''}
+                ${p.domicilio != null ? `<div style="font-size:13px;margin-top:10px;line-height:1.7;">Productos: <b>${cop(p.subtotal)}</b> · Domicilio: <b>${cop(p.domicilio)}</b><br>
+                    Total: <b>${cop(p.total)}</b> <span style="color:var(--gris);font-size:12px;">(${enLetras(p.total)} pesos)</span></div>` : ''}
+                ${p.estado === 'cotizando' ? `<div style="font-size:12.5px;color:#FCD34D;margin-top:10px;">⏳ La tienda está calculando el domicilio. Te avisamos por correo; aún no se te ha cobrado nada.</div>` : ''}
+                ${p.estado === 'por_pagar' ? `<button class="btn btn-prim" style="margin-top:10px;width:100%;" onclick="pagarPedido('${esc(p.referencia)}')">💳 Pagar ${cop(p.total)}</button>` : ''}
+                ${p.estado === 'enviado' ? `<button class="btn btn-prim" style="margin-top:10px;width:100%;" onclick="confirmarRecibido('${esc(p.referencia)}')">📦 Ya me llegó: confirmar que lo recibí</button>
+                    <div style="font-size:11.5px;color:var(--gris);margin-top:6px;">Al confirmar, la tienda recibe su pago. Si hubo un problema con la entrega, escríbenos antes de confirmar.</div>` : ''}
             </div>`;
         }).join('');
     } catch (e) {

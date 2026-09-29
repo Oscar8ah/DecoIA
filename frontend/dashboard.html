@@ -917,6 +917,12 @@
         <div id="resumenVentas" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:22px;"></div>
         <div class="card">
             <h3 style="font-size:15px;margin-bottom:14px;">Pedidos recibidos</h3>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:-4px 0 14px;padding:10px 12px;border-radius:10px;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.25);font-size:12.5px;color:var(--gris);">
+                🧾 Pedido mínimo en productos: $
+                <input type="number" id="pedidoMinimo" min="0" step="1000" placeholder="0 = sin mínimo" style="width:140px;background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);border-radius:8px;padding:6px 8px;color:var(--texto);font-size:13px;">
+                <button onclick="guardarPedidoMinimo()" style="background:var(--degradado);color:#fff;border:none;padding:7px 12px;border-radius:8px;font-weight:700;cursor:pointer;">Guardar</button>
+                <span>Por debajo de ese valor el marketplace no deja pedir (así no pierdes plata en ventas muy pequeñas).</span>
+            </div>
             <div id="listaPedidos"><p style="color:var(--gris);font-size:14px;">Cargando...</p></div>
         </div>
         <div class="card" style="margin-top:16px;">
@@ -2847,7 +2853,66 @@ function mostrarAlerta(id,msg,tipo){const el=document.getElementById(id);if(!el)
 function checkCampo(input){input.classList.toggle('tiene-valor',!!input.value.trim());}
 function mostrarTab(tabId,btn){document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));document.getElementById(tabId).classList.add('active');if(btn)btn.classList.add('active');}
 // ── MIS VENTAS ────────────────────────────────────────────────────────────
+// Monto en palabras (igual que app/utils/dinero.py): para que nadie se equivoque de ceros
+function enLetras(n) {
+    n = Math.round(Number(n) || 0);
+    if (n === 0) return 'cero';
+    const U = ['','uno','dos','tres','cuatro','cinco','seis','siete','ocho','nueve','diez','once','doce','trece','catorce','quince','dieciséis','diecisiete','dieciocho','diecinueve','veinte','veintiuno','veintidós','veintitrés','veinticuatro','veinticinco','veintiséis','veintisiete','veintiocho','veintinueve'];
+    const D = ['','','','treinta','cuarenta','cincuenta','sesenta','setenta','ochenta','noventa'];
+    const C = ['','ciento','doscientos','trescientos','cuatrocientos','quinientos','seiscientos','setecientos','ochocientos','novecientos'];
+    const h999 = x => { if (x === 100) return 'cien'; const c = Math.floor(x/100), r = x%100, p = c ? [C[c]] : [];
+        if (r) p.push(r < 30 ? U[r] : D[Math.floor(r/10)] + (r%10 ? ' y ' + U[r%10] : '')); return p.join(' '); };
+    const apo = t => t.endsWith('veintiuno') ? t.slice(0,-9)+'veintiún' : (t.endsWith('uno') ? t.slice(0,-3)+'un' : t);
+    const mill = Math.floor(n/1e6), resto = n%1e6, miles = Math.floor(resto/1000), uni = resto%1000, p = [];
+    if (mill) p.push(mill === 1 ? 'un millón' : apo(h999(mill)) + ' millones');
+    if (miles) p.push(miles === 1 ? 'mil' : apo(h999(miles)) + ' mil');
+    if (uni) p.push(h999(uni));
+    return p.join(' ');
+}
+const cop = n => '$' + Math.round(Number(n)||0).toLocaleString('es-CO');
+
+function previaDomicilio(ref, subtotal, pct) {
+    const v = Math.round(Number(document.getElementById('dom-' + ref).value) || 0), out = document.getElementById('prev-' + ref);
+    if (v > 50000000) { out.innerHTML = '<span style="color:#FCA5A5;">⚠️ Más de $50.000.000: revisa si pusiste un cero de más.</span>'; return; }
+    const total = subtotal + v, comision = Math.round(subtotal * pct / 100);
+    out.innerHTML = `Domicilio: <b style="color:var(--texto);">${cop(v)}</b> (${enLetras(v)} pesos)<br>
+        El cliente pagará: <b style="color:var(--texto);">${cop(total)}</b> (${enLetras(total)} pesos)<br>
+        Recibirás: <b style="color:#6EE7B7;">${cop(total - comision)}</b> = productos ${cop(subtotal)} − comisión ${pct}% ${cop(comision)} + domicilio ${cop(v)}
+        ${total < 1500 ? '<br><span style="color:#FCA5A5;">⚠️ Wompi no cobra menos de $1.500: sube el domicilio o pide que agreguen productos.</span>' : ''}`;
+}
+async function accionPedido(ruta, cuerpo) {
+    const { data: { session } } = await db.auth.getSession();
+    const r = await fetch('https://decoia.onrender.com' + ruta, { method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token }, body: cuerpo ? JSON.stringify(cuerpo) : undefined });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.detail || ('Error ' + r.status));
+    return d;
+}
+async function enviarDomicilio(ref) {
+    const valor = document.getElementById('dom-' + ref).value;
+    if (valor === '') { alert('Escribe el costo del domicilio (0 si es gratis).'); return; }
+    const v = Math.round(Number(valor));
+    if (!confirm(`¿Enviar al cliente un domicilio de ${cop(v)} (${enLetras(v)} pesos)?`)) return;
+    try { const d = await accionPedido('/pedido/' + encodeURIComponent(ref) + '/domicilio', { domicilio: v });
+          alert(`✅ Enviado. El cliente pagará ${cop(d.total)} (${d.total_en_letras}).`); cargarVentas(); }
+    catch (e) { alert('❌ ' + e.message); }
+}
+async function marcarEnviado(ref) {
+    if (!confirm('¿Confirmas que ya despachaste este pedido?')) return;
+    try { await accionPedido('/pedido/' + encodeURIComponent(ref) + '/enviado'); alert('✅ Marcado como enviado. Le avisamos al cliente.'); cargarVentas(); }
+    catch (e) { alert('❌ ' + e.message); }
+}
+async function guardarPedidoMinimo() {
+    const v = Math.max(0, Math.round(Number(document.getElementById('pedidoMinimo').value) || 0));
+    const { error } = await db.from('tiendas').update({ pedido_minimo: v }).eq('id', tiendaId);
+    alert(error ? '❌ No se pudo guardar: ' + error.message : `✅ Pedido mínimo: ${cop(v)}${v ? ' (' + enLetras(v) + ' pesos)' : ' (sin mínimo)'}`);
+}
+
 async function cargarVentas() {
+    try {   // mínimo guardado de la tienda
+        const { data: t } = await db.from('tiendas').select('pedido_minimo').eq('id', tiendaId).maybeSingle();
+        const inp = document.getElementById('pedidoMinimo'); if (inp && t) inp.value = t.pedido_minimo || '';
+    } catch (_) {}
     const cont = document.getElementById('listaPedidos');
     const res  = document.getElementById('resumenVentas');
     cont.innerHTML = '<p style="color:var(--gris);font-size:14px;">Cargando...</p>';
@@ -2873,10 +2938,10 @@ async function cargarVentas() {
     }
 
     const lista   = pedidos || [];
-    const pagados = lista.filter(p => p.estado === 'pagado');
+    const pagados = lista.filter(p => ['pagado','enviado','entregado'].includes(p.estado));
     const vendido       = pagados.reduce((s,p) => s + Number(p.total||0), 0);
     const teCorresponde = pagados.reduce((s,p) => s + Number(p.monto_tienda||0), 0);
-    const porRecibir    = pagados.filter(p => !p.liquidado)
+    const porRecibir    = pagados.filter(p => !p.pagado_tienda_at)
                                  .reduce((s,p) => s + Number(p.monto_tienda||0), 0);
 
     const tarjeta = (titulo, valor, color) => `
@@ -2899,7 +2964,8 @@ async function cargarVentas() {
         return;
     }
 
-    const colorEstado = { pagado:'#6EE7B7', pendiente:'#FCD34D', fallido:'#FCA5A5', revisar:'#FB923C' };
+    const colorEstado = { cotizando:'#FCD34D', por_pagar:'#7DD3FC', pagado:'#6EE7B7', enviado:'#A78BFA', entregado:'#6EE7B7', pendiente:'#FCD34D', fallido:'#FCA5A5', revisar:'#FB923C' };
+    const nombreEstado = { cotizando:'COTIZA EL DOMICILIO', por_pagar:'ESPERANDO EL PAGO', pagado:'PAGADO · DESPACHA', enviado:'ENVIADO', entregado:'RECIBIDO' };
     cont.innerHTML = lista.map(p => {
         const items = Array.isArray(p.items) ? p.items : [];
         return `
@@ -2913,7 +2979,7 @@ async function cargarVentas() {
                 </div>
                 <span style="font-size:11px;font-weight:800;padding:4px 10px;border-radius:20px;
                       background:rgba(255,255,255,0.06);color:${colorEstado[p.estado]||'var(--gris)'};">
-                    ${esc((p.estado||'').toUpperCase())}
+                    ${esc(nombreEstado[p.estado] || (p.estado||'').toUpperCase())}
                 </span>
             </div>
             <div style="font-size:12px;color:var(--gris);margin-top:8px;line-height:1.7;">
@@ -2929,11 +2995,27 @@ async function cargarVentas() {
                 🔒 ${p.comprador_nombre ? esc(p.comprador_nombre) + ' — ' : ''}los datos de entrega aparecen cuando el pedido quede pagado.
             </div>`}
             <div style="display:flex;gap:16px;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.06);flex-wrap:wrap;font-size:12.5px;">
+                <span style="color:var(--gris);">Productos: <b style="color:var(--texto);">$${Number(p.subtotal||0).toLocaleString('es-CO')}</b></span>
+                ${p.domicilio != null ? `<span style="color:var(--gris);">Domicilio: <b style="color:var(--texto);">$${Number(p.domicilio).toLocaleString('es-CO')}</b></span>` : ''}
                 <span style="color:var(--gris);">Total: <b style="color:var(--texto);">$${Number(p.total||0).toLocaleString('es-CO')}</b></span>
                 <span style="color:var(--gris);">Comisión (${p.comision_porcentaje}%): <b>$${Number(p.comision_monto||0).toLocaleString('es-CO')}</b></span>
                 <span style="color:var(--gris);">Para ti: <b style="color:#6EE7B7;">$${Number(p.monto_tienda||0).toLocaleString('es-CO')}</b></span>
-                ${p.liquidado ? '<span style="color:#6EE7B7;">✓ Ya transferido</span>' : (p.estado==='pagado' ? '<span style="color:#FCD34D;">⏳ Por transferir</span>' : '')}
+                ${p.pagado_tienda_at ? '<span style="color:#6EE7B7;">✓ Ya te transferimos</span>' : (p.liberado_at ? '<span style="color:#6EE7B7;">✅ Liberado: te transferimos pronto</span>' : (['pagado','enviado'].includes(p.estado) ? '<span style="color:#FCD34D;">⏳ Se libera cuando el cliente confirme (o a los 5 días hábiles del envío)</span>' : ''))}
             </div>
+            ${['cotizando','por_pagar'].includes(p.estado) ? `
+            <div style="margin-top:12px;padding:12px;border-radius:10px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.35);">
+                <div style="font-size:12.5px;font-weight:700;color:#FCD34D;margin-bottom:6px;">🚚 ${p.estado === 'cotizando' ? 'Escribe el costo del domicilio' : 'Domicilio cotizado — puedes corregirlo mientras el cliente no pague'}</div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <span style="font-size:14px;color:var(--gris);">$</span>
+                    <input type="number" min="0" max="50000000" step="1" id="dom-${esc(p.referencia)}" value="${p.domicilio ?? ''}" placeholder="0 si es gratis"
+                        oninput="previaDomicilio('${esc(p.referencia)}', ${Number(p.subtotal||0)}, ${Number(p.comision_porcentaje||5)})"
+                        style="width:170px;background:var(--oscuro);border:1px solid rgba(245,158,11,0.4);border-radius:8px;padding:8px 10px;color:var(--texto);font-size:14px;">
+                    <button onclick="enviarDomicilio('${esc(p.referencia)}')" style="background:linear-gradient(135deg,#F59E0B,#D97706);color:#1F1300;border:none;padding:9px 14px;border-radius:9px;font-weight:800;cursor:pointer;">Enviar al cliente</button>
+                </div>
+                <div id="prev-${esc(p.referencia)}" style="font-size:12px;color:var(--gris);margin-top:8px;line-height:1.6;"></div>
+            </div>` : ''}
+            ${p.estado === 'pagado' ? `<button onclick="marcarEnviado('${esc(p.referencia)}')" style="margin-top:12px;width:100%;background:var(--degradado);color:#fff;border:none;padding:10px;border-radius:10px;font-weight:800;cursor:pointer;">📦 Ya lo despaché: marcar como enviado</button>` : ''}
+            ${p.estado === 'enviado' && !p.liberado_at ? `<div style="margin-top:10px;font-size:12px;color:#A78BFA;">🚚 En camino · esperando que el cliente confirme que lo recibió</div>` : ''}
         </div>`;
     }).join('');
 }

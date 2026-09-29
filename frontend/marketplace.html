@@ -941,6 +941,23 @@ async function notificarAdminPedido(grupo, items, subtotal) {
     } catch(e) {}
 }
 
+function mostrarAvisoPedidoEnviado(tienda, referencia, subtotal) {
+    const d = document.createElement('div');
+    d.style.cssText = 'position:fixed;inset:0;z-index:4000;background:rgba(5,5,12,0.75);display:flex;align-items:center;justify-content:center;padding:20px;';
+    d.innerHTML = `<div style="max-width:440px;background:#141424;border:1px solid rgba(124,58,237,0.4);border-radius:18px;padding:26px;color:#F3F4F6;text-align:center;font-family:'Segoe UI',sans-serif;">
+        <div style="font-size:44px;margin-bottom:8px;">🚚</div>
+        <div style="font-size:19px;font-weight:800;margin-bottom:8px;">Pedido enviado a ${esc(tienda)}</div>
+        <div style="font-size:14px;color:#C4B5FD;line-height:1.6;margin-bottom:6px;">Productos: <b>$${Math.round(subtotal).toLocaleString('es-CO')}</b></div>
+        <div style="font-size:13.5px;color:#9CA3AF;line-height:1.6;margin-bottom:18px;">La tienda va a calcular el <b>domicilio</b> según lo que pediste y a dónde va.
+            Te avisamos por correo y lo pagas desde <b>Mi cuenta</b>. Aún no se te ha cobrado nada.</div>
+        <div style="display:flex;gap:8px;justify-content:center;">
+            <a href="/mi-cuenta" style="background:linear-gradient(135deg,#8B5CF6,#7C3AED);color:#fff;padding:10px 18px;border-radius:10px;font-weight:700;text-decoration:none;">Ver en Mi cuenta</a>
+            <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:1px solid rgba(148,163,184,0.4);color:#9CA3AF;padding:10px 16px;border-radius:10px;font-weight:700;cursor:pointer;">Seguir comprando</button>
+        </div>
+        <div style="font-size:11px;color:#6B7280;margin-top:12px;">Ref ${esc(referencia)}</div></div>`;
+    document.body.appendChild(d);
+}
+
 function carritoSolicitarTodo() { Object.keys(carrito).forEach(tid => carritoSolicitarTienda(tid)); }
 
 function carritoTogglePanel() {
@@ -1118,7 +1135,7 @@ async function pagarConWompi(tiendaId) {
     const entrega = await datosDeEntrega(sesionCompra);
     if (!entrega) return;
 
-    mostrarToastCarrito('💳 Preparando pago...');
+    mostrarToastCarrito('🚚 Enviando tu pedido a la tienda…');
 
     // ── 1. Crear el PEDIDO en el backend ─────────────────────────────────
     // El backend lee los precios REALES de la base de datos y calcula el
@@ -1149,34 +1166,12 @@ async function pagarConWompi(tiendaId) {
         return;
     }
 
-    // El monto que se cobra es el que calculó el BACKEND, no el del carrito
-    const referencia      = pedido.referencia;
-    const montoEnCentavos = pedido.total_centavos;
-    const subtotal        = pedido.total;
-    const moneda          = 'COP';
-
-    const firma = await generarFirmaWompi(referencia, montoEnCentavos, moneda);
-    if (!firma) { mostrarToastCarrito('❌ Error preparando el pago. Intenta de nuevo.'); return; }
-    const checkout = new WidgetCheckout({
-        currency: moneda, amountInCents: montoEnCentavos,
-        reference: referencia, publicKey: WOMPI_LLAVE_PUBLICA,
-        signature: { integrity: firma },
-        redirectUrl: `https://decoiarte.com/marketplace?pago=ok&ref=${referencia}`,
-    });
-    checkout.open((result) => {
-        const { transaction } = result;
-        if (transaction?.status === 'APPROVED') {
-            // El webhook de Wompi ya marcó el pedido como pagado en la BD y
-            // dejó registrado cuánto le corresponde a la tienda.
-            mostrarToastCarrito('✅ ¡Pago aprobado! La tienda coordinará tu pedido.');
-            delete carrito[tiendaId]; carritoGuardar(); carritoRenderPanel();
-            notificarAdminPedido(grupo, items, subtotal);
-        } else if (transaction?.status === 'DECLINED') {
-            mostrarToastCarrito('❌ Pago rechazado. Intenta con otro método.');
-        } else {
-            mostrarToastCarrito('⚠️ Pago pendiente. Te notificaremos pronto.');
-        }
-    });
+    // El pedido NO se cobra todavía: primero la tienda cotiza el domicilio
+    // (un tanque o 40 bultos de cemento no se calculan como un celular). El
+    // cliente paga el total desde Mi cuenta cuando la tienda lo cotice; le
+    // llega un correo avisándole.
+    delete carrito[tiendaId]; carritoGuardar(); carritoRenderPanel();
+    mostrarAvisoPedidoEnviado(grupo.tienda.nombre, pedido.referencia, pedido.total);
 }
 </script>
 </body>

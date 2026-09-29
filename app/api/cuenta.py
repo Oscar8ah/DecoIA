@@ -70,6 +70,8 @@ async def mis_pedidos(request: Request):
             "tienda":     nombres.get(str(p.get("tienda_id")), "Tienda"),
             "estado":     p.get("estado"),
             "total":      p.get("total"),
+            "subtotal":   p.get("subtotal"),
+            "domicilio":  p.get("domicilio"),
             "items":      p.get("items") or [],
             "created_at": p.get("created_at"),
             "direccion":  p.get("comprador_direccion"),
