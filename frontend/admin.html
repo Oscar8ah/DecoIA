@@ -842,8 +842,8 @@ async function cargarVentasAdmin() {
         document.getElementById('ventasTotales').innerHTML =
             tarjeta('💳 Cobrado a compradores', t.cobrado, 'pedidos pagados') +
             tarjeta('💜 Tus comisiones', t.comisiones, 'sobre los productos', '#C4B5FD') +
-            tarjeta('🏦 Costo Wompi (estimado)', t.costo_wompi, 'lo asumes tú', '#FCA5A5') +
-            tarjeta('✅ Te queda neto', t.neto, 'comisiones − Wompi', t.neto < 0 ? '#FCA5A5' : '#6EE7B7') +
+            tarjeta('🏦 Costo Wompi (estimado)', t.costo_wompi, 'lo pagan las tiendas', '#FCA5A5') +
+            tarjeta('✅ Te queda', t.neto, 'tus comisiones completas', t.neto < 0 ? '#FCA5A5' : '#6EE7B7') +
             tarjeta('⏳ Debes a tiendas', t.por_pagar_tiendas, 'liberado, sin transferir', '#FCD34D') +
             tarjeta('💸 Ya pagado a tiendas', t.pagado_tiendas, 'transferido', '#6EE7B7');
         const pend = d.pedidos.filter(p => (p.liberado_at && !p.pagado_tienda_at) || (p.estado === 'enviado' && !p.liberado_at)).length;

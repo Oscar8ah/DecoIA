@@ -7,11 +7,13 @@ Reglas (no se tocan sin pensarlo dos veces):
   · Redondeo "mitad hacia arriba" (el de toda la vida), nunca el del banquero.
   · La comisión de DecoIArte se cobra SOLO sobre los productos. El domicilio
     es 100 % de la tienda (ella lo pone y ella lo paga).
-  · Lo de la tienda = productos − comisión + domicilio.  Siempre se cumple:
-        comisión + para_tienda == total    (se verifica en cada cálculo)
-  · El costo de Wompi (2,65 % + $700 + IVA 19 % sobre esa comisión) se cobra
-    sobre el TOTAL que entra a la cuenta de DecoIArte. Se calcula aparte y se
-    muestra en el panel del administrador: hoy lo asume DecoIArte.
+  · El comprador paga el PRECIO PUBLICADO + domicilio: nada más, nada menos.
+  · A la tienda se le descuentan los COSTOS ADMINISTRATIVOS, que se le muestran
+    como UNA sola línea: comisión de DecoIArte + costo de la pasarela Wompi
+    (2,65 % + $700 + IVA 19 % sobre el TOTAL). Decisión del 29 sep.
+  · Lo de la tienda = total − costos administrativos. Siempre se cumple:
+        comisión + costo_wompi + para_tienda == total   (se verifica en cada cálculo)
+  · DecoIArte se queda con la comisión completa (Wompi sale de la parte de la tienda).
 """
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -43,13 +45,14 @@ def repartir(subtotal_productos: int, domicilio: int, porcentaje) -> dict:
         raise ValueError("Montos negativos")
     comision = comision_de(subtotal_productos, porcentaje)
     total = subtotal_productos + domicilio
-    para_tienda = subtotal_productos - comision + domicilio
-    if comision + para_tienda != total:            # nunca debería pasar; si pasa, se detiene todo
-        raise ValueError("El reparto no cuadra")
     wompi = costo_wompi_estimado(total)
+    costos_administrativos = comision + wompi          # lo que se le descuenta a la tienda, en una sola línea
+    para_tienda = total - costos_administrativos
+    if comision + wompi + para_tienda != total:        # nunca debería pasar; si pasa, se detiene todo
+        raise ValueError("El reparto no cuadra")
     return {"subtotal": subtotal_productos, "domicilio": domicilio, "total": total,
-            "comision": comision, "para_tienda": para_tienda,
-            "costo_wompi": wompi, "neto_decoiarte": comision - wompi}
+            "comision": comision, "costo_wompi": wompi, "costos_administrativos": costos_administrativos,
+            "para_tienda": para_tienda, "neto_decoiarte": comision}
 
 
 def en_letras(n: int) -> str:

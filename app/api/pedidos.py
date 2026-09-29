@@ -284,6 +284,10 @@ async def cotizar_domicilio(referencia: str, data: DomicilioRequest, request: Re
         raise HTTPException(status_code=400, detail=(
             f"El total quedaría en {_cop(reparto['total'])} y Wompi no cobra menos de {_cop(WOMPI_MINIMO_COP)}. "
             "Revisa el domicilio o pídele al cliente que agregue productos."))
+    if reparto["para_tienda"] < 0:
+        raise HTTPException(status_code=400, detail=(
+            f"Con ese total, los costos administrativos ({_cop(reparto['costos_administrativos'])}) superan lo que "
+            f"cobras ({_cop(reparto['total'])}): perderías plata. Revisa el domicilio."))
     get_supabase().table("pedidos").update({
         "domicilio": domicilio, "total": reparto["total"], "comision_monto": reparto["comision"],
         "monto_tienda": reparto["para_tienda"], "costo_wompi": reparto["costo_wompi"],
@@ -375,6 +379,7 @@ async def admin_pedidos(request: Request):
             "domicilio": p.get("domicilio"), "total": pesos(p.get("total")), "comision": pesos(p.get("comision_monto")),
             "comision_porcentaje": p.get("comision_porcentaje"), "para_tienda": pesos(p.get("monto_tienda")),
             "costo_wompi": pesos(p.get("costo_wompi")), "neto_decoiarte": pesos(p.get("neto_decoiarte")),
+            "costos_administrativos": pesos(p.get("comision_monto")) + pesos(p.get("costo_wompi")),
             "pagado_at": p.get("pagado_at"), "enviado_at": p.get("enviado_at"), "dias_habiles": dias,
             "dias_para_liberar": DIAS_HABILES_PARA_LIBERAR, "liberado_at": p.get("liberado_at"),
             "liberado_por": p.get("liberado_por"), "pagado_tienda_at": p.get("pagado_tienda_at"),

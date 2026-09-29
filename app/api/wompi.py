@@ -486,7 +486,8 @@ async def webhook_wompi(
                         return "$" + f"{_p(valor):,}".replace(",", ".")
                     await enviar_correo(_correo_de_empresa(empresa_id), f"💰 Pagado: despacha el pedido {referencia}",
                         f"<p style='font-size:15px'>El cliente pagó <b>{f(monto_cop)}</b>.</p>"
-                        f"<p>Te corresponden <b>{f(pedido_pagado.get('monto_tienda'))}</b> cuando el cliente confirme que lo recibió "
+                        f"<p>Costos administrativos: {f((pedido_pagado.get('comision_monto') or 0) + (pedido_pagado.get('costo_wompi') or 0))}<br>"
+                        f"Te corresponden <b>{f(pedido_pagado.get('monto_tienda'))}</b> cuando el cliente confirme que lo recibió "
                         "(o a los 5 días hábiles del envío).</p><p>Ya puedes ver la dirección y el teléfono en tu dashboard. "
                         "Al despachar, márcalo como <b>Enviado</b>.</p>")
                     await enviar_correo(pedido_pagado.get("comprador_email"), f"✅ Pago recibido — {tienda_nombre}",
@@ -495,8 +496,8 @@ async def webhook_wompi(
                     await enviar_correo(ADMIN_EMAIL, f"🧾 Venta {f(monto_cop)} — {tienda_nombre}",
                         f"<p>Pedido <b>{referencia}</b> · {pedido_pagado.get('comprador_nombre')} → {tienda_nombre}</p>"
                         f"<p>Cobrado: <b>{f(monto_cop)}</b><br>Tu comisión: <b>{f(pedido_pagado.get('comision_monto'))}</b><br>"
-                        f"Costo Wompi (estimado): {f(pedido_pagado.get('costo_wompi'))}<br>"
-                        f"Te queda neto: <b>{f(pedido_pagado.get('neto_decoiarte'))}</b><br>"
+                        f"Costo Wompi (estimado, lo paga la tienda): {f(pedido_pagado.get('costo_wompi'))}<br>"
+                        f"Te queda: <b>{f(pedido_pagado.get('neto_decoiarte'))}</b><br>"
                         f"Para la tienda (al liberarse): <b>{f(pedido_pagado.get('monto_tienda'))}</b></p>")
 
             except Exception as e:

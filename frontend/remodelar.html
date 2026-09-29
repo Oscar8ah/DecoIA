@@ -1068,7 +1068,14 @@ function selProd(p) {
     document.getElementById('prod-'+p.id)?.classList.add('activo');
     actualizarPasos(3);
     verificarListo();
-    toast(`✅ "${p.nombre}" seleccionado`);
+    // Entra de una vez a tu lista y se suma (antes solo entraba al generar la
+    // imagen: si ya había una, quedaba marcado pero el resumen seguía en $0)
+    if (!carrito.find(c => c.id === p.id)) {
+        carrito.push({ ...p });
+        sessionStorage.setItem('deco_carrito', JSON.stringify(carrito));
+        renderCarrito();
+        toast(`✅ "${p.nombre}" seleccionado y agregado a tu lista`);
+    } else toast(`✅ "${p.nombre}" seleccionado`);
 }
 
 function verificarListo() {

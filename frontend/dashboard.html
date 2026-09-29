@@ -689,7 +689,7 @@
         <div class="tab-content" id="tab-cobros">
             <div class="form-card">
                 <h3>💳 Dónde recibes el pago de tus ventas</h3>
-                <p>Cuando un cliente te compra por DecoIArte, el pago llega primero a DecoIArte y se te transfiere a esta cuenta, descontando la comisión del marketplace. <b>Estos datos solo los ves tú y el administrador</b>; no aparecen en tu tienda pública.</p>
+                <p>Cuando un cliente te compra por DecoIArte, el pago llega primero a DecoIArte y se te transfiere a esta cuenta, descontando los <b>costos administrativos</b> (la comisión de DecoIArte y el costo de la pasarela de pagos). Tu cliente paga el precio que publicas, sin recargos. <b>Estos datos solo los ves tú y el administrador</b>; no aparecen en tu tienda pública.</p>
                 <div class="alerta" id="cobrosAlerta"></div>
                 <div class="form-campo">
                     <label>Cómo quieres recibir</label>
@@ -2874,10 +2874,14 @@ const cop = n => '$' + Math.round(Number(n)||0).toLocaleString('es-CO');
 function previaDomicilio(ref, subtotal, pct) {
     const v = Math.round(Number(document.getElementById('dom-' + ref).value) || 0), out = document.getElementById('prev-' + ref);
     if (v > 50000000) { out.innerHTML = '<span style="color:#FCA5A5;">⚠️ Más de $50.000.000: revisa si pusiste un cero de más.</span>'; return; }
+    // Mismo cálculo que app/utils/dinero.py (el servidor es el que manda)
     const total = subtotal + v, comision = Math.round(subtotal * pct / 100);
+    const pasarela = Math.round((total * 0.0265 + 700) * 1.19), costosAdm = comision + pasarela;
     out.innerHTML = `Domicilio: <b style="color:var(--texto);">${cop(v)}</b> (${enLetras(v)} pesos)<br>
         El cliente pagará: <b style="color:var(--texto);">${cop(total)}</b> (${enLetras(total)} pesos)<br>
-        Recibirás: <b style="color:#6EE7B7;">${cop(total - comision)}</b> = productos ${cop(subtotal)} − comisión ${pct}% ${cop(comision)} + domicilio ${cop(v)}
+        Costos administrativos: <b style="color:#FCA5A5;">−${cop(costosAdm)}</b><br>
+        Recibirás: <b style="color:#6EE7B7;">${cop(total - costosAdm)}</b> (${enLetras(Math.max(0, total - costosAdm))} pesos)
+        ${total - costosAdm < 0 ? '<br><span style="color:#FCA5A5;">⚠️ Perderías plata con este total: revisa el domicilio.</span>' : ''}
         ${total < 1500 ? '<br><span style="color:#FCA5A5;">⚠️ Wompi no cobra menos de $1.500: sube el domicilio o pide que agreguen productos.</span>' : ''}`;
 }
 async function accionPedido(ruta, cuerpo) {
@@ -2998,7 +3002,7 @@ async function cargarVentas() {
                 <span style="color:var(--gris);">Productos: <b style="color:var(--texto);">$${Number(p.subtotal||0).toLocaleString('es-CO')}</b></span>
                 ${p.domicilio != null ? `<span style="color:var(--gris);">Domicilio: <b style="color:var(--texto);">$${Number(p.domicilio).toLocaleString('es-CO')}</b></span>` : ''}
                 <span style="color:var(--gris);">Total: <b style="color:var(--texto);">$${Number(p.total||0).toLocaleString('es-CO')}</b></span>
-                <span style="color:var(--gris);">Comisión (${p.comision_porcentaje}%): <b>$${Number(p.comision_monto||0).toLocaleString('es-CO')}</b></span>
+                <span style="color:var(--gris);">Costos administrativos: <b style="color:#FCA5A5;">−$${(Number(p.comision_monto||0) + Number(p.costo_wompi||0)).toLocaleString('es-CO')}</b></span>
                 <span style="color:var(--gris);">Para ti: <b style="color:#6EE7B7;">$${Number(p.monto_tienda||0).toLocaleString('es-CO')}</b></span>
                 ${p.pagado_tienda_at ? '<span style="color:#6EE7B7;">✓ Ya te transferimos</span>' : (p.liberado_at ? '<span style="color:#6EE7B7;">✅ Liberado: te transferimos pronto</span>' : (['pagado','enviado'].includes(p.estado) ? '<span style="color:#FCD34D;">⏳ Se libera cuando el cliente confirme (o a los 5 días hábiles del envío)</span>' : ''))}
             </div>
