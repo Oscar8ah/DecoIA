@@ -343,12 +343,18 @@
                 </div>
                 <div id="carritoResumen" style="display:none;">
                     <div class="carrito-total">
-                        <div class="ct-row" style="width:100%"><span>Subtotal productos</span><span id="subtotalTexto">$0</span></div>
-                        <div class="ct-row" style="width:100%"><span>Imagen IA</span><span id="precioImagenTexto" style="color:#A78BFA;">Se desbloquea al pagar</span></div>
-                        <div class="ct-row" style="width:100%"><span>Domicilio</span><span>Se define por tienda</span></div>
+                        <div class="ct-row" style="width:100%"><span id="subtotalEtiqueta">Productos</span><span id="subtotalTexto">$0</span></div>
+                        <div class="ct-row" style="width:100%"><span>Imagen IA</span><span id="precioImagenTexto" style="color:#A78BFA;">—</span></div>
+                        <div class="ct-row" style="width:100%"><span>Domicilio</span><span>Lo cotiza la tienda</span></div>
                     </div>
                     <div class="ct-total"><span>Total</span><span id="totalTexto">$0</span></div>
-                    <button class="btn-pagar" onclick="irAPagar()">💳 Pagar y desbloquear imagen</button>
+                    <!-- Dos cobros distintos, cada uno con su botón: la imagen se paga ya;
+                         los productos se piden a la tienda, que cotiza el domicilio, y se
+                         pagan en Mi cuenta. Antes había un solo botón que cobraba solo la
+                         imagen y los productos nunca llegaban a la tienda. -->
+                    <button class="btn-pagar" id="btnPagarImagen" onclick="pagarImagenDesdeCarrito()" style="display:none;">💳 Pagar la imagen</button>
+                    <button class="btn-pagar" id="btnPedirProductos" onclick="pedirProductos()" style="display:none;margin-top:8px;background:linear-gradient(135deg,#F59E0B,#D97706);color:#1F1300;">🚚 Pedir los productos</button>
+                    <div id="notaPagos" style="font-size:11.5px;color:var(--gris);line-height:1.55;margin-top:8px;"></div>
                     <!-- (Se quitó "Prefiero hablar con un asesor": era un canal directo con la tienda que salta la compra por DecoIArte) -->
                     <a id="btnEditorSuperficies" href="#" style="display:none;width:100%;margin-top:8px;background:linear-gradient(135deg,#3B82F6 0%,#7C3AED 100%);color:white;padding:11px;border-radius:10px;font-size:13px;font-weight:800;text-decoration:none;text-align:center;box-sizing:border-box;">🎨 Probar otros materiales (gratis)</a>
                 </div>
@@ -713,7 +719,7 @@ async function guardarEnBaul(urlOriginal, urlGenerada, origen) {
         url_original: urlOriginal || null,
         url_generada: urlGenerada,
         tienda_id:    (tiendaActiva && tiendaActiva !== 'todas') ? String(tiendaActiva) : null,
-        productos:    carrito.map(p => ({ id:p.id, nombre:p.nombre, precio:p.precio, unidad:p.unidad, imagen_url:p.imagen_url })),
+        productos:    carrito.map(p => ({ id:p.id, tienda_id:p.tienda_id, nombre:p.nombre, precio:p.precio, unidad:p.unidad, imagen_url:p.imagen_url, categoria:p.categoria })),
         origen,
     };
     const { error } = await db.from('mis_remodelaciones').upsert(fila, { onConflict: 'user_id,url_generada' });
@@ -730,7 +736,7 @@ function programarSyncBaul() {
     if (!baulActual || !sesionActiva || rolUsuario === 'empresa') return;
     clearTimeout(_syncBaul);
     _syncBaul = setTimeout(async () => {
-        const productos = carrito.map(p => ({ id:p.id, nombre:p.nombre, precio:p.precio, unidad:p.unidad, imagen_url:p.imagen_url }));
+        const productos = carrito.map(p => ({ id:p.id, tienda_id:p.tienda_id, nombre:p.nombre, precio:p.precio, unidad:p.unidad, imagen_url:p.imagen_url, categoria:p.categoria }));
         const { error } = await db.from('mis_remodelaciones').update({ productos })
             .eq('user_id', sesionActiva.user.id).eq('url_generada', baulActual);
         if (error) console.warn('No se pudo actualizar la lista:', error.message);
@@ -1235,7 +1241,7 @@ function agregarProductoAlCarrito() {
 function quitarDeCarrito(id) {
     carrito = carrito.filter(c => c.id !== id);
     sessionStorage.setItem('deco_carrito', JSON.stringify(carrito));
-    renderCarrito();
+    renderCarrito(); pintarResumenPago();
     toast('🗑️ Producto eliminado');
 }
 
@@ -1317,19 +1323,42 @@ function renderCarrito() {
 // Resumen: la IMAGEN se paga aquí ($5.000); los PRODUCTOS se piden a la tienda,
 // que cotiza el domicilio, y se pagan en Mi cuenta. Antes todo salía en $0.
 function pintarResumenPago() {
-    const subtotal = carrito.reduce((s,p) => s + Number(p.precio || 0), 0);
+    // Todo en pesos enteros; suma exactamente lo que está en la lista
+    const subtotal = carrito.reduce((s,p) => s + Math.round(Number(p.precio || 0)), 0);
     const imagenPendiente = !!(compraImagen && !resultadoPagado);
     const precioImg = imagenPendiente ? Math.round(Number(compraImagen.monto) || 5000) : 0;
+    const $ = n => '$' + Math.round(n).toLocaleString('es-CO');
     const el = id => document.getElementById(id);
-    if (el('subtotalTexto')) el('subtotalTexto').textContent = '$' + subtotal.toLocaleString('es-CO');
-    if (el('precioImagenTexto')) el('precioImagenTexto').textContent = resultadoPagado ? '✅ Pagada' : (imagenPendiente ? '$' + precioImg.toLocaleString('es-CO') : 'Se desbloquea al pagar');
-    if (el('totalTexto')) el('totalTexto').textContent = '$' + (imagenPendiente ? precioImg : subtotal).toLocaleString('es-CO');
-    const btn = document.querySelector('.btn-pagar');
-    if (btn) btn.textContent = imagenPendiente ? `💳 Pagar $${precioImg.toLocaleString('es-CO')} y desbloquear imagen`
-        : (carrito.length ? '🚚 Pedir los productos a la tienda' : '💳 Pagar y desbloquear imagen');
+    if (el('subtotalEtiqueta')) el('subtotalEtiqueta').textContent = `Productos (${carrito.length})`;
+    if (el('subtotalTexto')) el('subtotalTexto').textContent = $(subtotal);
+    if (el('precioImagenTexto')) el('precioImagenTexto').textContent = resultadoPagado ? '✅ Pagada' : (imagenPendiente ? $(precioImg) : '—');
+    if (el('totalTexto')) el('totalTexto').textContent = $(subtotal + precioImg) + (carrito.length ? ' + domicilio' : '');
+    const bI = el('btnPagarImagen'), bP = el('btnPedirProductos'), nota = el('notaPagos');
+    if (bI) { bI.style.display = imagenPendiente ? 'block' : 'none'; bI.textContent = `💳 Pagar la imagen: ${$(precioImg)}`; }
+    if (bP) { bP.style.display = carrito.length ? 'block' : 'none'; bP.textContent = `🚚 Pedir los productos: ${$(subtotal)}`; }
+    if (nota) nota.innerHTML = [
+        imagenPendiente ? '💳 <b>La imagen</b> se paga ahora y la descargas limpia.' : '',
+        carrito.length ? '🚚 <b>Los productos</b> se los pides a la tienda: te cotiza el domicilio, te avisamos y los pagas en <b>Mi cuenta</b>. No se cobra nada al pedirlos.' : '',
+    ].filter(Boolean).join('<br>');
+}
+async function pagarImagenDesdeCarrito() {
+    if (!await requerirCuenta('Crea tu cuenta gratis para comprar la imagen')) return;
+    if (!compraImagen && resultadoUrl && !resultadoPagado && rolUsuario !== 'empresa') await recuperarCompraPendiente();
+    if (resultadoPagado) { toast('✅ Esta imagen ya es tuya: descárgala con el botón de arriba'); return; }
+    if (!compraImagen) { toast('No encontramos la compra de esta imagen en tu cuenta. Genera una nueva para comprarla.'); return; }
+    await pagarImagen();
+}
+async function pedirProductos() {
+    if (!carrito.length) { toast('Agrega a tu lista los productos que quieres'); return; }
+    if (!await requerirCuenta('Crea tu cuenta gratis para pedir los productos')) return;
+    sessionStorage.setItem('carrito_remodelar', JSON.stringify(carrito));
+    toast('🚚 Te llevamos a confirmar tu pedido con la tienda…');
+    setTimeout(() => window.location.href = '/marketplace', 900);
 }
 
 async function irAPagar() {
+    if (compraImagen && !resultadoPagado) return pagarImagenDesdeCarrito();
+    if (carrito.length) return pedirProductos();
     if (!await requerirCuenta('Crea tu cuenta gratis para completar tu compra')) return;
     // Si hay una imagen sin pagar, primero se cobra la imagen ($5.000).
     // Si el navegador perdió los datos de la compra (volver de Wompi en otra

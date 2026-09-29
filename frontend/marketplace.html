@@ -797,9 +797,19 @@ async function importarCarritoRemodelar() {
     let lista = [];
     try { lista = JSON.parse(sessionStorage.getItem('carrito_remodelar') || '[]'); } catch (e) {}
     sessionStorage.removeItem('carrito_remodelar');
-    lista = (lista || []).filter(p => p && p.id && p.tienda_id);
+    lista = (lista || []).filter(p => p && p.id);
     if (!lista.length) return;
     try {
+        // Remodelaciones guardadas antes del 29 sep no traen la tienda de cada
+        // producto: se busca en la base para no perderlos
+        const sinTienda = lista.filter(p => !p.tienda_id).map(p => p.id);
+        if (sinTienda.length) {
+            const { data: prods } = await db.from('productos').select('id, tienda_id').in('id', sinTienda);
+            const t = Object.fromEntries((prods || []).map(x => [x.id, x.tienda_id]));
+            lista.forEach(p => { if (!p.tienda_id) p.tienda_id = t[p.id]; });
+            lista = lista.filter(p => p.tienda_id);
+            if (!lista.length) return;
+        }
         const ids = [...new Set(lista.map(p => p.tienda_id))];
         const { data: tiendas } = await db.from('tiendas').select('id, nombre, ciudad, whatsapp_contacto').in('id', ids);
         const porId = Object.fromEntries((tiendas || []).map(t => [t.id, t]));

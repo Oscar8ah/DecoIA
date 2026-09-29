@@ -614,7 +614,7 @@
                             <p>JPG o PNG cuadrado — se sube directamente a DecoIArte.<br>Recomendado: 400x400px</p>
                             <label for="inputLogo" style="display:inline-block;background:var(--oscuro);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">📸 Seleccionar logo</label>
                         </div>
-                        <input type="file" id="inputLogo" accept="image/*" style="display:none;" onchange="subirLogo(this)">
+                        <input type="file" id="inputLogo" accept="image/png,image/jpeg,image/webp" style="display:none;" onchange="subirLogo(this).finally(() => { this.value = ''; })">
                         <input type="hidden" id="tiendaLogoUrl">
                     </div>
                     <div id="logoUploadStatus" style="font-size:13px;color:var(--gris);"></div>
@@ -1255,13 +1255,23 @@ async function subirLogo(input) {
             status.innerHTML = '<span style="color:#FCA5A5;">❌ La imagen supera 5MB. Usa una más pequeña.</span>';
             return;
         }
-        const ext    = archivo.name.split('.').pop().toLowerCase();
+        const TIPOS = { 'image/png':'png', 'image/jpeg':'jpg', 'image/webp':'webp' };
+        const ext = TIPOS[archivo.type];
+        if (!ext) { status.innerHTML = '<span style="color:#FCA5A5;">❌ Usa una imagen PNG, JPG o WEBP.</span>'; return; }
         const nombre = `logo_${empresaId}.${ext}`;
         const { error } = await db.storage.from('logos-tiendas').upload(nombre, archivo, { upsert:true, cacheControl:'3600', contentType:archivo.type });
         if (error) { console.error('Storage error:', error); throw error; }
         const { data:{ publicUrl } } = db.storage.from('logos-tiendas').getPublicUrl(nombre);
-        const urlConCache = `${publicUrl}?t=${Date.now()}`;
-        document.getElementById('tiendaLogoUrl').value = publicUrl;
+        // Con marca de versión: el archivo conserva el nombre, y sin esto se
+        // seguía viendo el logo viejo hasta una hora (caché)
+        const urlConCache = `${publicUrl}?v=${Date.now()}`;
+        document.getElementById('tiendaLogoUrl').value = urlConCache;
+        // Se guarda en la tienda de una vez: antes quedaba solo en el formulario
+        // y, si no se tocaba "Guardar", la tienda pública seguía sin logo
+        if (tiendaId) {
+            const { error: e2 } = await db.from('tiendas').update({ logo_url: urlConCache }).eq('id', tiendaId);
+            if (e2) throw new Error('El logo subió pero no se pudo guardar en tu tienda: ' + e2.message);
+        }
         document.getElementById('logoPreviewBox').innerHTML = `<img src="${esc(urlConCache)}" alt="Logo" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`;
         status.innerHTML = `<span style="color:#6EE7B7;">✅ Logo subido correctamente</span>
             <button onclick="eliminarLogo()" style="margin-left:12px;background:rgba(239,68,68,0.1);color:#FCA5A5;border:1px solid rgba(239,68,68,0.3);padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Segoe UI',sans-serif;">🗑️ Eliminar logo</button>`;
