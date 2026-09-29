@@ -116,7 +116,7 @@ async def _procesar_pago_cambio_plan(referencia: str, monto_cop: float, metodo: 
             r = supabase.table("empresas").select(
                 "id, nombre, email, fotos_usadas"
             ).ilike("id", f"{empresa_id_partial}%").maybe_single().execute()
-            empresa = r.data
+            empresa = r.data if r else None
     except Exception as e:
         logger.error(f"Error buscando empresa para cambio de plan: {e}")
 
@@ -132,7 +132,7 @@ async def _procesar_pago_cambio_plan(referencia: str, monto_cop: float, metodo: 
             "id, plan_solicitado_id, plan_actual_id"
         ).eq("empresa_id", empresa_id).eq("estado", "pagando") \
          .order("created_at", desc=True).limit(1).maybe_single().execute()
-        solicitud = r.data
+        solicitud = r.data if r else None
     except Exception as e:
         logger.error(f"Error buscando solicitud de cambio de plan: {e}")
 
@@ -143,7 +143,7 @@ async def _procesar_pago_cambio_plan(referencia: str, monto_cop: float, metodo: 
     plan_nuevo = None
     try:
         r = supabase.table("planes").select("id, nombre, fotos_incluidas").eq("id", solicitud["plan_solicitado_id"]).maybe_single().execute()
-        plan_nuevo = r.data
+        plan_nuevo = r.data if r else None
     except Exception as e:
         logger.error(f"Error buscando plan nuevo: {e}")
 
@@ -259,7 +259,7 @@ async def checkout_pedido(
         .select("referencia, total, estado, tiendas(nombre)") \
         .eq("referencia", referencia).maybe_single().execute()
 
-    if not r.data:
+    if not r or not r.data:
         raise HTTPException(status_code=404, detail="Ese pedido no existe.")
 
     pedido = r.data
@@ -384,7 +384,7 @@ async def webhook_wompi(
         try:
             supabase = get_supabase()
             rp = supabase.table("pedidos").select("*").eq("referencia", referencia).maybe_single().execute()
-            if rp.data:
+            if rp and rp.data:
                 pedido = rp.data
                 esperado = float(pedido.get("total") or 0)
                 if abs(esperado - monto_cop) > 1:

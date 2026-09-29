@@ -80,7 +80,7 @@ async def crear_pedido(data: CrearPedidoRequest, request: Request):
         .select("*") \
         .eq("id", data.tienda_id).maybe_single().execute()
 
-    if not r.data:
+    if not r or not r.data:
         raise HTTPException(status_code=404, detail="Tienda no encontrada.")
     tienda = r.data
     if not tienda.get("activa"):
@@ -156,7 +156,7 @@ async def crear_pedido(data: CrearPedidoRequest, request: Request):
             # Primero la tienda cotiza el domicilio: un saco de cemento o un tanque
             # gigante no se pueden calcular como un celular. Luego el cliente paga.
             "estado":              "cotizando",
-        }).select().single().execute()
+        }).execute()   # supabase 2.15 (Render): insert() no admite .select(); ya devuelve la fila
     except Exception as e:
         logger.error(f"Error creando pedido: {e}")
         raise HTTPException(status_code=502, detail="No se pudo registrar el pedido. Intenta de nuevo.")
@@ -169,9 +169,9 @@ async def crear_pedido(data: CrearPedidoRequest, request: Request):
     return {
         "status":      "ok",
         "referencia":  referencia,
-        "pedido_id":   ins.data["id"] if ins.data else None,
+        "pedido_id":   (ins.data or [{}])[0].get("id") if ins else None,
         "total":       subtotal,
-        "total_centavos": int(round(subtotal * 100)),   # Wompi cobra en centavos
+        "total_centavos": subtotal * 100,   # Wompi cobra en centavos (pesos enteros × 100)
         "tienda":      tienda.get("nombre"),
         # El desglose NO se manda al navegador para no exponer el margen del
         # negocio al comprador. Queda solo en la base de datos.
@@ -185,7 +185,7 @@ async def consultar_pedido(referencia: str):
     r = supabase.table("pedidos") \
         .select("referencia, estado, total, items, created_at, pagado_at, tiendas(nombre)") \
         .eq("referencia", referencia).maybe_single().execute()
-    if not r.data:
+    if not r or not r.data:
         raise HTTPException(status_code=404, detail="Pedido no encontrado.")
     d = r.data
     return {
