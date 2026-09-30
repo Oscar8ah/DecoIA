@@ -270,6 +270,24 @@
 .nd-item { display:flex; gap:12px; padding:12px; border-radius:12px; cursor:pointer; transition:background 0.2s; border-left:3px solid transparent; margin-bottom:4px; }
 .nd-item:hover { background:rgba(124,58,237,0.08); }
 .nd-item.nueva { background:rgba(124,58,237,0.06); border-left-color:var(--morado); }
+/* Colores por tipo de aviso: se reconoce de un vistazo qué hay que hacer */
+.nd-item.c-azul  { border-left:4px solid #3B82F6; background:rgba(59,130,246,0.10); }
+.nd-item.c-verde { border-left:4px solid #10B981; background:rgba(16,185,129,0.09); }
+.nd-item.c-rojo  { border-left:4px solid #EF4444; background:rgba(239,68,68,0.09); }
+.nd-item.c-oro   { border-left:4px solid #F59E0B; background:rgba(245,158,11,0.09); }
+.nd-item.leida   { opacity:0.6; }
+.nd-item.c-azul .nd-icon  { background:rgba(59,130,246,0.25); }
+.nd-item.c-verde .nd-icon { background:rgba(16,185,129,0.25); }
+.nd-item.c-rojo .nd-icon  { background:rgba(239,68,68,0.25); }
+.nd-item.c-oro .nd-icon   { background:rgba(245,158,11,0.25); }
+.nd-etiqueta { display:inline-block; font-size:10px; font-weight:800; letter-spacing:.04em; padding:2px 8px; border-radius:20px; margin-bottom:4px; }
+/* El botón de acción va DEBAJO del texto, a lo ancho (antes apretaba el texto en una columna) */
+.nd-item { flex-wrap:wrap; position:relative; }
+.nd-item > div:first-child { flex:1 1 calc(100% - 34px); min-width:0; }
+.nd-item > button:not(.nd-borrar), .nd-item > a { flex-basis:calc(100% - 48px); margin:8px 0 0 48px !important; padding:9px 12px !important; font-size:12.5px !important; text-align:center; }
+.nd-borrar { position:absolute; top:10px; right:8px; }
+.nd-borrar { background:none; border:none; color:#6B7280; cursor:pointer; font-size:14px; padding:2px 6px; border-radius:6px; margin-left:auto; align-self:flex-start; }
+.nd-borrar:hover { color:#FCA5A5; background:rgba(239,68,68,0.12); }
 .nd-icon { width:38px; height:38px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:16px; background:rgba(16,185,129,0.15); }
 .nd-info { flex:1; min-width:0; }
 .nd-titulo { font-size:13px; font-weight:700; margin-bottom:2px; }
@@ -511,6 +529,7 @@
         <h3>🔔 Notificaciones</h3>
         <div class="nd-header-btns">
             <button class="nd-marcar" onclick="marcarTodasND()">Marcar leídas</button>
+            <button class="nd-marcar" onclick="ndBorrarLeidas()" style="color:#FCA5A5;">Borrar leídas</button>
             <button class="nd-cerrar" onclick="cerrarNotif()">✕</button>
         </div>
     </div>
@@ -2928,6 +2947,37 @@ async function guardarPedidoMinimo() {
     alert(error ? '❌ No se pudo guardar: ' + error.message : `✅ Pedido mínimo: ${cop(v)}${v ? ' (' + enLetras(v) + ' pesos)' : ' (sin mínimo)'}`);
 }
 
+// Historial de todos los pedidos (también cancelados), con color por estado
+function pintarHistorial(h) {
+    let caja = document.getElementById('historialPedidos');
+    if (!caja) {
+        const lista = document.getElementById('listaPedidos'); if (!lista) return;
+        caja = document.createElement('div'); caja.id = 'historialPedidos'; caja.style.marginTop = '22px';
+        lista.parentNode.insertBefore(caja, lista.nextSibling);
+    }
+    if (!h.length) { caja.innerHTML = ''; return; }
+    const E = { cotizando:['🔵 Esperando que cotices','#93C5FD','rgba(59,130,246,.15)'], por_pagar:['🟣 Esperando el pago','#C4B5FD','rgba(124,58,237,.15)'],
+        pagado:['🟢 Pagado · despacha','#6EE7B7','rgba(16,185,129,.15)'], enviado:['🟢 Despachado','#6EE7B7','rgba(16,185,129,.15)'],
+        entregado:['✅ Recibido','#6EE7B7','rgba(16,185,129,.2)'], cancelado:['🔴 Cancelado','#FCA5A5','rgba(239,68,68,.15)'], revisar:['🟠 En revisión','#FDBA74','rgba(249,115,22,.15)'] };
+    const $ = n => n == null ? '—' : '$' + Math.round(Number(n)).toLocaleString('es-CO');
+    caja.innerHTML = `<h3 style="font-size:15px;margin-bottom:10px;">📜 Historial de pedidos</h3>
+        <div style="overflow-x:auto;border:1px solid rgba(124,58,237,.2);border-radius:12px;">
+        <table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:640px;">
+        <thead><tr style="background:rgba(124,58,237,.1);color:var(--gris);text-align:left;">
+            <th style="padding:9px 12px;">Fecha</th><th style="padding:9px 12px;">Cliente</th><th style="padding:9px 12px;">Productos</th>
+            <th style="padding:9px 12px;text-align:right;">Total</th><th style="padding:9px 12px;text-align:right;">Para ti</th><th style="padding:9px 12px;">Estado</th></tr></thead>
+        <tbody>${h.map(p => { const e = E[p.estado] || [p.estado || '—','#D1D5DB','rgba(148,163,184,.15)'];
+            const prods = (p.items || []).map(i => `${esc(i.nombre)} × ${i.cantidad}`).join(', ');
+            return `<tr style="border-top:1px solid rgba(124,58,237,.12);${p.estado === 'cancelado' ? 'opacity:.7;' : ''}">
+                <td style="padding:9px 12px;white-space:nowrap;">${new Date(p.created_at).toLocaleString('es-CO',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</td>
+                <td style="padding:9px 12px;">${esc(p.comprador || '—')}</td>
+                <td style="padding:9px 12px;">${prods}</td>
+                <td style="padding:9px 12px;text-align:right;font-weight:700;">${p.estado === 'cotizando' ? $(p.subtotal ?? p.total) + '<span style="color:var(--gris);font-weight:400;"> + domicilio</span>' : $(p.total)}</td>
+                <td style="padding:9px 12px;text-align:right;color:#6EE7B7;font-weight:700;">${['cancelado','cotizando'].includes(p.estado) ? '—' : $(p.monto_tienda)}</td>
+                <td style="padding:9px 12px;"><span style="display:inline-block;padding:3px 10px;border-radius:20px;font-weight:800;font-size:11px;white-space:nowrap;color:${e[1]};background:${e[2]};">${e[0]}</span></td></tr>`; }).join('')}
+        </tbody></table></div>`;
+}
+
 async function cargarVentas() {
     try {   // mínimo guardado de la tienda
         const { data: t } = await db.from('tiendas').select('pedido_minimo').eq('id', tiendaId).maybeSingle();
@@ -2950,6 +3000,7 @@ async function cargarVentas() {
         const dv = await rv.json().catch(() => ({}));
         if (!rv.ok) throw new Error(dv.detail || ('Error ' + rv.status));
         pedidos = dv.pedidos || [];
+        pintarHistorial(dv.historial || []);
     } catch (e) { error = e; }
 
     if (error) {
@@ -3118,19 +3169,40 @@ async function cargarNotificaciones() {
     if(nuevas>0){badge.textContent=nuevas>9?'9+':nuevas;badge.classList.add('show');}
     else{badge.classList.remove('show');}
     if(!notifs.length){lista.innerHTML='<div class="nd-empty">Sin notificaciones por ahora 🔔</div>';return;}
-    lista.innerHTML=notifs.map(n=>`
-        <div class="nd-item ${n.leida?'':'nueva'}">
-            <div onclick="ndMarcarLeida('${n.id}')" style="cursor:pointer;display:flex;gap:10px;">
-                <div class="nd-icon">${n.tipo==='pago'?'💰':(n.tipo==='pedido'?'🚚':(n.tipo==='resena'?'⭐':'🔔'))}</div>
+    lista.innerHTML=notifs.map(n=>{ const k=ndClase(n); return `
+        <div class="nd-item ${k.clase} ${n.leida?'leida':''}">
+            <div onclick="ndMarcarLeida('${n.id}')" style="cursor:pointer;display:flex;gap:10px;flex:1;">
+                <div class="nd-icon">${k.icono}</div>
                 <div class="nd-info">
+                    <span class="nd-etiqueta" style="background:${k.fondo};color:${k.color};">${k.etiqueta}</span>
                     <div class="nd-titulo">${esc(n.titulo)}</div>
                     <div class="nd-msg">${esc(n.mensaje)}</div>
                     <div class="nd-tiempo">${ndTiempo(n.created_at)}</div>
                 </div>
             </div>
-            ${n.datos?.referencia ? `<button onclick="ndIrAlPedido('${n.id}','${esc(n.datos.referencia)}')" style="margin:6px 0 0 42px;background:var(--degradado);color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">${n.datos.accion==='cotizar_domicilio' ? '🚚 Cotizar el domicilio' : 'Ver el pedido'} →</button>` : ''}
+            <button class="nd-borrar" title="Borrar este aviso" onclick="event.stopPropagation(); ndBorrar('${n.id}')">🗑</button>
+            ${n.datos?.referencia && k.clase !== 'c-rojo' ? `<button onclick="ndIrAlPedido('${n.id}','${esc(n.datos.referencia)}')" style="margin:6px 0 0 42px;background:var(--degradado);color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">${n.datos.accion==='cotizar_domicilio' ? '🚚 Cotizar el domicilio' : 'Ver el pedido'} →</button>` : ''}
             ${n.datos?.url_recibo ? `<a href="${esc(n.datos.url_recibo)}" target="_blank" style="display:inline-block;margin-top:6px;margin-left:42px;font-size:12px;color:#A78BFA;text-decoration:underline;">📄 Descargar recibo</a>` : ''}
-        </div>`).join('');
+        </div>`; }).join('');
+}
+// Tipo de aviso → color y etiqueta. Azul: hay que cotizar; verde: pagado,
+// liberado o transferido; rojo: cancelado; dorado: reseña.
+function ndClase(n){
+    const t=(n.titulo||'');
+    if (t.startsWith('✖') || t.toLowerCase().includes('cancel')) return {clase:'c-rojo', icono:'✖', etiqueta:'CANCELADO', color:'#FCA5A5', fondo:'rgba(239,68,68,0.18)'};
+    if (n.datos?.accion==='cotizar_domicilio' || t.includes('cotiza el domicilio')) return {clase:'c-azul', icono:'🚚', etiqueta:'COTIZA EL DOMICILIO', color:'#93C5FD', fondo:'rgba(59,130,246,0.2)'};
+    if (n.tipo==='resena' || t.includes('reseña')) return {clase:'c-oro', icono:'⭐', etiqueta:'RESEÑA', color:'#FCD34D', fondo:'rgba(245,158,11,0.2)'};
+    if (n.tipo==='pago' || t.startsWith('💰') || t.startsWith('✅') || t.startsWith('💸')) return {clase:'c-verde', icono:t.startsWith('💸')?'💸':'💰', etiqueta:t.startsWith('💸')?'TE PAGAMOS':(t.startsWith('✅')?'PAGO LIBERADO':'PAGADO · DESPACHA'), color:'#6EE7B7', fondo:'rgba(16,185,129,0.2)'};
+    return {clase:'', icono:'🔔', etiqueta:'AVISO', color:'#C4B5FD', fondo:'rgba(124,58,237,0.2)'};
+}
+async function ndBorrar(id){
+    try { await accionPedido('/api/cuenta/notificaciones/' + encodeURIComponent(id) + '/borrar'); } catch(e){ alert('No se pudo borrar: ' + e.message); }
+    cargarNotificaciones();
+}
+async function ndBorrarLeidas(){
+    if (!confirm('¿Borrar todos los avisos que ya leíste?')) return;
+    try { await accionPedido('/api/cuenta/notificaciones/borrar-leidas'); } catch(e){ alert('No se pudo borrar: ' + e.message); }
+    cargarNotificaciones();
 }
 // Llevar del aviso directo al pedido, ya listo para escribir el domicilio
 async function ndIrAlPedido(idNotif, referencia){

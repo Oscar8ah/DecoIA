@@ -854,6 +854,7 @@ async function cargarVentasAdmin() {
             if (p.pagado_tienda_at) accion = `<span style="color:#6EE7B7">💸 Pagado${p.comprobante_tienda ? ' · ' + esc(p.comprobante_tienda) : ''}</span>`;
             else if (p.liberado_at) accion = `<button class="btn-accion" onclick="registrarPagoTienda('${esc(p.referencia)}', ${p.para_tienda}, '${esc(p.tienda || '')}')">💸 Ya le transferí ${copA(p.para_tienda)}</button>
                 <div style="font-size:11px;color:var(--gris)">liberado por ${esc(p.liberado_por || '')}</div>`;
+            else if (p.estado === 'cotizando') accion = `<div style="font-size:12px;font-weight:700;color:${(p.horas_esperando || 0) >= 4 ? '#FCA5A5' : '#93C5FD'}">⏳ ${p.horas_esperando || 0} h sin cotizar</div>${(p.horas_esperando || 0) >= 4 ? '<div style="font-size:11px;color:#FCA5A5">Contacta a la tienda</div>' : ''}`;
             else if (p.estado === 'enviado') accion = `<div style="font-size:12px;color:#FCD34D;font-weight:700">Día ${p.dias_habiles} de ${p.dias_para_liberar}</div>
                 <button class="btn-accion" onclick="liberarAdmin('${esc(p.referencia)}')">Liberar ya</button>`;
             return `<tr>

@@ -121,6 +121,10 @@ async def crear_pedido(data: CrearPedidoRequest, request: Request):
     subtotal = pesos(subtotal)
     if subtotal <= 0:
         raise HTTPException(status_code=400, detail="El total del pedido no es válido.")
+    if not tienda.get("empresa_id"):
+        logger.error(f"Pedido rechazado: la tienda {tienda.get('nombre')} ({data.tienda_id}) no tiene cuenta dueña")
+        raise HTTPException(status_code=400, detail=(
+            f"{tienda.get('nombre')} no está recibiendo pedidos en este momento. Prueba con otra tienda."))
     minimo = pesos(tienda.get("pedido_minimo") or 0)
     if subtotal < minimo:
         raise HTTPException(status_code=400, detail=(
@@ -162,6 +166,10 @@ async def crear_pedido(data: CrearPedidoRequest, request: Request):
         raise HTTPException(status_code=502, detail="No se pudo registrar el pedido. Intenta de nuevo.")
 
     logger.info(f"Pedido {referencia} creado — tienda {tienda.get('nombre')}, productos {subtotal}, esperando domicilio")
+    await enviar_correo(ADMIN_EMAIL, f"🛒 Nuevo pedido a {tienda.get('nombre')}: {_cop(subtotal)}",
+        f"<p style='font-size:15px'>{data.comprador_nombre} le pidió a <b>{tienda.get('nombre')}</b> "
+        f"{_cop(subtotal)} en productos (ref {referencia}). La tienda debe cotizar el domicilio.</p>"
+        "<p><a href='https://decoiarte.com/admin' style='color:#7C3AED;font-weight:700'>Ver en el panel →</a></p>")
     await _avisar_tienda(tienda, "🚚 Nuevo pedido: cotiza el domicilio",
         f"{_cop(subtotal)} en productos · Ref {referencia}. Escribe el costo del domicilio para que el cliente pueda pagar.",
         {"referencia": referencia, "subtotal": subtotal, "accion": "cotizar_domicilio"})
@@ -234,8 +242,16 @@ def _correo_empresa(empresa_id) -> str:
 
 
 async def _avisar_tienda(tienda: dict, titulo: str, mensaje: str, datos: dict) -> None:
-    """Aviso a la tienda: en su dashboard (campana) y por correo."""
+    """Aviso a la tienda: en su dashboard (campana) y por correo. Si la tienda no
+    tiene cuenta que lo reciba, el aviso le llega al administrador: ningún
+    pedido se puede quedar esperando sin que nadie se entere."""
     empresa_id = tienda.get("empresa_id")
+    correo = _correo_empresa(empresa_id) if empresa_id else ""
+    if not empresa_id or not correo:
+        logger.error(f"⚠️ La tienda {tienda.get('nombre')} no tiene quién reciba el aviso: {titulo}")
+        await enviar_correo(ADMIN_EMAIL, f"⚠️ Aviso sin destinatario — {tienda.get('nombre', 'tienda')}",
+            f"<p style='font-size:15px'>La tienda <b>{tienda.get('nombre')}</b> no tiene una cuenta con correo que reciba este aviso:</p>"
+            f"<p><b>{titulo}</b><br>{mensaje}</p><p>Atiéndelo tú o contacta a la tienda.</p>")
     if empresa_id:
         try:
             get_supabase().table("notificaciones").insert({
@@ -244,8 +260,18 @@ async def _avisar_tienda(tienda: dict, titulo: str, mensaje: str, datos: dict) -
             }).execute()
         except Exception as e:
             logger.error(f"No se pudo guardar el aviso para la tienda {tienda.get('nombre')}: {e}")
-        await enviar_correo(_correo_empresa(empresa_id), titulo, f"<p style='font-size:15px'>{mensaje}</p>"
+        await enviar_correo(correo, titulo, f"<p style='font-size:15px'>{mensaje}</p>"
                             "<p><a href='https://decoiarte.com/dashboard' style='color:#7C3AED;font-weight:700'>Abrir mi dashboard →</a></p>")
+
+
+def _horas_desde(fecha_iso) -> int:
+    try:
+        ini = datetime.fromisoformat(str(fecha_iso).replace("Z", "+00:00"))
+        if ini.tzinfo is None:
+            ini = ini.replace(tzinfo=timezone.utc)
+        return max(0, int((datetime.now(timezone.utc) - ini).total_seconds() // 3600))
+    except Exception:
+        return 0
 
 
 def dias_habiles_desde(fecha_iso: str | None) -> int:
@@ -381,6 +407,7 @@ async def admin_pedidos(request: Request):
             "costo_wompi": pesos(p.get("costo_wompi")), "neto_decoiarte": pesos(p.get("neto_decoiarte")),
             "costos_administrativos": pesos(p.get("comision_monto")) + pesos(p.get("costo_wompi")),
             "pagado_at": p.get("pagado_at"), "enviado_at": p.get("enviado_at"), "dias_habiles": dias,
+            "horas_esperando": _horas_desde(p.get("created_at")) if p.get("estado") == "cotizando" else None,
             "dias_para_liberar": DIAS_HABILES_PARA_LIBERAR, "liberado_at": p.get("liberado_at"),
             "liberado_por": p.get("liberado_por"), "pagado_tienda_at": p.get("pagado_tienda_at"),
             "comprobante_tienda": p.get("comprobante_pago_tienda"),

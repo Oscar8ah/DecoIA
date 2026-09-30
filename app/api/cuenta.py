@@ -93,7 +93,15 @@ async def mis_ventas(request: Request):
         raise HTTPException(status_code=403, detail="Esta sección es para cuentas de empresa.")
     pedidos = sb.table("pedidos").select("*").eq("empresa_id", emp.data["id"]) \
         .order("created_at", desc=True).limit(100).execute().data or []
-    pedidos = [x for x in pedidos if x.get("estado") != "cancelado"]   # los cancelados no se muestran
+    # Historial completo (también cancelados) para la tabla de la tienda; sin
+    # datos de contacto del comprador si el pedido no se pagó
+    historial = [{
+        "referencia": x.get("referencia"), "created_at": x.get("created_at"), "estado": x.get("estado"),
+        "subtotal": x.get("subtotal"), "domicilio": x.get("domicilio"), "total": x.get("total"),
+        "monto_tienda": x.get("monto_tienda"), "items": x.get("items") or [],
+        "comprador": ((x.get("comprador_nombre") or "").strip().split(" ") or [""])[0] or None,
+    } for x in pedidos]
+    pedidos = [x for x in pedidos if x.get("estado") != "cancelado"]   # los cancelados no se muestran arriba
 
     for p in pedidos:
         if p.get("estado") in PAGADOS:
@@ -108,7 +116,29 @@ async def mis_ventas(request: Request):
             p["comprador_email"] = None
             p["datos_entrega_visibles"] = False
         p.pop("user_id", None)
-    return {"pedidos": pedidos}
+    return {"pedidos": pedidos, "historial": historial}
+
+
+# ── NOTIFICACIONES DE LA TIENDA: borrarlas (con la llave del servidor, solo las suyas) ──
+def _empresa_de_sesion(usuario: dict) -> str:
+    emp = get_supabase().table("empresas").select("id").eq("email", usuario["email"]).maybe_single().execute()
+    if not emp or not emp.data:
+        raise HTTPException(status_code=403, detail="Esta sección es para cuentas de empresa.")
+    return emp.data["id"]
+
+
+@router.post("/notificaciones/{notif_id}/borrar")
+async def borrar_notificacion(notif_id: str, request: Request):
+    empresa_id = _empresa_de_sesion(await usuario_de_sesion(request))
+    get_supabase().table("notificaciones").delete().eq("id", notif_id).eq("empresa_id", empresa_id).execute()
+    return {"ok": True}
+
+
+@router.post("/notificaciones/borrar-leidas")
+async def borrar_leidas(request: Request):
+    empresa_id = _empresa_de_sesion(await usuario_de_sesion(request))
+    get_supabase().table("notificaciones").delete().eq("empresa_id", empresa_id).eq("leida", True).execute()
+    return {"ok": True}
 
 
 # ── RESEÑAS ─────────────────────────────────────────────────────────────
