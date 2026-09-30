@@ -449,13 +449,14 @@
             <button class="carrito-btn-cerrar" onclick="carritoTogglePanel()">✕</button>
         </div>
     </div>
+    <div id="carritoPedidos"></div>
     <div id="carritoCuerpo"></div>
     <div id="carritoFooter" style="display:none;">
         <div class="carrito-total-row">
-            <span class="carrito-total-label">Total estimado</span>
+            <span class="carrito-total-label">Total en productos (sin domicilio)</span>
             <span id="carritoTotal">$0</span>
         </div>
-        <div class="carrito-nota">* El precio final incluye el domicilio que cada tienda confirmará.</div>
+        <div class="carrito-nota">* Al pedir, la tienda cotiza el domicilio. El total a pagar te aparece arriba, en <b>Tus pedidos</b>.</div>
 
     </div>
 </div>
@@ -788,6 +789,7 @@ function carritoInit() {
     try { const s = localStorage.getItem('decoiarte_carrito'); if (s) carrito = JSON.parse(s); } catch(e) { carrito = {}; }
     carritoRenderBadge();
     importarCarritoRemodelar();
+    cargarPedidosCarrito();
 }
 
 // La lista de compra que el cliente armó en /remodelar llega aquí. Antes
@@ -877,7 +879,8 @@ function carritoTotalGeneral() { return Object.keys(carrito).reduce((s,tid) => s
 function carritoConteoTotal()  { return Object.values(carrito).reduce((s,g) => s + g.items.length, 0); }
 
 function carritoRenderBadge() {
-    const n = carritoConteoTotal();
+    // Cuenta también los pedidos listos para pagar, para que no pasen desapercibidos
+    const n = carritoConteoTotal() + (typeof _pedidosAbiertos !== 'undefined' ? _pedidosAbiertos.filter(p => p.estado === 'por_pagar').length : 0);
     const badge = document.getElementById('carritoBadge');
     const btn   = document.getElementById('carritoBtn');
     if (!badge || !btn) return;
@@ -887,6 +890,96 @@ function carritoRenderBadge() {
 }
 
 function carritoFormatPrecio(n) { return '$' + Number(n).toLocaleString('es-CO'); }
+
+function enLetras(n) {
+    n = Math.round(Number(n) || 0);
+    if (n === 0) return 'cero';
+    const U = ['','uno','dos','tres','cuatro','cinco','seis','siete','ocho','nueve','diez','once','doce','trece','catorce','quince','dieciséis','diecisiete','dieciocho','diecinueve','veinte','veintiuno','veintidós','veintitrés','veinticuatro','veinticinco','veintiséis','veintisiete','veintiocho','veintinueve'];
+    const D = ['','','','treinta','cuarenta','cincuenta','sesenta','setenta','ochenta','noventa'];
+    const C = ['','ciento','doscientos','trescientos','cuatrocientos','quinientos','seiscientos','setecientos','ochocientos','novecientos'];
+    const h999 = x => { if (x === 100) return 'cien'; const c = Math.floor(x/100), r = x%100, p = c ? [C[c]] : [];
+        if (r) p.push(r < 30 ? U[r] : D[Math.floor(r/10)] + (r%10 ? ' y ' + U[r%10] : '')); return p.join(' '); };
+    const apo = t => t.endsWith('veintiuno') ? t.slice(0,-9)+'veintiún' : (t.endsWith('uno') ? t.slice(0,-3)+'un' : t);
+    const mill = Math.floor(n/1e6), resto = n%1e6, miles = Math.floor(resto/1000), uni = resto%1000, p = [];
+    if (mill) p.push(mill === 1 ? 'un millón' : apo(h999(mill)) + ' millones');
+    if (miles) p.push(miles === 1 ? 'mil' : apo(h999(miles)) + ' mil');
+    if (uni) p.push(h999(uni));
+    return p.join(' ');
+}
+
+const cop = n => '$' + Math.round(Number(n) || 0).toLocaleString('es-CO');
+
+// ── TUS PEDIDOS, dentro del carrito ───────────────────────────────────────
+// Lo que ya pediste a una tienda: mientras cotiza el domicilio y, cuando lo
+// cotiza, el total EXACTO a pagar con su botón. Antes la cotización solo se
+// veía en Mi cuenta y aquí quedaba el "estimado", que confundía.
+let _pedidosAbiertos = [], _canalPedidosMk = null;
+async function cargarPedidosCarrito() {
+    const caja = document.getElementById('carritoPedidos');
+    if (!caja) return;
+    try {
+        const { data: { session } } = await db.auth.getSession();
+        if (!session) { caja.innerHTML = ''; _pedidosAbiertos = []; carritoRenderBadge(); return; }
+        const r = await fetch('https://decoia.onrender.com/api/cuenta/pedidos', { headers: await cabecerasSesion() });
+        const d = await r.json().catch(() => ({}));
+        _pedidosAbiertos = r.ok ? (d.pedidos || []).filter(p => ['cotizando', 'por_pagar'].includes(p.estado)) : [];
+        escucharPedidosMk(session.user.id);
+    } catch (_) { _pedidosAbiertos = []; }
+    carritoRenderBadge();
+    if (!_pedidosAbiertos.length) { caja.innerHTML = ''; return; }
+    caja.innerHTML = `<div style="padding:14px 16px 4px;">
+        <div style="font-size:13px;font-weight:800;color:#111827;margin-bottom:8px;">📦 Tus pedidos</div>
+        ${_pedidosAbiertos.map(p => {
+            const items = (p.items || []).map(i => `${esc(i.nombre)} × ${i.cantidad}`).join(', ');
+            const cuerpo = p.estado === 'cotizando'
+                ? `<div style="font-size:12.5px;color:#92400E;margin-top:4px;">⏳ La tienda está cotizando el domicilio. Te avisamos; aún no se te cobra nada.</div>
+                   <div style="font-size:12.5px;color:#374151;margin-top:4px;">Productos: <b>${cop(p.subtotal ?? p.total)}</b></div>`
+                : `<div style="font-size:12.5px;color:#374151;margin-top:6px;line-height:1.7;">
+                     Productos: <b>${cop(p.subtotal)}</b><br>Domicilio: <b>${cop(p.domicilio)}</b><br>
+                     <span style="font-size:15px;">Pagas: <b style="color:#6D28D9;">${cop(p.total)}</b></span>
+                     <span style="color:#6B7280;font-size:11.5px;"> (${enLetras(p.total)} pesos)</span></div>
+                   <button onclick="pagarPedidoMk('${esc(p.referencia)}')" style="width:100%;margin-top:8px;background:linear-gradient(135deg,#6366F1,#7C3AED);color:#fff;border:none;padding:11px;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;">💳 Pagar ${cop(p.total)}</button>`;
+            return `<div style="border:1px solid ${p.estado === 'por_pagar' ? '#A78BFA' : '#FCD34D'};background:${p.estado === 'por_pagar' ? '#F5F3FF' : '#FFFBEB'};border-radius:12px;padding:12px;margin-bottom:10px;">
+                <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">
+                    <div><div style="font-size:13.5px;font-weight:800;color:#111827;">${esc(p.tienda || 'Tienda')}</div>
+                         <div style="font-size:11.5px;color:#6B7280;">${items}</div></div>
+                    <button onclick="cancelarPedidoMk('${esc(p.referencia)}')" title="Cancelar este pedido" style="background:none;border:1px solid #FCA5A5;color:#DC2626;border-radius:8px;padding:4px 8px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;">✖ Cancelar</button>
+                </div>${cuerpo}</div>`;
+        }).join('')}</div>`;
+}
+function escucharPedidosMk(uid) {
+    if (_canalPedidosMk || !db.channel) return;
+    try {
+        _canalPedidosMk = db.channel('mk-pedidos-' + uid)
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pedidos', filter: `user_id=eq.${uid}` }, carga => {
+                cargarPedidosCarrito();
+                if (carga.new && carga.new.estado === 'por_pagar') mostrarToastCarrito(`🚚 La tienda cotizó tu domicilio: pagas ${cop(carga.new.total)}. Míralo en el carrito.`);
+            }).subscribe();
+    } catch (_) {}
+}
+setInterval(() => { if (!document.hidden) cargarPedidosCarrito(); }, 25000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) cargarPedidosCarrito(); });
+async function pagarPedidoMk(ref) {
+    try {
+        const r = await fetch('https://decoia.onrender.com/wompi/checkout-pedido/' + encodeURIComponent(ref), { headers: await cabecerasSesion() });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.detail || ('Error ' + r.status));
+        new WidgetCheckout({ currency: d.moneda, amountInCents: d.monto_centavos, reference: d.referencia, publicKey: d.llave_publica,
+            signature: { integrity: d.firma }, redirectUrl: 'https://decoiarte.com/mi-cuenta' })
+            .open(res => { const st = res?.transaction?.status;
+                mostrarToastCarrito(st === 'APPROVED' ? '✅ ¡Pago aprobado! La tienda ya está preparando tu pedido.' : st === 'DECLINED' ? '❌ Pago rechazado. Puedes intentar de nuevo.' : '⏳ Pago pendiente de confirmación.');
+                setTimeout(cargarPedidosCarrito, 3000); });
+    } catch (e) { mostrarToastCarrito('❌ ' + e.message); }
+}
+async function cancelarPedidoMk(ref) {
+    if (!confirm('¿Cancelar este pedido? No se te ha cobrado nada.')) return;
+    try {
+        const r = await fetch('https://decoia.onrender.com/pedido/' + encodeURIComponent(ref) + '/cancelar', { method: 'POST', headers: await cabecerasSesion() });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.detail || ('Error ' + r.status));
+        mostrarToastCarrito('✖ Pedido cancelado'); cargarPedidosCarrito();
+    } catch (e) { mostrarToastCarrito('❌ ' + e.message); }
+}
 
 function carritoRenderPanel() {
     const contenido = document.getElementById('carritoCuerpo');
@@ -954,6 +1047,7 @@ function mostrarAvisoPedidoEnviado(tienda, referencia, subtotal) {
 
 
 function carritoTogglePanel() {
+    cargarPedidosCarrito();
     const panel   = document.getElementById('carritoPanel');
     const overlay = document.getElementById('carritoOverlay');
     if (panel.classList.contains('open')) {

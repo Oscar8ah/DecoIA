@@ -268,6 +268,8 @@ async def checkout_pedido(
     if pedido.get("estado") in ("pagado", "enviado", "entregado"):
         raise HTTPException(status_code=409, detail="Este pedido ya fue pagado.")
     # Primero la tienda cotiza el domicilio; sin eso no hay total para cobrar
+    if pedido.get("estado") == "cancelado":
+        raise HTTPException(status_code=409, detail="Este pedido fue cancelado.")
     if pedido.get("estado") == "cotizando":
         raise HTTPException(status_code=409, detail="La tienda aún está cotizando el domicilio. Te avisamos cuando puedas pagar.")
 
@@ -387,7 +389,14 @@ async def webhook_wompi(
             if rp and rp.data:
                 pedido = rp.data
                 esperado = float(pedido.get("total") or 0)
-                if abs(esperado - monto_cop) > 1:
+                if pedido.get("estado") == "cancelado":
+                    # Pagó un pedido que ya estaba cancelado: no se da por buena la
+                    # venta; queda para que el administrador lo revise (y reembolse).
+                    logger.error(f"⚠️ Pago de {monto_cop} para el pedido CANCELADO {referencia}: se marca para revisión.")
+                    supabase.table("pedidos").update({
+                        "estado": "revisar", "transaccion_id": tx_id, "metodo_pago": metodo, "pasarela": "wompi",
+                    }).eq("referencia", referencia).execute()
+                elif abs(esperado - monto_cop) > 1:
                     logger.error(
                         f"⚠️ MONTO NO COINCIDE en {referencia}: "
                         f"esperado {esperado}, cobrado {monto_cop}. Se marca para revisión."

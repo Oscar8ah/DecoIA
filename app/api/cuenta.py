@@ -64,7 +64,7 @@ async def mis_pedidos(request: Request):
                               .eq("user_id", usuario["id"]).execute().data or [])}
 
     salida = []
-    for p in pedidos:
+    for p in [x for x in pedidos if x.get("estado") != "cancelado"]:
         pagado = p.get("estado") in PAGADOS
         salida.append({
             "referencia": p.get("referencia"),
@@ -93,6 +93,7 @@ async def mis_ventas(request: Request):
         raise HTTPException(status_code=403, detail="Esta sección es para cuentas de empresa.")
     pedidos = sb.table("pedidos").select("*").eq("empresa_id", emp.data["id"]) \
         .order("created_at", desc=True).limit(100).execute().data or []
+    pedidos = [x for x in pedidos if x.get("estado") != "cancelado"]   # los cancelados no se muestran
 
     for p in pedidos:
         if p.get("estado") in PAGADOS:

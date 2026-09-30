@@ -422,3 +422,29 @@ async def admin_pagado_tienda(referencia: str, data: PagoTiendaRequest, request:
     await _avisar_tienda(tienda, f"💸 Te pagamos {_cop(p.get('monto_tienda'))}",
         f"Pedido {referencia}. Comprobante: {data.comprobante or 'sin número'}.", {"referencia": referencia})
     return {"status": "ok"}
+
+
+@router.post("/pedido/{referencia}/cancelar")
+async def cancelar_pedido(referencia: str, request: Request):
+    """Cancela un pedido que TODAVÍA NO se ha pagado (cotizando o esperando el
+    pago). Lo puede cancelar el comprador dueño del pedido o la tienda. Así se
+    borran cotizaciones viejas sin tocar ningún pedido pagado."""
+    p = _pedido(referencia)
+    if p.get("estado") not in ("cotizando", "por_pagar", "pendiente"):
+        raise HTTPException(status_code=409, detail="Este pedido ya fue pagado o cerrado: no se puede cancelar desde aquí.")
+    usuario = await usuario_de_sesion(request)
+    if str(p.get("user_id")) == str(usuario["id"]):
+        quien = "comprador"
+    else:
+        await exigir_duenio_tienda(request, p.get("tienda_id"))
+        quien = "tienda"
+    get_supabase().table("pedidos").update({"estado": "cancelado"}).eq("referencia", referencia).execute()
+    logger.info(f"Pedido {referencia} cancelado por {quien}")
+    if quien == "comprador":
+        await _avisar_tienda(_tienda(p.get("tienda_id")), "✖ El cliente canceló un pedido",
+            f"Pedido {referencia} ({_cop(p.get('subtotal'))} en productos). Ya no tienes que cotizarlo.", {"referencia": referencia})
+    else:
+        await enviar_correo(p.get("comprador_email"), "✖ La tienda canceló tu pedido",
+            f"<p style='font-size:15px'>La tienda canceló el pedido <b>{referencia}</b>. No se te cobró nada.</p>"
+            "<p><a href='https://decoiarte.com/marketplace' style='color:#7C3AED;font-weight:700'>Volver al marketplace →</a></p>")
+    return {"status": "ok", "estado": "cancelado"}

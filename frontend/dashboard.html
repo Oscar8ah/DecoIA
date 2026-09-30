@@ -2912,6 +2912,11 @@ async function enviarDomicilio(ref) {
           alert(`✅ Enviado. El cliente pagará ${cop(d.total)} (${d.total_en_letras}).`); cargarVentas(); }
     catch (e) { alert('❌ ' + e.message); }
 }
+async function cancelarPedidoTienda(ref) {
+    if (!confirm('¿Cancelar este pedido? Al cliente le llega un correo avisándole (no se le había cobrado nada).')) return;
+    try { await accionPedido('/pedido/' + encodeURIComponent(ref) + '/cancelar'); cargarVentas(); }
+    catch (e) { alert('❌ ' + e.message); }
+}
 async function marcarEnviado(ref) {
     if (!confirm('¿Confirmas que ya despachaste este pedido?')) return;
     try { await accionPedido('/pedido/' + encodeURIComponent(ref) + '/enviado'); alert('✅ Marcado como enviado. Le avisamos al cliente.'); cargarVentas(); }
@@ -3029,6 +3034,7 @@ async function cargarVentas() {
                 </div>
                 <div id="prev-${esc(p.referencia)}" style="font-size:12px;color:var(--gris);margin-top:8px;line-height:1.6;"></div>
             </div>` : ''}
+            ${['cotizando','por_pagar'].includes(p.estado) ? `<button onclick="cancelarPedidoTienda('${esc(p.referencia)}')" style="margin-top:8px;background:none;border:1px solid rgba(239,68,68,0.45);color:#FCA5A5;padding:7px 12px;border-radius:9px;font-weight:700;cursor:pointer;font-size:12px;">✖ Cancelar este pedido</button>` : ''}
             ${p.estado === 'pagado' ? `<button onclick="marcarEnviado('${esc(p.referencia)}')" style="margin-top:12px;width:100%;background:var(--degradado);color:#fff;border:none;padding:10px;border-radius:10px;font-weight:800;cursor:pointer;">📦 Ya lo despaché: marcar como enviado</button>` : ''}
             ${p.estado === 'enviado' && !p.liberado_at ? `<div style="margin-top:10px;font-size:12px;color:#A78BFA;">🚚 En camino · esperando que el cliente confirme que lo recibió</div>` : ''}
         </div>`;
