@@ -2904,6 +2904,7 @@ async function accionPedido(ruta, cuerpo) {
 }
 async function enviarDomicilio(ref) {
     const valor = document.getElementById('dom-' + ref).value;
+    if (valor === null) return;
     if (valor === '') { alert('Escribe el costo del domicilio (0 si es gratis).'); return; }
     const v = Math.round(Number(valor));
     if (!confirm(`¿Enviar al cliente un domicilio de ${cop(v)} (${enLetras(v)} pesos)?`)) return;
@@ -3114,15 +3115,26 @@ async function cargarNotificaciones() {
     lista.innerHTML=notifs.map(n=>`
         <div class="nd-item ${n.leida?'':'nueva'}">
             <div onclick="ndMarcarLeida('${n.id}')" style="cursor:pointer;display:flex;gap:10px;">
-                <div class="nd-icon">${n.tipo==='pago'?'💰':'🔔'}</div>
+                <div class="nd-icon">${n.tipo==='pago'?'💰':(n.tipo==='pedido'?'🚚':(n.tipo==='resena'?'⭐':'🔔'))}</div>
                 <div class="nd-info">
                     <div class="nd-titulo">${esc(n.titulo)}</div>
                     <div class="nd-msg">${esc(n.mensaje)}</div>
                     <div class="nd-tiempo">${ndTiempo(n.created_at)}</div>
                 </div>
             </div>
+            ${n.datos?.referencia ? `<button onclick="ndIrAlPedido('${n.id}','${esc(n.datos.referencia)}')" style="margin:6px 0 0 42px;background:var(--degradado);color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">${n.datos.accion==='cotizar_domicilio' ? '🚚 Cotizar el domicilio' : 'Ver el pedido'} →</button>` : ''}
             ${n.datos?.url_recibo ? `<a href="${esc(n.datos.url_recibo)}" target="_blank" style="display:inline-block;margin-top:6px;margin-left:42px;font-size:12px;color:#A78BFA;text-decoration:underline;">📄 Descargar recibo</a>` : ''}
         </div>`).join('');
+}
+// Llevar del aviso directo al pedido, ya listo para escribir el domicilio
+async function ndIrAlPedido(idNotif, referencia){
+    await db.from('notificaciones').update({leida:true}).eq('id',idNotif);
+    cerrarNotif();
+    const btn=[...document.querySelectorAll('.nav-item')].find(b=>b.textContent.includes('Ventas')||b.textContent.includes('Pedidos'));
+    mostrarPagina('ventas', btn); await cargarVentas(); cargarResenasTienda(); cargarNotificaciones();
+    setTimeout(()=>{ const c=document.getElementById('dom-'+referencia);
+        (c || document.getElementById('pagina-ventas'))?.scrollIntoView({behavior:'smooth',block:'center'});
+        if(c){ c.focus(); c.style.boxShadow='0 0 0 3px rgba(245,158,11,.5)'; setTimeout(()=>c.style.boxShadow='',2500); } }, 400);
 }
 async function ndMarcarLeida(id){
     await db.from('notificaciones').update({leida:true}).eq('id',id);

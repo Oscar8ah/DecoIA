@@ -167,7 +167,7 @@ async function cerrarSesion() { await db.auth.signOut(); location.href = '/marke
     const pestana = (location.hash || '').slice(1);
     if (pestana) document.querySelector(`.tab[data-panel="${pestana}"]`)?.click();
 
-    cargarPedidos(); cargarFavoritos(); cargarRemodelaciones();
+    cargarPedidos(); cargarFavoritos(); cargarRemodelaciones(); escucharPedidos();
 })();
 
 // ── Mis pedidos ───────────────────────────────────────────────────────
@@ -230,6 +230,36 @@ async function htmlImagenesCompradas() {
             </div>`).join('')}</div>
             <div style="font-size:11.5px;color:var(--gris);margin-top:8px;">El enlace de descarga es temporal por seguridad: si vence, recarga esta página.</div></div>`;
     } catch (_) { return ''; }
+}
+
+// La tienda cotiza el domicilio en cualquier momento: la lista se refresca sola.
+// Se escucha el cambio en la base (tiempo real) y, por si esa conexión falla,
+// se revisa cada 25 segundos y al volver a la pestaña.
+let _canalPedidos = null, _timerPedidos = null;
+function escucharPedidos() {
+    if (!sesion) return;
+    clearInterval(_timerPedidos);
+    _timerPedidos = setInterval(() => { if (!document.hidden) cargarPedidos(); }, 25000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) cargarPedidos(); });
+    try {
+        if (_canalPedidos) db.removeChannel(_canalPedidos);
+        _canalPedidos = db.channel('pedidos-' + sesion.user.id)
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pedidos', filter: `user_id=eq.${sesion.user.id}` },
+                carga => {
+                    cargarPedidos();
+                    const e = carga.new && carga.new.estado;
+                    if (e === 'por_pagar') avisarEnPantalla(`🚚 ${esc(carga.new.tienda_nombre || 'La tienda')} cotizó tu domicilio: ya puedes pagar ${pesos(carga.new.total)}`);
+                    if (e === 'enviado') avisarEnPantalla('🚚 Tu pedido va en camino');
+                })
+            .subscribe();
+    } catch (e) { console.warn('Sin tiempo real, se refresca cada 25 s:', e); }
+}
+function avisarEnPantalla(texto) {
+    const d = document.createElement('div');
+    d.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:24px;z-index:9999;background:#141424;border:1px solid rgba(124,58,237,.5);color:#F3F4F6;padding:12px 18px;border-radius:12px;font-size:14px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.45);max-width:92vw;text-align:center;';
+    d.innerHTML = texto;
+    document.body.appendChild(d);
+    setTimeout(() => d.remove(), 9000);
 }
 
 async function cargarPedidos() {
