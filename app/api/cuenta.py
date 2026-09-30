@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/cuenta", tags=["cuenta"])
 
 PAGADOS = ("pagado", "enviado", "entregado")
-ADMIN_EMAIL = "oscar8a.cds@gmail.com"
+from app.utils.auth import ADMIN_EMAIL   # un solo lugar: si cambia el correo del admin, cambia en todo
 
 
 def _pedidos_del_comprador(usuario: dict) -> list:
@@ -54,10 +54,12 @@ async def mis_pedidos(request: Request):
     sb = get_supabase()
 
     ids_tienda = list({p["tienda_id"] for p in pedidos if p.get("tienda_id")})
-    nombres = {}
+    nombres, activas = {}, set()
     if ids_tienda:
-        for t in sb.table("tiendas").select("id, nombre").in_("id", ids_tienda).execute().data or []:
+        for t in sb.table("tiendas").select("id, nombre, activa").in_("id", ids_tienda).execute().data or []:
             nombres[str(t["id"])] = t["nombre"]
+            if t.get("activa"):
+                activas.add(str(t["id"]))
 
     ya_resenados = {(r["pedido_referencia"], str(r["producto_id"]))
                     for r in (sb.table("resenas").select("pedido_referencia, producto_id")
@@ -69,6 +71,7 @@ async def mis_pedidos(request: Request):
         salida.append({
             "referencia": p.get("referencia"),
             "tienda":     nombres.get(str(p.get("tienda_id")), "Tienda"),
+            "tienda_activa": str(p.get("tienda_id")) in activas,
             "estado":     p.get("estado"),
             "total":      p.get("total"),
             "subtotal":   p.get("subtotal"),

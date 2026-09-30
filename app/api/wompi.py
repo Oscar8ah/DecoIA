@@ -187,7 +187,7 @@ async def _procesar_pago_cambio_plan(referencia: str, monto_cop: float, metodo: 
             "resuelta_at": datetime.now().isoformat(),
         }).eq("id", solicitud["id"]).execute()
 
-        supabase.table("pagos").insert({
+        registro_pago = {
             "empresa_id":  empresa_id,
             "monto":       monto_cop,
             "tipo":        "cambio_plan",
@@ -195,7 +195,18 @@ async def _procesar_pago_cambio_plan(referencia: str, monto_cop: float, metodo: 
             "estado":      "aprobado",
             "referencia":  referencia,
             "created_at":  datetime.now().isoformat(),
-        }).execute()
+        }
+        # Auditoría: qué transacción de Wompi, qué plan y desde cuál (columnas de sql/centro_admin.sql)
+        detalle = {"transaccion_id": tx_id, "detalle": {
+            "plan_nuevo": plan_nuevo.get("nombre"), "plan_nuevo_id": plan_nuevo.get("id"),
+            "plan_anterior_id": solicitud.get("plan_actual_id"), "email": cliente_email or empresa.get("email"),
+            "precio_esperado": esperado}}
+        try:
+            supabase.table("pagos").insert({**registro_pago, **detalle}).execute()
+        except Exception as e:
+            # Si aún no se corrió el SQL, se guarda sin el detalle: el plan ya quedó activo
+            logger.error(f"Pago {referencia} guardado sin detalle de auditoría: {e}")
+            supabase.table("pagos").insert(registro_pago).execute()
 
         supabase.table("notificaciones").insert({
             "empresa_id": empresa_id,
@@ -366,6 +377,18 @@ async def webhook_wompi(
         logger.info(f"Transacción {tx_id} — Estado: {estado} — Ref: {referencia}")
 
         if estado != "APPROVED":
+            # No se cobra nada, pero el Super Admin lo debe ver (pagos fallidos)
+            if estado in ("DECLINED", "ERROR", "VOIDED"):
+                try:
+                    tipo = "pedido" if referencia.startswith("DECO-") else ("plan" if referencia.startswith("SUSC-") else ("imagen" if referencia.startswith("IMG-") else "otro"))
+                    get_supabase().table("eventos").insert({
+                        "tipo": "pago_fallido", "nivel": "alerta",
+                        "titulo": f"❌ Pago {'rechazado' if estado == 'DECLINED' else 'con error' if estado == 'ERROR' else 'anulado'} ({tipo})",
+                        "detalle": {"estado_wompi": estado, "metodo": metodo, "transaccion": tx_id},
+                        "email": cliente_email, "monto": int(monto_cop), "referencia": referencia,
+                    }).execute()
+                except Exception as e:
+                    logger.error(f"No se pudo anotar el pago fallido {referencia}: {e}")
             return {"status": "ok", "mensaje": f"transacción {estado} ignorada"}
 
         # ── Pago de CAMBIO DE PLAN (suscripción) — referencia SUSC-... ────

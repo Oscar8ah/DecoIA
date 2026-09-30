@@ -502,6 +502,7 @@ function cerrarPanel() { document.getElementById('panelLateral').classList.remov
 window.addEventListener('DOMContentLoaded', async () => {
     cargarFavoritos();
     const { data: tiendas } = await db.from('tiendas').select('*').eq('activa', true).order('created_at', { ascending: false });
+    window._tiendasActivas = new Set((tiendas || []).map(t => t.id));   // el carrito no deja pedirle a una tienda inactiva
     todasTiendas = tiendas || [];
     document.getElementById('skeletons').style.display   = 'none';
     document.getElementById('tiendasGrid').style.display = 'grid';
@@ -931,7 +932,9 @@ async function cargarPedidosCarrito() {
         <div style="font-size:13px;font-weight:800;color:#111827;margin-bottom:8px;">📦 Tus pedidos</div>
         ${_pedidosAbiertos.map(p => {
             const items = (p.items || []).map(i => `${esc(i.nombre)} × ${i.cantidad}`).join(', ');
-            const cuerpo = p.estado === 'cotizando'
+            const cuerpo = p.tienda_activa === false && ['cotizando','por_pagar'].includes(p.estado)
+                ? `<div style="font-size:12.5px;color:#B91C1C;margin-top:4px;">⛔ Esta tienda ya no está recibiendo pedidos. Cancélalo; no se te cobró nada.</div>`
+                : p.estado === 'cotizando'
                 ? `<div style="font-size:12.5px;color:#92400E;margin-top:4px;">⏳ La tienda está cotizando el domicilio. Te avisamos; aún no se te cobra nada.</div>
                    <div style="font-size:12.5px;color:#374151;margin-top:4px;">Productos: <b>${cop(p.subtotal ?? p.total)}</b></div>`
                 : `<div style="font-size:12.5px;color:#374151;margin-top:6px;line-height:1.7;">
@@ -1020,7 +1023,9 @@ function carritoRenderPanel() {
                 <span>Subtotal ${grupo.tienda.nombre}</span>
                 <strong>${carritoFormatPrecio(subtotal)}</strong>
             </div>
-            <button class="carrito-btn-wompi" onclick="pagarConWompi('${tid}')">🚚 Pedir a ${esc(grupo.tienda.nombre)}</button>
+            ${window._tiendasActivas && !window._tiendasActivas.has(tid)
+                ? `<div style="margin:8px 16px 12px;padding:10px;border-radius:10px;background:#FEF2F2;border:1px solid #FCA5A5;color:#B91C1C;font-size:12.5px;text-align:center;">⛔ ${esc(grupo.tienda.nombre)} no está recibiendo pedidos. Quita estos productos del carrito.</div>`
+                : `<button class="carrito-btn-wompi" onclick="pagarConWompi('${tid}')">🚚 Pedir a ${esc(grupo.tienda.nombre)}</button>`}
             <div style="font-size:11px;color:#6B7280;margin-top:4px;text-align:center;">La tienda cotiza el domicilio y pagas el total en Mi cuenta. No se cobra nada ahora.</div>
         </div>`;
     }).join('');

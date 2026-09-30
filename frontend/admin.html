@@ -202,6 +202,8 @@
             <span class="icon">🏪</span> Tiendas
             <span class="nav-badge" id="badgePendientes" style="display:none;">0</span>
         </button>
+        <button class="nav-item" onclick="mostrarPagina('actividad', this); cargarActividad();"><span class="icon">🛰️</span> Actividad <span id="badgeActividad" style="display:none;background:#EF4444;color:#fff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:20px;margin-left:auto;"></span></button>
+        <button class="nav-item" onclick="mostrarPagina('transacciones', this); cargarTransacciones();"><span class="icon">💳</span> Transacciones</button>
         <button class="nav-item" onclick="mostrarPagina('ventas', this); cargarVentasAdmin();"><span class="icon">🧾</span> Ventas y comisiones <span id="badgeVentas" style="display:none;background:#F59E0B;color:#1F1300;font-size:10px;font-weight:800;padding:2px 7px;border-radius:20px;margin-left:auto;"></span></button>
         <button class="nav-item" onclick="mostrarPagina('pagos', this)"><span class="icon">💰</span> Pagos</button>
         <button class="nav-item" onclick="mostrarPagina('whatsapp', this)"><span class="icon">📱</span> WhatsApp <span id="badgeWaPendientes" style="display:none;background:#EF4444;color:white;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;margin-left:auto;"></span></button>
@@ -306,6 +308,41 @@
     </div>
 
     <!-- PAGOS -->
+    <!-- ═══ CENTRO DE ACTIVIDAD: lo importante que pasa en toda la plataforma ═══ -->
+    <div class="page" id="pagina-actividad">
+        <div class="page-header"><h1>🛰️ Actividad de DecoIArte</h1><p>Lo que pasa en toda la plataforma, sin entrar a cada tienda: registros, ventas, pagos, cancelaciones, planes y alertas.</p></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center;">
+            <button class="btn-accion act-f" data-nivel="" onclick="filtroActividad('')">Todo</button>
+            <button class="btn-accion act-f" data-nivel="alerta" onclick="filtroActividad('alerta')">⚠️ Alertas</button>
+            <button class="btn-accion act-f" data-nivel="dinero" onclick="filtroActividad('dinero')">💰 Dinero</button>
+            <button class="btn-accion act-f" data-nivel="info" onclick="filtroActividad('info')">ℹ️ Movimientos</button>
+            <button class="btn-accion" style="margin-left:auto;background:rgba(124,58,237,.2);color:#C4B5FD;" onclick="actividadLeida()">✓ Marcar todo leído</button>
+        </div>
+        <div id="listaActividad" style="display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
+
+    <!-- ═══ TRANSACCIONES: A. marketplace · B. planes de DecoIArte · C. imágenes IA ═══ -->
+    <div class="page" id="pagina-transacciones">
+        <div class="page-header"><h1>💳 Transacciones</h1><p><b>A. Marketplace</b>: un comprador le compra a una tienda. <b>B. Planes</b>: una tienda le compra un plan a DecoIArte. <b>C. Imágenes IA</b>: un comprador le compra una imagen a DecoIArte.</p></div>
+        <div style="display:flex;gap:8px;margin-bottom:14px;">
+            <button class="btn-accion tx-tab" data-tab="marketplace" onclick="tabTransacciones('marketplace')">🛒 A. Marketplace</button>
+            <button class="btn-accion tx-tab" data-tab="planes" onclick="tabTransacciones('planes')">💎 B. Planes de DecoIArte</button>
+            <button class="btn-accion tx-tab" data-tab="imagenes" onclick="tabTransacciones('imagenes')">🖼️ C. Imágenes IA</button>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:flex-end;">
+            <label id="txFiltroTienda" style="font-size:12px;color:var(--gris);">Tienda<br><select id="txTienda" onchange="cargarTransacciones()" style="background:var(--oscuro2);color:var(--texto);border:1px solid rgba(124,58,237,.3);border-radius:8px;padding:7px;"><option value="">Todas</option></select></label>
+            <label id="txFiltroEstado" style="font-size:12px;color:var(--gris);">Estado<br><select id="txEstado" onchange="cargarTransacciones()" style="background:var(--oscuro2);color:var(--texto);border:1px solid rgba(124,58,237,.3);border-radius:8px;padding:7px;">
+                <option value="">Todos</option><option value="cotizando">Cotizando</option><option value="por_pagar">Esperando pago</option><option value="pagado">Pagado</option>
+                <option value="enviado">Enviado</option><option value="entregado">Recibido</option><option value="cancelado">Cancelado</option><option value="revisar">En revisión</option></select></label>
+            <label style="font-size:12px;color:var(--gris);">Desde<br><input type="date" id="txDesde" onchange="cargarTransacciones()" style="background:var(--oscuro2);color:var(--texto);border:1px solid rgba(124,58,237,.3);border-radius:8px;padding:6px;"></label>
+            <label style="font-size:12px;color:var(--gris);">Hasta<br><input type="date" id="txHasta" onchange="cargarTransacciones()" style="background:var(--oscuro2);color:var(--texto);border:1px solid rgba(124,58,237,.3);border-radius:8px;padding:6px;"></label>
+            <label style="font-size:12px;color:var(--gris);flex:1;min-width:200px;">Buscar (comprador, producto, referencia, transacción)<br><input id="txBuscar" onkeydown="if(event.key==='Enter')cargarTransacciones()" placeholder="Enter para buscar" style="width:100%;background:var(--oscuro2);color:var(--texto);border:1px solid rgba(124,58,237,.3);border-radius:8px;padding:7px;"></label>
+            <button class="btn-accion" onclick="descargarCSV()" style="background:rgba(16,185,129,.18);color:#6EE7B7;">⬇ Descargar CSV</button>
+        </div>
+        <div class="stats-grid" id="txTotales"></div>
+        <div class="tabla-container"><div style="overflow-x:auto;"><table><thead id="txCabeza"></thead><tbody id="txCuerpo"><tr><td style="color:var(--gris)">Cargando…</td></tr></tbody></table></div></div>
+    </div>
+
     <div class="page" id="pagina-ventas">
         <div class="page-header"><h1>🧾 Ventas y comisiones</h1><p>Cada venta del marketplace: de quién a quién, tu comisión, el costo de Wompi y lo que le debes a cada tienda.</p></div>
         <div class="stats-grid" id="ventasTotales"></div>
@@ -824,6 +861,88 @@ function formatFecha(fecha) {
 
 // Texto seguro para meter en el HTML (nombres y referencias vienen de la base)
 const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// ── CENTRO DE ACTIVIDAD ──────────────────────────────────────────────────
+let _nivelActividad = '';
+const COLOR_NIVEL = { alerta: ['#EF4444', 'rgba(239,68,68,.10)'], dinero: ['#10B981', 'rgba(16,185,129,.10)'], info: ['#3B82F6', 'rgba(59,130,246,.08)'] };
+async function cargarActividad() {
+    const caja = document.getElementById('listaActividad');
+    document.querySelectorAll('.act-f').forEach(b => { const on = b.dataset.nivel === _nivelActividad; b.style.background = on ? 'rgba(124,58,237,.35)' : ''; b.style.color = on ? '#fff' : ''; });
+    try {
+        const d = await llamarAdmin('/admin/actividad' + (_nivelActividad ? '?nivel=' + _nivelActividad : ''));
+        const b = document.getElementById('badgeActividad'); b.style.display = d.sin_leer ? 'inline' : 'none'; b.textContent = d.sin_leer > 99 ? '99+' : d.sin_leer;
+        if (!d.eventos.length) { caja.innerHTML = '<div style="color:var(--gris);padding:20px;">Sin actividad todavía.</div>'; return; }
+        caja.innerHTML = d.eventos.map(e => { const [c, f] = COLOR_NIVEL[e.nivel] || COLOR_NIVEL.info; const det = e.detalle || {};
+            const extra = [det.comprador && ('👤 ' + det.comprador), det.tienda && ('🏪 ' + det.tienda), e.email, det.por && det.por !== 'servidor' && ('por ' + det.por),
+                           det.metodo && ('💳 ' + det.metodo), (det.transaccion || det.estado_wompi) && ('TX ' + (det.transaccion || '') + (det.estado_wompi ? ' · ' + det.estado_wompi : ''))].filter(Boolean).map(esc).join(' · ');
+            return `<div style="border-left:4px solid ${c};background:${f};border-radius:10px;padding:10px 14px;display:flex;gap:12px;align-items:flex-start;${e.leido ? 'opacity:.65;' : ''}">
+                <div style="flex:1;min-width:0;"><div style="font-weight:700;">${esc(e.titulo)}</div>
+                    <div style="font-size:12px;color:var(--gris);margin-top:2px;">${new Date(e.created_at).toLocaleString('es-CO')}${e.referencia ? ' · ' + esc(e.referencia) : ''}${extra ? ' · ' + extra : ''}</div></div>
+                ${e.monto ? `<div style="font-weight:800;white-space:nowrap;color:${c};">${copA(e.monto)}</div>` : ''}</div>`; }).join('');
+    } catch (err) { caja.innerHTML = `<div style="color:#FCA5A5;padding:14px;">${esc(err.message)}</div>`; }
+}
+function filtroActividad(n) { _nivelActividad = n; cargarActividad(); }
+async function actividadLeida() { try { await llamarAdmin('/admin/actividad/leidos', 'POST', { ids: [] }); } catch (e) {} cargarActividad(); }
+// El contador del menú se actualiza solo
+setInterval(async () => { try { const d = await llamarAdmin('/admin/actividad?limite=200'); const b = document.getElementById('badgeActividad');
+    if (b) { b.style.display = d.sin_leer ? 'inline' : 'none'; b.textContent = d.sin_leer > 99 ? '99+' : d.sin_leer; } } catch (e) {} }, 60000);
+
+// ── TRANSACCIONES (A. marketplace · B. planes · C. imágenes) ─────────────
+let _tabTx = 'marketplace', _filasTx = [];
+function tabTransacciones(t) { _tabTx = t; cargarTransacciones(); }
+async function cargarTransacciones() {
+    document.querySelectorAll('.tx-tab').forEach(b => { const on = b.dataset.tab === _tabTx; b.style.background = on ? 'rgba(124,58,237,.35)' : ''; b.style.color = on ? '#fff' : ''; });
+    document.getElementById('txFiltroTienda').style.display = _tabTx === 'marketplace' ? '' : 'none';
+    document.getElementById('txFiltroEstado').style.display = _tabTx === 'marketplace' ? '' : 'none';
+    const p = new URLSearchParams(), v = id => document.getElementById(id).value.trim();
+    if (_tabTx === 'marketplace') { if (v('txTienda')) p.set('tienda_id', v('txTienda')); if (v('txEstado')) p.set('estado', v('txEstado')); }
+    if (v('txDesde')) p.set('desde', v('txDesde')); if (v('txHasta')) p.set('hasta', v('txHasta'));
+    if (v('txBuscar') && _tabTx !== 'imagenes') p.set('buscar', v('txBuscar'));
+    const cab = document.getElementById('txCabeza'), cu = document.getElementById('txCuerpo'), tot = document.getElementById('txTotales');
+    cu.innerHTML = '<tr><td style="color:var(--gris)">Cargando…</td></tr>';
+    const tarjeta = (et, val, sub, color) => `<div class="stat-card"><div class="stat-label">${et}</div><div class="stat-valor" style="font-size:clamp(17px,2.1vw,26px);word-break:break-all;line-height:1.15;">${val}</div><div class="stat-sub">${sub}</div></div>`;
+    const fecha = f => f ? new Date(f).toLocaleString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+    try {
+        const d = await llamarAdmin('/admin/transacciones/' + _tabTx + (p.toString() ? '?' + p : ''));
+        _filasTx = d.transacciones || [];
+        if (_tabTx === 'marketplace') {
+            if (document.getElementById('txTienda').options.length <= 1) {
+                const t = [...new Map(_filasTx.filter(x => x.tienda_id).map(x => [x.tienda_id, x.tienda])).entries()].sort((a, b) => (a[1] || '').localeCompare(b[1] || ''));
+                document.getElementById('txTienda').innerHTML = '<option value="">Todas</option>' + t.map(([id, n]) => `<option value="${esc(id)}">${esc(n || id)}</option>`).join('');
+            }
+            const T = d.totales;
+            tot.innerHTML = tarjeta('🧾 Pedidos', T.pedidos, 'con estos filtros') + tarjeta('💳 Cobrado', copA(T.cobrado), 'solo lo pagado') +
+                tarjeta('💜 Comisión DecoIArte', copA(T.comision), 'tu ingreso') + tarjeta('🏦 Pasarela', copA(T.pasarela), 'Wompi (la paga la tienda)') + tarjeta('🏪 Para las tiendas', copA(T.para_tiendas), 'neto');
+            cab.innerHTML = '<tr><th>Fecha</th><th>Referencia</th><th>Comprador</th><th>Tienda</th><th>Productos</th><th>Cobrado</th><th>Comisión</th><th>Pasarela</th><th>Tienda recibe</th><th>Estado</th><th>Pago</th></tr>';
+            cu.innerHTML = _filasTx.map(x => `<tr><td style="white-space:nowrap;font-size:12px">${fecha(x.fecha)}</td><td style="font-size:12px">${esc(x.referencia)}</td>
+                <td style="font-size:12.5px">${esc(x.comprador || '—')}<div style="font-size:11px;color:var(--gris)">${esc(x.comprador_email || '')}</div></td>
+                <td style="font-size:12.5px"><b>${esc(x.tienda || '—')}</b></td><td style="font-size:12px">${esc(x.productos.join(', '))}</td>
+                <td style="font-weight:700">${copA(x.total)}</td><td style="color:#C4B5FD">${copA(x.comision)}</td><td style="color:#FCA5A5">${x.pasarela ? copA(x.pasarela) : '—'}</td>
+                <td style="color:#6EE7B7;font-weight:700">${copA(x.para_tienda)}</td><td style="font-size:12px">${esc(x.estado)}${x.pagado_tienda_at ? '<div style="font-size:11px;color:#6EE7B7">💸 transferido</div>' : ''}</td>
+                <td style="font-size:11px">${esc(x.metodo || '—')}<div style="color:var(--gris)">${esc(x.transaccion || '')}</div></td></tr>`).join('') || '<tr><td colspan="11" style="color:var(--gris)">Sin transacciones con estos filtros.</td></tr>';
+        } else if (_tabTx === 'planes') {
+            tot.innerHTML = tarjeta('💎 Planes vendidos', _filasTx.length, 'con estos filtros') + tarjeta('💳 Total aprobado', copA(d.total), 'ingreso de DecoIArte');
+            cab.innerHTML = '<tr><th>Fecha</th><th>Tienda</th><th>Correo</th><th>Plan</th><th>Precio del plan</th><th>Pagado</th><th>Estado</th><th>Método</th><th>Referencia / transacción</th><th>Vigencia</th></tr>';
+            cu.innerHTML = _filasTx.map(x => `<tr><td style="white-space:nowrap;font-size:12px">${fecha(x.fecha)}</td><td><b>${esc(x.tienda || '—')}</b></td><td style="font-size:12px">${esc(x.email || '—')}</td>
+                <td>${x.plan_anterior ? esc(x.plan_anterior) + ' → ' : ''}<b>${esc(x.plan)}</b></td><td>${x.precio_plan ? copA(x.precio_plan) : '—'}</td><td style="font-weight:700">${copA(x.pagado)}</td>
+                <td>${esc(x.estado || '—')}</td><td style="font-size:12px">${esc(x.metodo || '—')}</td><td style="font-size:11px">${esc(x.referencia || '')}<div style="color:var(--gris)">${esc(x.transaccion || '')}</div></td>
+                <td style="font-size:12px;color:var(--gris)">${esc(x.vencimiento)}</td></tr>`).join('') || '<tr><td colspan="10" style="color:var(--gris)">Sin planes vendidos con estos filtros.</td></tr>';
+        } else {
+            tot.innerHTML = tarjeta('🖼️ Imágenes vendidas', _filasTx.length, 'con estos filtros') + tarjeta('💳 Total', copA(d.total), 'ingreso de DecoIArte');
+            cab.innerHTML = '<tr><th>Fecha</th><th>Comprador</th><th>Pagado</th><th>Referencia</th><th>Transacción</th></tr>';
+            cu.innerHTML = _filasTx.map(x => `<tr><td style="white-space:nowrap;font-size:12px">${fecha(x.fecha)}</td><td>${esc(x.comprador_email || '—')}</td><td style="font-weight:700">${copA(x.pagado)}</td>
+                <td style="font-size:12px">${esc(x.referencia || '')}</td><td style="font-size:12px">${esc(x.transaccion || '')}</td></tr>`).join('') || '<tr><td colspan="5" style="color:var(--gris)">Sin imágenes vendidas con estos filtros.</td></tr>';
+        }
+    } catch (err) { cu.innerHTML = `<tr><td style="color:#FCA5A5">${esc(err.message)}</td></tr>`; tot.innerHTML = ''; }
+}
+function descargarCSV() {
+    if (!_filasTx.length) { alert('No hay filas para descargar.'); return; }
+    const cols = Object.keys(_filasTx[0]);
+    const celda = v => '"' + String(Array.isArray(v) ? v.join(' | ') : (v ?? '')).replace(/"/g, '""') + '"';
+    const csv = '\ufeff' + [cols.join(','), ..._filasTx.map(f => cols.map(c => celda(f[c])).join(','))].join('\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = `decoiarte_${_tabTx}_${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+}
+
 // ── VENTAS Y COMISIONES (servidor: /admin/pedidos, solo el administrador) ──
 const copA = n => (Number(n) < 0 ? '−$' : '$') + Math.abs(Math.round(Number(n) || 0)).toLocaleString('es-CO');
 async function llamarAdmin(ruta, metodo, cuerpo) {

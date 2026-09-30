@@ -19,6 +19,7 @@ from app.api.modelo3d import router as modelo3d_router
 from app.api.superficies import router as superficies_router
 from app.api.compras import router as compras_router
 from app.api.cuenta import router as cuenta_router
+from app.api.admin import router as admin_router   # centro del Super Admin: actividad y transacciones
 
 load_dotenv()
 
@@ -91,3 +92,4 @@ app.include_router(modelo3d_router)
 app.include_router(superficies_router)
 app.include_router(compras_router)
 app.include_router(cuenta_router)
+app.include_router(admin_router)
