@@ -528,6 +528,8 @@
     <div class="nd-header">
         <h3>🔔 Notificaciones</h3>
         <div class="nd-header-btns">
+            <button class="nd-marcar" id="btnSonido" onclick="alternarSonido()" title="Activar o silenciar el sonido de los avisos">🔔</button>
+            <input type="range" id="volSonido" min="0" max="100" step="5" oninput="cambiarVolumen(this.value)" title="Volumen de los avisos" style="width:70px;accent-color:#8B5CF6;">
             <button class="nd-marcar" onclick="marcarTodasND()">Marcar leídas</button>
             <button class="nd-marcar" onclick="ndBorrarLeidas()" style="color:#FCA5A5;">Borrar leídas</button>
             <button class="nd-cerrar" onclick="cerrarNotif()">✕</button>
@@ -564,7 +566,7 @@
         <div class="nav-divider"></div>
 
         <!-- Exclusivo Corporativo -->
-        <button class="nav-item" id="navMedirAR" onclick="window.open('/medir-ar','_blank')"><span class="icon">📐</span> Medición AR <span class="dot-amarillo" id="dotMedirAR" style="display:none;"></span></button>
+        <button class="nav-item" id="navMedirAR" onclick="window.open('/medir-ar','_blank')"><span class="icon">📐</span> Medición AR <span style="font-size:9.5px;font-weight:800;color:#FCD34D;background:rgba(245,158,11,.18);padding:1px 6px;border-radius:20px;margin-left:4px;">MUY PRONTO</span> <span class="dot-amarillo" id="dotMedirAR" style="display:none;"></span></button>
 
         <div class="nav-divider"></div>
 
@@ -1018,14 +1020,14 @@ const FEATURES_PLAN = {
     gratis:      ['Tienda en el marketplace','Subir tu catálogo'],
     basico:      ['Bot WhatsApp IA','Detección automática','Soporte WhatsApp'],
     profesional: ['Bot WhatsApp IA','CRM clientes','Catálogo PDF con IA'],
-    premium:     ['Bot WhatsApp IA','CRM clientes','Cotizador PDF','Cálculo materiales','Multiasesor'],
-    corporativo: ['Bot WhatsApp IA','Medición AR','Planos IA','Gerente dedicado']
+    premium:     ['Bot WhatsApp IA','CRM clientes','Cotizador PDF','Cálculo materiales','Multiasesor','AR (muy pronto)'],
+    corporativo: ['Bot WhatsApp IA','Planos IA','Gerente dedicado']
 };
 const PLANES_CON_IA      = ['profesional','premium','corporativo'];
 const PLANES_CON_CRM_VISOR = ['profesional','premium','corporativo'];   // CRM
 const PLANES_CON_VISOR     = ['premium','corporativo'];                 // Visor 3D, según /estructura
 const PLANES_CON_WHATSAPP  = ['basico','profesional','premium','corporativo']; // todo menos gratis
-const PLANES_CON_AR        = ['corporativo'];
+const PLANES_CON_AR        = ['premium','corporativo'];   // AR: exclusiva desde Premium (app/utils/planes.py)
 const PLANES_CON_PLANOS    = ['premium','corporativo'];   // la planta es de Premium (/estructura)
 const PLANES_CON_COTIZADOR = ['premium','corporativo'];
 
@@ -1067,6 +1069,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         await cargarDatos(session.user);
         document.getElementById('loadingOverlay').style.display = 'none';
         await cargarNotificaciones();
+        escucharNotificaciones();
         abrirPaginaDesdeHash();
     } catch (e) {
         console.error('Error cargando el dashboard:', e);
@@ -1242,9 +1245,9 @@ function renderDashboard(empresa, plan, imagenes) {
         }
     }
 
-    // Medición AR — exclusiva de Corporativo y con pago activo
+    // Medición AR — exclusiva desde Premium y con pago activo (aún "muy pronto")
     if (!funcionDesbloqueada(PLANES_CON_AR)) {
-        const msgAR = mensajeBloqueo(PLANES_CON_AR, 'Corporativo').replace(/<\/?strong>/g, '');
+        const msgAR = mensajeBloqueo(PLANES_CON_AR, 'Premium').replace(/<\/?strong>/g, '');
         const btnAR = document.getElementById('navMedirAR');
         btnAR.onclick = () => alert(msgAR);
         btnAR.style.opacity = '0.5';
@@ -3178,6 +3181,9 @@ async function cargarNotificaciones() {
     const nuevas=notifs.filter(n=>!n.leida).length;
     if(nuevas>0){badge.textContent=nuevas>9?'9+':nuevas;badge.classList.add('show');}
     else{badge.classList.remove('show');}
+    // Pestaña en segundo plano: el título muestra cuántos avisos hay sin leer
+    document.title = (nuevas > 0 ? `(${nuevas}) ` : '') + _tituloBase;
+    alertarNuevas(notifs);
     if(!notifs.length){lista.innerHTML='<div class="nd-empty">Sin notificaciones por ahora 🔔</div>';return;}
     lista.innerHTML=notifs.map(n=>{ const k=ndClase(n); return `
         <div class="nd-item ${k.clase} ${n.leida?'leida':''}">
@@ -3197,6 +3203,95 @@ async function cargarNotificaciones() {
 }
 // Tipo de aviso → color y etiqueta. Azul: hay que cotizar; verde: pagado,
 // liberado o transferido; rojo: cancelado; dorado: reseña.
+// ═══ AVISOS EN TIEMPO REAL + SONIDO (AUD-NOTIF-001) ═════════════════════
+// Antes la campana solo se actualizaba al hacer clic: un pedido que llegaba
+// con el dashboard abierto no se veía. Ahora:
+//  · Supabase Realtime avisa al instante cuando el servidor guarda un aviso;
+//  · por si esa conexión falla, se revisa cada 30 s y al volver a la pestaña;
+//  · los avisos importantes suenan (solo los NUEVOS, una vez cada uno).
+// El sonido NO funciona con la página cerrada: eso requeriría notificaciones
+// push del navegador, que no están implementadas.
+const _tituloBase = document.title;
+const _inicioSesionPanel = Date.now();
+let _canalNotif = null, _audioCtx = null, _audioListo = false;
+const _yaAvisadas = new Set();
+function prefSonido() {
+    try { return Object.assign({ activo: true, volumen: 60 }, JSON.parse(localStorage.getItem('deco_sonido') || '{}')); }
+    catch (_) { return { activo: true, volumen: 60 }; }
+}
+function guardarPrefSonido(p) { try { localStorage.setItem('deco_sonido', JSON.stringify(p)); } catch (_) {} pintarControlesSonido(); }
+function pintarControlesSonido() {
+    const p = prefSonido(), b = document.getElementById('btnSonido'), v = document.getElementById('volSonido');
+    if (b) { b.textContent = p.activo ? '🔔' : '🔕'; b.title = p.activo ? 'Sonido activado (tocar para silenciar)' : 'Sonido silenciado (tocar para activar)'; }
+    if (v) { v.value = p.volumen; v.disabled = !p.activo; }
+}
+function alternarSonido() { const p = prefSonido(); p.activo = !p.activo; guardarPrefSonido(p); if (p.activo) { desbloquearAudio(); sonar('pedido'); } }
+function cambiarVolumen(v) { const p = prefSonido(); p.volumen = Number(v); guardarPrefSonido(p); }
+// Los navegadores no dejan sonar nada hasta el primer clic o tecla en la página
+function desbloquearAudio() {
+    try {
+        _audioCtx = _audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+        if (_audioCtx.state === 'suspended') _audioCtx.resume();
+        _audioListo = true;
+        document.getElementById('avisoSonido')?.remove();
+    } catch (_) {}
+}
+['click', 'keydown', 'touchstart'].forEach(ev => document.addEventListener(ev, desbloquearAudio, { once: true, passive: true }));
+// Sonido sintetizado (no requiere archivos): dos notas para pedidos y pagos, una grave para cancelaciones
+function sonar(tipo) {
+    const p = prefSonido();
+    if (!p.activo || !_audioListo || !_audioCtx) return;
+    const notas = tipo === 'cancelado' ? [[330, 0], [262, 0.16]] : (tipo === 'pago' ? [[660, 0], [880, 0.12], [1320, 0.24]] : [[880, 0], [1175, 0.14]]);
+    const vol = Math.max(0, Math.min(1, p.volumen / 100)) * 0.35, t0 = _audioCtx.currentTime;
+    notas.forEach(([f, d]) => {
+        const o = _audioCtx.createOscillator(), g = _audioCtx.createGain();
+        o.type = 'sine'; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, t0 + d); g.gain.exponentialRampToValueAtTime(vol || 0.0001, t0 + d + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d + 0.32);
+        o.connect(g); g.connect(_audioCtx.destination); o.start(t0 + d); o.stop(t0 + d + 0.35);
+    });
+}
+// Qué avisos suenan: los que piden acción o traen plata. Reseñas y demás, no.
+function tipoSonido(n) {
+    const k = ndClase(n).clase;
+    if (k === 'c-azul') return 'pedido';      // nuevo pedido: cotiza el domicilio
+    if (k === 'c-verde') return 'pago';       // pagado, liberado, te pagamos
+    if (k === 'c-rojo') return 'cancelado';
+    return null;
+}
+function alertarNuevas(notifs) {
+    let tocar = null;
+    for (const n of notifs) {
+        if (_yaAvisadas.has(n.id)) continue;
+        _yaAvisadas.add(n.id);
+        // Solo lo que llegó DESPUÉS de abrir el panel y sigue sin leer (nunca lo viejo)
+        if (n.leida || new Date(n.created_at).getTime() < _inicioSesionPanel - 5000) continue;
+        tocar = tocar || tipoSonido(n);
+    }
+    if (tocar) {
+        sonar(tocar);
+        if (prefSonido().activo && !_audioListo && !document.getElementById('avisoSonido')) {
+            const d = document.createElement('div'); d.id = 'avisoSonido';
+            d.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;background:#1E1B3A;border:1px solid #8B5CF6;color:#E9D5FF;padding:10px 14px;border-radius:12px;font-size:13px;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.4);';
+            d.textContent = '🔔 Tienes avisos nuevos. Toca aquí para activar el sonido de los avisos.';
+            d.onclick = () => { desbloquearAudio(); sonar(tocar); };
+            document.body.appendChild(d);
+        }
+    }
+}
+function escucharNotificaciones() {
+    if (!empresaId) return;
+    pintarControlesSonido();
+    try {
+        if (_canalNotif) db.removeChannel(_canalNotif);
+        _canalNotif = db.channel('notif-' + empresaId)
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notificaciones', filter: `empresa_id=eq.${empresaId}` },
+                () => cargarNotificaciones())
+            .subscribe();
+    } catch (e) { console.warn('Sin tiempo real para los avisos; se revisan cada 30 s.', e); }
+    setInterval(() => { if (!document.hidden) cargarNotificaciones(); }, 30000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) cargarNotificaciones(); });
+}
+
 function ndClase(n){
     const t=(n.titulo||'');
     if (t.startsWith('✖') || t.toLowerCase().includes('cancel')) return {clase:'c-rojo', icono:'✖', etiqueta:'CANCELADO', color:'#FCA5A5', fondo:'rgba(239,68,68,0.18)'};

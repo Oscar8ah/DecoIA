@@ -92,6 +92,38 @@ async def consultar_estado_pago(
 
 
 # ── PAGO DE CAMBIO DE PLAN (suscripción) ────────────────────────────────
+async def _aviso_plan_admin(referencia, monto_cop, metodo, tx_id, cliente_email, problema, empresa=None, plan=None):
+    """Traza de cada pago de plan para el Super Admin: correo + centro de
+    actividad. Si hubo un problema (el dinero entró pero el plan NO se activó),
+    llega como ALERTA para revisarlo y, si hace falta, reembolsar."""
+    tienda = (empresa or {}).get("nombre") or "(tienda no identificada)"
+    monto = "$" + f"{int(round(monto_cop or 0)):,}".replace(",", ".")
+    if problema:
+        titulo = f"⚠️ Pago de plan para revisar: {tienda} — {monto}"
+    else:
+        titulo = f"💎 Plan pagado: {tienda} → {(plan or '').capitalize()} — {monto}"
+    filas = "".join(f"<tr><td style='color:#6B7280;padding:3px 12px 3px 0'>{k}</td><td><b>{v}</b></td></tr>" for k, v in [
+        ("Tienda", tienda), ("Correo", (empresa or {}).get("email") or cliente_email or "—"), ("Plan", (plan or "—").capitalize()),
+        ("Monto", monto), ("Método", metodo or "—"), ("Referencia", referencia), ("Transacción Wompi", tx_id or "—")])
+    try:
+        get_supabase().table("eventos").insert({
+            "tipo": "plan_revisar" if problema else "plan_pagado", "nivel": "alerta" if problema else "dinero",
+            "titulo": titulo, "detalle": {"problema": problema, "plan": plan, "metodo": metodo, "transaccion": tx_id, "tienda": tienda},
+            "empresa_id": (empresa or {}).get("id"), "email": (empresa or {}).get("email") or cliente_email,
+            "monto": int(round(monto_cop or 0)), "referencia": referencia,
+        }).execute()
+    except Exception as e:
+        logger.error(f"No se pudo anotar el pago de plan {referencia} en la actividad: {e}")
+    try:
+        from app.services.email_service import enviar_correo
+        await enviar_correo(ADMIN_EMAIL, titulo,
+            (f"<p style='font-size:15px;color:#B91C1C'><b>{problema}.</b> El dinero entró a Wompi pero el plan NO se activó: revísalo.</p>" if problema else
+             "<p style='font-size:15px'>Una tienda pagó su plan y quedó activa.</p>") + f"<table>{filas}</table>"
+            "<p><a href='https://decoiarte.com/admin' style='color:#7C3AED;font-weight:700'>Ver en Transacciones → Planes →</a></p>")
+    except Exception as e:
+        logger.error(f"No se pudo enviar el correo del pago de plan {referencia}: {e}")
+
+
 async def _procesar_pago_cambio_plan(referencia: str, monto_cop: float, metodo: str, tx_id: str, cliente_email: str):
     """
     Referencia: SUSC-{empresa_id_8chars}-{timestamp}
@@ -122,6 +154,7 @@ async def _procesar_pago_cambio_plan(referencia: str, monto_cop: float, metodo: 
 
     if not empresa:
         logger.error(f"No se encontró empresa para el pago de cambio de plan {referencia} — requiere revisión manual")
+        await _aviso_plan_admin(referencia, monto_cop, metodo, tx_id, cliente_email, "No se encontró la tienda que pagó", empresa=locals().get("empresa"))
         return {"status": "ok", "mensaje": "empresa no encontrada, requiere revisión manual"}
 
     empresa_id = empresa["id"]
@@ -138,6 +171,7 @@ async def _procesar_pago_cambio_plan(referencia: str, monto_cop: float, metodo: 
 
     if not solicitud:
         logger.error(f"Pago {referencia} aprobado pero no hay solicitud 'pagando' para empresa {empresa_id} — requiere revisión manual")
+        await _aviso_plan_admin(referencia, monto_cop, metodo, tx_id, cliente_email, "La tienda pagó pero no había solicitud de plan", empresa=locals().get("empresa"))
         return {"status": "ok", "mensaje": "solicitud no encontrada, requiere revisión manual"}
 
     plan_nuevo = None
@@ -149,6 +183,7 @@ async def _procesar_pago_cambio_plan(referencia: str, monto_cop: float, metodo: 
 
     if not plan_nuevo:
         logger.error(f"Plan solicitado {solicitud['plan_solicitado_id']} no existe — requiere revisión manual")
+        await _aviso_plan_admin(referencia, monto_cop, metodo, tx_id, cliente_email, "El plan pagado no existe", empresa=locals().get("empresa"))
         return {"status": "ok", "mensaje": "plan no encontrado, requiere revisión manual"}
 
     # ── El monto pagado debe cubrir la diferencia REAL entre planes ──────────
@@ -167,6 +202,7 @@ async def _procesar_pago_cambio_plan(referencia: str, monto_cop: float, metodo: 
         esperado = max(precios.get(plan_nuevo["id"], 0) - descuento, 0)
     except Exception as e:
         logger.error(f"No se pudo leer el precio de los planes para {referencia}: {e} — no se activa, requiere revisión manual")
+        await _aviso_plan_admin(referencia, monto_cop, metodo, tx_id, cliente_email, "No se pudo verificar el monto pagado", empresa=locals().get("empresa"))
         return {"status": "ok", "mensaje": "no se pudo verificar el monto, requiere revisión manual"}
     if monto_cop + 1 < esperado:   # 1 peso de tolerancia por redondeo
         logger.error(f"⚠️ Pago de plan {referencia} por ${monto_cop:,.0f} NO cubre la diferencia de ${esperado:,.0f} — plan NO activado")
@@ -174,6 +210,7 @@ async def _procesar_pago_cambio_plan(referencia: str, monto_cop: float, metodo: 
             supabase.table("solicitudes_plan").update({"estado": "monto_invalido"}).eq("id", solicitud["id"]).execute()
         except Exception:
             pass
+        await _aviso_plan_admin(referencia, monto_cop, metodo, tx_id, cliente_email, "Pagó MENOS de lo que cuesta el plan", empresa=locals().get("empresa"))
         return {"status": "ok", "mensaje": "monto insuficiente, plan no activado"}
 
     fotos_usadas = empresa.get("fotos_usadas") or 0
@@ -229,8 +266,10 @@ async def _procesar_pago_cambio_plan(referencia: str, monto_cop: float, metodo: 
         logger.info(f"Cambio de plan aprobado — empresa {empresa_id} -> {plan_nuevo['nombre']}")
     except Exception as e:
         logger.error(f"Error activando cambio de plan para empresa {empresa_id}: {e}")
+        await _aviso_plan_admin(referencia, monto_cop, metodo, tx_id, cliente_email, f"Error al activar el plan: {e}", empresa=empresa)
         return {"status": "ok", "error": str(e)}
 
+    await _aviso_plan_admin(referencia, monto_cop, metodo, tx_id, cliente_email, None, empresa=empresa, plan=plan_nuevo.get("nombre"))
     return {"status": "ok", "mensaje": "cambio de plan procesado correctamente"}
 
 

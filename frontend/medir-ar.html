@@ -70,17 +70,28 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     document.getElementById('loadingOverlay').style.display = 'none';
 
-    // Candado real: hay que tener el plan Corporativo Y el pago activo.
-    // Si el plan es el correcto pero el pago sigue pendiente, se lo decimos
-    // claro en vez de sugerir que le falta cambiar de plan.
-    if (planNombre !== 'corporativo' || estadoEmpresa !== 'activo') {
+    // AR es exclusiva desde Premium (Corporativo incluye todo Premium) y con el
+    // pago activo. Mientras no se valide en dispositivos reales se anuncia como
+    // "muy pronto" (AR_DISPONIBLE); el Super Admin puede entrar a probarla.
+    const PLANES_AR = ['premium', 'corporativo'];
+    const AR_DISPONIBLE = false;
+    const esAdmin = (session.user.email || '').toLowerCase() === 'oscar8a.cds@gmail.com';
+    if (!AR_DISPONIBLE && !esAdmin) {
         document.getElementById('pantallaInicio').style.display = 'flex';
         document.getElementById('descripcionAR').style.display = 'none';
         document.getElementById('btnEmpezarAR').style.display = 'none';
         document.getElementById('avisoNoSoportado').style.display = 'block';
-        document.getElementById('avisoNoSoportado').innerHTML = (planNombre === 'corporativo' && estadoEmpresa !== 'activo')
-            ? '⏳ Tu plan <strong>Corporativo</strong> está pendiente de activación. En cuanto se confirme el pago, esta función se desbloquea sola.'
-            : '⚠️ La Medición AR está disponible desde el plan <strong>Corporativo</strong>. <a href="/dashboard#plan" style="color:#FCD34D;">Ver planes →</a>';
+        document.getElementById('avisoNoSoportado').innerHTML = '🔜 <strong>Muy pronto:</strong> Realidad Aumentada (AR), exclusiva del plan <strong>Premium</strong>. Te avisaremos cuando esté disponible.';
+        return;
+    }
+    if (!esAdmin && (!PLANES_AR.includes(planNombre) || estadoEmpresa !== 'activo')) {
+        document.getElementById('pantallaInicio').style.display = 'flex';
+        document.getElementById('descripcionAR').style.display = 'none';
+        document.getElementById('btnEmpezarAR').style.display = 'none';
+        document.getElementById('avisoNoSoportado').style.display = 'block';
+        document.getElementById('avisoNoSoportado').innerHTML = (PLANES_AR.includes(planNombre) && estadoEmpresa !== 'activo')
+            ? '⏳ Tu plan está pendiente de activación. En cuanto se confirme el pago, esta función se desbloquea sola.'
+            : '⚠️ La Realidad Aumentada es exclusiva del plan <strong>Premium</strong>. <a href="/dashboard#plan" style="color:#FCD34D;">Ver planes →</a>';
         return;
     }
 

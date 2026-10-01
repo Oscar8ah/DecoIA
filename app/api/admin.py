@@ -20,6 +20,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
+TOPE_FILAS = 500
+
+
 def _exigir_admin(request: Request) -> None:
     if (email_de_sesion(request) or "").lower() != ADMIN_EMAIL:
         raise HTTPException(status_code=403, detail="Solo para el administrador.")
@@ -65,7 +68,7 @@ async def tx_marketplace(request: Request, tienda_id: str | None = None, estado:
     """A. Compras de productos: quién compró, qué, a qué tienda, cuánto, comisión,
     pasarela, neto para el vendedor, estado, fecha, método y transacción."""
     _exigir_admin(request)
-    q = get_supabase().table("pedidos").select("*, tiendas(nombre, empresa_id)").order("created_at", desc=True).limit(500)
+    q = get_supabase().table("pedidos").select("*, tiendas(nombre, empresa_id)").order("created_at", desc=True).limit(TOPE_FILAS)
     if tienda_id: q = q.eq("tienda_id", tienda_id)
     if estado:    q = q.eq("estado", estado)
     filas = _rango(q, desde, hasta).execute().data or []
@@ -94,7 +97,9 @@ async def tx_marketplace(request: Request, tienda_id: str | None = None, estado:
         if pagado:
             tot["cobrado"] += fila["total"]; tot["comision"] += fila["comision"]
             tot["pasarela"] += fila["pasarela"]; tot["para_tiendas"] += fila["para_tienda"]
-    return {"transacciones": salida, "totales": tot}
+    # Tope de 500 filas por consulta (AUD-ADMIN-001): si se alcanza, se avisa para
+    # acotar con fechas en vez de mostrar datos incompletos sin decirlo.
+    return {"transacciones": salida, "totales": tot, "limitado": len(filas) >= TOPE_FILAS}
 
 
 @router.get("/transacciones/planes")
@@ -104,7 +109,7 @@ async def tx_planes(request: Request, desde: str | None = None, hasta: str | Non
     _exigir_admin(request)
     sb = get_supabase()
     pagos = _rango(sb.table("pagos").select("*, empresas(nombre, email)").eq("tipo", "cambio_plan")
-                   .order("created_at", desc=True).limit(500), desde, hasta).execute().data or []
+                   .order("created_at", desc=True).limit(TOPE_FILAS), desde, hasta).execute().data or []
     planes = {p["id"]: p for p in (sb.table("planes").select("id, nombre, precio").execute().data or [])}
     b = (buscar or "").strip().lower()
     salida, total = [], 0
@@ -125,14 +130,14 @@ async def tx_planes(request: Request, desde: str | None = None, hasta: str | Non
         salida.append(fila)
         if (p.get("estado") or "") == "aprobado":
             total += fila["pagado"]
-    return {"transacciones": salida, "total": total}
+    return {"transacciones": salida, "total": total, "limitado": len(pagos) >= TOPE_FILAS}
 
 
 @router.get("/transacciones/imagenes")
 async def tx_imagenes(request: Request, desde: str | None = None, hasta: str | None = None):
     _exigir_admin(request)
     filas = _rango(get_supabase().table("imagenes_compra").select("id, email, monto, pagada, pagada_en, referencia, wompi_tx_id, created_at, tienda_id")
-                   .eq("pagada", True).order("created_at", desc=True).limit(500), desde, hasta).execute().data or []
+                   .eq("pagada", True).order("created_at", desc=True).limit(TOPE_FILAS), desde, hasta).execute().data or []
     return {"transacciones": [{"fecha": f.get("pagada_en") or f.get("created_at"), "comprador_email": f.get("email"),
                                "pagado": pesos(f.get("monto")), "referencia": f.get("referencia"), "transaccion": f.get("wompi_tx_id")} for f in filas],
-            "total": sum(pesos(f.get("monto")) for f in filas)}
+            "total": sum(pesos(f.get("monto")) for f in filas), "limitado": len(filas) >= TOPE_FILAS}

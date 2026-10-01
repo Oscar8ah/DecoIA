@@ -904,6 +904,10 @@ async function cargarTransacciones() {
     try {
         const d = await llamarAdmin('/admin/transacciones/' + _tabTx + (p.toString() ? '?' + p : ''));
         _filasTx = d.transacciones || [];
+        // Aviso honesto si el resultado se cortó en el tope (AUD-ADMIN-001)
+        let avisoTope = document.getElementById('txAvisoTope');
+        if (!avisoTope) { avisoTope = document.createElement('div'); avisoTope.id = 'txAvisoTope'; document.getElementById('txTotales').before(avisoTope); }
+        avisoTope.innerHTML = d.limitado ? '<div style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.45);color:#FCD34D;padding:10px 14px;border-radius:10px;margin-bottom:12px;font-size:13px;">⚠️ Se muestran las <b>500 más recientes</b> y los totales son solo de ellas. Usa las fechas <b>Desde / Hasta</b> para ver un periodo completo.</div>' : '';
         if (_tabTx === 'marketplace') {
             if (document.getElementById('txTienda').options.length <= 1) {
                 const t = [...new Map(_filasTx.filter(x => x.tienda_id).map(x => [x.tienda_id, x.tienda])).entries()].sort((a, b) => (a[1] || '').localeCompare(b[1] || ''));

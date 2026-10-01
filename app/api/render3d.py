@@ -10,9 +10,10 @@ from typing import Optional
 from openai import OpenAI
 from app.utils.config import get_settings
 from app.utils.supabase_client import get_supabase
+from app.utils.planes import plan_permite
 from app.services.limites_service import tiene_fotos_disponibles, descontar_foto
 from app.api.compras import usuario_de_sesion, guardar_para_venta, verificar_tope_diario
-from app.utils.auth import exigir_duenio, ADMIN_EMAIL
+from app.utils.auth import exigir_duenio, email_de_sesion, ADMIN_EMAIL
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["render3d"])
@@ -48,6 +49,26 @@ class RenderRequest(BaseModel):
     # le cargue a esa tienda: para ella es un cliente potencial, que es
     # exactamente lo que compra con el plan Básico.
     tienda_id:             Optional[str] = None
+
+
+async def _plan_incluye_foto_ia(empresa_id: str, request: Request) -> bool:
+    """¿El plan de la empresa incluye la Foto IA? Se lee de la base, no del navegador.
+    El Super Admin puede probar con cualquier plan."""
+    try:
+        if (email_de_sesion(request) or "").lower() == ADMIN_EMAIL:
+            return True
+    except Exception:
+        pass   # sin sesión (visitante remodelando con una tienda): se revisa el plan de la tienda
+    try:
+        r = get_supabase().table("empresas").select("planes(nombre)").eq("id", empresa_id).maybe_single().execute()
+    except Exception as e:
+        logger.error(f"No se pudo leer el plan de {empresa_id}: {e}")
+        raise HTTPException(status_code=503, detail="No se pudo verificar el plan, intenta de nuevo")
+    plan = ((r.data or {}).get("planes") or {}).get("nombre") if r and r.data else None
+    if not plan_permite(plan, "foto_ia"):
+        logger.warning(f"Foto IA rechazada: la empresa {empresa_id} tiene el plan {plan!r}")
+        return False
+    return True
 
 
 @router.post("/generar-render-3d")
@@ -108,6 +129,12 @@ async def generar_render_3d(data: RenderRequest, request: Request):
         logger.warning("Render 3D rechazado: petición sin empresa_id")
         return {"status": "error", "error": "empresa_requerida",
                 "mensaje": "No se pudo identificar tu empresa. Vuelve a iniciar sesión e inténtalo de nuevo."}
+
+    # El plan debe incluir la Foto IA (AUD-PLAN-001): antes solo lo revisaba el
+    # navegador; si a una tienda gratuita le quedaban fotos, el plan no importaba.
+    if not await _plan_incluye_foto_ia(data.empresa_id, request):
+        return {"status": "error", "error": "plan_sin_foto_ia",
+                "mensaje": "La transformación con IA está disponible desde el plan Básico. Actualiza tu plan para usarla."}
 
     if not await tiene_fotos_disponibles(data.empresa_id):
         logger.warning(f"Empresa {data.empresa_id} sin fotos disponibles — render bloqueado")
