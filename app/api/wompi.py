@@ -114,7 +114,7 @@ async def _procesar_pago_cambio_plan(referencia: str, monto_cop: float, metodo: 
         if len(partes) >= 2:
             empresa_id_partial = partes[1]
             r = supabase.table("empresas").select(
-                "id, nombre, email, fotos_usadas"
+                "id, nombre, email, fotos_usadas, estado"
             ).ilike("id", f"{empresa_id_partial}%").maybe_single().execute()
             empresa = r.data if r else None
     except Exception as e:
@@ -159,7 +159,12 @@ async def _procesar_pago_cambio_plan(referencia: str, monto_cop: float, metodo: 
         ids = [x for x in [solicitud.get("plan_actual_id"), plan_nuevo["id"]] if x]
         rp = supabase.table("planes").select("id, precio").in_("id", ids).execute()
         precios = {p["id"]: float(p.get("precio") or 0) for p in (rp.data or [])}
-        esperado = max(precios.get(plan_nuevo["id"], 0) - precios.get(solicitud.get("plan_actual_id"), 0), 0)
+        # Solo se descuenta el plan actual si de verdad estaba PAGADO (tienda activa).
+        # Antes, una tienda pendiente (plan sin pagar) podía pedir uno más alto,
+        # pagar solo la diferencia y quedar activa sin haber pagado su plan.
+        pagado_antes = (empresa.get("estado") == "activo")
+        descuento = precios.get(solicitud.get("plan_actual_id"), 0) if pagado_antes else 0
+        esperado = max(precios.get(plan_nuevo["id"], 0) - descuento, 0)
     except Exception as e:
         logger.error(f"No se pudo leer el precio de los planes para {referencia}: {e} — no se activa, requiere revisión manual")
         return {"status": "ok", "mensaje": "no se pudo verificar el monto, requiere revisión manual"}

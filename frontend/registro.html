@@ -476,7 +476,7 @@ async function manejarCallback() {
 function mostrarExitoEmpresa(nombre, email, plan, fotos) {
     const mensajeFinal = plan === 'gratis'
         ? '✅ Ya puedes entrar a tu dashboard y subir tu catálogo. Actualiza cuando quieras para desbloquear el bot de WhatsApp, CRM y Visor 3D.'
-        : '✅ Te contactaremos para activar tu bot de WhatsApp.';
+        : '💳 Entra a tu dashboard y toca "Pagar y activar mi plan" para pagarlo en línea con Wompi. Al confirmarse el pago se activa solo.';
     document.getElementById('exitoDatosEmpresa').innerHTML = `
         <p>👤 <strong>${nombre}</strong></p>
         <p>📧 <strong>${email}</strong></p>

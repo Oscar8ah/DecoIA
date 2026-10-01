@@ -1117,6 +1117,10 @@ async function cargarDatos(user) {
     // (el login lo lleva allá); este es su "cuarto de administración".
     planIdActual  = empresa.plan_id;
     empresaEstado = empresa.estado || 'pendiente_pago';
+    // Plan pendiente de pago: el botón invita a pagarlo en línea (antes solo
+    // decía "te contactaremos" y había que activarla a mano)
+    const btnPlan = document.querySelector('.btn-upgrade');
+    if (btnPlan) btnPlan.textContent = (empresaEstado !== 'activo' && Number(empresa.planes?.precio || 0) > 0) ? '💳 Pagar y activar mi plan' : '⬆️ Cambiar plan';
     const [imagenesRes, tiendaRes, planesRes, solicitudRes] = await Promise.all([
         db.from('imagenes').select('*').eq('empresa_id',empresa.id).order('created_at',{ascending:false}).limit(50),
         db.from('tiendas').select('*').eq('empresa_id',empresa.id).maybeSingle(),
@@ -1776,9 +1780,13 @@ function precioDePlan(planId) {
     return Number((todosPlanesDash.find(p => p.id === planId) || {}).precio || 0);
 }
 
+// Lo que la tienda YA pagó: si su plan está pendiente, nada (paga el plan completo)
+function precioYaPagado() { return empresaEstado === 'activo' ? precioDePlan(planIdActual) : 0; }
+
 function abrirModalCambioPlan() {
-    const precioActual = precioDePlan(planIdActual);
-    const opciones = todosPlanesDash.filter(p => p.id !== planIdActual && Number(p.precio||0) > precioActual);
+    const precioActual = precioYaPagado();
+    // Pendiente: puede pagar su mismo plan (para activarlo) o uno más alto
+    const opciones = todosPlanesDash.filter(p => (empresaEstado !== 'activo' || p.id !== planIdActual) && Number(p.precio||0) > precioActual);
     document.getElementById('cambioPlanAlerta').className = 'alerta';
     if (opciones.length === 0) {
         mostrarAlerta('cambioPlanAlerta', planActual === 'corporativo' ? '🎉 Ya tienes el plan más alto.' : '⚠️ No hay planes disponibles para subir en este momento.', 'error');
@@ -1795,10 +1803,12 @@ function actualizarDiferenciaPlan() {
     const select = document.getElementById('selectPlanSolicitado');
     const texto  = document.getElementById('diferenciaPlanTexto');
     if (!select.value) { texto.textContent = ''; return; }
-    const precioActual = precioDePlan(planIdActual);
+    const precioActual = precioYaPagado();
     const precioNuevo  = precioDePlan(select.value);
     const diferencia   = Math.max(precioNuevo - precioActual, 0);
-    texto.textContent = `Diferencia a pagar: $${diferencia.toLocaleString('es-CO')} COP`;
+    texto.textContent = empresaEstado !== 'activo'
+        ? `Total a pagar para activar tu plan: $${diferencia.toLocaleString('es-CO')} COP`
+        : `Diferencia a pagar: $${diferencia.toLocaleString('es-CO')} COP`;
 }
 
 async function generarFirmaWompiDash(referencia, monto, moneda) {
@@ -1819,7 +1829,7 @@ async function iniciarPagoCambioPlan() {
     const planSolicitadoId = document.getElementById('selectPlanSolicitado').value;
     if (!planSolicitadoId) { mostrarAlerta('cambioPlanAlerta','⚠️ Elige un plan.','error'); return; }
 
-    const precioActual = precioDePlan(planIdActual);
+    const precioActual = precioYaPagado();
     const precioNuevo  = precioDePlan(planSolicitadoId);
     const diferencia   = Math.max(precioNuevo - precioActual, 0);
     if (diferencia <= 0) { mostrarAlerta('cambioPlanAlerta','⚠️ Ese plan no representa una subida real.','error'); return; }
