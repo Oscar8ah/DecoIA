@@ -15,14 +15,6 @@ class RegistroNuevo(BaseModel):
     precio: str
 
 
-class PedidoMarketplace(BaseModel):
-    tienda_nombre: str
-    tienda_ciudad: str
-    productos:     str
-    subtotal:      int
-    origen:        str = "marketplace_web"
-
-
 # ── HELPER ────────────────────────────────────────────────────────────────
 async def enviar_wa(mensaje: str, settings: Settings):
     url = f"https://graph.facebook.com/v25.0/{settings.whatsapp_phone_number_id}/messages"
@@ -61,24 +53,6 @@ async def notificar_registro(data: RegistroNuevo):
     return {"status": "ok"}
 
 
-# ── NOTIFICAR PEDIDO MARKETPLACE ──────────────────────────────────────────
-@router.post("/notificar-pedido")
-async def notificar_pedido(data: PedidoMarketplace):
-    """Notifica a Oscar cuando alguien hace un pedido desde el marketplace."""
-    settings = get_settings()
-    subtotal_fmt = f"${data.subtotal:,}".replace(",", ".")
-    mensaje = (
-        f"🛒 *Nuevo pedido — DecoIArte Marketplace*\n\n"
-        f"🏪 *Tienda:* {data.tienda_nombre}\n"
-        f"📍 *Ciudad:* {data.tienda_ciudad}\n"
-        f"📦 *Productos:* {data.productos}\n"
-        f"💰 *Subtotal:* {subtotal_fmt}\n"
-        f"🌐 *Origen:* {data.origen}\n\n"
-        f"El cliente está solicitando cotización de domicilio por WhatsApp."
-    )
-    try:
-        await enviar_wa(mensaje, settings)
-        logger.info(f"Notificación pedido enviada — {data.tienda_nombre}")
-    except Exception as e:
-        logger.error(f"Error notificación pedido: {type(e).__name__} — {e}")
-    return {"status": "ok"}
+# (Se quitó la ruta /notificar-pedido el 2 oct: nadie la llamaba —el flujo de
+#  pedidos vive en app/api/pedidos.py— y era una ruta pública, sin sesión, que
+#  mandaba un WhatsApp al número del asesor con cualquier texto: un vector de abuso.)

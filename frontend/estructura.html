@@ -6,334 +6,170 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Estructura — DecoIArte</title>
 <style>
-    :root{
-        --oscuro:#0B0B14; --oscuro2:#12121F; --carta:#181828;
-        --texto:#E8E8F0; --gris:#8B8BA7; --morado:#7C3AED; --lila:#A78BFA;
-        --verde:#10B981; --ambar:#F59E0B; --cian:#22D3EE; --rosa:#EC4899;
-    }
+    :root{--fondo:#0B0B14;--carta:#161625;--texto:#E8E8F0;--gris:#8B8BA7;--lila:#A78BFA;--verde:#10B981;--ambar:#F59E0B;--rojo:#F87171}
     *{box-sizing:border-box;margin:0;padding:0}
-    body{
-        background:var(--oscuro); color:var(--texto);
-        font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
-        line-height:1.6; padding:28px 20px 80px;
-    }
-    .caja{max-width:1100px;margin:0 auto}
-    h1{font-size:30px;font-weight:800;margin-bottom:6px}
-    h1 span{background:linear-gradient(90deg,var(--lila),var(--cian));
-        -webkit-background-clip:text;background-clip:text;color:transparent}
-    .sub{color:var(--gris);font-size:14.5px;margin-bottom:6px}
-    .nota{background:rgba(124,58,237,.1);border:1px solid rgba(124,58,237,.3);
-        border-radius:12px;padding:12px 15px;font-size:13.5px;color:var(--gris);
-        margin:18px 0 26px;line-height:1.7}
-    .nota b{color:var(--texto)}
-
-    h2{font-size:19px;font-weight:700;margin:34px 0 14px;
-        padding-bottom:8px;border-bottom:1px solid rgba(139,139,167,.2)}
-
-    /* Escalera */
-    .escalera{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px}
-    .peldano{flex:1;min-width:150px;background:var(--carta);border-radius:12px;
-        padding:14px;text-align:center;border:1px solid rgba(139,139,167,.15)}
-    .peldano .verbo{font-size:17px;font-weight:800;margin-bottom:3px}
-    .peldano .quien{font-size:12px;color:var(--gris)}
-    .v1{color:var(--verde)} .v2{color:var(--cian)}
-    .v3{color:var(--lila)} .v4{color:var(--rosa)}
-
-    /* Tarjetas de plan */
-    .plan{background:var(--carta);border-radius:14px;padding:18px 20px;
-        margin-bottom:14px;border-left:4px solid var(--gris)}
-    .plan.basico{border-left-color:var(--verde)}
-    .plan.profesional{border-left-color:var(--cian)}
-    .plan.premium{border-left-color:var(--lila)}
-    .plan.corporativo{border-left-color:var(--rosa)}
-    .plan.visitante{border-left-color:var(--ambar)}
-    .plan-cab{display:flex;justify-content:space-between;align-items:baseline;
-        gap:12px;flex-wrap:wrap;margin-bottom:4px}
-    .plan-nom{font-size:18px;font-weight:800}
-    .plan-precio{font-size:14px;color:var(--gris);font-weight:600}
-    .plan-promesa{font-size:14.5px;color:var(--texto);margin:8px 0 12px;
-        font-style:italic;opacity:.9}
-    .fila{display:flex;gap:10px;font-size:13.5px;padding:5px 0;
-        border-top:1px solid rgba(139,139,167,.12)}
-    .fila .et{color:var(--gris);min-width:110px;font-weight:600}
-    .ruta{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;
-        background:rgba(124,58,237,.14);padding:2px 7px;border-radius:5px;color:var(--lila)}
-
-    .aviso{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.35);
-        border-radius:12px;padding:14px 16px;margin:14px 0;font-size:13.5px;line-height:1.7}
-    .aviso b{color:var(--ambar)}
-
-    table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:6px}
-    th,td{text-align:left;padding:8px 10px;border-bottom:1px solid rgba(139,139,167,.14)}
-    th{color:var(--gris);font-size:11.5px;text-transform:uppercase;letter-spacing:.05em}
-    .si{color:var(--verde);font-weight:700}
-    .no{color:#F87171;font-weight:700}
-
-    ul{margin:8px 0 0 18px;font-size:13.5px}
-    li{margin-bottom:5px}
-    .avance{display:grid;grid-template-columns:190px 1fr 52px;gap:8px 14px;align-items:center;margin:14px 0 6px}
-    .avance .nom{font-size:13.5px;color:var(--texto)} .avance .pct{font-size:13px;font-weight:700;text-align:right}
-    .barra{height:9px;border-radius:9px;background:rgba(139,139,167,.18);overflow:hidden}
-    .barra i{display:block;height:100%;border-radius:9px;background:linear-gradient(90deg,#3B82F6,#7C3AED)}
-    .total-avance{display:flex;flex-wrap:wrap;gap:12px;margin:18px 0 8px}
-    .total-avance div{flex:1;min-width:180px;padding:14px 16px;border-radius:14px;background:rgba(124,58,237,.10);border:1px solid rgba(124,58,237,.25)}
-    .total-avance b{display:block;font-size:26px}
-    .total-avance span{font-size:12.5px;color:var(--gris)}
-    @media (max-width:560px){.avance{grid-template-columns:120px 1fr 44px}}
-    .prio{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:50px;white-space:nowrap}
-        .p1{background:rgba(239,68,68,.15);color:#FCA5A5}
-        .p2{background:rgba(245,158,11,.15);color:#FCD34D}
-        .p3{background:rgba(34,211,238,.12);color:#67E8F9}
-        .p4{background:rgba(167,139,250,.15);color:#C4B5FD}
-        td.que{color:var(--texto)} td.donde{color:var(--gris);font-size:12.5px}
-    .pie{margin-top:40px;padding-top:16px;border-top:1px solid rgba(139,139,167,.2);
-        font-size:12.5px;color:var(--gris)}
+    body{background:var(--fondo);color:var(--texto);font:14px/1.6 'Segoe UI',system-ui,sans-serif;padding:26px 18px 60px}
+    .caja{max-width:1000px;margin:0 auto}
+    h1{font-size:26px;font-weight:800} h1 span{color:var(--lila)}
+    h2{font-size:17px;margin:30px 0 10px;padding-bottom:6px;border-bottom:1px solid rgba(139,139,167,.2)}
+    .sub{color:var(--gris);font-size:13.5px}
+    table{width:100%;border-collapse:collapse;font-size:13px;margin-top:4px}
+    th,td{text-align:left;padding:6px 8px;border-bottom:1px solid rgba(139,139,167,.13);vertical-align:top}
+    th{color:var(--gris);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+    .r{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--lila)}
+    .si{color:var(--verde);font-weight:700} .no{color:var(--rojo)} .pr{color:var(--ambar);font-weight:700}
+    ul{margin:4px 0 0 18px} li{margin-bottom:4px}
+    .estado{display:flex;gap:18px;flex-wrap:wrap;align-items:baseline;background:var(--carta);border-radius:12px;padding:14px 16px;margin-top:14px}
+    .estado b{font-size:24px} .mods{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--gris);margin-top:8px}
+    .mods span b{color:var(--texto);font-size:13px}
+    .wrap{overflow-x:auto}
 </style>
 </head>
-<body>
-<div class="caja">
+<body><div class="caja">
 
-    <h1>Estructura de <span>DecoIArte</span></h1>
-    <p class="sub">Qué hace cada plan y dónde vive. Página interna de referencia.</p>
+<h1>Estructura de <span>DecoIArte</span></h1>
+<p class="sub">Mapa corto de cómo está organizado el producto. Antes de construir algo: ¿a qué plan pertenece, en qué pantalla vive y qué no puede romper? Actualizado el 2 de octubre de 2026.</p>
 
-    <div class="nota">
-        Esta página es la <b>fuente de verdad</b> de cómo está organizado el producto.
-        Antes de proponer o construir algo, se revisa aquí a qué plan pertenece y en qué
-        pantalla vive. Si una idea no encaja en ninguna casilla, primero se decide dónde
-        va — y se actualiza esta página.
-    </div>
+<!-- ═══ ESTADO DEL PROYECTO ═══════════════════════════════════════════════
+     Cada módulo es una lista de funcionalidades verificables:
+       C = completa (cuenta 1) · P = parcial (cuenta ½) · X = pendiente (0) · N = no aplica (no cuenta)
+     "Parcial" incluye lo que está escrito pero aún no corre en producción.
+     Total = suma de todas las funcionalidades / número de funcionalidades.
+     Para actualizar: cambia la letra de la funcionalidad. Nada más. -->
+<div class="estado" id="estado"><span>Calculando…</span></div>
+<script>
+const MODULOS = [
+  ['Marketplace',       {'Lista de tiendas':'C','Búsqueda y categorías':'C','Carga de a 24 (escala)':'C','Ficha de tienda y producto':'C','Carrito':'C','Favoritos':'C','Reseñas y respuesta':'C','Tema oscuro en todo':'P'}],
+  ['Pedidos y domicilio',{'Crear pedido':'C','Cotizar domicilio':'C','Pagar el total':'C','Enviado / recibido':'C','Cancelar sin pagar':'C','Liberación a 5 días hábiles':'C','Historial de la tienda':'C','Reembolsos':'X'}],
+  ['Pagos y dinero',    {'Wompi en producción':'C','Firma y monto desde la base':'C','Costos administrativos':'C','Imagen IA de $5.000':'C','Tope diario del comprador':'C','Plan pagado en línea (falta prueba real)':'P','Pago automático a tiendas':'X'}],
+  ['Planes y permisos', {'Matriz única de planes':'C','Validación en el servidor':'C','Enrutamiento por plan':'C','Subir de plan':'C','Primer plan en línea (falta prueba real)':'P','Vencimiento de planes':'X'}],
+  ['Seguridad',         {'Sesión y dueño en el servidor':'C','Funciones SQL cerradas':'C','Guardias de escritura (correr SQL)':'P','RLS de lecturas (correr SQL)':'P','Datos legales privados (correr SQL)':'P','Contraseñas filtradas':'X','Dos pasos del admin':'X','Rol admin en tabla':'X'}],
+  ['Notificaciones',    {'Aviso a la tienda':'C','Correos':'C','Tiempo real tienda':'C','Sonido':'C','Tiempo real comprador':'C','Actividad del admin':'C','Un solo aviso por pago':'P','Aviso con la app cerrada':'X'}],
+  ['IA y remodelación', {'Foto IA':'C','Editor de superficies':'C','Compra de imagen':'C','Bot WhatsApp del comprador':'C','IA sin congelar el servidor':'C','Generación real tras el cambio':'P'}],
+  ['AR',                {'Herramienta WebXR':'C','Solo Premium':'C','Anuncio en el Home':'C','Validada en celulares':'X','Activada':'X','Control en servidor':'N'}],
+  ['Super Admin',       {'Actividad':'C','Transacciones A/B/C':'C','Ventas y comisiones':'C','Empresas y tiendas':'C','Traza de pagos de plan':'C','Paginación (hoy tope con aviso)':'P'}],
+  ['Visor 3D (Premium)',{'Planta':'C','Entorno 3D':'C','Foto IA de escena':'C','Editor de pared 1':'C','Escaleras y puertas':'C','Cocina':'X','Baño':'X','Editor de pared 2':'X','Cámara exterior':'X'}],
+  ['Video (Corporativo)',{'Video y recorrido':'C','Varias cámaras':'X','Trazo vectorial':'X'}],
+  ['Rendimiento',       {'IA no bloquea':'C','Visor en caché':'C','defer en el visor':'C','Marketplace escalable':'C','Imágenes comprimidas':'C','Índices (correr SQL)':'P','CSS compartido':'X','Servidor sin dormir':'X'}],
+  ['WhatsApp vendedor', {'Teléfono y consentimiento':'X','Plantillas de Meta':'X','Envío':'X','Registro de entregas':'X'}],
+  ['Tokens',            {'Definición de negocio':'X','Compra':'X','Saldo y consumo':'X'}],
+  ['Orden',             {'Ley 1581 en empresas viejas':'X','Unidades de ferretería':'X','WhatsApp de tienda sin hacerlo a mano':'X'}],
+];
+(function () {
+  const v = { C: 1, P: 0.5, X: 0 };
+  let suma = 0, cuenta = 0;
+  const filas = MODULOS.map(([nombre, items]) => {
+    const vals = Object.values(items).filter(e => e !== 'N');
+    const s = vals.reduce((a, e) => a + v[e], 0);
+    suma += s; cuenta += vals.length;
+    return `<span title="${Object.entries(items).map(([k, e]) => (e === 'C' ? '✓ ' : e === 'P' ? '½ ' : e === 'X' ? '✗ ' : '– ') + k).join('\n')}">${nombre} · <b>${Math.round(100 * s / vals.length)}%</b></span>`;
+  });
+  const total = Math.round(100 * suma / cuenta);
+  document.getElementById('estado').innerHTML =
+    `<div><div class="sub">ESTADO DEL PROYECTO</div><b>${total}% completado</b> · <span class="sub">${100 - total}% pendiente</span></div>` +
+    `<div class="mods">${filas.join('')}</div>`;
+})();
+</script>
+<p class="sub" style="margin-top:6px">Pasa el mouse sobre un módulo para ver sus funcionalidades (✓ completa · ½ parcial · ✗ pendiente).</p>
 
-    <h2>La escalera</h2>
-    <p class="sub" style="margin-bottom:12px">
-        Cada plan hace todo lo del anterior y suma una capa. No es "más pestañas por más
-        plata": es una sola idea que crece.
-    </p>
-    <div class="escalera">
-        <div class="peldano"><div class="verbo v1">Transformar</div><div class="quien">Básico</div></div>
-        <div class="peldano"><div class="verbo v2">Editar</div><div class="quien">Profesional</div></div>
-        <div class="peldano"><div class="verbo v3">Crear</div><div class="quien">Premium</div></div>
-        <div class="peldano"><div class="verbo v4">Animar</div><div class="quien">Corporativo</div></div>
-    </div>
+<h2>La escalera</h2>
+<p class="sub">Todos los planes <b>venden</b>. Cada plan hace todo lo del anterior y suma herramientas. Pago único.</p>
+<div class="wrap"><table>
+  <tr><th>Plan</th><th>Precio</th><th>Suma</th><th>Vive en</th></tr>
+  <tr><td><b>Gratis</b> — Vender</td><td>$0</td><td>Tienda, catálogo a mano, pedidos, domicilio, notificaciones e historial. Sin IA</td><td class="r">/dashboard</td></tr>
+  <tr><td><b>Básico</b> — Transformar</td><td>$400.000</td><td>Foto IA (los clientes ven tus productos en su espacio) y bot de WhatsApp de la tienda</td><td class="r">/remodelar</td></tr>
+  <tr><td><b>Profesional</b> — Editar</td><td>$700.000</td><td>Editor de superficies y objetos, CRM</td><td class="r">/remodelar → /editor-superficies</td></tr>
+  <tr><td><b>Premium</b> — Crear</td><td>$1.000.000</td><td>Visor 3D (planta, entorno 3D, Foto IA de escena), planos con IA, modelos 3D, cotizador, Multiasesor. <b>AR: muy pronto</b></td><td class="r">/dashboard · /visor3d</td></tr>
+  <tr><td><b>Corporativo</b> — Animar</td><td>$3.000.000</td><td>Video y recorridos (cámara de video)</td><td class="r">/visor3d</td></tr>
+  <tr><td>Comprador</td><td>$5.000 / imagen</td><td>Remodela su espacio con productos reales y compra en el marketplace</td><td class="r">/marketplace · /remodelar</td></tr>
+</table></div>
+<p class="sub" style="margin-top:6px">Fuente de verdad de los permisos: <span class="r">app/utils/planes.py</span> (servidor) y las constantes <span class="r">PLANES_CON_*</span> del dashboard.</p>
 
-    <h2>Los planes</h2>
+<h2>Quién entra a dónde</h2>
+<div class="wrap"><table>
+  <tr><th>Plan</th><th>Vender</th><th>Foto IA</th><th>Editor superficies</th><th>Visor 3D</th><th>Video</th><th>AR</th></tr>
+  <tr><td>Gratis</td><td class="si">Sí</td><td class="no">No</td><td class="no">No</td><td class="no">No</td><td class="no">No</td><td class="no">No</td></tr>
+  <tr><td>Básico</td><td class="si">Sí</td><td class="si">Sí</td><td class="no">No</td><td class="no">No</td><td class="no">No</td><td class="no">No</td></tr>
+  <tr><td>Profesional</td><td class="si">Sí</td><td class="si">Sí</td><td class="si">Sí</td><td class="no">No</td><td class="no">No</td><td class="no">No</td></tr>
+  <tr><td>Premium</td><td class="si">Sí</td><td class="si">Sí</td><td class="si">Sí</td><td class="si">Sí</td><td class="no">No</td><td class="pr">Muy pronto</td></tr>
+  <tr><td>Corporativo</td><td class="si">Sí</td><td class="si">Sí</td><td class="si">Sí</td><td class="si">Sí</td><td class="si">Sí</td><td class="pr">Muy pronto</td></tr>
+</table></div>
+<p class="sub" style="margin-top:6px">Al iniciar sesión: Básico y Profesional pagados → <span class="r">/remodelar</span>; los demás planes, y quien no ha pagado → <span class="r">/dashboard</span>; comprador → <span class="r">/marketplace</span>.</p>
 
-    <div class="plan visitante">
-        <div class="plan-cab">
-            <span class="plan-nom">🌐 Visitante</span>
-            <span class="plan-precio">$5.000 por imagen</span>
-        </div>
-        <div class="plan-promesa">"Sube la foto de tu espacio y mira cómo queda con productos reales."</div>
-        <div class="fila"><span class="et">Vive en</span><span><span class="ruta">/remodelar</span></span></div>
-        <div class="fila"><span class="et">Quién es</span><span>Cualquiera que llega desde el home, sin cuenta de empresa</span></div>
-        <div class="fila"><span class="et">Cómo paga</span><span>Tiene que ser <b>comprador con sesión</b> para generar. Recibe una <b>vista previa con marca de agua puesta en el servidor</b>; la imagen limpia queda en un bucket privado. Paga $5.000 con el widget de Wompi (referencia <span class="ruta">IMG-</span>), el webhook confirma con firma y monto, y recién ahí recibe el enlace de descarga (7 días)</span></div>
-    </div>
+<h2>Rutas principales</h2>
+<div class="wrap"><table>
+  <tr><th>Ruta</th><th>Quién</th><th>Para qué</th></tr>
+  <tr><td class="r">/</td><td>Todos</td><td>Home y planes</td></tr>
+  <tr><td class="r">/registro · /login</td><td>Todos</td><td>Cuenta de tienda o de comprador (Google)</td></tr>
+  <tr><td class="r">/marketplace</td><td>Todos</td><td>Tiendas, productos, carrito y "Tus pedidos"</td></tr>
+  <tr><td class="r">/mi-cuenta</td><td>Comprador</td><td>Pedidos, pagar, confirmar recibido, imágenes compradas, favoritos, reseñas</td></tr>
+  <tr><td class="r">/dashboard</td><td>Tienda</td><td>Tienda, productos, pedidos, cotizar domicilio, avisos, plan</td></tr>
+  <tr><td class="r">/remodelar</td><td>Comprador y tienda</td><td>Foto IA con productos reales</td></tr>
+  <tr><td class="r">/editor-superficies</td><td>Profesional+</td><td>Editar pisos, paredes y objetos</td></tr>
+  <tr><td class="r">/visor3d</td><td>Premium+</td><td>Planta, 3D, cámara, Foto IA de escena, video (Corporativo)</td></tr>
+  <tr><td class="r">/medir-ar</td><td>Premium+</td><td>Medición con realidad aumentada (muy pronto)</td></tr>
+  <tr><td class="r">/crm</td><td>Profesional+</td><td>Clientes del asesor</td></tr>
+  <tr><td class="r">/admin</td><td>Super Admin</td><td>Empresas, tiendas, ventas, Actividad y Transacciones</td></tr>
+</table></div>
 
-    <div class="plan basico">
-        <div class="plan-cab">
-            <span class="plan-nom">🟢 Básico — Transformar</span>
-            <span class="plan-precio">$400.000 pago único</span>
-        </div>
-        <div class="plan-promesa">"Tus clientes ven TUS productos puestos en su casa, y te escriben."</div>
-        <div class="fila"><span class="et">Vive en</span><span><span class="ruta">/remodelar</span> — ese ES su dashboard</span></div>
-        <div class="fila"><span class="et">Herramienta</span><span>Bot de WhatsApp propio de la tienda</span></div>
-        <div class="fila"><span class="et">Quién opera</span><span>El cliente final, solo y automático</span></div>
-        <div class="fila"><span class="et">Flujo</span><span>Cliente manda foto → la IA remodela con un producto real del catálogo → Ver productos → Hablar con asesor</span></div>
-        <div class="fila"><span class="et">El asesor ve</span><span>La bandeja <b>📥 Remodelaciones de tus clientes</b> dentro de <span class="ruta">/remodelar</span>, con el teléfono de cada uno</span></div>
-        <div class="fila"><span class="et">NO tiene</span><span>Editor Planta, Entorno 3D, editor de video ni editor de superficies</span></div>
-    </div>
+<h2>Tablas principales</h2>
+<div class="wrap"><table>
+  <tr><th>Tabla</th><th>Se relaciona con</th><th>Para qué</th></tr>
+  <tr><td class="r">empresas</td><td><span class="r">email</span> = cuenta · <span class="r">plan_id</span> → planes</td><td>La cuenta de la tienda: plan, estado de pago, cupo de fotos</td></tr>
+  <tr><td class="r">tiendas</td><td><span class="r">empresa_id</span> → empresas</td><td>Lo público de la tienda. <span class="r">plan_nombre</span> lo sincroniza la base</td></tr>
+  <tr><td class="r">tiendas_privado</td><td><span class="r">tienda_id</span> → tiendas</td><td>Cédula/NIT, representante, RUT: solo el dueño y el admin</td></tr>
+  <tr><td class="r">productos</td><td><span class="r">tienda_id</span> → tiendas</td><td>Catálogo</td></tr>
+  <tr><td class="r">pedidos</td><td><span class="r">tienda_id</span>, <span class="r">empresa_id</span>, <span class="r">user_id</span> (comprador)</td><td>Compra con domicilio, comisión, pasarela, neto y estados</td></tr>
+  <tr><td class="r">notificaciones</td><td><span class="r">empresa_id</span> → empresas</td><td>Avisos de la tienda (campana, tiempo real)</td></tr>
+  <tr><td class="r">eventos</td><td>los escriben disparadores de la base</td><td>Actividad del Super Admin</td></tr>
+  <tr><td class="r">pagos · solicitudes_plan</td><td><span class="r">empresa_id</span> → empresas</td><td>Compras de planes (ingreso de DecoIArte)</td></tr>
+  <tr><td class="r">imagenes_compra</td><td><span class="r">user_id</span> (comprador)</td><td>Imágenes IA vendidas (ingreso de DecoIArte)</td></tr>
+  <tr><td class="r">consumidores</td><td><span class="r">email</span> = cuenta</td><td>Perfil del comprador</td></tr>
+</table></div>
 
-    <div class="plan profesional">
-        <div class="plan-cab">
-            <span class="plan-nom">🔵 Profesional — Editar</span>
-            <span class="plan-precio">$700.000 pago único</span>
-        </div>
-        <div class="plan-promesa">"Usted cierra la venta ahí mismo en el mostrador, con el cliente al lado."</div>
-        <div class="fila"><span class="et">Vive en</span><span><span class="ruta">/remodelar</span> + botón <b>🎨 Editar superficies y objetos</b> que abre <span class="ruta">/editor-superficies</span></span></div>
-        <div class="fila"><span class="et">Al abrir</span><span>Dos cuadritos: trabajar sobre la <b>foto original</b> o sobre la <b>remodelada</b></span></div>
-        <div class="fila"><span class="et">Superficie</span><span>Pisos y paredes por cálculo: perspectiva, escala real de pieza, luz, capas</span></div>
-        <div class="fila"><span class="et">Objeto</span><span>Tocar un objeto → contorno → <b>✕ Quitar</b> o <b>⇄ Cambiar por producto</b> del catálogo. Con deshacer</span></div>
-        <div class="fila"><span class="et">Al final</span><span><b>✨ Interpretar con IA</b> con cuadro de indicaciones (ej: "pon un portátil Lenovo"). Aparte, <b>💡 Solo ajustar la luz</b>, que nunca cambia el material</span></div>
-        <div class="fila"><span class="et">Control</span><span>Todo lo que usa IA lo verifica el servidor: plan, pago y cupo. Cada uso gasta una generación</span></div>
-    </div>
+<h2>Puntos críticos que no deben romperse</h2>
+<ul>
+  <li><b>El navegador nunca decide la plata ni los permisos.</b> Plan, estado, cupo de fotos, comisión y activación de la tienda los cambian solo el servidor o el Super Admin (guardias en la base: <span class="r">sql/seguridad_escrituras.sql</span>).</li>
+  <li><b>El monto a cobrar sale siempre de la base</b> (<span class="r">app/utils/dinero.py</span>, pesos enteros) y el webhook de Wompi lo verifica con firma.</li>
+  <li><b>Cada quien lee solo lo suyo</b>: RLS en empresas, tiendas, notificaciones y pedidos (<span class="r">sql/rls_lecturas.sql</span>). Los datos legales viven en <span class="r">tiendas_privado</span>.</li>
+  <li><b>La tienda ve la dirección y el celular del comprador solo de un pedido pagado</b>, y siempre por el servidor.</li>
+  <li><b>Todo permiso de plan se valida también en el servidor</b>, con <span class="r">app/utils/planes.py</span>. Ocultar un botón no es seguridad.</li>
+  <li><b>La IA no puede congelar el servidor</b>: las llamadas a OpenAI corren en un hilo aparte (<span class="r">asyncio.to_thread</span>).</li>
+  <li><b>Si un aviso o un evento falla, la venta no se detiene</b>, y ningún pedido se queda sin que alguien se entere.</li>
+  <li><b>Al agregar una tienda nueva al código:</b> sus datos privados van a <span class="r">tiendas_privado</span>, no a <span class="r">tiendas</span>.</li>
+</ul>
 
-    <div class="plan premium">
-        <div class="plan-cab">
-            <span class="plan-nom">🟣 Premium — Crear</span>
-            <span class="plan-precio">por definir</span>
-        </div>
-        <div class="plan-promesa">"Diseña un espacio que todavía no existe, entra en él y tómale la foto."</div>
-        <div class="fila"><span class="et">Vive en</span><span>Dashboard + <span class="ruta">/visor3d</span> (Editor Planta, Entorno 3D, Foto IA)</span></div>
-        <div class="fila"><span class="et">Cámara</span><span>Solo de <b>fotografía</b>, interior y exterior. La foto se interpreta con IA; el piso o el cielo se ajustan con indicaciones o una foto de referencia. <b>Sin video</b></span></div>
-        <div class="fila"><span class="et">Ya existe ✅</span><span>Planta con zonas y cuartos, multinivel, columnas cuadradas y redondas, vigas, cielos rasos, 10 tipos de cubierta, puertas que abren, detección de muros de fachada, gizmo para mover, rotar y escalar con pivote, recorrido, Foto IA</span></div>
-        <div class="fila"><span class="et">Planos</span><span><b>Crear planos es de Premium</b>: la planta, y también <b>interpretar un plano desde una foto</b> con IA (<span class="ruta">PLANES_CON_PLANOS = premium, corporativo</span>, en el servidor y en el dashboard) ✅. La cámara del visor se usa todas las veces que quiera; lo que gasta cupo es la <b>Foto IA</b>, que interpreta la escena de three.js</span></div>
-        <div class="fila"><span class="et">Falta 🔲</span><span>
-            <b>Asistente de baño</b> ·
-            <b>Cámara exterior</b> para fotos de fachada
-        </span></div>
-        <div class="fila"><span class="et">🪜 Escaleras ✅</span><span>En el Editor Planta, Estructura → <b>🪜 Escalera</b>: <b>recta, en L, en U y caracol</b>, que arrancan hacia cualquier lado y giran a la izquierda o a la derecha. Por defecto sube la altura entre pisos. Calcula sola los escalones (contrahuella cerca de 17,5 cm), la huella y la <b>regla de comodidad</b> (2 contrahuellas + huella entre 60 y 66 cm; en la caracol, huella en la línea de paso), y avisa con el consejo si queda incómoda. <b>Maciza</b> (concreto, con cálculo de concreto, cemento y acero) o <b>flotante</b> (huellas sobre zancas); acabado concreto, madera, porcelanato o mármol; con o sin baranda. En la planta, símbolo con escalones y flecha de <b>SUBE</b>. Hecho el 26 sep. <b>Estilos para todas las formas</b>: rellena/maciza, <b>flotante de espina central</b> (con un apoyo bajo cada huella), <b>esqueleto de dos zancas</b>; huellas de <b>vidrio templado</b>; <b>baranda por lado</b> (ambos, izquierda, derecha o ninguna). Hecho el 27 sep</span></div>
-        <div class="fila"><span class="et">🌄 Entornos ✅</span><span>Panel <b>Entorno y realismo</b> a la izquierda del 3D: <b>Estudio</b> (el lienzo de trabajo), <b>Bosque, Tatacoa, Montaña y Playa</b>. Cada uno es un <b>cielo físico</b> (Sky.js) con su sol, terreno con textura, vegetación y paisaje (árboles, cactus y cárcavas, cordillera nevada con pinos, mar con palmeras), <b>despejado donde está la casa</b>, con sobrecimiento y terreno a ras de los andenes. Del cielo salen los <b>reflejos</b> (PMREM) y el color de la luz; la niebla toma el color del aire. <b>Hora del sol</b> de 6 a 18 (atardecer cálido) y <b>☀️ Día / 🌙 Noche</b> (cielo con estrellas y luna, luz de luna fría afuera y luz cálida por dentro). <b>🏙️ Ciudad</b>: la casa en su lote con jardín y andén, manzanas con edificios de ladrillo, concreto y vidrio, calles y postes; de noche se encienden las ventanas y los faroles alumbran. <b>Texturas reales</b> en el terreno (arena, pasto, tierra agrietada, suelo pedregoso: fotos de Babylon.js Assets, CC BY 4.0, créditos en <span class="ruta">img/texturas/CREDITOS.txt</span> y en el panel). <b>Realismo</b>: Básico, Realista, Alto y Ultra (resolución, sombras y cantidad de vegetación). Adentro, el cielo da reflejos moderados y las luces se compensan para no aplanar el interior. Todo en la tarjeta gráfica, sin IA. La lista de objetos se <b>pliega</b> a la derecha. Hecho el 27 sep</span></div>
-        <div class="fila"><span class="et">🧱 Texturas de pared ✅</span><span>Junto a las Pinturas DecoIArte: <b>ladrillo a la vista, piedra, estuco, concreto a la vista y madera en listones</b>, con mapa de relieve y a escala real según el largo y alto de cada muro. En la planta, para un cuarto; en el 3D, para toda la casa. Se elige la cara: <b>🛋️ adentro, 🏠 afuera (fachada) o ⇆ ambas</b> (un material por cara del muro; las ventanas respetan la textura). Elegir una pintura quita la textura. La piedra es foto real; las demás, generadas por DecoIArte. Hecho el 27 sep</span></div>
-        <div class="fila"><span class="et">🚧 Baranda ✅</span><span>En Estructura: <b>🚧 Baranda</b>, una línea en la planta. <b>Madera</b> (pasamanos y balaustres), <b>metálica</b> (tubo y barrotes) o <b>vidrio templado</b> (paneles con pasamanos metálico); altura (0,90–1,00 m usual) y desde qué nivel arranca (sobre un andén, el borde de un hueco, un balcón). Calcula metros lineales, parales y m² de vidrio. Hecho el 27 sep</span></div>
-        <div class="fila"><span class="et">⬚ Hueco ✅</span><span>Módulo <b>⬚ Hueco</b> en Estructura: un cuadro que se pone encima de cualquier cuarto y se estira a la medida. Al generar el 3D abre el <b>piso de su nivel</b> y el <b>techo del nivel de abajo</b> (en el primer piso abre el techo: patio de luz). Sirve para doble altura y para el hueco por donde llega la escalera. En la planta se dibuja con la cruz de vacío. Hecho el 27 sep</span></div>
-        <div class="fila"><span class="et">🛒 Compra solo por DecoIArte ✅</span><span>(29 sep) Marketplace sin salidas a WhatsApp: "🛒 Agregar" en tarjetas y ventana del producto, carrito con "🚚 Pedir a la tienda"; sin "Contactar por WhatsApp" ni "Cotizar por WhatsApp" (saltaban la comisión). En Remodelar se quitó "Prefiero hablar con un asesor". La compra de la imagen se identifica por la <b>imagen exacta</b> (antes podía cobrar otra); si ya está pagada, se desbloquea. El resumen muestra el precio de la imagen. Las imágenes compradas salen en <b>Mi cuenta → Mis pedidos</b> con descarga completa</span></div>
-        <div class="fila"><span class="et">🛰️ Centro del Super Admin ✅</span><span>(30 sep) <b>Actividad</b>: la propia base anota por disparadores cada evento importante, venga de donde venga y para <b>cualquier</b> cuenta: tienda nueva, comprador nuevo, cambio de estado o de plan (con quién lo hizo), pedido nuevo y cada estado (cotizado, pagado, despachado, recibido, cancelado, en revisión), imagen IA vendida, plan pagado por menos y <b>pagos rechazados</b>. Si el registro falla, las ventas no se detienen. <b>Transacciones</b>: A. marketplace (comprador → tienda: productos, cobrado, comisión, pasarela, neto, método, transacción), B. planes de DecoIArte (tienda, plan anterior → nuevo, pagado, transacción), C. imágenes IA; filtros por tienda, estado, fechas y búsqueda; descarga CSV. Auditoría: el pago de plan guarda la transacción de Wompi y qué plan. <b>Raíz</b>: <span class="ruta">tiendas.plan_nombre</span> no lo escribía ningún código (tiendas nuevas invisibles en Remodelar y Visor): ahora lo sincroniza la base; las tiendas nuevas nacen activas. SQL: <span class="ruta">sql/centro_admin.sql</span>. Pendiente: vencimiento de planes (hoy son pago único)</span></div>
-        <div class="fila"><span class="et">🔐 Auditoría · 1.ª tanda ✅</span><span>(30 sep) <b>Seguridad</b>: guardias en la base (<span class="ruta">sql/seguridad_escrituras.sql</span>) — cada cuenta solo toca su empresa, sus tiendas y sus productos; plan, estado, fotos, comisión y activación solo los cambia DecoIArte (19 ataques bloqueados). <b>Planes</b>: matriz única <span class="ruta">app/utils/planes.py</span>; la Foto IA valida el plan en el servidor. <b>AR</b>: exclusiva desde Premium, "Muy pronto" en Home y herramienta (código intacto; el admin puede probarla). <b>Avisos de la tienda en tiempo real</b> + <b>sonido</b> configurable. Aviso al admin de cada pago de plan. Pendiente: WhatsApp al vendedor, tokens, reembolsos, vencimientos (ver AUDITORIA)</span></div>
-        <div class="fila"><span class="et">🧾 Pedidos con domicilio ✅</span><span>(28 sep) El pedido llega a la tienda para <b>cotizar el domicilio</b> ($0 a $50.000.000, se muestra en letras) → el cliente paga el total en Mi cuenta → la tienda despacha y marca <b>Enviado</b> → el cliente confirma <b>Recibido</b> y el dinero de la tienda queda <b>liberado</b> (o solo a los <b>5 días hábiles</b>) → el administrador transfiere y lo registra. Avisos en el panel y por correo a comprador, tienda y administrador. Panel <b>🧾 Ventas y comisiones</b>: de quién a quién, comisión, costo Wompi, lo que queda, <b>Costos administrativos</b> (29 sep): el comprador paga el precio publicado + domicilio; a la tienda se le descuenta en <b>una sola línea</b> la comisión de DecoIArte + la pasarela Wompi; DecoIArte se queda con su comisión completa; deudas con tiendas, conteo de días. <b>Pedido mínimo</b> por tienda. Todo con <span class="ruta">app/utils/dinero.py</span> en pesos enteros. Arreglado: el aviso de venta no le llegaba a la tienda (buscaba la tienda en la referencia con el formato viejo). Falta: <b>Wompi Pagos a Terceros</b> para transferir solo</span></div>
-        <div class="fila"><span class="et">🚪 Tipos de puerta ✅</span><span>En el panel del vano, al volverlo puerta: <b>sencilla</b> (madera con entrepaños), <b>doble</b>, <b>corrediza</b> (estilo granero, con riel), <b>de vidrio</b> (marco metálico) y <b>plegable</b> (cuatro paneles en zigzag). Todas se abren y cierran tocándolas en el 3D; al elegir doble, corrediza o plegable se ensancha el hueco si hace falta. Hecho el 27 sep</span></div>
-        <div class="fila"><span class="et">🚪 Puerta libre ✅</span><span>En Vanos: <b>🚪 Poner puerta en cualquier muro</b>. Se toca el borde de un cuarto y queda una puerta ahí, aunque no toque otra zona (la puerta de entrada de un plano de venta). Luego se cambia a arco o vano y se arrastra. Si el muro lo comparte otro cuarto, abre los dos. Hecho el 27 sep</span></div>
-        <div class="fila"><span class="et">🧱 Editor de pared — parte 1 ✅</span><span>En el 3D, sección Muros: <b>🎨 Diseñar un muro</b>, se toca el muro y se abre de frente en una ventana, con sus medidas reales y sus puertas dibujadas. Herramientas: <b>rectángulo, cuadrado, círculo y media pared</b> (banda de enchape a 1,20 m). Cada figura es <b>placa en relieve, enchape o pintura</b>, con color, relieve y medidas exactas; se arrastra y se cambia de tamaño con ajuste de 5 cm. En muros de fachada se elige <b>cara de afuera o de adentro</b>. Avisa si una figura tapa una puerta. Se guarda en la planta (<span class="ruta">disenoParedes</span>), se reconstruye al regenerar, entra en Ctrl+Z y sale en las fotos. Hecho el 26 sep</span></div>
-        <div class="fila"><span class="et">🧱 Editor de pared — parte 2 🔲</span><span><b>Ventanas y ventanales recortados</b> en el muro (hueco real, con marco y vidrio) · usar un <b>producto del portafolio</b> como enchape de una figura (textura real y que entre al carrito con su área) · copiar el diseño a otro muro</span></div>
-        <div class="fila"><span class="et">🟫 Pisos exteriores ✅</span><span>Botón <b>🌳 Exteriores → Piso exterior</b> en el Editor Planta (tipo <span class="ruta">exterior</span>, en <span class="ruta">TIPOS_NO_CUARTO</span>: no levanta muros ni suma área). Qué es: <b>andén, losa, patio, zona verde, terraza</b>. Acabado: concreto con juntas, adoquín trabado, baldosa, gravilla, césped o deck, con textura dibujada. Espesor y <b>nivel respecto al piso de la casa</b> (andén a -0.15). Se mueve con el gizmo y calcula material según el acabado (concreto y malla, adoquines y arena, grama y tierra…). Hecho el 26 sep. Falta: <b>rampas</b> con pendiente</span></div>
-        <div class="fila"><span class="et">🗂️ Pestañas ✅</span><span><b>Editor Planta = construir</b> (niveles, módulos, muros, estructura, exteriores, vanos, cielos rasos y cubiertas; Propiedades con el material de piso de cada cuarto; portafolio para darle piso real). <b>Entorno 3D = vestir y recorrer</b>, en un panel de secciones que se abren y cierran: superficie activa y luces de techo, portafolio, material de piso, color de paredes, techos y fachada, iluminación, mobiliario, editar con gizmo, muros y cámara. Tocar una superficie o una pieza abre su sección sola; si la planta cambió aparece <b>🔄 Regenerar 3D</b>; botón <b>✏️ Volver a la planta</b>. Hecho el 26 sep</span></div>
-        <div class="fila"><span class="et">📸 Cámara ✅</span><span><b>Premium</b> tiene una <b>cámara de fotos compacta</b>; <b>Corporativo</b> conserva la de video. Controles para todos en el 3D: <b>📍 Traer la cámara a mi vista</b>, mover con flechas, ver lo que ve, girar y mirar arriba o abajo. La <b>Foto IA sale limpia desde esa cámara</b> (sin camarita, gizmo ni etiquetas de los cuartos, que ahora son ayudas del editor). En la <b>cámara interior tú eres la cámara</b>: la camarita se esconde y al salir queda donde mirabas. El portafolio en el 3D solo aparece al elegir una pared para enchapar o pintar; los pisos se eligen en la planta. <b>Ctrl+Z / Ctrl+Y</b> en la planta y en el gizmo. Hecho el 26 sep</span></div>
-        <div class="fila"><span class="et">🧩 Lista de objetos ✅</span><span>Debajo de la vista de la foto, en el Entorno 3D: todo lo que se puede mover (cámara, cuartos, columnas, vigas, cielos rasos, cubiertas, exteriores, muebles). El que está en uso se <b>enciende en verde</b>; tocar uno lo agarra; <b>✖ Soltar</b> deja de moverlo; el <b>🔒 candado</b> impide agarrarlo en el 3D (los cuartos arrancan bloqueados, para no mover el piso en vez de la cámara). La <b>cámara interior entra desde la cámara</b>: mismo cuarto, mismo sitio, misma dirección. Hecho el 26 sep</span></div>
-        <div class="fila"><span class="et">🖼️ Galería Foto IA ✅</span><span>Toda foto del visor llega a <b>Foto IA</b>: capturas del 3D, capturas de la cámara interior y Foto IA (la última del bot de WhatsApp aparece aparte y marcada). Se guardan en el navegador y no se pierden al recargar. Botones: <b>🛋️ Llevar a Remodelar</b>, <b>🧱 Llevar al Editor de superficies</b> (las capturas se suben a <span class="ruta">portafolio/&lt;empresa&gt;/visor/</span>), enviar al cliente, descargar y quitar. "Capturar render" ya no descarga sola. Hecho el 26 sep</span></div>
-        <div class="fila"><span class="et">🛒 Carrito en Foto IA ✅</span><span>Junto a las fotos: los <b>productos del diseño</b> (el piso de cada cuarto y lo puesto en paredes en la cámara interior), cada uno con dónde va, cantidad, precio y subtotal, más <b>cemento y arena</b> para instalar los pisos si la tienda los tiene. Un mismo producto en varios cuartos se calcula junto (sale menos desperdicio). Los de otra tienda quedan aparte y fuera del total. Botones: <b>💬 Enviar cotización + foto</b>, <b>🧾 Cotización en PDF</b> (el mismo servicio del cotizador) y copiar. Desde Premium con pago activo. Una sola regla de cantidades para el panel y el carrito (<span class="ruta">cantidadProducto</span>). Hecho el 26 sep</span></div>
-        <div class="fila"><span class="et">🚪 Vanos ✅</span><span>Botón <b>＋</b> en la planta sobre cada muro que se toca sin vano: celeste entre cuartos, <b>verde lima hacia un piso exterior</b> (crea una <b>puerta</b> de 90 cm, p. ej. de la sala al andén). Ese muro sigue siendo fachada: el hueco, el marco, la hoja y el dintel llevan el grosor y el acabado de la fachada. Si se borra el último vano de un muro, queda <b>cerrado</b> y no reaparece al regenerar el 3D (<span class="ruta">murosCerrados</span>). Hecho el 26 sep</span></div>
-        <div class="fila"><span class="et">🍳 Módulo cocina</span><span>Ventana aparte, porque no hay dos cocinas iguales. Se arma por piezas:
-            <b>cajones</b> dibujados con cuadros y rectángulos, o una <b>caja grande</b> ·
-            <b>planchón</b> (mesón) de largo y fondo libres ·
-            <b>estufa</b> configurable (a gas o de inducción, número de puestos) que se <b>ubica donde uno quiera</b> sobre el planchón ·
-            <b>lavaplatos</b> con posición libre (izquierda, derecha o donde caiga) ·
-            <b>horno a gas empotrado</b>, movible a izquierda o derecha ·
-            <b>microondas</b> empotrado o sobre el planchón ·
-            <b>campana extractora</b>, indicando por dónde salen las partículas (ducto al techo, a la pared o recirculación).
-            Formas base: lineal, en L, en U, con isla 🔲</span></div>
-    </div>
+<h2>Reglas que no cambian</h2>
+<ul>
+  <li><b>Todos venden.</b> Los planes deciden las herramientas, nunca la posibilidad de recibir compras.</li>
+  <li><b>La compra pasa por DecoIArte</b>, sin salidas a WhatsApp: así queda registrada y con su comisión.</li>
+  <li><b>El dashboard es la administración de la tienda para todos los planes</b>; Básico y Profesional trabajan en <span class="r">/remodelar</span>.</li>
+  <li><b>Para usar las herramientas hay que estar pagado</b> (estado <span class="r">activo</span>), no basta con tener el plan asignado.</li>
+  <li><b>El producto no es la imagen, es el contacto y la venta.</b> La remodelación es el anzuelo.</li>
+  <li><b>Cálculos para pintar, IA solo para percibir</b>: la IA nunca cambia el material que el cliente va a comprar.</li>
+</ul>
 
-    <div class="plan corporativo">
-        <div class="plan-cab">
-            <span class="plan-nom">🔴 Corporativo — Animar</span>
-            <span class="plan-precio">$3.000.000 pago único</span>
-        </div>
-        <div class="plan-promesa">"Con los diseños que has hecho, crea videos. Ve tus alcances hechos realidad."</div>
-        <div class="fila"><span class="et">Vive en</span><span>Editor de video y Nodos, dentro de <span class="ruta">/visor3d</span></span></div>
-        <div class="fila"><span class="et">Qué suma</span><span><b>Video</b>: una o varias cámaras, interior y exterior, con recorridos. Es lo único que el Premium no tiene. <b>La cámara de video es solo de Corporativo</b>; el Premium tiene solo cámara de fotografía (decidido el 25 sep)</span></div>
-        <div class="fila"><span class="et">Falta 🔲</span><span><b>Varias cámaras</b> en el mismo proyecto: hoy el editor tiene una sola (<span class="ruta">marcadorCamara</span>). Cada una con su recorrido, y poder cambiar entre ellas al grabar</span></div>
-        <div class="fila"><span class="et">Control</span><span>Ya está así en el código: <span class="ruta">PLANES_CON_VIDEO = ['corporativo']</span></span></div>
-        <div class="fila"><span class="et">Cámara ✅</span><span>La camarita, su gizmo y el tubo del recorrido son <b>ayudas del editor</b> (capa 1 de three.js): se ven en Entorno 3D pero <b>no salen en el video</b>. Antes la cámara que graba quedaba dentro del modelo y lo primero que se veía era su propio lente</span></div>
-        <div class="fila"><span class="et">Falta 🔲</span><span><b>Trazo de cámara tipo pluma vectorial</b> (como en Illustrator): puntos con manijas para dar <b>curva</b>, botón para <b>suavizar</b>, línea <b>continua o punteada</b>, y mover o borrar puntos después. Reemplaza el tubo grueso de hoy</span></div>
-        <div class="fila"><span class="et">Para quién</span><span>Constructoras que necesitan mostrar el proyecto completo</span></div>
-    </div>
+<h2>Pendientes</h2>
+<div class="wrap"><table>
+  <tr><th>Prioridad</th><th>Qué</th><th>Nota</th></tr>
+  <tr><td class="no">Antes de vender</td><td>Correr en Supabase: <span class="r">seguridad_escrituras</span>, <span class="r">rls_lecturas</span>, <span class="r">indices</span></td><td>En ese orden</td></tr>
+  <tr><td class="no">Antes de vender</td><td>Prueba real: pagar un plan (modo de pruebas de Wompi) y generar una Foto IA</td><td>Confirma lo que aquí está como parcial</td></tr>
+  <tr><td class="no">Antes de vender</td><td>Activar contraseñas filtradas en Supabase y la verificación en dos pasos del admin</td><td>Fuera del código</td></tr>
+  <tr><td class="pr">Plata</td><td>Pago automático a las tiendas (Wompi Pagos a Terceros) y reembolsos</td><td>Antes, hablar con un contador</td></tr>
+  <tr><td class="pr">Decisión</td><td>Tokens (paquetes de fotos) y vencimiento de planes</td><td>Definir reglas de negocio antes de construir</td></tr>
+  <tr><td class="pr">Construir</td><td>WhatsApp al vendedor: teléfono con consentimiento, plantillas aprobadas por Meta, registro de entregas</td><td>Necesita cuenta y plantillas de Meta</td></tr>
+  <tr><td>Premium</td><td>Cocina por piezas, asistente de baño, editor de pared 2, cámara exterior; validar y activar AR</td><td class="r">/visor3d · /medir-ar</td></tr>
+  <tr><td>Corporativo</td><td>Varias cámaras de video y trazo vectorial</td><td class="r">/visor3d</td></tr>
+  <tr><td>Orden</td><td>Ley 1581 en empresas viejas · unidades de ferretería · tema oscuro en todo el marketplace · rol admin en tabla</td><td></td></tr>
+  <tr><td>Infraestructura</td><td>Render gratis se duerme: plan de pago o un monitor externo que visite <span class="r">/salud</span></td><td>No es de código</td></tr>
+</table></div>
 
-    
+<h2>Antes de decidir</h2>
+<ul>
+  <li><b>Contador</b>: si la plata de las tiendas pasa por la cuenta de DecoIArte, cambia cómo se factura y qué retenciones aplican.</li>
+  <li><b>WhatsApp</b>: cada tienda con bot necesita su número verificado en Meta (una sola app de Meta, un <span class="r">phone_number_id</span> por tienda).</li>
+</ul>
 
-    <h2>Quién entra a dónde</h2>
-    <table>
-        <tr>
-            <th>Plan</th><th>/remodelar</th><th>Editor superficies</th>
-            <th>Visor 3D</th><th>Editor video</th>
-        </tr>
-        <tr><td>Visitante</td><td class="si">Sí</td><td class="no">No</td><td class="no">No</td><td class="no">No</td></tr>
-        <tr><td>Básico</td><td class="si">Sí</td><td class="no">No</td><td class="no">No</td><td class="no">No</td></tr>
-        <tr><td>Profesional</td><td class="si">Sí</td><td class="si">Sí</td><td class="no">No</td><td class="no">No</td></tr>
-        <tr><td>Premium</td><td class="si">Sí</td><td class="si">Sí</td><td class="si">Sí</td><td class="no">No</td></tr>
-        <tr><td>Corporativo</td><td class="si">Sí</td><td class="si">Sí</td><td class="si">Sí</td><td class="si">Sí</td></tr>
-    </table>
-
-    <h2>El comprador</h2>
-    <div class="plan" style="border-left-color:var(--cian);">
-        <div class="plan-nom" style="margin-bottom:6px;">🛍️ Quien compra en el marketplace</div>
-        <div class="fila"><span class="et">Para comprar</span><span>Siempre con cuenta de comprador. El visitante anónimo mira, pero no genera ni paga</span></div>
-        <div class="fila"><span class="et">Sus datos</span><span>Nombre, dirección, ciudad, celular y correo son <b>privados</b>. La tienda ve la dirección y el celular <b>solo de un pedido ya pagado</b>, y solo de ese pedido</span></div>
-        <div class="fila"><span class="et">Ley 1581</span><span>Casilla obligatoria en el registro; se guarda la fecha en <span class="ruta">acepta_datos_en</span>. Las cuentas de comprador creadas antes la aceptan en <span class="ruta">/mi-cuenta</span> ✅. Las <b>empresas</b> viejas todavía no: el dashboard no la pide 🔲</span></div>
-        <div class="fila"><span class="et">Ya existe ✅</span><span><span class="ruta">/mi-cuenta</span>: 🧾 Mis pedidos · ❤️ Favoritos · 📁 Mis remodelaciones · 👤 Mis datos. Compra de imágenes. Reseñas con ⭐ solo de compras pagadas, y la tienda responde desde <b>Mis ventas</b></span></div>
-        <div class="fila"><span class="et">Cómo compra</span><span>Sin sesión, el corazón y el pago lo mandan a crear cuenta de comprador. La primera compra le pide nombre, celular, dirección y ciudad; quedan guardados y las siguientes salen solas</span></div>
-    </div>
-
-    <h2>Pagos y catálogo</h2>
-    <div class="plan" style="border-left-color:var(--verde);">
-        <div class="plan-nom" style="margin-bottom:6px;">💳 Cómo entra la plata</div>
-        <div class="fila"><span class="et">Planes</span><span>Wompi, a la cuenta de DecoIArte. <b>Ya funciona</b></span></div>
-        <div class="fila"><span class="et">Marketplace</span><span>Comisión de <b>5 %</b>. Cada tienda registra dónde recibe en <b>Mi Tienda → 💳 Cobros</b> (tabla <span class="ruta">cuentas_pago</span>, privada). No encontré split nativo en Wompi; lo que sí tiene es <b>Pagos a Terceros</b>: el cliente paga a DecoIArte y DecoIArte le dispersa a cada tienda lo suyo, por API, a banco, Nequi, Daviplata o llave Bre-B. La tienda <b>no necesita cuenta de Wompi</b>, solo registrar dónde recibe. <b>Por construir</b></span></div>
-        <div class="fila"><span class="et">⚠️ Antes</span><span>Hablar con un contador: si la plata de las tiendas pasa por la cuenta de DecoIArte, cambia cómo se factura y qué retenciones aplican</span></div>
-    </div>
-    <div class="plan" style="border-left-color:var(--ambar);">
-        <div class="plan-nom" style="margin-bottom:6px;">🧱 Qué puede vender una tienda</div>
-        <div class="fila"><span class="et">Categorías</span><span>18: pisos, enchapes, cocinas, baños, materiales, estructuras, ferretería, eléctricos, cables, plomería, pintura, puertas, muebles, electrodomésticos, electrónica, jardinería, seguridad, otros. Cubren tuercas, tornillos, cemento, arena, pintura, pisos, muebles y comedores</span></div>
-        <div class="fila"><span class="et">Sin pagar</span><span>La empresa que no ha pagado <b>arma su tienda a mano</b> (datos, logo, productos uno por uno), pero <b>no usa la IA</b>: importar catálogo por PDF o por link exige plan activo en el servidor (<span class="ruta">exigir_duenio_tienda(..., pagado=True)</span>) ✅</span></div>
-        <div class="fila"><span class="et">Mis productos</span><span>Agrupados por <b>catálogo</b> (columna <span class="ruta">productos.catalogo</span>; al importar un PDF toma el nombre del archivo). Buscador, filtros por catálogo, categoría y estado (incluye "precio en $0") y vista <b>☰ Lista</b> para editar nombre, precio, unidad, stock y catálogo directo sobre la fila ✅</span></div>
-        <div class="fila"><span class="et">Categorías tienda</span><span>Una <b>principal</b> y varias de <b>"También vendo"</b> (<span class="ruta">tiendas.categorias_extra</span>), las 18 en los dos lados ✅</span></div>
-        <div class="fila"><span class="et">Falta 🔲</span><span><b>Unidades de venta</b>: hoy solo m², unidad, kg, litro y caja. Una ferretería necesita <b>bulto</b> (cemento), <b>m³</b> (arena), <b>metro lineal</b> (tubo, cable), <b>galón</b> (pintura), <b>rollo</b> y <b>libra</b> (puntilla)</span></div>
-    </div>
-
-    <h2>Lo que falta</h2>
-    <h3 style="margin:6px 0 0;font-size:15px">Avance por partes</h3>
-    <div class="avance"><span class="nom" title="Falta: WhatsApp automático por tienda y velocidad del bot">Básico</span><div class="barra" title="Falta: WhatsApp automático por tienda y velocidad del bot"><i style="width:95%"></i></div><span class="pct">95%</span><span class="nom" title="Funciona completo; pulir según uso real">Profesional</span><div class="barra" title="Funciona completo; pulir según uso real"><i style="width:95%"></i></div><span class="pct">95%</span><span class="nom" title="Probar el cobro de $5.000 y el tope diario">Visitante / comprador</span><div class="barra" title="Probar el cobro de $5.000 y el tope diario"><i style="width:85%"></i></div><span class="pct">85%</span><span class="nom" title="Tema oscuro en todo, dispersión a tiendas">Marketplace</span><div class="barra" title="Tema oscuro en todo, dispersión a tiendas"><i style="width:80%"></i></div><span class="pct">80%</span><span class="nom" title="Cerrada el 25 sep">Seguridad (Fase 1)</span><div class="barra" title="Cerrada el 25 sep"><i style="width:100%"></i></div><span class="pct">100%</span><span class="nom" title="Cupo atómico y tope diario hechos; falta dispersión">Plata (Fase 2)</span><div class="barra" title="Cupo atómico hecho; faltan tope diario y dispersión"><i style="width:48%"></i></div><span class="pct">48%</span><span class="nom" title="Guarda del visor hecha; faltan Ley 1581 de empresas, unidades, WhatsApp automático, admin">Orden (Fase 3)</span><div class="barra" title="Guarda del visor hecha"><i style="width:25%"></i></div><span class="pct">25%</span><span class="nom" title="Hechos: entornos con cielo físico, reflejos, sol por hora, niveles de realismo. Faltan luz por ventanas, AO, mármoles PBR, luminarias por cuarto">Iluminación realista</span><div class="barra" title="Motor de iluminación arquitectónica sin IA"><i style="width:48%"></i></div><span class="pct">48%</span><span class="nom" title="Hechos: exteriores, escaleras, cámara de fotos, galería, carrito, editor de pared 1, Ctrl+Z. Faltan cocina, baño, pared 2, cámara exterior">Premium</span><div class="barra" title="Hechos: exteriores, escaleras, cámara de fotos, galería, carrito, editor de pared 1, Ctrl+Z. Faltan cocina, baño, pared 2, cámara exterior"><i style="width:90%"></i></div><span class="pct">90%</span><span class="nom" title="Faltan varias cámaras y el trazo vectorial">Corporativo</span><div class="barra" title="Faltan varias cámaras y el trazo vectorial"><i style="width:65%"></i></div><span class="pct">65%</span></div>
-    <div class="total-avance">
-        <div><b>≈ 87 %</b><span>avance total del proyecto (promedio pesado). Bajó de 77 % porque entró trabajo nuevo: el motor de iluminación realista</span></div>
-        <div><b>≈ 16–21</b><span>sesiones como las de esta semana para terminar todo. Las 🔴 de "antes de vender" caben en 1–2</span></div>
-    </div>
-    <div class="nota" style="margin-top:6px">Son <b>estimados</b>, no promesas: se recalculan en cada revisión. Lo que más mueve el número es Premium
-        (el módulo cocina y el editor de pared solos son unas 6 sesiones). Actualizado el 26 de septiembre de 2026.</div>
-    <div class="nota" style="margin-top:0">
-        Revisado en el código el 25 de septiembre de 2026. <b>Básico, Profesional, Visitante y el marketplace
-        ya funcionan de punta a punta</b>: lo que queda de ellos no es de producto sino de seguridad, plata y
-        puesta a punto. El siguiente producto grande es <b>Premium</b>.
-        Cuando algo se termina, se borra de aquí y se anota arriba como ✅.
-    </div>
-    <table>
-        <tr><th style="width:120px">Prioridad</th><th>Qué</th><th style="width:34%">Dónde / por qué</th></tr>
-
-        <tr><td><span class="prio p3">✅ Hecho 25 sep</span></td><td class="que"><b>Autenticación en todo el servidor.</b> <span class="ruta">app/utils/auth.py</span> (<span class="ruta">exigir_duenio</span>, <span class="ruta">exigir_duenio_tienda</span>) aplicado en <span class="ruta">catalogo</span>, <span class="ruta">video_ia</span>, <span class="ruta">modelo3d</span>, <span class="ruta">render3d</span>, <span class="ruta">planos</span>, <span class="ruta">fondo</span> y <span class="ruta">cotizacion</span>. <span class="ruta">solicitudes</span> lo usa el cliente: ahí el precio sale de la base, el link de imagen solo de nuestro Storage y el teléfono solo dígitos</td><td class="donde">Probado con ataques: sin sesión, token falso, otra cuenta, comprador, empresa sin pagar. Borrar esta fila en la próxima revisión</td></tr>
-        <tr><td><span class="prio p1">🔴 Antes de vender</span></td><td class="que"><b>Wompi en producción</b> (27 sep): el pago de <b>plan</b> ahora valida en el servidor que se pagó la diferencia real (antes activaba el plan con cualquier monto); la consulta de transacciones elige producción o pruebas según la llave; la llave pública la entrega el servidor (ya no está la de pruebas escrita en el HTML). <b>Falta</b>: poner las 4 llaves de producción en Render y hacer un pago real pequeño de prueba</td><td class="donde">Render → Environment: <span class="ruta">WOMPI_LLAVE_PUBLICA</span>, <span class="ruta">WOMPI_LLAVE_PRIVADA</span>, <span class="ruta">WOMPI_SECRETO_INTEGRIDAD</span>, <span class="ruta">WOMPI_SECRETO_EVENTOS</span></td></tr>
-        <tr><td><span class="prio p3">✅ Hecho 29 sep</span></td><td class="que"><b>Recorrido del comprador</b> revisado y probado: favorito → Remodelar (productos + imagen suman bien, <b>dos botones</b>: pagar la imagen / pedir los productos) → pedido a la tienda → domicilio → pago → envío → recibido → <b>reseña con aviso a la tienda</b> → respuesta con <b>aviso al comprador</b>. <b>Falta tu prueba real</b> con la cuenta de comprador</td><td class="donde">Marketplace · Remodelar · Mi cuenta · Dashboard</td></tr>
-        <tr><td><span class="prio p3">✅ Hecho 29 sep</span></td><td class="que"><b>Logo</b>: ahora se guarda en la tienda al subirlo (antes solo quedaba en el formulario), se ve el nuevo de inmediato y solo acepta PNG, JPG o WEBP. <b>Baúl</b>: guarda la tienda de cada producto, y las remodelaciones viejas igual llegan al carrito. <b>Portafolio</b>: sin cambios en esta revisión</td><td class="donde">Dashboard y /remodelar</td></tr>
-        <tr><td><span class="prio p1">🔴 Antes de vender</span></td><td class="que">Verificación en dos pasos en la cuenta de Google del administrador y protección de contraseñas filtradas en Supabase</td><td class="donde">Fuera del código</td></tr>
-
-        <tr><td><span class="prio p3">✅ Hecho 26 sep</span></td><td class="que"><b>Cupo atómico</b>: la función SQL <span class="ruta">descontar_foto_atomico</span> resta en un solo paso y nunca baja de cero (<span class="ruta">cupo_atomico.sql</span>). Probado con 20 generaciones simultáneas y 3 fotos: descontaron exactamente 3</td><td class="donde"><span class="ruta">limites_service.py</span>. Queda un caso chico: si llegan varias a la vez con la <b>última</b> foto, se entregan y quedan en el log como "foto sin cupo". Cerrarlo del todo = <b>reservar antes</b> de generar y devolver si falla</td></tr>
-        <tr><td><span class="prio p3">✅ Hecho 27 sep</span></td><td class="que"><b>Tope diario del comprador</b>: máximo 8 imágenes sin pagar en 24 h (las pagadas no cuentan); si la base falla no se bloquea al cliente</td><td class="donde"><span class="ruta">compras.verificar_tope_diario</span> en <span class="ruta">render3d</span></td></tr>
-        <tr><td><span class="prio p2">🟠 Plata</span></td><td class="que">Dispersión a las tiendas con Pagos a Terceros de Wompi</td><td class="donde">Marketplace · <b>antes, hablar con un contador</b></td></tr>
-
-        <tr><td><span class="prio p3">✅ Hecho 27 sep</span></td><td class="que">Guarda del Visor 3D por link directo: solo Premium y Corporativo con pago activo (antes entraba Profesional). <b>Por decidir</b>: si compradores y visitantes pueden abrir el visor</td><td class="donde"><span class="ruta">PLANES_VISOR_3D</span></td></tr>
-        <tr><td><span class="prio p3">🟢 Orden</span></td><td class="que">Pedir la Ley 1581 a las empresas creadas antes de la casilla</td><td class="donde">Dashboard · <span class="ruta">empresas.acepta_datos_en</span></td></tr>
-        <tr><td><span class="prio p3">🟢 Orden</span></td><td class="que">Unidades de venta de ferretería: bulto, m³, metro lineal, galón, rollo, libra</td><td class="donde">Dashboard · <span class="ruta">UNIDADES_PROD</span> y el cálculo de cantidades</td></tr>
-        <tr><td><span class="prio p3">🟢 Orden</span></td><td class="que">Conectar el WhatsApp de cada tienda sin hacerlo a mano (Embedded Signup de Meta)</td><td class="donde">Básico en adelante · el número no puede estar en la app normal de WhatsApp</td></tr>
-        <tr><td><span class="prio p3">🟢 Orden</span></td><td class="que">Rol de administrador en una tabla, en vez del correo fijo · cerrar políticas amplias de <span class="ruta">nodos-referencias</span></td><td class="donde">Supabase</td></tr>
-
-        <tr><td><span class="prio p2">💡 Iluminación A</span></td><td class="que"><b>Base física</b> (el entorno de reflejos ya está, con los entornos de cielo físico; falta para Estudio): luces en unidades físicas, blanco de muro cálido (~80 % de reflectancia, no blanco puro), metalness 0 en cerámicas y mármoles, exposición calibrada. Hoy el entorno no existe y los muros son #F7F7F5</td><td class="donde"><span class="ruta">configurarLuces</span>, <span class="ruta">crearMaterialPiso</span>, muros de <span class="ruta">cargarDesdePlano</span></td></tr>
-        <tr><td><span class="prio p2">💡 Iluminación B</span></td><td class="que"><b>Luz calculada por la arquitectura</b> en Python (FastAPI → JSON): posición del sol por ciudad, fecha y hora, orientación del norte; luz que entra por cada ventana y puerta exterior; luminarias por cuarto según su uso (lux de sala, cocina, baño…), potencia y temperatura de color; exposición sugerida. El visor arranca con valores por defecto y los refina al llegar la respuesta (Render gratis se duerme)</td><td class="donde"><span class="ruta">app/api/iluminacion.py</span> (nuevo) + visor</td></tr>
-        <tr><td><span class="prio p2">💡 Iluminación C</span></td><td class="que"><b>Sombras y oclusión</b>: sombra del sol ajustada al tamaño real de la casa, luces de techo por cuarto (hoy hay una sola en el centro de la escena), <b>SAO/SSAO</b> para esquinas y encuentros</td><td class="donde"><span class="ruta">configurarLuces</span> + EffectComposer</td></tr>
-        <tr><td><span class="prio p2">💡 Iluminación D</span></td><td class="que"><b>Materiales PBR</b>: mármol (blanco y <b>negro pulido</b>) con vetas procedurales, mapa de rugosidad y capa de brillo (clearcoat); madera sin aspecto plástico; reflejos nítidos de ventanas en pisos pulidos (reflexión plana o SSR, según rendimiento)</td><td class="donde"><span class="ruta">crearMaterialPiso</span>, texturas</td></tr>
-        <tr><td><span class="prio p2">💡 Iluminación E</span></td><td class="que"><b>Postprocesado moderado</b> y niveles de calidad (baja/media/alta) para que funcione en celulares. A futuro: modo <b>"foto render"</b> por trazado de rayos progresivo en el navegador (requiere subir de versión three.js; se evalúa aparte)</td><td class="donde">EffectComposer · selector de calidad</td></tr>
-        <tr><td><span class="prio p2">💬 Soporte</span></td><td class="que"><b>Ventanita de ayuda con IA</b>: enseña a usar la plataforma (comprador y tienda) y recibe <b>quejas, reclamos y preguntas</b>; los reclamos quedan registrados para el administrador (y deben poder frenar la liberación del pago si llegan antes de confirmar el recibido)</td><td class="donde">todas las páginas · panel del administrador</td></tr>
-        <tr><td><span class="prio p4">🟣 Premium</span></td><td class="que"><b>Módulo cocina</b> por piezas: cajones, caja grande, planchón, estufa gas/inducción ubicable, lavaplatos, horno empotrado, microondas, campana (detalle arriba, en el plan Premium)</td><td class="donde"><span class="ruta">/visor3d</span> · ventana aparte</td></tr>
-        <tr><td><span class="prio p4">🟣 Premium</span></td><td class="que"><b>Asistente de baño</b></td><td class="donde"><span class="ruta">/visor3d</span></td></tr>
-        <tr><td><span class="prio p4">🟣 Premium</span></td><td class="que"><b>Editor de pared, parte 2</b>: ventanas recortadas en el muro, enchape con productos del portafolio (y al carrito), copiar a otro muro. La parte 1 ya está hecha</td><td class="donde"><span class="ruta">/visor3d</span> · ventana modal</td></tr>
-        <tr><td><span class="prio p4">🟣 Premium</span></td><td class="que"><b>Cámara exterior</b> para fotos de fachada, con indicaciones o foto de referencia para el cielo y el piso</td><td class="donde"><span class="ruta">/visor3d</span> · Foto IA</td></tr>
-        <tr><td><span class="prio p4">🟣 Premium</span></td><td class="que">Definir el <b>precio</b> del plan</td><td class="donde">Decisión de negocio</td></tr>
-        <tr><td><span class="prio p4">🔴 Corporativo</span></td><td class="que"><b>Varias cámaras de video</b> en un proyecto, cada una con su recorrido</td><td class="donde"><span class="ruta">/visor3d</span> · Editor de video (hoy hay una sola)</td></tr>
-        <tr><td><span class="prio p4">🔴 Corporativo</span></td><td class="que"><b>Trazo de cámara tipo pluma vectorial</b>: curvas con manijas, suavizar, continua o punteada</td><td class="donde"><span class="ruta">/visor3d</span> · Editor de video (reemplaza <span class="ruta">dibujarLineaTrazo3D</span>)</td></tr>
-        <tr><td><span class="prio p2">🟠 Velocidad</span></td><td class="que"><b>Que el bot de WhatsApp responda más rápido.</b> Ideas en orden de impacto: calidad <span class="ruta">"medium"</span> en vez de <span class="ruta">"high"</span> para WhatsApp (menos tiempo y más barato) · analizar la foto sin bloquear el servidor y con un modelo más liviano · que Render no se duerma (cron al <span class="ruta">/salud</span> o plan pago)</td><td class="donde"><span class="ruta">whatsapp.py</span>, <span class="ruta">imagen_service.py</span>, <span class="ruta">openai_service.analizar_espacio_foto</span></td></tr>
-        <tr><td><span class="prio p3">🟢 Orden</span></td><td class="que"><b>Tema oscuro en todo el marketplace.</b> El listado de tiendas ya está oscuro con las hojas moradas de fondo (25 sep). Falta llevar el mismo estilo a las tarjetas de producto, el modal del producto, el carrito, el pago y la vista de cada tienda, que siguen blancos</td><td class="donde"><span class="ruta">frontend/marketplace.html</span> · colores fijos en <span class="ruta">.producto-card</span>, <span class="ruta">.modal-prod-*</span>, <span class="ruta">#carritoPanel</span></td></tr>
-    </table>
-
-    <h2>Reglas que no cambian</h2>
-    <ul>
-        <li><b>El enrutamiento manda.</b> Al iniciar sesión, Básico y Profesional van a <span class="ruta">/remodelar</span>;
-            Premium y Corporativo, al dashboard. Nadie ve pestañas con candado como si fueran suyas.</li>
-        <li><b>El dashboard es la administración de la tienda, para TODOS los planes.</b> Ahí se crea la tienda,
-            se sube el logo y el catálogo, se conecta WhatsApp y se registra dónde se recibe el pago
-            (pestaña <b>💳 Cobros</b>). Desde <span class="ruta">/remodelar</span> se llega con el botón <b>⚙️ Mi tienda</b>,
-            y desde el dashboard se vuelve con <b>🎨 Remodelar</b>.</li>
-        <li><b>Hay que estar pagado.</b> Plan asignado no basta: el estado debe ser
-            <span class="ruta">activo</span>. Quien no ha pagado se queda en el dashboard, donde está el botón de pago.</li>
-        <li><b>El producto no es la imagen, es el contacto y la venta.</b> La remodelación
-            es el anzuelo; el catálogo y el teléfono del cliente son el producto.</li>
-        <li><b>Cada tienda necesita su número de WhatsApp verificado en Meta.</b>
-            Una sola app de Meta para todo DecoIArte, pero un <span class="ruta">phone_number_id</span> por tienda.</li>
-        <li><b>El pago del plan es único; las recargas de IA van aparte.</b> Sin eso, un
-            cliente que genera mil imágenes deja pérdida.</li>
-        <li><b>Cálculos para pintar, IA solo para percibir.</b> De lo que devuelve la IA
-            se extrae únicamente la iluminación — nunca puede cambiar el material que el
-            cliente va a comprar.</li>
-    </ul>
-
-    <div class="pie">
-        Actualizado el 25 de septiembre de 2026 · Página interna, no indexada.<br>
-        Si algo de aquí ya no es cierto, actualízalo antes de construir encima.
-    </div>
-
-</div>
-</body>
+<p class="sub" style="margin-top:34px;border-top:1px solid rgba(139,139,167,.2);padding-top:12px">Página interna, no indexada. Cuando algo se termina, se cambia su letra arriba y se quita de Pendientes; el historial de cambios vive en Git, no aquí.</p>
+</div></body>
 </html>

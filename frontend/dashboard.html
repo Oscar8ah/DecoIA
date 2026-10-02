@@ -1135,6 +1135,7 @@ async function cargarDatos(user) {
     renderAvisoSolicitudPlan();
     renderWhatsApp(empresa);
     renderDashboard(empresa, empresa.planes, imagenesRes.data||[]);
+    if (tiendaRes.data) await conDatosLegales(tiendaRes.data);
     renderMiTienda(tiendaRes.data);
     if (tiendaRes.data) { tiendaId = tiendaRes.data.id; await cargarProductosTienda(); }
     if (!funcionDesbloqueada(PLANES_CON_IA)) {
@@ -1271,8 +1272,42 @@ function renderDashboard(empresa, plan, imagenes) {
 }
 
 // ── SUBIR LOGO ────────────────────────────────────────────────────────────
+// ── PERF-07: comprimir antes de subir (solo imágenes nuevas) ─────────────
+// Limita el lado mayor y el peso, conservando la calidad para catálogo. Los
+// PNG con transparencia pasan a WebP (también transparente); si el navegador
+// no puede generar WebP, siguen en PNG. Si la imagen ya es pequeña, o si
+// comprimida quedara más pesada, se sube la original sin tocarla.
+async function comprimirImagen(archivo, maxLado = 1600, calidad = 0.85) {
+    const TIPOS_OK = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!archivo || !TIPOS_OK.includes(archivo.type)) return archivo;
+    try {
+        const url = URL.createObjectURL(archivo);
+        const img = await new Promise((ok, mal) => { const i = new Image(); i.onload = () => ok(i); i.onerror = mal; i.src = url; });
+        URL.revokeObjectURL(url);
+        const lado = Math.max(img.naturalWidth, img.naturalHeight);
+        if (lado <= maxLado && archivo.size <= 350 * 1024) return archivo;        // ya es liviana
+        const esc = Math.min(1, maxLado / lado);
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.naturalWidth * esc); c.height = Math.round(img.naturalHeight * esc);
+        const ctx = c.getContext('2d');
+        if (archivo.type === 'image/jpeg') { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height); }
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        const destino = archivo.type === 'image/jpeg' ? 'image/jpeg' : 'image/webp';
+        let blob = await new Promise(r => c.toBlob(r, destino, calidad));
+        if (!blob) return archivo;
+        // Algunos navegadores no generan WebP y devuelven PNG: se acepta lo que salga
+        if (blob.size >= archivo.size) return archivo;                             // no empeorar
+        const ext = { 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/png': 'png' }[blob.type] || 'jpg';
+        const nombre = (archivo.name || 'imagen').replace(/\.[^.]+$/, '') + '.' + ext;
+        return new File([blob], nombre, { type: blob.type, lastModified: Date.now() });
+    } catch (e) {
+        console.warn('No se pudo comprimir la imagen; se sube la original.', e);
+        return archivo;
+    }
+}
+
 async function subirLogo(input) {
-    const archivo = input.files[0];
+    let archivo = input.files[0];   // let: luego se reemplaza por la versión comprimida
     if (!archivo) return;
     const status = document.getElementById('logoUploadStatus');
     status.innerHTML = '<span class="spinner-small"></span> Subiendo logo...';
@@ -1282,8 +1317,9 @@ async function subirLogo(input) {
             return;
         }
         const TIPOS = { 'image/png':'png', 'image/jpeg':'jpg', 'image/webp':'webp' };
+        if (!TIPOS[archivo.type]) { status.innerHTML = '<span style="color:#FCA5A5;">❌ Usa una imagen PNG, JPG o WEBP.</span>'; return; }
+        archivo = await comprimirImagen(archivo, 512);          // el logo se ve pequeño: 512 px bastan
         const ext = TIPOS[archivo.type];
-        if (!ext) { status.innerHTML = '<span style="color:#FCA5A5;">❌ Usa una imagen PNG, JPG o WEBP.</span>'; return; }
         const nombre = `logo_${empresaId}.${ext}`;
         const { error } = await db.storage.from('logos-tiendas').upload(nombre, archivo, { upsert:true, cacheControl:'3600', contentType:archivo.type });
         if (error) { console.error('Storage error:', error); throw error; }
@@ -1328,7 +1364,7 @@ async function eliminarLogo() {
 
 // ── SUBIR IMAGEN PRODUCTO ─────────────────────────────────────────────────
 async function subirImagenProducto(input) {
-    const archivo = input.files[0];
+    let archivo = input.files[0];   // let: luego se reemplaza por la versión comprimida
     if (!archivo) return;
     if (archivo.size > 5 * 1024 * 1024) {
         document.getElementById('uploadAreaContenido').innerHTML =
@@ -1342,10 +1378,11 @@ async function subirImagenProducto(input) {
     prog.style.display = 'block';
     fill.style.width   = '30%';
     try {
+        archivo = await comprimirImagen(archivo, 1600);         // más liviana para el catálogo y para quitar el fondo
         // Guardar bytes para rembg
         imagenActualBytes = await archivo.arrayBuffer();
 
-        const ext    = archivo.name.split('.').pop().toLowerCase();
+        const ext    = ({ 'image/jpeg':'jpg', 'image/png':'png', 'image/webp':'webp' })[archivo.type] || archivo.name.split('.').pop().toLowerCase();
         const nombre = `${empresaId}/prod_${Date.now()}.${ext}`;
         fill.style.width = '60%';
         const { error } = await db.storage.from('portafolio').upload(nombre, archivo, { upsert:true, contentType:archivo.type });
@@ -1386,7 +1423,11 @@ async function quitarFondoProducto() {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-btn"></span>Quitando fondo...';
     try {
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(imagenActualBytes)));
+        // Por partes: con "...bytes" de una vez, las imágenes de más de ~100 KB
+        // reventaban la pila del navegador ("Maximum call stack size exceeded")
+        const bytesFondo = new Uint8Array(imagenActualBytes); let binFondo = '';
+        for (let i = 0; i < bytesFondo.length; i += 0x8000) binFondo += String.fromCharCode.apply(null, bytesFondo.subarray(i, i + 0x8000));
+        const base64 = btoa(binFondo);
         const { data: { session } } = await db.auth.getSession();
         if (!session) throw new Error('Tu sesión expiró. Vuelve a iniciar sesión.');
         const response = await fetch('https://decoia.onrender.com/quitar-fondo', {
@@ -1455,6 +1496,22 @@ async function subirDocumento(input, tipo) {
 }
 
 // ── MI TIENDA ─────────────────────────────────────────────────────────────
+// Los datos legales (cédula/NIT, representante, RUT…) viven en la tabla privada
+// tiendas_privado (sql/rls_lecturas.sql): solo los ven el dueño y el admin.
+// Si esa tabla aún no existe, se queda con lo que traiga la tienda.
+async function conDatosLegales(tiendas) {
+    const lista = Array.isArray(tiendas) ? tiendas : [tiendas];
+    const ids = lista.filter(Boolean).map(t => t.id);
+    if (!ids.length) return tiendas;
+    try {
+        const { data, error } = await db.from('tiendas_privado').select('*').in('tienda_id', ids);
+        if (error || !data) return tiendas;
+        const porId = Object.fromEntries(data.map(p => [p.tienda_id, p]));
+        lista.forEach(t => { const p = t && porId[t.id]; if (p) Object.keys(p).forEach(k => { if (k !== 'tienda_id' && p[k] != null) t[k] = p[k]; }); });
+    } catch (_) {}
+    return tiendas;
+}
+
 function renderMiTienda(tienda) {
     if (!tienda) { montarSelectoresCategoria([], ''); return; }
     const statusCard = document.getElementById('tiendaStatusCard');

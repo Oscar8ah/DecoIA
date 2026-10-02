@@ -499,11 +499,33 @@ function abrirPanel() { document.getElementById('panelLateral').classList.add('o
 function cerrarPanel() { document.getElementById('panelLateral').classList.remove('open'); document.getElementById('overlayMenu').classList.remove('open'); document.body.style.overflow=''; }
 
 // ── CARGAR TIENDAS ────────────────────────────────────────────────
+// PERF-04: las tiendas se traen de a TIENDAS_POR_PAGINA (antes, todas de una vez,
+// sin límite). "Cargar más" trae la siguiente página; la búsqueda y las
+// categorías consultan la base, así encuentran tiendas que aún no se cargaron.
+const TIENDAS_POR_PAGINA = 24;
+let _hayMasTiendas = false, _cargandoTiendas = false, _resultadoServidor = null, _busquedaSeq = 0;
+async function cargarPaginaTiendas() {
+    if (_cargandoTiendas) return;
+    _cargandoTiendas = true;
+    const desde = todasTiendas.length;
+    const { data: tiendas } = await db.from('tiendas').select('*').eq('activa', true)
+        .order('created_at', { ascending: false }).range(desde, desde + TIENDAS_POR_PAGINA - 1);
+    const nuevas = (tiendas || []).filter(t => !todasTiendas.some(x => x.id === t.id));
+    todasTiendas = todasTiendas.concat(nuevas);
+    _hayMasTiendas = (tiendas || []).length === TIENDAS_POR_PAGINA;
+    _cargandoTiendas = false;
+    return nuevas;
+}
+async function cargarMasTiendas() {
+    const btn = document.getElementById('btnMasTiendas');
+    if (btn) { btn.disabled = true; btn.textContent = 'Cargando…'; }
+    const nuevas = await cargarPaginaTiendas();
+    aplicarFiltros();
+    if (nuevas && nuevas.length) cargarFotosTiendas(nuevas).then(aplicarFiltros).catch(() => {});
+}
 window.addEventListener('DOMContentLoaded', async () => {
     cargarFavoritos();
-    const { data: tiendas } = await db.from('tiendas').select('*').eq('activa', true).order('created_at', { ascending: false });
-    window._tiendasActivas = new Set((tiendas || []).map(t => t.id));   // el carrito no deja pedirle a una tienda inactiva
-    todasTiendas = tiendas || [];
+    await cargarPaginaTiendas();
     document.getElementById('skeletons').style.display   = 'none';
     document.getElementById('tiendasGrid').style.display = 'grid';
     renderTiendas(todasTiendas);
@@ -528,13 +550,22 @@ async function cargarFotosTiendas(tiendas) {
         (mapa[p.tienda_id] ||= []);
         if (mapa[p.tienda_id].length < 6) mapa[p.tienda_id].push(p.imagen_url);
     });
-    window._fotosTienda = mapa;
+    window._fotosTienda = Object.assign(window._fotosTienda || {}, mapa);
 }
 
 function renderTiendas(tiendas) {
     const grid     = document.getElementById('tiendasGrid');
     const contador = document.getElementById('contadorTiendas');
-    contador.textContent = `${tiendas.length} tienda${tiendas.length !== 1 ? 's' : ''}`;
+    const sinFiltros = !busquedaActual && categoriaActual === 'todas';
+    contador.textContent = `${tiendas.length}${sinFiltros && _hayMasTiendas ? '+' : ''} tienda${tiendas.length !== 1 ? 's' : ''}`;
+    let mas = document.getElementById('btnMasTiendas');
+    if (!mas) {
+        mas = document.createElement('button'); mas.id = 'btnMasTiendas'; mas.onclick = cargarMasTiendas;
+        mas.style.cssText = 'display:block;margin:-36px auto 50px;background:rgba(124,58,237,.15);border:1px solid rgba(124,58,237,.45);color:#C4B5FD;padding:12px 26px;border-radius:50px;font-weight:700;cursor:pointer;font-family:inherit;';
+        grid.after(mas);
+    }
+    mas.disabled = false; mas.textContent = 'Cargar más tiendas';
+    mas.style.display = (sinFiltros && _hayMasTiendas) ? 'block' : 'none';
     if (tiendas.length === 0) {
         grid.innerHTML = `<div class="empty-state"><div class="icon">🏪</div><h3>Próximamente más tiendas</h3><p>¿Tienes un negocio? <a href="/registro" style="color:#A78BFA;">Regístralo gratis</a></p></div>`;
         return;
@@ -682,6 +713,7 @@ function ponerTituloCategoria(cat) {
 
 function filtrarCategoria(cat, btn) {
     categoriaActual = cat;
+    clearTimeout(_timerBusqueda); _timerBusqueda = setTimeout(buscarEnServidor, 50);
     document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     ponerTituloCategoria(cat);
@@ -690,6 +722,7 @@ function filtrarCategoria(cat, btn) {
 
 function filtrarCategoriaPanel(cat, btn) {
     categoriaActual = cat;
+    clearTimeout(_timerBusqueda); _timerBusqueda = setTimeout(buscarEnServidor, 50);
     document.querySelectorAll('.panel-item').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     ponerTituloCategoria(cat);
@@ -697,10 +730,34 @@ function filtrarCategoriaPanel(cat, btn) {
     cerrarPanel();
 }
 
-function buscar(query) { busquedaActual = query.toLowerCase(); aplicarFiltros(); }
+let _timerBusqueda = null;
+function buscar(query) {
+    busquedaActual = query.toLowerCase();
+    aplicarFiltros();                                         // respuesta inmediata con lo ya cargado
+    clearTimeout(_timerBusqueda);
+    _timerBusqueda = setTimeout(buscarEnServidor, 350);       // y luego, en toda la base
+}
+async function buscarEnServidor() {
+    if (!busquedaActual && categoriaActual === 'todas') { _resultadoServidor = null; aplicarFiltros(); return; }
+    if (!_hayMasTiendas) { _resultadoServidor = null; return; }   // ya están todas cargadas: basta el filtro local
+    const seq = ++_busquedaSeq;
+    let q = db.from('tiendas').select('*').eq('activa', true).limit(60);
+    const txt = busquedaActual.replace(/[%,()*]/g, ' ').trim();
+    if (txt) q = q.or(`nombre.ilike.%${txt}%,descripcion.ilike.%${txt}%,ciudad.ilike.%${txt}%`);
+    if (categoriaActual !== 'todas') q = q.or(`categoria_principal.eq.${categoriaActual},categorias_extra.cs.{${categoriaActual}}`);
+    const { data } = await q;
+    if (seq !== _busquedaSeq) return;                         // llegó una búsqueda más nueva
+    _resultadoServidor = data || [];
+    const faltan = _resultadoServidor.filter(t => !(window._fotosTienda || {})[t.id]);
+    aplicarFiltros();
+    if (faltan.length) cargarFotosTiendas(faltan).then(aplicarFiltros).catch(() => {});
+}
 
 function aplicarFiltros() {
+    // Con búsqueda o categoría, se une lo cargado con lo que encontró la base
     let filtradas = todasTiendas;
+    if (_resultadoServidor && (busquedaActual || categoriaActual !== 'todas'))
+        filtradas = todasTiendas.concat(_resultadoServidor.filter(t => !todasTiendas.some(x => x.id === t.id)));
     // Cuenta la categoría principal y las de "También vendo" (tiendas.categorias_extra)
     if (categoriaActual !== 'todas') filtradas = filtradas.filter(t =>
         t.categoria_principal === categoriaActual || (Array.isArray(t.categorias_extra) && t.categorias_extra.includes(categoriaActual)));
@@ -1023,7 +1080,7 @@ function carritoRenderPanel() {
                 <span>Subtotal ${grupo.tienda.nombre}</span>
                 <strong>${carritoFormatPrecio(subtotal)}</strong>
             </div>
-            ${window._tiendasActivas && !window._tiendasActivas.has(tid)
+            ${window._tiendasInactivas && window._tiendasInactivas.has(tid)
                 ? `<div style="margin:8px 16px 12px;padding:10px;border-radius:10px;background:#FEF2F2;border:1px solid #FCA5A5;color:#B91C1C;font-size:12.5px;text-align:center;">⛔ ${esc(grupo.tienda.nombre)} no está recibiendo pedidos. Quita estos productos del carrito.</div>`
                 : `<button class="carrito-btn-wompi" onclick="pagarConWompi('${tid}')">🚚 Pedir a ${esc(grupo.tienda.nombre)}</button>`}
             <div style="font-size:11px;color:#6B7280;margin-top:4px;text-align:center;">La tienda cotiza el domicilio y pagas el total en Mi cuenta. No se cobra nada ahora.</div>
@@ -1051,7 +1108,19 @@ function mostrarAvisoPedidoEnviado(tienda, referencia, subtotal) {
 }
 
 
+// ¿Alguna tienda del carrito ya no está activa? Se pregunta solo por esas tiendas.
+async function verificarTiendasCarrito() {
+    const ids = Object.keys(carrito || {});
+    if (!ids.length) { window._tiendasInactivas = new Set(); return; }
+    try {
+        const { data } = await db.from('tiendas').select('id').in('id', ids).eq('activa', true);
+        const activas = new Set((data || []).map(t => t.id));
+        window._tiendasInactivas = new Set(ids.filter(id => !activas.has(id)));
+    } catch (_) { window._tiendasInactivas = new Set(); }
+}
+
 function carritoTogglePanel() {
+    verificarTiendasCarrito().then(() => { if (document.getElementById('carritoPanel')?.classList.contains('open')) carritoRenderPanel(); });
     cargarPedidosCarrito();
     const panel   = document.getElementById('carritoPanel');
     const overlay = document.getElementById('carritoOverlay');

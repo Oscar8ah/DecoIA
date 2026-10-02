@@ -451,7 +451,7 @@ async def procesar_imagen_background(
                 settings, pid_envio
             )
 
-            resultado_completo = analizar_plano_completo(imagen_bytes)
+            resultado_completo = await asyncio.to_thread(analizar_plano_completo, imagen_bytes)   # PERF-01: sin congelar el servidor
             resultado          = resultado_completo.get("info", {})
             modelo_3d          = resultado_completo.get("modelo_3d")
 
@@ -583,7 +583,7 @@ async def procesar_imagen_background(
                 settings, pid_envio
             )
 
-            analisis     = analizar_espacio_foto(imagen_bytes)
+            analisis     = await asyncio.to_thread(analizar_espacio_foto, imagen_bytes)   # PERF-01: sin congelar el servidor
             tipo_espacio = analisis.get("tipo_espacio", "espacio")
 
             await enviar_mensaje_whatsapp(

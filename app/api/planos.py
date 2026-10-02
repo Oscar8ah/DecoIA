@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import time
@@ -61,7 +62,7 @@ async def analizar_plano_arquitectonico(
         raise HTTPException(status_code=400, detail="La imagen supera el máximo de 10MB.")
 
     try:
-        resultado_completo = analizar_plano_completo(contenido)
+        resultado_completo = await asyncio.to_thread(analizar_plano_completo, contenido)   # PERF-01: sin congelar el servidor
     except Exception as e:
         logger.error(f"Error analizando plano arquitectónico: {e}")
         raise HTTPException(status_code=502, detail="Error interpretando el plano con IA.")

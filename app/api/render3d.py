@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import base64
 import io
@@ -190,7 +191,10 @@ async def generar_render_3d(data: RenderRequest, request: Request):
             except Exception as e:
                 logger.warning(f"No se pudo descargar la imagen del producto ({data.producto_imagen_url}): {e} — se sigue solo con texto")
 
-        response = client.images.edit(
+        # PERF-01: el cliente de OpenAI es síncrono; se ejecuta en un hilo aparte
+        # para no congelar el servidor (WEB_CONCURRENCY=1) mientras genera.
+        response = await asyncio.to_thread(
+            client.images.edit,
             model  = "gpt-image-1",
             image  = imagenes_envio,                # BytesIO único, o lista [cuarto, producto]
             prompt = prompt_final,

@@ -420,6 +420,22 @@ window.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('mainContent').style.display    = 'block';
 });
 
+// Los datos legales (cédula/NIT, representante, RUT…) viven en la tabla privada
+// tiendas_privado (sql/rls_lecturas.sql): solo los ven el dueño y el admin.
+// Si esa tabla aún no existe, se queda con lo que traiga la tienda.
+async function conDatosLegales(tiendas) {
+    const lista = Array.isArray(tiendas) ? tiendas : [tiendas];
+    const ids = lista.filter(Boolean).map(t => t.id);
+    if (!ids.length) return tiendas;
+    try {
+        const { data, error } = await db.from('tiendas_privado').select('*').in('tienda_id', ids);
+        if (error || !data) return tiendas;
+        const porId = Object.fromEntries(data.map(p => [p.tienda_id, p]));
+        lista.forEach(t => { const p = t && porId[t.id]; if (p) Object.keys(p).forEach(k => { if (k !== 'tienda_id' && p[k] != null) t[k] = p[k]; }); });
+    } catch (_) {}
+    return tiendas;
+}
+
 async function cargarTodo() {
     const [empresasRes, imagenesRes, pagosRes, tiendasRes, planesRes, consumidoresRes, solicitudesRes] = await Promise.all([
         db.from('empresas').select('*, planes(nombre,precio)').order('created_at',{ascending:false}),
@@ -433,6 +449,7 @@ async function cargarTodo() {
 
     todasEmpresas       = empresasRes.data || [];
     todasTiendas        = tiendasRes.data  || [];
+    await conDatosLegales(todasTiendas);   // cédula/NIT, RUT… desde la tabla privada (solo admin y dueño)
     todosPlanes         = planesRes.data   || [];
     todosConsumidores   = consumidoresRes.data || [];
     todasSolicitudesPlan = solicitudesRes.data || [];
