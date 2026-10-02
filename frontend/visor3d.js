@@ -1,0 +1,9418 @@
+// Código del Visor 3D (antes inline en visor3d.html). Archivo aparte para que el
+// navegador lo guarde en caché entre visitas (PERF-02). Se carga con defer, en el
+// mismo orden que antes: después de three.js, sus controles, Sky.js y Supabase.
+
+// ── SUPABASE ──────────────────────────────────────────────────────────────
+const SUPABASE_URL      = 'https://cqwbsikyzdtegutyvgfo.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNxd2JzaWt5emR0ZWd1dHl2Z2ZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NTk5MjUsImV4cCI6MjA5NDMzNTkyNX0.v9Qmp85POur1zZ3nHVYNRyhqHAi4VawafBsCiXF72Yo';
+const { createClient } = supabase;
+// Escapa HTML para evitar XSS al insertar nombres de productos/módulos que
+// pueden venir de otra tienda (cualquier visitante puede abrir este visor)
+function esc(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { flowType: 'pkce', persistSession: true, detectSessionInUrl: true, autoRefreshToken: true }
+});
+
+// ── VENTANA CORREDIZA ALUMINIO ────────────────────────────────────────────
+function construirGeometriaHueco(g, W, H) {
+    while (g.children.length > 0) g.remove(g.children[0]);
+    const matMarco = new THREE.MeshStandardMaterial({ color:0xAAAAAA, roughness:0.6, transparent:true, opacity:0.55 });
+    // Solo un marco delgado — no hay hoja, es una abertura
+    [{geo:new THREE.BoxGeometry(0.04,H,0.06),pos:[-W/2,0,0]},{geo:new THREE.BoxGeometry(0.04,H,0.06),pos:[W/2,0,0]},{geo:new THREE.BoxGeometry(W+0.04,0.04,0.06),pos:[0,H/2,0]}]
+        .forEach(m => { const marco=new THREE.Mesh(m.geo,matMarco); marco.position.set(...m.pos); g.add(marco); });
+}
+
+function construirGeometriaPuerta(g, W, H) {
+    while (g.children.length > 0) g.remove(g.children[0]);
+    const marcoMatP = new THREE.MeshStandardMaterial({ color:0x8B6914, roughness:0.5 });
+    const hojaMatP  = new THREE.MeshStandardMaterial({ color:0x6B4423, roughness:0.6 });
+    const hoja = new THREE.Mesh(new THREE.BoxGeometry(W*0.92, H*0.96, 0.05), hojaMatP);
+    g.add(hoja);
+    const manija = new THREE.Mesh(new THREE.SphereGeometry(0.03,8,8), new THREE.MeshStandardMaterial({color:0xD4AF37, metalness:0.7, roughness:0.3}));
+    manija.position.set(W*0.32, 0, 0.05);
+    g.add(manija);
+    [{geo:new THREE.BoxGeometry(0.06,H,0.08),pos:[-W/2,0,0]},{geo:new THREE.BoxGeometry(0.06,H,0.08),pos:[W/2,0,0]},{geo:new THREE.BoxGeometry(W+0.06,0.06,0.08),pos:[0,H/2,0]}]
+        .forEach(m => { const marco=new THREE.Mesh(m.geo,marcoMatP); marco.position.set(...m.pos); g.add(marco); });
+}
+
+function construirGeometriaVentana(g, id, W, H) {
+    while (g.children.length > 0) g.remove(g.children[0]);
+    const colorAlum   = id === 'ventana_blanca' ? 0xDDDDDD : 0x252525;
+    const colorBrillo = id === 'ventana_blanca' ? 0xEEEEEE : 0x333333;
+    const matAlum   = new THREE.MeshStandardMaterial({ color:colorAlum,   roughness:0.25, metalness:0.75 });
+    const matBrillo = new THREE.MeshStandardMaterial({ color:colorBrillo, roughness:0.2,  metalness:0.85 });
+    // Vidrio real: NO es metal (con 0,95 de metal salía gris o espejo). Casi
+    // transparente, liso y con el reflejo del cielo cuando hay entorno.
+    const matVidrio = new THREE.MeshStandardMaterial({ color:0xD6E8F2, transparent:true, opacity:0.2, metalness:0, roughness:0.04,
+        envMapIntensity:1.2, depthWrite:false, side:THREE.DoubleSide });
+    const matManija = new THREE.MeshStandardMaterial({ color:0x111111, roughness:0.3, metalness:0.8 });
+    const B = Math.max(0.025, W*0.028);
+    const D = 0.055;
+    // Marco exterior
+    [[W,B,D,0,H/2,0],[W,B,D,0,-H/2,0],[B,H,D,-W/2,0,0],[B,H,D,W/2,0,0],[W,B*0.5,D*1.1,0,-H/2+B*0.25,D*0.05]].forEach(([w,h,d,x,y,z])=>{
+        const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),matAlum); m.position.set(x,y,z); g.add(m);
+    });
+    // Divisor
+    const div=new THREE.Mesh(new THREE.BoxGeometry(B*1.1,H-B*2,D*0.8),matBrillo); div.position.set(0,0,0); g.add(div);
+    // Hoja izquierda
+    const hw=W/2-B*1.4;
+    [[hw,B*0.85,D*0.7,-W/4,H/2-B*0.75,D*0.04],[hw,B*0.85,D*0.7,-W/4,-H/2+B*0.75,D*0.04],[B*0.85,H-B*2.5,D*0.7,-W/2+B*1.1,0,D*0.04],[B*0.85,H-B*2.5,D*0.7,-B*0.55,0,D*0.04]].forEach(([w,h,d,x,y,z])=>{
+        const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),matBrillo); m.position.set(x,y,z); g.add(m);
+    });
+    const vi=new THREE.Mesh(new THREE.BoxGeometry(hw-B*1.2,H-B*3,0.004),matVidrio); vi.position.set(-W/4,0,D*0.04); g.add(vi);
+    // Hoja derecha
+    const off=D*0.07;
+    [[hw,B*0.85,D*0.7,W/4,H/2-B*0.75,-off],[hw,B*0.85,D*0.7,W/4,-H/2+B*0.75,-off],[B*0.85,H-B*2.5,D*0.7,B*0.55,0,-off],[B*0.85,H-B*2.5,D*0.7,W/2-B*1.1,0,-off]].forEach(([w,h,d,x,y,z])=>{
+        const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),matBrillo); m.position.set(x,y,z); g.add(m);
+    });
+    const vd=new THREE.Mesh(new THREE.BoxGeometry(hw-B*1.2,H-B*3,0.004),matVidrio); vd.position.set(W/4,0,-off); g.add(vd);
+    // Manija
+    const mb=new THREE.Mesh(new THREE.BoxGeometry(0.022,0.06,0.02),matManija); mb.position.set(0.008,0,D*0.04+0.01); g.add(mb);
+    const mp=new THREE.Mesh(new THREE.BoxGeometry(0.01,0.035,0.016),matManija); mp.position.set(0.008,0.018,D*0.04+0.02); g.add(mp);
+}
+
+
+
+function cerrarPanelVentana() {
+    document.getElementById('ventanaDimPanel').style.display = 'none';
+    window._ventanaPanelId = null;
+}
+
+let cuartoVentanaActual = null; // id del módulo contra el que se calculan las paredes de la ventana/puerta seleccionada
+
+function abrirPanelVentana(id) {
+    const nombres = {
+        ventana_blanca: '🪟 Ventana blanca',
+        ventana_negra:  '🖤 Ventana negra',
+        ventana_balcon: '🏙️ Ventana balcón',
+        puerta:         '🚪 Puerta'
+    };
+    const tituloEl = document.getElementById('vdpTitulo');
+    if (tituloEl) tituloEl.textContent = nombres[id] || '🪟 Ventana';
+    window._ventanaPanelId = id;
+    paredVentanaActual = null;
+
+    // Selector de cuarto — solo si hay más de un módulo en el plano
+    const wrap = document.getElementById('vdpCuartoWrap');
+    const sel  = document.getElementById('vdpCuartoSelect');
+    if (modulosActuales3D.length > 1) {
+        wrap.style.display = 'block';
+        sel.innerHTML = modulosActuales3D.map(m => `<option value="${m.id}">${esc(m.nombre)}</option>`).join('');
+        const g = mobiliarioMeshes[id];
+        // Preseleccionar el cuarto más cercano a donde esté ahora mismo el mueble
+        let masCercano = modulosActuales3D[0], mejorDist = Infinity;
+        const px = g ? g.position.x : 0, pz = g ? g.position.z : 0;
+        modulosActuales3D.forEach(m => {
+            const d = Math.hypot(m.cx - px, m.cz - pz);
+            if (d < mejorDist) { mejorDist = d; masCercano = m; }
+        });
+        sel.value = masCercano.id;
+        cuartoVentanaActual = masCercano.id;
+    } else {
+        wrap.style.display = 'none';
+        cuartoVentanaActual = modulosActuales3D[0]?.id ?? null;
+    }
+
+    // Cargar dims actuales de esa ventana/puerta
+    const g = mobiliarioMeshes[id];
+    if (g) {
+        const inputA = document.getElementById('vdpAncho');
+        const inputH = document.getElementById('vdpAlto');
+        if (inputA) inputA.value = g.userData.ventanaAncho || (id==='ventana_balcon' ? 2.4 : id==='puerta' ? 0.9 : 1.2);
+        if (inputH) inputH.value = g.userData.ventanaAlto  || (id==='ventana_balcon' ? 2.2 : id==='puerta' ? 2.1 : 0.9);
+    }
+    document.getElementById('ventanaDimPanel').style.display = 'block';
+}
+
+function cambiarCuartoVentana(id) {
+    cuartoVentanaActual = id;
+    paredVentanaActual = null;
+    mostrarToast('📐 Ahora se colocará contra ' + (modulosActuales3D.find(m=>m.id===id)?.nombre || 'ese cuarto'));
+}
+
+function togglePanelVentana() {
+    const body = document.getElementById('vdpContenido');
+    const btn  = document.getElementById('btnMinVentana');
+    if (!body || !btn) return;
+    const visible = body.style.display !== 'none';
+    body.style.display = visible ? 'none' : 'block';
+    btn.textContent    = visible ? '+' : '—';
+}
+
+
+function construirGeometriaVentanaBalcon(g, W, H) {
+    while (g.children.length > 0) g.remove(g.children[0]);
+
+    const matAlum = new THREE.MeshStandardMaterial({ color:0xD8D8D8, roughness:0.2, metalness:0.8 });
+    const matVidrio = new THREE.MeshStandardMaterial({
+        color:0xCCDDEE, transparent:true, opacity:0.12,
+        metalness:0.98, roughness:0.01, side:THREE.DoubleSide,
+        envMapIntensity: 1.5
+    });
+    const matManija = new THREE.MeshStandardMaterial({ color:0x888888, roughness:0.2, metalness:0.9 });
+
+    const B  = 0.04;   // perfilería delgada
+    const D  = 0.08;   // profundidad
+    const nHojas = 3;  // 3 hojas verticales
+
+    // Marco exterior
+    [[W,B,D,0,H/2,0],[W,B,D,0,-H/2,0],
+     [B,H,D,-W/2,0,0],[B,H,D,W/2,0,0],
+     [W,B*0.6,D*1.1,0,-H/2+B*0.3,D*0.06], // riel inferior
+     [W,B*0.5,D*0.9,0, H/2-B*0.25,0]       // riel superior
+    ].forEach(([w,h,d,x,y,z])=>{
+        const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),matAlum);
+        m.position.set(x,y,z); g.add(m);
+    });
+
+    // 3 hojas verticales
+    const hw = (W - B*2) / nHojas;
+    for (let i = 0; i < nHojas; i++) {
+        const xHoja = -W/2 + B + hw*(i+0.5);
+        const offset = (i % 2 === 0) ? 0 : D*0.08; // hojas alternas ligeramente detrás
+
+        // Marco de hoja
+        [[hw,B*0.9,D*0.7,xHoja, H/2-B*0.7,-offset],
+         [hw,B*0.9,D*0.7,xHoja,-H/2+B*0.7,-offset],
+         [B*0.9,H-B*2,D*0.7, xHoja-hw/2+B*0.5,0,-offset],
+         [B*0.9,H-B*2,D*0.7, xHoja+hw/2-B*0.5,0,-offset],
+        ].forEach(([w,h,d,x,y,z])=>{
+            const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),matAlum);
+            m.position.set(x,y,z); g.add(m);
+        });
+
+        // Vidrio de hoja — casi toda la altura
+        const vGlass = new THREE.Mesh(
+            new THREE.BoxGeometry(hw-B*1.8, H-B*2.5, 0.005),
+            matVidrio
+        );
+        vGlass.position.set(xHoja, 0, -offset);
+        g.add(vGlass);
+
+        // Manija en hoja central
+        if (i === 1) {
+            const mj = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.1, 0.025), matManija);
+            mj.position.set(xHoja - hw*0.45, -H*0.05, D*0.04+0.012);
+            g.add(mj);
+        }
+    }
+}
+
+function aplicarDimensionesVentana() {
+    const w   = parseFloat(document.getElementById('vdpAncho').value)||1.2;
+    const h   = parseFloat(document.getElementById('vdpAlto').value)||0.9;
+    const wCl = Math.max(0.4, Math.min(8.0, w));
+    const hCl = Math.max(0.3, Math.min(3.0, h));
+    // Aplicar solo a la ventana/puerta activa del panel
+    const id = window._ventanaPanelId || muebleSeleccionado;
+    if (!esPegableAPared(id)) { mostrarToast('⚠️ Selecciona una ventana o puerta primero'); return; }
+    const g = mobiliarioMeshes[id];
+    if (!g) return;
+    window._ventanaAncho = wCl;
+    window._ventanaAlto  = hCl;
+    if (id === 'ventana_balcon') {
+        construirGeometriaVentanaBalcon(g, wCl, hCl);
+        g.position.y = hCl / 2;
+    } else if (id === 'puerta') {
+        construirGeometriaPuerta(g, wCl, hCl);
+        g.position.y = hCl / 2;
+    } else if (id === 'hueco') {
+        construirGeometriaHueco(g, wCl, hCl);
+        g.position.y = hCl / 2;
+    } else if (id === 'toallero') {
+        // Tamaño fijo — no se reconstruye geometría, solo se guarda para el hueco/posicionamiento
+    } else {
+        construirGeometriaVentana(g, id, wCl, hCl);
+    }
+    g.userData.ventanaAncho = wCl;
+    g.userData.ventanaAlto  = hCl;
+    actualizarHuecoVentana(id);
+    mostrarToast('🪟 ' + id.replace('_',' ') + ': ' + wCl + '×' + hCl + 'm');
+}
+
+const huecosVentana = {};
+
+// ── HUECO REAL DE LA VENTANA ─────────────────────────────────────────────
+// Antes el "hueco" era una caja casi negra pintada sobre el muro: aunque el
+// vidrio fuera transparente, detrás se veía esa caja. Ahora el muro que toca
+// la ventana se esconde y se reemplaza por sus pedazos alrededor del hueco
+// (izquierda, derecha, antepecho y dintel); al mover o quitar la ventana se
+// restaura. Por la ventana se ve de verdad el exterior (y el entorno).
+const recortesVentana = {};   // id → { ocultos: [muros], piezas: [pedazos] }
+function quitarRecorteVentana(id) {
+    const r = recortesVentana[id];
+    if (!r) return;
+    r.piezas.forEach(p => { if (p.parent) p.parent.remove(p); p.geometry.dispose(); if (p.userData._matPropio) p.material.dispose(); });
+    r.ocultos.forEach(w => {
+        w.userData._ventanasQueOcultan = (w.userData._ventanasQueOcultan || []).filter(x => x !== id);
+        if (!w.userData._ventanasQueOcultan.length) w.visible = true;
+    });
+    delete recortesVentana[id];
+}
+function recortarMurosPorVentana(id) {
+    const g = mobiliarioMeshes[id];
+    if (!g) return 0;
+    g.updateMatrixWorld(true);
+    const W = g.userData.ventanaAncho || 1.2, H = g.userData.ventanaAlto || 0.9;
+    const c = g.getWorldPosition(new THREE.Vector3());
+    const aLoLargoX = Math.abs(Math.sin(g.rotation.y)) < 0.5;   // la ventana corre en X (muro norte/sur) o en Z
+    const a0 = (aLoLargoX ? c.x : c.z) - W / 2, a1 = a0 + W, y0 = c.y - H / 2, y1 = c.y + H / 2;
+    const r = { ocultos: [], piezas: [] };
+    const candidatos = [];
+    scene.traverse(o => { const u = o.userData || {};
+        if (o.isMesh && o.visible && (u.esPared || u.esFachada) && o.geometry && o.geometry.type === 'BoxGeometry') candidatos.push(o); });
+    candidatos.forEach(w => {
+        const b = new THREE.Box3().setFromObject(w);
+        const horizontal = (b.max.x - b.min.x) >= (b.max.z - b.min.z);
+        if (horizontal !== aLoLargoX) return;
+        const perp = aLoLargoX ? c.z : c.x, pmin = aLoLargoX ? b.min.z : b.min.x, pmax = aLoLargoX ? b.max.z : b.max.x;
+        if (perp < pmin - 0.25 || perp > pmax + 0.25) return;           // no es el muro donde está pegada
+        const wa0 = aLoLargoX ? b.min.x : b.min.z, wa1 = aLoLargoX ? b.max.x : b.max.z;
+        const i0 = Math.max(a0, wa0), i1 = Math.min(a1, wa1), j0 = Math.max(y0, b.min.y), j1 = Math.min(y1, b.max.y);
+        if (i1 - i0 < 0.02 || j1 - j0 < 0.02) return;                    // la ventana no lo toca
+        const esp = pmax - pmin, pc = (pmin + pmax) / 2, largoMuro = wa1 - wa0, altoMuro = b.max.y - b.min.y;
+        [[wa0, i0, b.min.y, b.max.y], [i1, wa1, b.min.y, b.max.y], [i0, i1, b.min.y, j0], [i0, i1, j1, b.max.y]]
+            .filter(([p0, p1, q0, q1]) => p1 - p0 > 0.01 && q1 - q0 > 0.01)
+            .forEach(([p0, p1, q0, q1]) => {
+                const geo = aLoLargoX ? new THREE.BoxGeometry(p1 - p0, q1 - q0, esp) : new THREE.BoxGeometry(esp, q1 - q0, p1 - p0);
+                let mat = w.material;
+                // Si el muro tiene un material por cara (textura adentro/afuera), los pedazos
+                // se re-visten después con aplicarTexturasParedes(), a su propia escala.
+                if (!Array.isArray(mat) && mat.map) {   // con textura: cada pedazo conserva la escala del muro
+                    mat = mat.clone(); const fx = (p1 - p0) / largoMuro, fy = (q1 - q0) / altoMuro;
+                    ['map', 'normalMap'].forEach(k => { if (mat[k]) { const t = mat[k].clone(); t.repeat.set(w.material[k].repeat.x * fx, w.material[k].repeat.y * fy); t.needsUpdate = true; mat[k] = t; } });
+                }
+                const m = new THREE.Mesh(geo, mat);
+                m.castShadow = w.castShadow; m.receiveShadow = w.receiveShadow;
+                m.userData = Object.assign({}, w.userData, { piezaVentana: id, _matPropio: !Array.isArray(mat) && mat !== w.material, _matsTex: [] });
+                delete m.userData._ventanasQueOcultan;
+                const centro = aLoLargoX ? new THREE.Vector3((p0 + p1) / 2, (q0 + q1) / 2, pc) : new THREE.Vector3(pc, (q0 + q1) / 2, (p0 + p1) / 2);
+                w.parent.add(m); m.position.copy(w.parent.worldToLocal(centro));
+                r.piezas.push(m);
+            });
+        w.visible = false;
+        (w.userData._ventanasQueOcultan = w.userData._ventanasQueOcultan || []).push(id);
+        r.ocultos.push(w);
+    });
+    recortesVentana[id] = r;
+    if (r.piezas.length && typeof aplicarTexturasParedes === 'function') aplicarTexturasParedes();
+    return r.ocultos.length;
+}
+function crearHuecoVentana(ventanaId, posVentana, rotY) {
+    quitarRecorteVentana(ventanaId);
+    recortarMurosPorVentana(ventanaId);
+    huecosVentana[ventanaId] = new THREE.Object3D();   // marca "tiene hueco" (no se dibuja)
+    const g = mobiliarioMeshes[ventanaId];
+    if (g) g.renderOrder = 1;
+}
+function actualizarHuecoVentana(ventanaId) {
+    if (!huecosVentana[ventanaId]) return;
+    quitarRecorteVentana(ventanaId);
+    recortarMurosPorVentana(ventanaId);
+}
+function limpiarHuecosVentana() {
+    Object.keys(recortesVentana).forEach(quitarRecorteVentana);
+    Object.keys(huecosVentana).forEach(k => delete huecosVentana[k]);
+}
+
+// ── PEGAR VENTANA A PARED ─────────────────────────────────────────────────
+// pared donde está anclada la ventana mientras se arrastra
+let paredVentanaActual = null;
+
+function nudgeVentana(dir) {
+    const id = ['ventana_blanca','ventana_negra','ventana_balcon','puerta','hueco','toallero'].find(v => mobiliarioMeshes[v] && muebleSeleccionado === v)
+             || window._ventanaPanelId
+             || ['ventana_blanca','ventana_negra','ventana_balcon','puerta','hueco','toallero'].find(v => mobiliarioMeshes[v]);
+    const g = id && mobiliarioMeshes[id];
+    if (!g || !paredVentanaActual) { mostrarToast('⚠️ Primero elige una pared'); return; }
+    const cuarto = modulosActuales3D.find(m => m.id === cuartoVentanaActual) || modulosActuales3D[0];
+    if (!cuarto) return;
+    const { cx, cz, ancho, largo } = cuarto;
+    const hw = ancho/2, hl = largo/2;
+    const vW = g.userData.ventanaAncho || 1.2;
+    const PASO = 0.15;
+    if (paredVentanaActual === 'trasera' || paredVentanaActual === 'frontal') {
+        const xMin = cx - hw + vW/2 + 0.05, xMax = cx + hw - vW/2 - 0.05;
+        g.position.x = Math.max(xMin, Math.min(xMax, g.position.x + dir * PASO));
+    } else {
+        const zMin = cz - hl + vW/2 + 0.05, zMax = cz + hl - vW/2 - 0.05;
+        g.position.z = Math.max(zMin, Math.min(zMax, g.position.z + dir * PASO));
+    }
+    if (huecosVentana[id]) crearHuecoVentana(id, g.position, g.rotation.y);
+}
+
+const LADO_A_PARED = { norte:'trasera', sur:'frontal', oeste:'izq', este:'der' };
+
+function activarElegirPared() {
+    modoElegirPared   = true;
+    modoEliminarPared = false;
+    controls.enabled  = false;
+    canvas.style.cursor = 'crosshair';
+    mostrarToast('👆 Pasa el mouse por los muros y haz click (Esc para cancelar)');
+}
+
+let modoDisenarPared = false;
+function activarDisenarPared() {
+    if (!salaConstruida) { mostrarToast('⚠️ Genera un modelo 3D primero'); return; }
+    salirModosPared();
+    modoDisenarPared = true;
+    controls.enabled  = false;
+    canvas.style.cursor = 'crosshair';
+    const b = document.getElementById('btnDisenarPared');
+    if (b) b.textContent = '✖ Cancelar (Esc)';
+    renderListaObjetos(true);
+    mostrarToast('👆 Pasa el mouse por los muros y toca el que quieras diseñar');
+}
+
+function activarEliminarPared() {
+    modoEliminarPared = true;
+    modoElegirPared   = false;
+    setTimeout(() => renderListaObjetos(true), 0);
+    controls.enabled  = false;
+    canvas.style.cursor = 'crosshair';
+    document.getElementById('btnEliminarPared').textContent = '❌ Cancelar — tocando muro para eliminar';
+    document.getElementById('btnEliminarPared').classList.add('activo-eliminar');
+    mostrarToast('👆 Pasa el mouse por los muros y haz click en el que quieras eliminar');
+}
+
+function salirModosPared() {
+    modoElegirPared = false;
+    modoEliminarPared = false;
+    modoDisenarPared = false;
+    const bd = document.getElementById('btnDisenarPared');
+    if (bd) bd.textContent = '🎨 Diseñar un muro (tocar para elegir)';
+    if (typeof renderListaObjetos === 'function') setTimeout(() => renderListaObjetos(true), 0);
+    controls.enabled = true;
+    canvas.style.cursor = 'default';
+    if (paredHovered) { emisivoMuro(paredHovered, 0x000000); paredHovered = null; }
+    const btn = document.getElementById('btnEliminarPared');
+    if (btn) { btn.textContent = '🗑️ Eliminar un muro (tocar para elegir)'; btn.classList.remove('activo-eliminar'); }
+}
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && (modoElegirPared || modoEliminarPared || modoDisenarPared)) salirModosPared();
+});
+
+function actualizarHoverParedes(ndc) {
+    mouse.set(ndc.x, ndc.y);
+    raycaster.setFromCamera(mouse, camera);
+    const hits = raycaster.intersectObjects(paredesInteractivas, false);
+    const nuevoHover = hits.length ? hits[0].object : null;
+    if (paredHovered && paredHovered !== nuevoHover) emisivoMuro(paredHovered, 0x000000);
+    if (nuevoHover) {
+        emisivoMuro(nuevoHover, modoEliminarPared ? 0xEF4444 : (modoDisenarPared ? 0x22C55E : 0x7C3AED));
+        nuevoHover.material.emissiveIntensity = 0.6;
+    }
+    paredHovered = nuevoHover;
+}
+
+function clickEnPared() {
+    if (!paredHovered) { mostrarToast('⚠️ Apunta a un muro primero'); return; }
+    const { moduloId, lado } = paredHovered.userData;
+
+    if (modoDisenarPared) {
+        const exterior = !!paredHovered.userData.esExterior;
+        emisivoMuro(paredHovered, 0x000000);
+        paredHovered = null;
+        salirModosPared();
+        abrirEditorPared(moduloId, lado, exterior);
+        return;
+    }
+
+    if (modoEliminarPared) {
+        // Eliminar visualmente y marcar para que no se reconstruya al regenerar.
+        // Se quita de su padre real (el grupo del cuarto), no de la escena:
+        // scene.remove() sobre un nieto no hace nada y el muro se quedaría.
+        (paredHovered.parent || scene).remove(paredHovered);
+        paredesInteractivas = paredesInteractivas.filter(p => p !== paredHovered);
+        const modOriginal = modulosPlanta.find(m => m.id === moduloId);
+        if (modOriginal) {
+            if (!modOriginal.paredesEliminadas) modOriginal.paredesEliminadas = [];
+            if (!modOriginal.paredesEliminadas.includes(lado)) modOriginal.paredesEliminadas.push(lado);
+        }
+        mostrarToast('🗑️ Muro eliminado');
+        paredHovered = null;
+        salirModosPared();
+        return;
+    }
+
+    if (modoElegirPared) {
+        const id = window._ventanaPanelId || muebleSeleccionado;
+        if (!id) { mostrarToast('⚠️ Selecciona primero la ventana/puerta'); salirModosPared(); return; }
+        cuartoVentanaActual = moduloId;
+        const sel = document.getElementById('vdpCuartoSelect');
+        if (sel) sel.value = moduloId;
+        seleccionarParedVentana(LADO_A_PARED[lado]);
+        salirModosPared();
+        return;
+    }
+}
+
+function seleccionarParedVentana(pared) {
+    paredVentanaActual = pared;
+    const id = ['ventana_blanca','ventana_negra','ventana_balcon','puerta','hueco','toallero'].find(v => mobiliarioMeshes[v] && muebleSeleccionado === v)
+             || window._ventanaPanelId
+             || ['ventana_blanca','ventana_negra','ventana_balcon','puerta','hueco','toallero'].find(v => mobiliarioMeshes[v]);
+    if (!id) return;
+    const g = mobiliarioMeshes[id];
+    const cuarto = modulosActuales3D.find(m => m.id === cuartoVentanaActual) || modulosActuales3D[0];
+    if (!cuarto) { mostrarToast('⚠️ Genera tu plano primero'); return; }
+    const { cx, cz, ancho, largo, alto } = cuarto;
+    const hw = ancho/2, hl = largo/2;
+    const vH = g.userData.ventanaAlto || 0.9;
+    const yPiso = (id === 'puerta' || id === 'ventana_balcon' || id === 'hueco');
+    const yToallero = (id === 'toallero') ? 1.1 : null;
+    const y  = yToallero !== null ? yToallero : yPiso ? vH/2 : Math.min(alto * 0.55, alto - vH/2 - 0.15);
+    if (pared==='trasera')  { g.position.set(cx, y, cz-hl+0.06); g.rotation.y=0; }
+    if (pared==='frontal')  { g.position.set(cx, y, cz+hl-0.06); g.rotation.y=0; }
+    if (pared==='izq')      { g.position.set(cx-hw+0.06, y, cz); g.rotation.y=Math.PI/2; }
+    if (pared==='der')      { g.position.set(cx+hw-0.06, y, cz); g.rotation.y=Math.PI/2; }
+    crearHuecoVentana(id, g.position, g.rotation.y);
+    mostrarToast((id==='puerta' ? '🚪 Puerta' : '🪟 Ventana') + ' en pared ' + pared + ' de ' + cuarto.nombre + ' — usa ◀▶ para ajustar posición');
+}
+
+function pegarVentanaAPared(ventanaGrupo, ndc) {
+    const cuarto = modulosActuales3D.find(m => m.id === cuartoVentanaActual) || modulosActuales3D[0];
+    if (!cuarto) return;
+    const { cx, cz, ancho, largo, alto } = cuarto;
+    const hw = ancho/2, hl = largo/2;
+    const vW = ventanaGrupo.userData.ventanaAncho || 1.2;
+    const vH = ventanaGrupo.userData.ventanaAlto  || 0.9;
+    // Balcón/puerta van desde el piso — y fijo en vH/2
+    const esBalcon = (muebleSeleccionado === 'ventana_balcon' || muebleSeleccionado === 'puerta' || muebleSeleccionado === 'hueco');
+    const esToallero = (muebleSeleccionado === 'toallero');
+    const yFijo    = esToallero ? 1.1 : esBalcon ? vH/2 : null;
+    const yMin     = esBalcon ? vH/2 : vH/2 + 0.25;
+    const yMax     = esBalcon ? vH/2 : alto - vH/2 - 0.15;
+
+    // Si no hay pared elegida, detectar la más cercana a la posición actual (relativa al cuarto)
+    if (!paredVentanaActual) {
+        const p = ventanaGrupo.position;
+        const dists = [
+            { n:'trasera', d: Math.abs((p.z-cz) + hl) },
+            { n:'frontal', d: Math.abs((p.z-cz) - hl) },
+            { n:'izq',     d: Math.abs((p.x-cx) + hw) },
+            { n:'der',     d: Math.abs((p.x-cx) - hw) },
+        ];
+        paredVentanaActual = dists.sort((a,b)=>a.d-b.d)[0].n;
+    }
+
+    mouse.set(ndc.x, ndc.y);
+    raycaster.setFromCamera(mouse, camera);
+
+    if (paredVentanaActual === 'trasera' || paredVentanaActual === 'frontal') {
+        const zFijo = paredVentanaActual === 'trasera' ? cz-hl+0.06 : cz+hl-0.06;
+        const signo = paredVentanaActual === 'trasera' ? 1 : -1;
+        const plano = new THREE.Plane(new THREE.Vector3(0,0,signo), signo>0 ? -(cz-hl) : (cz+hl));
+        const pt    = new THREE.Vector3();
+        if (!raycaster.ray.intersectPlane(plano, pt)) return;
+        const xMin = cx - hw + vW/2 + 0.05, xMax = cx + hw - vW/2 - 0.05;
+        ventanaGrupo.position.set(
+            Math.max(xMin, Math.min(xMax, pt.x)),
+            yFijo !== null ? yFijo : Math.max(yMin, Math.min(yMax, pt.y)),
+            zFijo
+        );
+        ventanaGrupo.rotation.y = 0;
+    } else {
+        const xFijo  = paredVentanaActual === 'izq' ? cx-hw+0.06 : cx+hw-0.06;
+        const signo  = paredVentanaActual === 'izq' ? 1 : -1;
+        const plano  = new THREE.Plane(new THREE.Vector3(signo,0,0), signo>0 ? -(cx-hw) : (cx+hw));
+        const pt     = new THREE.Vector3();
+        if (!raycaster.ray.intersectPlane(plano, pt)) return;
+        const zMin = cz - hl + vW/2 + 0.05, zMax = cz + hl - vW/2 - 0.05;
+        ventanaGrupo.position.set(
+            xFijo,
+            yFijo !== null ? yFijo : Math.max(yMin, Math.min(yMax, pt.y)),
+            Math.max(zMin, Math.min(zMax, pt.z))
+        );
+        ventanaGrupo.rotation.y = Math.PI/2;
+    }
+}
+
+const PANEL_W  = 300;
+const HEADER_H = 96;
+function getCanvasSize() {
+    const anchoPanel = document.body.classList.contains('sin-panel') ? 0 : PANEL_W;
+    return { w: Math.max(window.innerWidth - anchoPanel, 100), h: Math.max(window.innerHeight - HEADER_H, 100) };
+}
+
+// ── THREE.JS SETUP ────────────────────────────────────────────────────────
+const canvas = document.getElementById('canvas3d');
+const { w: initW, h: initH } = getCanvasSize();
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, preserveDrawingBuffer:true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
+renderer.toneMapping          = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure  = 1.15;
+// GESTIÓN DE COLOR — faltaba y es la razón de que todo se viera apagado.
+// ACESFilmic entrega un valor lineal; si no se codifica a sRGB al escribir en
+// pantalla, los medios tonos salen oscuros y sucios. Con esto activado el
+// render sube de brillo, por eso la exposición baja a 1.0.
+renderer.outputEncoding       = THREE.sRGBEncoding;
+renderer.toneMappingExposure  = 1.0;
+renderer.outputColorSpace     = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
+renderer.setClearColor(0x0F0F1A);
+renderer.setSize(initW, initH, false);
+
+const scene  = new THREE.Scene();
+scene.fog    = new THREE.Fog(0x0F0F1A, 20, 60);
+
+const camera = new THREE.PerspectiveCamera(60, initW / initH, 0.1, 100);
+camera.position.set(0, 7, 10);
+camera.lookAt(0, 1.4, 0);
+
+const controls = new THREE.OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance   = 2;
+controls.maxDistance   = 25;
+controls.maxPolarAngle = Math.PI / 1.8;
+controls.target.set(0, 1.4, 0);
+
+// ═══════════════════════════════════════════════════════════════════════
+// EDICIÓN EN 3D — mover, rotar y escalar con gizmo
+// Hasta ahora, una vez generado el 3D no se podía corregir nada: tocaba
+// volver al Editor Planta, cambiar el número y regenerar todo. Esto usa
+// TransformControls, que viene en los ejemplos de Three.js.
+// ═══════════════════════════════════════════════════════════════════════
+let gizmo             = null;
+let modoTransformar   = false;
+let objetoTransformar = null;
+let anclajeEscala     = 'centro';   // qué cara queda quieta al escalar
+let escalaProporcional = false;
+
+function iniciarGizmo() {
+    if (gizmo) return true;
+    if (typeof THREE.TransformControls === 'undefined') {
+        mostrarToast('⚠️ No se pudo cargar el control de edición 3D');
+        return false;
+    }
+    gizmo = new THREE.TransformControls(camera, renderer.domElement);
+    // Ajuste a cuadrícula: 5cm, 15° y 5%. Sin esto es imposible dejar dos
+    // muebles alineados a ojo.
+    gizmo.setTranslationSnap(0.05);
+    gizmo.setRotationSnap(THREE.MathUtils.degToRad(15));
+    gizmo.setScaleSnap(0.05);
+    // Mientras se arrastra el gizmo hay que soltar la órbita, si no la cámara
+    // se mueve al mismo tiempo y no se puede apuntar.
+    gizmo.addEventListener('dragging-changed', e => {
+        controls.enabled = !e.value;
+        if (e.value) guardarPaso3D();   // al empezar a arrastrar: foto de cómo estaba, para Ctrl+Z
+    });
+    gizmo.addEventListener('objectChange', alTransformar);
+    scene.add(gizmo);
+    return true;
+}
+
+function objetoEditableDesde(obj) {
+    // Se sube por el árbol hasta encontrar algo que tenga sentido editar
+    // entero: un mueble completo, una columna, una viga, una puerta.
+    let o = obj;
+    while (o && o !== scene) {
+        // Plafones y cubiertas son Groups con varias mallas dentro: hay que
+        // subir hasta el grupo para moverlos completos y no una sola cara.
+        if (o.userData && o.userData.tipoEstructura) return o;
+        if (o.userData && o.userData.esPuerta && o.parent) return o.parent.parent || o.parent;
+        if (typeof mobiliarioMeshes !== 'undefined' && Object.values(mobiliarioMeshes).includes(o)) return o;
+        o = o.parent;
+    }
+    return null;
+}
+
+window.toggleModoTransformar = function() {
+    modoTransformar ? salirModoTransformar() : activarModoTransformar();
+};
+
+function activarModoTransformar() {
+    if (!salaConstruida) { mostrarToast('⚠️ Primero genera un modelo 3D'); return; }
+    if (!iniciarGizmo()) return;
+    if (modoMover) desactivarMoverMueble();
+    salirModosPared();
+    modoTransformar = true;
+    canvas.style.cursor = 'pointer';
+    const b = document.getElementById('btnTransformar');
+    b.textContent = '✕ Salir de edición';
+    b.style.background = 'rgba(239,68,68,0.12)';
+    b.style.borderColor = 'rgba(239,68,68,0.35)';
+    b.style.color = '#FCA5A5';
+    document.getElementById('panelTransformar').style.display = 'block';
+    modoGizmo('translate');
+    mostrarToast('🔧 Toca una columna, viga, puerta o mueble para editarlo');
+}
+
+function salirModoTransformar() {
+    modoTransformar = false;
+    soltarTransformar();
+    canvas.style.cursor = 'default';
+    const b = document.getElementById('btnTransformar');
+    b.textContent = '🔧 Activar edición (tocar para elegir)';
+    b.style.background = 'rgba(56,189,248,0.12)';
+    b.style.borderColor = 'rgba(56,189,248,0.35)';
+    b.style.color = '#7DD3FC';
+    document.getElementById('panelTransformar').style.display = 'none';
+}
+
+// ── EDITOR DE PARED ──────────────────────────────────────────────────────
+// Cada figura vive en el módulo de la planta: disenoParedes[lado] = [{ id,
+// forma:'rect'|'circulo', cara:'afuera'|'adentro', x, y, w, h (metros, desde la
+// esquina de abajo a la izquierda VISTA DE FRENTE), tipo:'placa'|'enchape'|
+// 'pintura', color, relieve (m) }]. En el 3D son piezas delgadas pegadas a la
+// cara del muro: se ven en las fotos y se reconstruyen al regenerar.
+const DIR_FUERA_LADO = { norte:[0,0,-1], sur:[0,0,1], oeste:[-1,0,0], este:[1,0,0] };
+const GRUESO_PARED_3D = 0.1;
+function geometriaCaraPared(info, lado, cara) {
+    const horizontal = lado === 'norte' || lado === 'sur';
+    const L = horizontal ? info.ancho : info.largo;
+    const fuera = new THREE.Vector3(...DIR_FUERA_LADO[lado]);
+    const n = cara === 'afuera' ? fuera.clone() : fuera.clone().negate();
+    // Distancia de la línea del muro a la cara: afuera con fachada = grosor de fachada + revoque
+    const conFachada = cara === 'afuera' && info.exterior && configEnvolvente.fachada;
+    const dist = conFachada ? (configEnvolvente.gruesoFachada || 0.20) - GRUESO_PARED_3D / 2 + 0.025 : GRUESO_PARED_3D / 2;
+    const linea = horizontal ? new THREE.Vector3(info.cx, 0, info.cz + (lado === 'norte' ? -info.largo / 2 : info.largo / 2))
+                             : new THREE.Vector3(info.cx + (lado === 'oeste' ? -info.ancho / 2 : info.ancho / 2), 0, info.cz);
+    const centro = linea.clone().addScaledVector(fuera, cara === 'afuera' ? dist : -dist);
+    const up = new THREE.Vector3(0, 1, 0);
+    const derecha = new THREE.Vector3().crossVectors(up, n).normalize();   // derecha vista de frente
+    const origen = centro.clone().addScaledVector(derecha, -L / 2);        // esquina izquierda
+    origen.y = info.baseY;
+    return { L, alto: info.alto, n, derecha, up, origen };
+}
+function materialFormaPared(f) {
+    const base = { roughness: f.tipo === 'pintura' ? 0.92 : (f.tipo === 'enchape' ? 0.35 : 0.7), metalness: 0 };
+    return new THREE.MeshStandardMaterial({ color: new THREE.Color(f.color || '#D6CFC4'), ...base });
+}
+function mallasDisenoPared(formas, info, lado) {
+    return (formas || []).map(f => {
+        const g = geometriaCaraPared(info, lado, f.cara || 'afuera');
+        const esp = f.tipo === 'pintura' ? 0.004 : Math.max(0.004, f.relieve ?? (f.tipo === 'placa' ? 0.03 : 0.012));
+        let geo;
+        if (f.forma === 'circulo') { geo = new THREE.CylinderGeometry(f.w / 2, f.w / 2, esp, 48); geo.rotateX(Math.PI / 2); }
+        else geo = new THREE.BoxGeometry(f.w, f.h, esp);
+        const malla = new THREE.Mesh(geo, materialFormaPared(f));
+        const cx = f.x + f.w / 2, cy = f.y + (f.forma === 'circulo' ? f.w : f.h) / 2;
+        malla.position.copy(g.origen).addScaledVector(g.derecha, cx).addScaledVector(g.up, cy).addScaledVector(g.n, esp / 2 + 0.002);
+        malla.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(g.derecha, g.up, g.n));
+        malla.castShadow = f.tipo === 'placa'; malla.receiveShadow = true;
+        malla.userData = { disenoPared: lado, formaId: f.id };
+        return malla;
+    });
+}
+
+let ep = null;   // estado del editor abierto
+function abrirEditorPared(moduloId, lado, exterior) {
+    const mod = modulosPlanta.find(m => m.id === moduloId);
+    const info3d = modulosActuales3D.find(m => m.id === moduloId);
+    if (!mod || !info3d) { mostrarToast('⚠️ Ese muro no pertenece a un cuarto de la planta'); return; }
+    const L = (lado === 'norte' || lado === 'sur') ? info3d.ancho : info3d.largo;
+    ep = { mod, lado, exterior, L, alto: info3d.alto, info3d,
+           formas: JSON.parse(JSON.stringify((mod.disenoParedes || {})[lado] || [])),
+           cara: exterior ? 'afuera' : 'adentro', herramienta: 'rect', sel: null, arrastre: null };
+    const nombreLado = { norte:'de atrás (norte)', sur:'del frente (sur)', oeste:'izquierda (oeste)', este:'derecha (este)' }[lado];
+    document.getElementById('epTitulo').textContent = `🧱 Pared ${nombreLado} — ${mod.nombre}`;
+    document.getElementById('epSub').textContent = `${L.toFixed(2)} m de largo × ${info3d.alto.toFixed(2)} m de alto · ${exterior ? 'da a la calle (fachada)' : 'interior'}`;
+    document.querySelectorAll('#epCaras button').forEach(b => { b.disabled = b.dataset.cara === 'afuera' && !exterior; });
+    document.getElementById('editorPared').style.display = 'flex';
+    epHerramienta('rect');
+    epCambiarCara(ep.cara);
+    requestAnimationFrame(epDibujar);
+}
+function cerrarEditorPared(aplicar) {
+    if (!ep) return;
+    if (aplicar) {
+        if (!ep.mod.disenoParedes) ep.mod.disenoParedes = {};
+        if (ep.formas.length) ep.mod.disenoParedes[ep.lado] = ep.formas;
+        else delete ep.mod.disenoParedes[ep.lado];
+        aplicarDisenoParedEn3D(ep.mod.id, ep.lado, ep.exterior);
+        registrarCambioPlanta();          // entra al historial (Ctrl+Z en la planta)
+        firmaUltimo3D = firmaPlanta();     // el 3D ya quedó al día: no pedir regenerar
+        actualizarAvisoRegenerar();
+        mostrarToast(`✅ Pared aplicada — ${ep.formas.length} figura${ep.formas.length === 1 ? '' : 's'}`);
+    }
+    document.getElementById('editorPared').style.display = 'none';
+    ep = null;
+}
+function aplicarDisenoParedEn3D(moduloId, lado, exterior) {
+    let cuarto = null;
+    scene.traverse(o => { if (o.userData && o.userData.tipoEstructura === 'cuarto' && o.userData.moduloId === moduloId) cuarto = o; });
+    const destino = cuarto || scene;
+    [...destino.children].filter(c => c.userData && c.userData.disenoPared === lado).forEach(c => {
+        destino.remove(c); c.geometry?.dispose(); c.material?.dispose();
+    });
+    const mod = modulosPlanta.find(m => m.id === moduloId);
+    const info = modulosActuales3D.find(m => m.id === moduloId);
+    if (!mod || !info) return;
+    destino.updateMatrixWorld(true);
+    mallasDisenoPared((mod.disenoParedes || {})[lado], { cx: info.cx, cz: info.cz, ancho: info.ancho, largo: info.largo, alto: info.alto, baseY: info.baseY, exterior }, lado)
+        .forEach(mm => { scene.add(mm); if (destino !== scene) destino.attach(mm); });
+}
+function epHerramienta(h) {
+    if (!ep) return;
+    ep.herramienta = h;
+    document.querySelectorAll('.ep-herramientas button[data-h]').forEach(b => b.classList.toggle('activa', b.dataset.h === h));
+    document.getElementById('epLienzo').style.cursor = h === 'seleccionar' ? 'default' : 'crosshair';
+}
+function epCambiarCara(c) {
+    if (!ep) return;
+    if (c === 'afuera' && !ep.exterior) c = 'adentro';
+    ep.cara = c; ep.sel = null;
+    document.querySelectorAll('#epCaras button').forEach(b => b.classList.toggle('activa', b.dataset.cara === c));
+    epPropiedades(); epDibujar();
+}
+function epMediaPared() {
+    if (!ep) return;
+    const f = { id: 'f' + Date.now(), forma: 'rect', cara: ep.cara, x: 0, y: 0, w: ep.L, h: 1.2, tipo: 'enchape', color: '#D6CFC4', relieve: 0.012 };
+    ep.formas.push(f); ep.sel = f.id; epHerramienta('seleccionar'); epPropiedades(); epDibujar();
+}
+// Escala del dibujo: la pared ocupa el lienzo con margen para las medidas
+function epVista() {
+    const c = document.getElementById('epLienzo');
+    const W = c.clientWidth, H = c.clientHeight;
+    const esc = Math.min((W - 90) / ep.L, (H - 80) / ep.alto);
+    const ox = (W - ep.L * esc) / 2, oy = (H + ep.alto * esc) / 2;   // oy = base de la pared en pantalla
+    return { W, H, esc, ox, oy, aPx: (x, y) => [ox + x * esc, oy - y * esc], aM: (px, py) => [(px - ox) / esc, (oy - py) / esc] };
+}
+const epSnap = v => Math.round(v / 0.05) * 0.05;
+const epFormasCara = () => ep.formas.filter(f => (f.cara || 'afuera') === ep.cara);
+function epAltoForma(f) { return f.forma === 'circulo' ? f.w : f.h; }
+function epDibujar() {
+    if (!ep) return;
+    const c = document.getElementById('epLienzo');
+    const dpr = window.devicePixelRatio || 1;
+    c.width = c.clientWidth * dpr; c.height = c.clientHeight * dpr;
+    const ctx = c.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const v = epVista();
+    ctx.clearRect(0, 0, v.W, v.H);
+    // Pared
+    const [x0, y0] = v.aPx(0, ep.alto);
+    ctx.fillStyle = ep.cara === 'afuera' && configEnvolvente.fachada ? '#CFC8BC' : '#E7E5E0';
+    ctx.fillRect(x0, y0, ep.L * v.esc, ep.alto * v.esc);
+    // Cuadrícula cada 50 cm
+    ctx.strokeStyle = 'rgba(15,23,42,0.08)'; ctx.lineWidth = 1;
+    for (let x = 0.5; x < ep.L; x += 0.5) { const [px] = v.aPx(x, 0); ctx.beginPath(); ctx.moveTo(px, y0); ctx.lineTo(px, v.oy); ctx.stroke(); }
+    for (let y = 0.5; y < ep.alto; y += 0.5) { const [, py] = v.aPx(0, y); ctx.beginPath(); ctx.moveTo(x0, py); ctx.lineTo(x0 + ep.L * v.esc, py); ctx.stroke(); }
+    // Puertas y vanos de este muro (como referencia; se avisa si una figura los tapa)
+    const huecosVista = [];
+    vanosPlanta.filter(vn => vn.modulo_a === ep.mod.id && vn.lado === ep.lado).forEach(vn => {
+        const horizontal = ep.lado === 'norte' || ep.lado === 'sur';
+        const inicioMod = horizontal ? ep.mod.px / ESCALA : ep.mod.pz / ESCALA;
+        let u = vn.centro - inicioMod;                          // desde el inicio del muro (x o z crecientes)
+        const g = geometriaCaraPared({ ...ep.info3d, exterior: ep.exterior }, ep.lado, ep.cara);
+        const eje = horizontal ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1);
+        if (g.derecha.dot(eje) < 0) u = ep.L - u;               // visto de frente, la derecha puede ir al revés
+        const altoV = vn.tipo === 'arco' ? ep.alto : (vn.alto || 2.1);
+        huecosVista.push({ x: u - vn.ancho / 2, w: vn.ancho, h: altoV });
+        const [px, py] = v.aPx(u - vn.ancho / 2, altoV);
+        ctx.fillStyle = '#0B0B14'; ctx.fillRect(px, py, vn.ancho * v.esc, altoV * v.esc);
+        ctx.setLineDash([5, 4]); ctx.strokeStyle = '#38BDF8'; ctx.strokeRect(px, py, vn.ancho * v.esc, altoV * v.esc); ctx.setLineDash([]);
+        ctx.fillStyle = '#7DD3FC'; ctx.font = '11px Segoe UI'; ctx.textAlign = 'center';
+        ctx.fillText(vn.tipo === 'puerta' ? '🚪 puerta' : vn.tipo === 'vano' ? 'vano' : 'arco', px + vn.ancho * v.esc / 2, py + 16);
+    });
+    // Figuras de esta cara
+    epFormasCara().forEach(f => {
+        const h = epAltoForma(f);
+        const [px, py] = v.aPx(f.x, f.y + h);
+        ctx.fillStyle = f.color || '#D6CFC4';
+        ctx.globalAlpha = f.tipo === 'pintura' ? 0.85 : 1;
+        if (f.forma === 'circulo') { ctx.beginPath(); ctx.arc(px + f.w * v.esc / 2, py + f.w * v.esc / 2, f.w * v.esc / 2, 0, Math.PI * 2); ctx.fill(); }
+        else ctx.fillRect(px, py, f.w * v.esc, h * v.esc);
+        ctx.globalAlpha = 1;
+        if (f.tipo === 'placa') {   // sombra de relieve
+            ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 2;
+            if (f.forma === 'circulo') { ctx.beginPath(); ctx.arc(px + f.w * v.esc / 2 + 1.5, py + f.w * v.esc / 2 + 1.5, f.w * v.esc / 2, 0.2, Math.PI * 0.9); ctx.stroke(); }
+            else { ctx.beginPath(); ctx.moveTo(px + f.w * v.esc, py + 2); ctx.lineTo(px + f.w * v.esc, py + h * v.esc); ctx.lineTo(px + 2, py + h * v.esc); ctx.stroke(); }
+        }
+        if (f.tipo === 'enchape' && f.forma !== 'circulo') {   // juntas cada 30 cm
+            ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.lineWidth = 1;
+            for (let a = 0.3; a < f.w; a += 0.3) { ctx.beginPath(); ctx.moveTo(px + a * v.esc, py); ctx.lineTo(px + a * v.esc, py + h * v.esc); ctx.stroke(); }
+            for (let a = 0.3; a < h; a += 0.3) { ctx.beginPath(); ctx.moveTo(px, py + a * v.esc); ctx.lineTo(px + f.w * v.esc, py + a * v.esc); ctx.stroke(); }
+        }
+        if (ep.sel === f.id) {
+            ctx.strokeStyle = '#A78BFA'; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
+            ctx.strokeRect(px - 2, py - 2, f.w * v.esc + 4, h * v.esc + 4); ctx.setLineDash([]);
+            ctx.fillStyle = '#8B5CF6'; ctx.fillRect(px + f.w * v.esc - 5, py + h * v.esc - 5, 11, 11);   // esquina ◢
+        }
+    });
+    // Borde y medidas
+    ctx.strokeStyle = '#94A3B8'; ctx.lineWidth = 1.5; ctx.strokeRect(x0, y0, ep.L * v.esc, ep.alto * v.esc);
+    ctx.fillStyle = '#CBD5E1'; ctx.font = '12px Segoe UI'; ctx.textAlign = 'center';
+    ctx.fillText(`${ep.L.toFixed(2)} m`, x0 + ep.L * v.esc / 2, v.oy + 22);
+    ctx.save(); ctx.translate(x0 - 18, y0 + ep.alto * v.esc / 2); ctx.rotate(-Math.PI / 2); ctx.fillText(`${ep.alto.toFixed(2)} m`, 0, 0); ctx.restore();
+    ctx.fillStyle = '#64748B'; ctx.font = '11px Segoe UI';
+    ctx.fillText('piso', x0 + ep.L * v.esc / 2, v.oy + 38);
+    const n = epFormasCara().length;
+    const tapa = epFormasCara().some(f => huecosVista.some(hv =>
+        f.x < hv.x + hv.w - 0.01 && f.x + f.w > hv.x + 0.01 && f.y < hv.h - 0.01));
+    const res = document.getElementById('epResumen');
+    res.innerHTML = `${n} figura${n === 1 ? '' : 's'} en la cara ${ep.cara === 'afuera' ? 'de afuera' : 'de adentro'} · ${ep.formas.length} en total`
+        + (tapa ? ' · <b style="color:#FCD34D">⚠️ Una figura tapa parte de una puerta o vano: en el 3D quedaría flotando en el hueco</b>' : '');
+}
+function epFormaEn(mx, my) {
+    const v = epVista(), [x, y] = v.aM(mx, my);
+    return [...epFormasCara()].reverse().find(f => {
+        if (f.forma === 'circulo') return Math.hypot(x - (f.x + f.w / 2), y - (f.y + f.w / 2)) <= f.w / 2;
+        return x >= f.x && x <= f.x + f.w && y >= f.y && y <= f.y + f.h;
+    }) || null;
+}
+function epLimitar(f) {
+    f.w = Math.max(0.05, Math.min(f.w, ep.L));
+    if (f.forma !== 'circulo') f.h = Math.max(0.05, Math.min(f.h, ep.alto)); else f.h = f.w;
+    f.x = Math.max(0, Math.min(f.x, ep.L - f.w));
+    f.y = Math.max(0, Math.min(f.y, ep.alto - epAltoForma(f)));
+    ['x', 'y', 'w', 'h'].forEach(k => f[k] = Math.round(f[k] * 1000) / 1000);
+}
+function epPropiedades() {
+    const caja = document.getElementById('epProps');
+    const f = ep && ep.formas.find(x => x.id === ep.sel);
+    if (!f) { caja.innerHTML = '<div style="color:var(--gris);line-height:1.6;">Dibuja una figura o toca una para editarla.<br><br><b style="color:var(--texto)">Placa</b>: sobresale de la pared (relieve).<br><b style="color:var(--texto)">Enchape</b>: zona enchapada, con juntas.<br><b style="color:var(--texto)">Pintura</b>: solo color.</div>'; return; }
+    const num = (k, et, paso = 0.05) => `<div><label>${et}</label><input type="number" step="${paso}" min="0" value="${f[k]}" oninput="epCampo('${k}', this.value)"></div>`;
+    caja.innerHTML = `
+        <div><label>Qué es</label><select onchange="epCampo('tipo', this.value)">
+            <option value="placa" ${f.tipo === 'placa' ? 'selected' : ''}>Placa en relieve</option>
+            <option value="enchape" ${f.tipo === 'enchape' ? 'selected' : ''}>Enchape</option>
+            <option value="pintura" ${f.tipo === 'pintura' ? 'selected' : ''}>Pintura</option></select></div>
+        <div><label>Color</label><input type="color" value="${f.color || '#D6CFC4'}" oninput="epCampo('color', this.value)"></div>
+        ${f.tipo === 'pintura' ? `<div><label>Pinturas DecoIArte</label><div class="paleta-pintura" data-paleta="ep">${PINTURAS_DECOIARTE.map(([n, h]) =>
+            `<button type="button" style="background:${h}" title="${n}" data-hex="${h}" class="${h.toLowerCase() === String(f.color || '').toLowerCase() ? 'activa' : ''}" onclick="elegirPintura('ep', '${h}')"></button>`).join('')}</div>
+            <div class="paleta-nombre">${nombrePintura(f.color) ? 'Pintura DecoIArte · ' + nombrePintura(f.color) : ''}</div></div>` : ''}
+        ${f.tipo === 'pintura' ? '' : `<div><label>Relieve (cm)</label><input type="number" min="0.5" max="20" step="0.5" value="${Math.round((f.relieve ?? 0.03) * 1000) / 10}" oninput="epCampo('relieve', this.value / 100)"></div>`}
+        <div class="ep-dos">${num('x', 'Desde la izquierda (m)')}${num('y', 'Desde el piso (m)')}</div>
+        <div class="ep-dos">${f.forma === 'circulo' ? num('w', 'Diámetro (m)') : num('w', 'Ancho (m)') + num('h', 'Alto (m)')}</div>
+        <button class="ep-borrar" onclick="epBorrar()">🗑 Borrar figura</button>`;
+}
+function epCampo(k, val) {
+    const f = ep && ep.formas.find(x => x.id === ep.sel);
+    if (!f) return;
+    if (['x', 'y', 'w', 'h', 'relieve'].includes(k)) { const n = parseFloat(val); if (!Number.isFinite(n)) return; f[k] = n; }
+    else f[k] = val;
+    if (k === 'tipo') { if (val === 'placa' && !(f.relieve > 0.012)) f.relieve = 0.03; if (val === 'enchape') f.relieve = 0.012; }
+    epLimitar(f); epDibujar();
+    if (k === 'tipo') epPropiedades();
+}
+function epBorrar() {
+    if (!ep || !ep.sel) return;
+    ep.formas = ep.formas.filter(f => f.id !== ep.sel); ep.sel = null; epPropiedades(); epDibujar();
+}
+(function iniciarLienzoPared() {
+    const c = document.getElementById('epLienzo');
+    if (!c) return;
+    const pos = e => { const r = c.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+    c.addEventListener('pointerdown', e => {
+        if (!ep) return;
+        c.setPointerCapture(e.pointerId);
+        const [mx, my] = pos(e), v = epVista(), [x, y] = v.aM(mx, my);
+        const sel = ep.formas.find(f => f.id === ep.sel);
+        if (sel) {   // ¿agarró la esquina ◢ de la seleccionada?
+            const [ex, ey] = v.aPx(sel.x + sel.w, sel.y);
+            if (Math.abs(mx - ex) < 10 && Math.abs(my - ey) < 10) { ep.arrastre = { modo: 'tamano', f: sel, x0: x, y0: y, w0: sel.w, h0: sel.h, top: sel.y + epAltoForma(sel) }; return; }
+        }
+        // Tocar una figura la agarra (con cualquier herramienta); tocar pared vacía dibuja
+        const f = epFormaEn(mx, my);
+        if (f) {
+            ep.sel = f.id; ep.arrastre = { modo: 'mover', f, dx: x - f.x, dy: y - f.y };
+            epPropiedades(); epDibujar(); return;
+        }
+        if (ep.herramienta === 'seleccionar') { ep.sel = null; epPropiedades(); epDibujar(); return; }
+        if (x < 0 || x > ep.L || y < 0 || y > ep.alto) return;
+        const nueva = { id: 'f' + Date.now() + Math.floor(Math.random() * 1000), forma: ep.herramienta === 'circulo' ? 'circulo' : 'rect',
+                        cuadrado: ep.herramienta === 'cuadrado', cara: ep.cara, x: epSnap(x), y: epSnap(y), w: 0.05, h: 0.05,
+                        tipo: ep.cara === 'afuera' ? 'placa' : 'enchape', color: ep.cara === 'afuera' ? '#8A8178' : '#D6CFC4', relieve: ep.cara === 'afuera' ? 0.03 : 0.012 };
+        ep.formas.push(nueva); ep.sel = nueva.id;
+        ep.arrastre = { modo: 'crear', f: nueva, x0: epSnap(x), y0: epSnap(y) };
+        epDibujar();
+    });
+    c.addEventListener('pointermove', e => {
+        if (!ep) return;
+        const [mx, my] = pos(e), v = epVista(), [x, y] = v.aM(mx, my);
+        const a = ep.arrastre;
+        if (!a) { const f = epFormaEn(mx, my); c.style.cursor = f ? 'move' : (ep.herramienta === 'seleccionar' ? 'default' : 'crosshair'); return; }
+        const f = a.f;
+        if (a.modo === 'mover') { f.x = epSnap(x - a.dx); f.y = epSnap(y - a.dy); }
+        if (a.modo === 'crear' || a.modo === 'tamano') {
+            const baseX = a.modo === 'crear' ? a.x0 : f.x;
+            let w = Math.abs(epSnap(x) - baseX), h;
+            if (a.modo === 'crear') {
+                h = Math.abs(epSnap(y) - a.y0);
+                f.x = Math.min(a.x0, epSnap(x)); f.y = Math.min(a.y0, epSnap(y));
+            } else {
+                w = Math.max(0.05, epSnap(x) - f.x);
+                h = Math.max(0.05, a.top - epSnap(y));      // la esquina ◢ baja: la parte de arriba se queda
+                f.y = a.top - h;
+            }
+            if (f.forma === 'circulo' || f.cuadrado) { const lado = Math.max(w, h); w = lado; h = lado; }
+            f.w = Math.max(0.05, w); f.h = Math.max(0.05, h);
+        }
+        epLimitar(f); epDibujar();
+    });
+    const soltar = () => {
+        if (!ep || !ep.arrastre) return;
+        const a = ep.arrastre; ep.arrastre = null;
+        if (a.modo === 'crear') {
+            if (a.f.w < 0.1 && epAltoForma(a.f) < 0.1) {   // un clic suelto: figura de 60 cm por defecto
+                a.f.w = 0.6; a.f.h = a.f.forma === 'rect' && !a.f.cuadrado ? 0.4 : 0.6; epLimitar(a.f);
+            }
+            epHerramienta('seleccionar');
+        }
+        epPropiedades(); epDibujar();
+    };
+    c.addEventListener('pointerup', soltar);
+    c.addEventListener('pointercancel', soltar);
+    window.addEventListener('resize', () => { if (ep) epDibujar(); });
+    document.addEventListener('keydown', e => {
+        if (!ep) return;
+        if (e.key === 'Escape') { e.stopPropagation(); cerrarEditorPared(false); }
+        const el = document.activeElement;
+        if ((e.key === 'Delete' || e.key === 'Backspace') && !(el && ['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName))) { e.preventDefault(); epBorrar(); }
+    }, true);
+})();
+
+// ── LISTA DE OBJETOS DEL 3D, con "en uso" y candado ──────────────────────
+// Los cuartos arrancan bloqueados: se arman en la planta y moverlos en el 3D
+// casi siempre es sin querer (se agarraba el piso en vez de la cámara).
+const bloqueosObjetos = new Map();   // clave → true/false (lo que decidió el usuario)
+function claveObjeto(o) {
+    const u = o.userData || {};
+    if (o === marcadorCamara) return 'camara';
+    if (u.tipoEstructura) return `${u.tipoEstructura}:${u.moduloId ?? o.uuid}`;
+    const k = Object.keys(typeof mobiliarioMeshes !== 'undefined' ? mobiliarioMeshes : {}).find(k => mobiliarioMeshes[k] === o);
+    return k ? 'mueble:' + k : o.uuid;
+}
+function estaBloqueado(o) {
+    const c = claveObjeto(o);
+    if (bloqueosObjetos.has(c)) return bloqueosObjetos.get(c);
+    return (o.userData || {}).tipoEstructura === 'cuarto';
+}
+function objetosEditables() {
+    const lista = [];
+    scene.traverse(o => {
+        const u = o.userData || {};
+        if (u.tipoEstructura) lista.push(o);
+    });
+    if (typeof mobiliarioMeshes !== 'undefined') Object.values(mobiliarioMeshes).forEach(o => { if (o && o.parent) lista.push(o); });
+    // Solo los de más arriba (un objeto dentro de otro de la lista no se repite)
+    const set = new Set(lista);
+    const arriba = lista.filter(o => { let p = o.parent; while (p && p !== scene) { if (set.has(p)) return false; p = p.parent; } return true; });
+    const orden = { camara:0, cuarto:1, columna:2, viga:2, escalera:2, baranda:2, plafon:3, cubierta:3, exterior:4 };
+    return arriba.sort((a, b) => (orden[(a.userData||{}).tipoEstructura] ?? 5) - (orden[(b.userData||{}).tipoEstructura] ?? 5));
+}
+function nombreObjeto(o) {
+    const u = o.userData || {};
+    if (o === marcadorCamara) return formaVideoCam.visible ? '🎥 Cámara de video' : '📸 Cámara de fotos';
+    if (u.tipoEstructura === 'cuarto') return u.moduloNombre || 'Cuarto';
+    if (u.moduloNombre) return u.moduloNombre;
+    // Columnas y vigas no traen el nombre pegado: se busca su módulo en la planta
+    const mod = u.moduloId != null ? modulosPlanta.find(m => m.id === u.moduloId) : null;
+    if (mod) return mod.nombre;
+    const c = claveObjeto(o);
+    return c.startsWith('mueble:') ? '🛋️ ' + c.slice(7).replace(/_/g, ' ') : (u.tipoEstructura || 'Objeto');
+}
+let _firmaLista = '';
+function renderListaObjetos(forzar) {
+    const caja = document.getElementById('listaObjetos3D');
+    if (!caja) return;
+    // Se esconde mientras se elige un muro: está encima del 3D y tapaba los muros de atrás
+    const eligiendoMuro = (typeof modoDisenarPared !== 'undefined' && modoDisenarPared) || modoEliminarPared || modoElegirPared;
+    const mostrar = vistaActual === '3d' && salaConstruida && !modoInterior && !eligiendoMuro;
+    caja.style.display = mostrar ? 'flex' : 'none';
+    if (!mostrar) return;
+    const objs = objetosEditables();
+    const firma = objs.map(o => claveObjeto(o) + (estaBloqueado(o) ? '1' : '0') + (o === objetoTransformar ? '*' : '')).join('|');
+    if (!forzar && firma === _firmaLista) return;
+    _firmaLista = firma;
+    window._objetosLista = objs;
+    document.getElementById('loItems').innerHTML = objs.map((o, i) => {
+        const bloq = estaBloqueado(o), uso = o === objetoTransformar;
+        // El ícono va aparte del nombre: plegada, la lista muestra solo el ícono y el candado
+        const nom = nombreObjeto(o), m = nom.match(/^(\S+)\s+(.*)$/);
+        const ico = m && !/[a-záéíóúñ0-9]/i.test(m[1]) ? m[1] : '📦', texto = m && ico === m[1] ? m[2] : nom;
+        return `<div class="lo-item${uso ? ' en-uso' : ''}${bloq ? ' bloqueado' : ''}" onclick="elegirObjetoLista(${i})" title="${esc(nom)}">
+            <span class="lo-luz"></span><span class="lo-ico">${ico}</span><span class="lo-nom">${esc(texto)}</span>
+            <button class="lo-candado" onclick="event.stopPropagation(); alternarBloqueo(${i})" title="${bloq ? 'Bloqueado: toca para desbloquear' : 'Toca para bloquear'}">${bloq ? '🔒' : '🔓'}</button>
+        </div>`;
+    }).join('') || '<div style="font-size:12px;color:var(--gris);padding:8px;">No hay objetos para mover.</div>';
+}
+function plegarListaObjetos(forzar) {
+    const caja = document.getElementById('listaObjetos3D');
+    const plegar = typeof forzar === 'boolean' ? forzar : !caja.classList.contains('plegada');
+    caja.classList.toggle('plegada', plegar);
+    caja.querySelector('.lo-plegar').textContent = plegar ? '⟨' : '⟩';
+    try { localStorage.setItem('decoia_lista_plegada', plegar ? '1' : '0'); } catch (e) {}
+}
+setTimeout(() => { try { if (localStorage.getItem('decoia_lista_plegada') === '1') plegarListaObjetos(true); } catch (e) {} }, 0);
+function elegirObjetoLista(i) {
+    const o = (window._objetosLista || [])[i];
+    if (!o) return;
+    if (estaBloqueado(o)) { mostrarToast('🔒 Está bloqueado — toca el candado para poder moverlo'); return; }
+    if (o === marcadorCamara) marcadorCamara.visible = true;
+    if (!modoTransformar) activarModoTransformar();
+    seleccionarParaTransformar(o);
+}
+function alternarBloqueo(i) {
+    const o = (window._objetosLista || [])[i];
+    if (!o) return;
+    const nuevo = !estaBloqueado(o);
+    bloqueosObjetos.set(claveObjeto(o), nuevo);
+    if (nuevo && objetoTransformar === o) salirModoTransformar();
+    mostrarToast(nuevo ? `🔒 ${nombreObjeto(o)} bloqueado` : `🔓 ${nombreObjeto(o)} se puede mover`);
+    renderListaObjetos(true);
+}
+// Los muebles se cargan sin aviso: la lista se revisa sola cada segundo en el 3D
+setInterval(() => { if (vistaActual === '3d') renderListaObjetos(); }, 1000);
+
+window.soltarTransformar = function() {
+    if (gizmo) gizmo.detach();
+    objetoTransformar = null;
+    renderListaObjetos(true);
+    document.getElementById('tfObjeto').textContent = 'Nada seleccionado';
+    document.getElementById('tfMedidas').innerHTML = '';
+};
+
+function seleccionarParaTransformar(obj) {
+    if (obj === marcadorCamara && modoInterior) { mostrarToast('En la cámara interior tú eres la cámara: camina y mira'); return; }
+    objetoTransformar = obj;
+    aplicarEjesGizmo();
+    abrirSeccionPanel('secEditar3D');
+    setTimeout(() => renderListaObjetos(true), 0);
+    // Se guarda el estado de partida: sirve para el "deshacer" y para calcular
+    // el anclaje al escalar, que necesita saber dónde estaba cada cara.
+    const escalaPrevia = obj.scale.clone();
+    obj.scale.set(1, 1, 1);
+    obj.updateMatrixWorld(true);
+    const caja = new THREE.Box3().setFromObject(obj);
+    caja.min.sub(obj.position);
+    caja.max.sub(obj.position);
+    obj.scale.copy(escalaPrevia);
+    obj.updateMatrixWorld(true);
+
+    obj.userData._tf = {
+        posicion: obj.position.clone(),
+        rotacion: obj.rotation.clone(),
+        escala:   escalaPrevia,
+        caja,
+    };
+    gizmo.attach(obj);
+    const ETIQUETA = { cuarto:'🏠 Cuarto', cubierta:'🏠 Cubierta', plafon:'⬜ Plafón',
+                       camara:'🎥 Cámara', columna:'🏛️ Columna', viga:'🪵 Viga',
+                       pared:'🧱 Pared', vidrio:'🪟 Vidrio' };
+    const t = obj.userData.tipoEstructura;
+    const nombre = obj.userData.moduloNombre
+                || (t ? (ETIQUETA[t] || t) : null)
+                || obj.userData.nombreMueble || obj.name || 'elemento';
+    document.getElementById('tfObjeto').textContent = '▸ ' + nombre;
+    mostrarMedidasTF();
+}
+
+function alTransformar() {
+    const o = objetoTransformar;
+    if (!o || !o.userData._tf) return;
+    const b = o.userData._tf;
+
+    if (gizmo.getMode() === 'scale') {
+        if (escalaProporcional) {
+            // Manda el eje que más se movió, y los otros dos lo siguen
+            const ejes = ['x','y','z'];
+            const delta = ejes.map(e => Math.abs(o.scale[e] - b.escala[e]));
+            const eje = ejes[delta.indexOf(Math.max(...delta))];
+            const k = o.scale[eje] / (b.escala[eje] || 1);
+            o.scale.set(b.escala.x*k, b.escala.y*k, b.escala.z*k);
+        }
+        if (anclajeEscala !== 'centro') {
+            // Ensanchar "de un solo lado": el gizmo siempre escala desde el
+            // centro, así que se recoloca el objeto para que la cara elegida
+            // quede exactamente donde estaba. La fórmula es absoluta, no
+            // acumulativa, para que no se vaya derivando al arrastrar.
+            const eje   = anclajeEscala.slice(1);
+            const signo = anclajeEscala[0] === '+' ? 1 : -1;
+            const borde = signo > 0 ? b.caja.max[eje] : b.caja.min[eje];
+            const caraOriginal = b.posicion[eje] + borde * b.escala[eje];
+            o.position[eje] = caraOriginal - borde * o.scale[eje];
+        }
+    }
+    mostrarMedidasTF();
+}
+
+function mostrarMedidasTF() {
+    const o = objetoTransformar, el = document.getElementById('tfMedidas');
+    if (!o || !o.userData._tf || !el) return;
+    const c = o.userData._tf.caja;
+    const m = (eje, i) => ((c.max[eje] - c.min[eje]) * o.scale[eje]).toFixed(2);
+    el.innerHTML =
+        `Ancho <b style="color:var(--texto);">${m('x')} m</b> · ` +
+        `Alto <b style="color:var(--texto);">${m('y')} m</b> · ` +
+        `Fondo <b style="color:var(--texto);">${m('z')} m</b><br>` +
+        `Giro <b style="color:var(--texto);">${Math.round(o.rotation.y * 180 / Math.PI)}°</b>`;
+}
+
+window.modoGizmo = function(modo) {
+    if (!gizmo) return;
+    gizmo.setMode(modo);
+    [['tfMover','translate'],['tfRotar','rotate'],['tfEscalar','scale']].forEach(([id, m]) => {
+        const b = document.getElementById(id);
+        const on = m === modo;
+        b.style.background  = on ? 'rgba(56,189,248,0.25)' : 'rgba(255,255,255,0.04)';
+        b.style.borderColor = on ? '#38BDF8' : 'rgba(148,163,184,0.3)';
+        b.style.color       = on ? '#fff' : 'var(--gris)';
+    });
+    document.getElementById('tfAnclaje').style.display = modo === 'scale' ? 'block' : 'none';
+};
+
+window.reiniciarTransformacion = function() {
+    const o = objetoTransformar;
+    if (!o || !o.userData._tf) { mostrarToast('⚠️ No hay nada seleccionado'); return; }
+    const b = o.userData._tf;
+    o.position.copy(b.posicion);
+    o.rotation.copy(b.rotacion);
+    o.scale.copy(b.escala);
+    mostrarMedidasTF();
+    mostrarToast('↺ Elemento devuelto a su posición original');
+};
+
+// Selección por clic
+canvas.addEventListener('click', (e) => {
+    if (!modoTransformar || !gizmo || gizmo.dragging) return;
+    const r = canvas.getBoundingClientRect();
+    mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    raycaster.setFromCamera(mouse, camera);
+    const hits = raycaster.intersectObjects(scene.children, true);
+    let habiaBloqueado = false;
+    for (const h of hits) {
+        if (gizmo && (h.object === gizmo || gizmo.getObjectById(h.object.id))) continue;
+        const obj = objetoEditableDesde(h.object);
+        if (obj && estaBloqueado(obj)) { habiaBloqueado = true; continue; }   // se sigue buscando detrás (la cámara sobre el piso)
+        if (obj) { seleccionarParaTransformar(obj); return; }
+    }
+    if (habiaBloqueado) { mostrarToast('🔒 Eso está bloqueado — desbloquéalo en la lista de objetos'); return; }
+    mostrarToast('Eso no se puede editar — prueba con una cubierta, un plafón, una columna, una viga, una puerta o un mueble');
+});
+
+// Atajos de teclado. Shift suelta el ajuste a cuadrícula mientras se mantiene.
+document.addEventListener('keydown', (e) => {
+    if (!modoTransformar || !gizmo) return;
+    if (['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName)) return;
+    if (e.key === 'w' || e.key === 'W') modoGizmo('translate');
+    if (e.key === 'e' || e.key === 'E') modoGizmo('rotate');
+    if (e.key === 'r' || e.key === 'R') modoGizmo('scale');
+    if (e.key === 'Escape') salirModoTransformar();
+    if (e.key === 'Shift') {
+        gizmo.setTranslationSnap(null); gizmo.setRotationSnap(null); gizmo.setScaleSnap(null);
+    }
+});
+document.addEventListener('keyup', (e) => {
+    if (e.key === 'Shift' && gizmo) {
+        gizmo.setTranslationSnap(0.05);
+        gizmo.setRotationSnap(THREE.MathUtils.degToRad(15));
+        gizmo.setScaleSnap(0.05);
+    }
+});
+
+// ── RAYCASTER para drag & drop ────────────────────────────────────────────
+const raycaster  = new THREE.Raycaster();
+// ── Capa de ayudas visuales ────────────────────────────────────────────
+// Capa 0 = lo que existe en la casa. Capa 1 = ayudas del editor (la camarita,
+// su gizmo, el tubo del recorrido). La cámara principal y los clics ven las
+// dos; cameraPreview (la que graba el video) solo ve la capa 0.
+const CAPA_AYUDAS = 1;
+function soloEnEditor(obj) { obj.traverse(o => o.layers.set(CAPA_AYUDAS)); }
+camera.layers.enable(CAPA_AYUDAS);
+raycaster.layers.enable(CAPA_AYUDAS);
+const mouse      = new THREE.Vector2();
+
+// ── MINI-PANTALLA "vista por dentro" (Nodos) + camarita marcadora (Entorno 3D) ──
+// Cámara y renderer SEPARADOS de la cámara principal — así el usuario puede
+// seguir orbitando libremente en Entorno 3D (viendo la camarita moverse por
+// afuera) mientras esta segunda cámara sí recorre el camino grabado en
+// primera persona, dibujando esa vista en un canvas chiquito aparte.
+const cameraPreview = new THREE.PerspectiveCamera(60, 360/240, 0.05, 100);
+let rendererPreview = null;
+const canvasPreviewEl = document.getElementById('canvasPreviewNodos');
+if (canvasPreviewEl) {
+    rendererPreview = new THREE.WebGLRenderer({ canvas: canvasPreviewEl, antialias: true });
+    rendererPreview.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    rendererPreview.setSize(360, 240, false);
+    rendererPreview.setClearColor(0x0F0F1A, 1);
+    rendererPreview.outputColorSpace = THREE.SRGBColorSpace;
+    rendererPreview.toneMapping = THREE.ACESFilmicToneMapping;
+    rendererPreview.toneMappingExposure = 1.0;
+    rendererPreview.outputEncoding = THREE.sRGBEncoding;
+}
+
+// Renderer de la pantalla en vivo dentro de Entorno 3D (comparte la misma
+// cameraPreview, así ambas pantallas muestran lo mismo que ve la cámara).
+let rendererVivo = null;
+const canvasVivoEl = document.getElementById('canvasVivoEntorno3D');
+if (canvasVivoEl) {
+    rendererVivo = new THREE.WebGLRenderer({ canvas: canvasVivoEl, antialias: true });
+    rendererVivo.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    rendererVivo.setSize(340, 220, false);
+    rendererVivo.setClearColor(0x0F0F1A, 1);
+    rendererVivo.outputColorSpace = THREE.SRGBColorSpace;
+    rendererVivo.toneMapping = THREE.ACESFilmicToneMapping;
+    rendererVivo.toneMappingExposure = 1.0;
+    rendererVivo.outputEncoding = THREE.sRGBEncoding;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// CÁMARA DE VIDEO 3D — modelo con forma de camcorder profesional.
+// Verificado con render real antes de integrarlo (cuerpo, LCD, lente con
+// parasol, asa superior, micrófono, visor, luz roja de grabando).
+// Mira hacia -Z, que es la convención de "adelante" en Three.js.
+// ══════════════════════════════════════════════════════════════════════
+const marcadorCamara = new THREE.Group();
+const matCuerpoCam  = new THREE.MeshStandardMaterial({ color: 0x2A2E35, metalness: 0.55, roughness: 0.45 });
+const matOscuroCam  = new THREE.MeshStandardMaterial({ color: 0x15171B, metalness: 0.40, roughness: 0.60 });
+const matLenteCam   = new THREE.MeshStandardMaterial({ color: 0x0A0C10, metalness: 0.90, roughness: 0.15 });
+const matVidrioCam  = new THREE.MeshStandardMaterial({ color: 0x1E3A5F, metalness: 1.0, roughness: 0.05, emissive: 0x0A1A2F, emissiveIntensity: 0.6 });
+const matDetalleCam = new THREE.MeshStandardMaterial({ color: 0x4A4F58, metalness: 0.70, roughness: 0.35 });
+const matLuzCam     = new THREE.MeshStandardMaterial({ color: 0xEF4444, emissive: 0xEF4444, emissiveIntensity: 2.0 });
+
+// Cuerpo principal + bisel frontal (le da la silueta característica)
+const cuerpoCam = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.24, 0.46), matCuerpoCam);
+cuerpoCam.position.set(0, 0, 0.02);
+const biselCam = new THREE.Mesh(new THREE.CylinderGeometry(0.135, 0.145, 0.30, 8), matCuerpoCam);
+biselCam.rotation.z = Math.PI / 2;
+biselCam.position.set(0, 0.01, -0.22);
+
+// Pantalla LCD lateral
+const marcoPantallaCam = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.17, 0.26), matOscuroCam);
+marcoPantallaCam.position.set(-0.16, 0.01, 0.05);
+const pantallaCam = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.14, 0.22), matVidrioCam);
+pantallaCam.position.set(-0.172, 0.01, 0.05);
+
+// Lente: cuerpo + anillos de enfoque + parasol + cristal
+const lenteBaseCam = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.115, 0.20, 24), matLenteCam);
+lenteBaseCam.rotation.x = Math.PI / 2;
+lenteBaseCam.position.set(0, 0.01, -0.38);
+marcadorCamara.add(cuerpoCam, biselCam, marcoPantallaCam, pantallaCam, lenteBaseCam);
+[-0.32, -0.40].forEach(z => {
+    const anillo = new THREE.Mesh(new THREE.TorusGeometry(0.108, 0.014, 10, 24), matDetalleCam);
+    anillo.rotation.y = Math.PI / 2;
+    anillo.rotation.x = Math.PI / 2;
+    anillo.position.set(0, 0.01, z);
+    marcadorCamara.add(anillo);
+});
+const campanaCam = new THREE.Mesh(new THREE.CylinderGeometry(0.135, 0.105, 0.13, 24, 1, true), matOscuroCam);
+campanaCam.rotation.x = Math.PI / 2;
+campanaCam.position.set(0, 0.01, -0.52);
+const cristalCam = new THREE.Mesh(new THREE.CircleGeometry(0.095, 24), matVidrioCam);
+cristalCam.rotation.y = Math.PI;
+cristalCam.position.set(0, 0.01, -0.475);
+
+// Asa superior con sus dos soportes
+const asaCam = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.035, 0.42), matOscuroCam);
+asaCam.position.set(0, 0.235, -0.04);
+marcadorCamara.add(campanaCam, cristalCam, asaCam);
+[-0.14, 0.16].forEach(z => {
+    const soporte = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.08, 0.05), matOscuroCam);
+    soporte.position.set(0, 0.17, z);
+    marcadorCamara.add(soporte);
+});
+
+// Visor trasero, micrófono y luz roja de grabando
+const visorCam = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.055, 0.16, 16), matOscuroCam);
+visorCam.rotation.x = Math.PI / 2.4;
+visorCam.position.set(0.02, 0.20, 0.22);
+const micCam = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.17, 12), matDetalleCam);
+micCam.rotation.x = Math.PI / 2;
+micCam.position.set(0, 0.27, -0.22);
+const luzGrabandoCam = new THREE.Mesh(new THREE.SphereGeometry(0.022, 10, 10), matLuzCam);
+luzGrabandoCam.position.set(0.10, 0.10, -0.245);
+marcadorCamara.add(visorCam, micCam, luzGrabandoCam);
+
+// ── GIZMO DE PIVOTE — los 3 ejes de color (como Unreal/Blender) ──
+function crearFlechaEje(color, direccion) {
+    const g = new THREE.Group();
+    const mat = new THREE.MeshBasicMaterial({ color });
+    const asta = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.70, 8), mat);
+    asta.position.y = 0.35;
+    const punta = new THREE.Mesh(new THREE.ConeGeometry(0.065, 0.18, 12), mat);
+    punta.position.y = 0.79;
+    g.add(asta, punta);
+    if (direccion === 'x') g.rotation.z = -Math.PI / 2;
+    if (direccion === 'z') g.rotation.x =  Math.PI / 2;
+    return g;
+}
+function crearAnilloRot(color, eje) {
+    const anillo = new THREE.Mesh(
+        new THREE.TorusGeometry(0.62, 0.014, 8, 44),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55 })
+    );
+    if (eje === 'yaw')  anillo.rotation.x = Math.PI / 2;
+    if (eje === 'roll') anillo.rotation.y = Math.PI / 2;
+    return anillo;
+}
+const gizmoPivote = new THREE.Group();
+gizmoPivote.add(
+    crearFlechaEje(0xEF4444, 'x'),   // rojo  → X (derecha)
+    crearFlechaEje(0x22C55E, 'y'),   // verde → Y (arriba)
+    crearFlechaEje(0x3B82F6, 'z'),   // azul  → Z (hacia donde mira)
+    crearAnilloRot(0x22C55E, 'yaw'),
+    crearAnilloRot(0xEF4444, 'pitch'),
+    crearAnilloRot(0x3B82F6, 'roll'),
+);
+// La camarita de VIDEO de arriba queda como una forma; al lado va una cámara
+// de FOTOS compacta y plana. Se muestra una u otra según el plan: el video es
+// solo de Corporativo, Premium solo toma fotos (ver actualizarFormaCamara).
+const formaVideoCam = new THREE.Group();
+[...marcadorCamara.children].forEach(h => formaVideoCam.add(h));
+marcadorCamara.add(formaVideoCam);
+const formaFotoCam = (() => {
+    const g = new THREE.Group();
+    const matPlata = new THREE.MeshStandardMaterial({ color: 0xC9CDD3, metalness: 0.8, roughness: 0.3 });
+    const matNegro = new THREE.MeshStandardMaterial({ color: 0x1B1D22, metalness: 0.3, roughness: 0.55 });
+    const cuerpo = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.21, 0.08), matPlata);          // cuerpo plano
+    const agarre = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.19, 0.03), matNegro);          // empuñadura
+    agarre.position.set(-0.13, 0, -0.05);
+    const aro   = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.08, 0.05, 32), matNegro); // lente
+    aro.rotation.x = Math.PI / 2; aro.position.set(0.03, 0, -0.065);
+    const tubo  = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.066, 0.045, 32), matPlata);
+    tubo.rotation.x = Math.PI / 2; tubo.position.set(0.03, 0, -0.11);
+    const vidrio = new THREE.Mesh(new THREE.CircleGeometry(0.046, 32), matVidrioCam);
+    vidrio.rotation.y = Math.PI; vidrio.position.set(0.03, 0, -0.1335);
+    const flash = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.025, 0.01),
+        new THREE.MeshStandardMaterial({ color: 0xF8FAFC, emissive: 0xE0F2FE, emissiveIntensity: 0.6 }));
+    flash.position.set(0.12, 0.07, -0.043);
+    const disparador = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.02, 20),
+        new THREE.MeshStandardMaterial({ color: 0xDC2626, metalness: 0.4, roughness: 0.4 }));
+    disparador.position.set(-0.11, 0.115, 0);
+    const pantallaTrasera = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.14),
+        new THREE.MeshStandardMaterial({ color: 0x0B1220, emissive: 0x1E3A5F, emissiveIntensity: 0.5 }));
+    pantallaTrasera.position.set(0.03, 0, 0.041);
+    g.add(cuerpo, agarre, aro, tubo, vidrio, flash, disparador, pantallaTrasera);
+    g.visible = false;
+    return g;
+})();
+marcadorCamara.add(formaFotoCam);
+
+marcadorCamara.add(gizmoPivote);
+
+// ESCALA: el modelo base mide ~0.65m (tamaño real de una cámara profesional).
+// A 3x mide ~2m — visible de verdad dentro de un apartamento de 10-12 metros
+// sin verse absurda. Verificado con render antes de integrar.
+marcadorCamara.scale.set(3, 3, 3);
+
+// ── ESTELA de la cámara — rastro que va dejando mientras graba, grueso
+// cerca de la "cabeza" (la cámara) y desvaneciéndose hacia atrás.
+let estelaCamaraObj = null;
+const PUNTOS_ESTELA = 26;
+function actualizarEstelaCamara(t) {
+    if (estelaCamaraObj) { scene.remove(estelaCamaraObj); estelaCamaraObj = null; }
+    if (!recorridoFrames.length) return;
+    // Toma los frames que ya pasaron, hasta PUNTOS_ESTELA hacia atrás
+    const pasados = recorridoFrames.filter(fr => fr.t <= t);
+    if (pasados.length < 2) return;
+    const cola = pasados.slice(-PUNTOS_ESTELA);
+
+    const grupo = new THREE.Group();
+    for (let i = 1; i < cola.length; i++) {
+        const a = cola[i-1], b = cola[i];
+        const prog = i / cola.length;           // 0 = más viejo (atrás), 1 = más nuevo (cabeza)
+        const radio   = 0.012 + prog * 0.045;   // se engruesa hacia la cabeza
+        const opacidad = 0.08 + prog * 0.72;    // se desvanece hacia la cola
+        const va = new THREE.Vector3(a.x, a.y - 0.05, a.z);
+        const vb = new THREE.Vector3(b.x, b.y - 0.05, b.z);
+        const largo = va.distanceTo(vb);
+        if (largo < 0.001) continue;
+        const seg = new THREE.Mesh(
+            new THREE.CylinderGeometry(radio, radio * 0.85, largo, 6),
+            new THREE.MeshBasicMaterial({ color: 0xFCD34D, transparent: true, opacity: opacidad, depthWrite: false })
+        );
+        seg.position.copy(va).lerp(vb, 0.5);
+        seg.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), vb.clone().sub(va).normalize());
+        grupo.add(seg);
+    }
+    estelaCamaraObj = grupo;
+    scene.add(grupo);
+}
+marcadorCamara.visible = false;
+marcarPersistente(marcadorCamara);
+// La cámara es el tercer objeto de la escena que el usuario querrá mover a
+// mano: se marca para que el gizmo la agarre como a cualquier otro.
+marcadorCamara.userData.tipoEstructura = 'camara';
+marcadorCamara.userData.moduloNombre   = '🎥 Cámara';
+// La camarita y su gizmo son AYUDAS del editor: se ven en Entorno 3D pero la
+// cámara que graba no las ve. Antes la cámara de grabación quedaba parada
+// dentro del modelo (a escala 3 el lente sobresale ~1,5 m) y lo primero que
+// salía en el video era su propio lente.
+soloEnEditor(marcadorCamara);
+scene.add(marcadorCamara);
+const planoArrastre = new THREE.Plane(new THREE.Vector3(0,1,0), 0); // plano Y=0
+const puntoArrastre = new THREE.Vector3();
+
+// ── ESTADO ────────────────────────────────────────────────────────────────
+let estado = {
+    ancho:5, largo:6, alto:2.8,
+    colorPared:'#F8F8F8',
+    materialPiso:'madera',
+    intensidadLuz:0.7,
+    tipoLuz:'dia',
+};
+
+// Catálogo de muebles disponibles
+const CATALOGO_MUEBLES = [
+    { id:'sofa',       nombre:'Sofá',          icon:'🛋️', hint:'Sala de estar' },
+    { id:'mesa',       nombre:'Mesa comedor',  icon:'🪑', hint:'Comedor' },
+    { id:'cama',       nombre:'Cama',          icon:'🛏️', hint:'Dormitorio' },
+    { id:'mesita',     nombre:'Mesa de noche', icon:'🗄️', hint:'Dormitorio' },
+    { id:'escritorio', nombre:'Escritorio',    icon:'💻', hint:'Oficina' },
+    { id:'sofa2',      nombre:'Sofá 2 plazas', icon:'🛋️', hint:'Sala' },
+    { id:'mesa_cafe',  nombre:'Mesa de café',  icon:'☕', hint:'Sala' },
+    { id:'armario',    nombre:'Armario',       icon:'🚪', hint:'Dormitorio' },
+    { id:'planta',     nombre:'Planta',        icon:'🌿', hint:'Decoración' },
+    { id:'lampara_pie',nombre:'Lámpara pie',   icon:'💡', hint:'Decoración' },
+    // ── VENTANAS ──
+    { id:'ventana_blanca',  nombre:'Ventana blanca',  icon:'🪟', hint:'Pared — marco blanco' },
+    { id:'ventana_negra',   nombre:'Ventana negra',   icon:'🖼️', hint:'Pared — marco negro' },
+    { id:'ventana_balcon',  nombre:'Ventana balcón',  icon:'🏙️', hint:'Piso a techo — 3 hojas' },
+    { id:'puerta',          nombre:'Puerta',          icon:'🚪', hint:'Pared — usa ◀ ▶ para cambiar de lado' },
+    { id:'hueco',           nombre:'Hueco / vano',    icon:'⬜', hint:'Pared — abertura sin hoja, medidas ajustables' },
+    // ── COCINA ──
+    { id:'estufa',          nombre:'Estufa',          icon:'🔥', hint:'Cocina' },
+    { id:'cocina_integral', nombre:'Cocina integral', icon:'🗄️', hint:'Cocina — mesón y cajones' },
+    // ── BAÑO ──
+    { id:'inodoro',         nombre:'Inodoro',         icon:'🚽', hint:'Baño' },
+    { id:'ducha',           nombre:'Ducha',           icon:'🚿', hint:'Baño' },
+    { id:'lavamanos',       nombre:'Lavamanos',       icon:'🧼', hint:'Baño' },
+    { id:'toallero',        nombre:'Toallero',        icon:'🏳️', hint:'Baño — pegado a pared' },
+    // ── ELECTRODOMÉSTICOS Y DECORACIÓN ──
+    { id:'tv',              nombre:'Televisor',       icon:'📺', hint:'Sala/Dormitorio' },
+    { id:'nevera',          nombre:'Nevera',          icon:'🧊', hint:'Cocina' },
+    { id:'lavadora',        nombre:'Lavadora',        icon:'🧺', hint:'Zona de ropas' },
+    { id:'microondas',      nombre:'Horno microondas',icon:'🍿', hint:'Cocina — sobre mesón' },
+    { id:'tapete',          nombre:'Tapete',          icon:'🟫', hint:'Decoración — sobre el piso' },
+    { id:'luz_techo',       nombre:'Luz de techo',    icon:'💡', hint:'Iluminación' },
+];
+
+function esPegableAPared(id) {
+    return !!id && (id.startsWith('ventana') || id === 'puerta' || id === 'hueco' || id === 'toallero');
+}
+
+let meshes            = {};
+let luces             = {};
+let modulosActuales3D = []; // {id,nombre,cx,cz,ancho,largo,alto} de cada módulo del plano cargado
+let paredesInteractivas = []; // meshes de pared tocables, con userData {moduloId, lado}
+let paredHovered        = null;
+let modoElegirPared     = false; // true mientras se está eligiendo pared para pegar ventana/puerta
+let modoEliminarPared   = false; // true mientras se está eligiendo pared para eliminarla
+let mobiliarioMeshes  = {};
+let todosProductos    = [];
+let productoActivo    = null;
+let modoInterior      = false;
+let superficieActiva  = 'piso';
+let lucesTecho        = {};
+let materialOriginalSuperficie = null;
+
+// ── DRAG & DROP estado ────────────────────────────────────────────────────
+let modoMover        = false;
+let muebleArrastrando= null;   // THREE.Group que se está moviendo
+let muebleSeleccionado = null; // id del mueble seleccionado para mover
+let offsetArrastre   = new THREE.Vector3();
+
+// ── RENDERIZAR PANEL MUEBLES ──────────────────────────────────────────────
+function renderListaMuebles() {
+    const lista = document.getElementById('listaMuebles');
+    lista.innerHTML = CATALOGO_MUEBLES.map(m => {
+        const enEscena = !!mobiliarioMeshes[m.id];
+        return `
+        <div class="mueble-card ${enEscena ? 'activo' : ''}" id="card-${m.id}">
+            <div class="mueble-icon">${m.icon}</div>
+            <div class="mueble-info">
+                <div class="mueble-nombre">${m.nombre}</div>
+                <div class="mueble-hint">${m.hint}</div>
+            </div>
+            <div class="mueble-acciones">
+                <button class="btn-mueble btn-add ${enEscena ? 'en-escena' : ''}"
+                    onclick="toggleMueble('${m.id}')" title="${enEscena ? 'Quitar' : 'Agregar'}">
+                    ${enEscena ? '✕' : '+'}
+                </button>
+                ${enEscena ? `
+                <button class="btn-mueble btn-mover ${muebleSeleccionado===m.id ? 'activo' : ''}"
+                    onclick="activarMoverMueble('${m.id}')" title="Mover a pared">↔</button>
+                ${esPegableAPared(m.id) ? `<button class="btn-mueble btn-rotar" onclick="abrirPanelVentana('${m.id}')" title="Editar medidas y pared">⚙️</button>` : ''}
+                ${esPegableAPared(m.id)
+                    ? `<button class="btn-mueble btn-rotar" onclick="rotarVentana('${m.id}')" title="Cambiar pared (H/V)">⟂</button>`
+                    : `<button class="btn-mueble btn-rotar" onclick="rotarMueble('${m.id}')" title="Rotar 45°">↻</button>`
+                }
+                ` : ''}
+            </div>
+        </div>`;
+    }).join('');
+}
+
+// ── TOGGLE MUEBLE ─────────────────────────────────────────────────────────
+function toggleMueble(id) {
+    if (mobiliarioMeshes[id]) {
+        // Quitar de escena (y devolverle el muro entero si tenía hueco)
+        quitarRecorteVentana(id); delete huecosVentana[id];
+        scene.remove(mobiliarioMeshes[id]);
+        delete mobiliarioMeshes[id];
+        if (muebleSeleccionado === id) desactivarMoverMueble();
+        mostrarToast(`${CATALOGO_MUEBLES.find(m=>m.id===id)?.icon} Mueble quitado`);
+    } else {
+        const grupo = crearMueble(id);
+        if (grupo) {
+            mobiliarioMeshes[id] = grupo;
+            scene.add(grupo);
+            if (esPegableAPared(id)) {
+                abrirPanelVentana(id);
+                mostrarToast(id === 'puerta' ? '🚪 Puerta agregada — elige pared y ajusta dimensiones' : '🪟 Ventana agregada — elige pared y ajusta dimensiones');
+            } else {
+                mostrarToast(`${CATALOGO_MUEBLES.find(m=>m.id===id)?.icon} Mueble agregado — usa ↔ para mover`);
+            }
+        }
+    }
+    renderListaMuebles();
+}
+
+// ── CREAR MUEBLE ──────────────────────────────────────────────────────────
+function crearMueble(id, posX=0, posZ=0) {
+    const mat = (color, rough=0.7, metal=0) =>
+        new THREE.MeshStandardMaterial({ color, roughness:rough, metalness:metal });
+
+    const g = new THREE.Group();
+    g.userData.muebleId = id;
+
+    switch(id) {
+        case 'sofa': {
+            const base = new THREE.Mesh(new THREE.BoxGeometry(2.2,0.5,0.9), mat(0x6B7280));
+            base.position.set(0,0.25,0);
+            const resp = new THREE.Mesh(new THREE.BoxGeometry(2.2,0.7,0.2), mat(0x6B7280));
+            resp.position.set(0,0.7,-0.35);
+            const coj1 = new THREE.Mesh(new THREE.BoxGeometry(0.9,0.15,0.7), mat(0x8B93A0));
+            coj1.position.set(-0.55,0.55,0.05);
+            const coj2 = new THREE.Mesh(new THREE.BoxGeometry(0.9,0.15,0.7), mat(0x8B93A0));
+            coj2.position.set(0.55,0.55,0.05);
+            // Patas
+            [[-1.0,0,-0.4],[-1.0,0,0.4],[1.0,0,-0.4],[1.0,0,0.4]].forEach(([x,y,z])=>{
+                const p = new THREE.Mesh(new THREE.BoxGeometry(0.08,0.12,0.08), mat(0x4B5563));
+                p.position.set(x,0.06,z); g.add(p);
+            });
+            g.add(base); g.add(resp); g.add(coj1); g.add(coj2);
+            g.position.set(posX, 0, posZ);
+            break;
+        }
+        case 'sofa2': {
+            const base = new THREE.Mesh(new THREE.BoxGeometry(1.6,0.45,0.85), mat(0x9CA3AF));
+            base.position.set(0,0.22,0);
+            const resp = new THREE.Mesh(new THREE.BoxGeometry(1.6,0.65,0.18), mat(0x9CA3AF));
+            resp.position.set(0,0.65,-0.335);
+            const coj = new THREE.Mesh(new THREE.BoxGeometry(1.3,0.12,0.6), mat(0xB0B8C4));
+            coj.position.set(0,0.5,0.05);
+            g.add(base); g.add(resp); g.add(coj);
+            g.position.set(posX, 0, posZ);
+            break;
+        }
+        case 'mesa': {
+            const tablero = new THREE.Mesh(new THREE.BoxGeometry(1.6,0.06,0.9), mat(0xC4913A,0.4));
+            tablero.position.set(0,0.76,0);
+            [[0.7,0,-0.38],[-0.7,0,-0.38],[0.7,0,0.38],[-0.7,0,0.38]].forEach(([x,y,z])=>{
+                const p = new THREE.Mesh(new THREE.BoxGeometry(0.06,0.76,0.06), mat(0x8B6914,0.5));
+                p.position.set(x,0.38,z); g.add(p);
+            });
+            g.add(tablero);
+            g.position.set(posX, 0, posZ);
+            break;
+        }
+        case 'mesa_cafe': {
+            const tab = new THREE.Mesh(new THREE.BoxGeometry(1.0,0.05,0.55), mat(0xC4913A,0.4));
+            tab.position.set(0,0.45,0);
+            [[0.43,0,-0.22],[-0.43,0,-0.22],[0.43,0,0.22],[-0.43,0,0.22]].forEach(([x,y,z])=>{
+                const p = new THREE.Mesh(new THREE.BoxGeometry(0.05,0.45,0.05), mat(0x8B6914));
+                p.position.set(x,0.225,z); g.add(p);
+            });
+            g.add(tab);
+            g.position.set(posX, 0, posZ);
+            break;
+        }
+        case 'cama': {
+            const base  = new THREE.Mesh(new THREE.BoxGeometry(1.6,0.35,2.0), mat(0x8B7355));
+            base.position.set(0,0.175,0);
+            const colch = new THREE.Mesh(new THREE.BoxGeometry(1.55,0.2,1.85), mat(0xF0EDE8,0.9));
+            colch.position.set(0,0.45,0.075);
+            const cab   = new THREE.Mesh(new THREE.BoxGeometry(1.6,0.75,0.1),  mat(0x6B5335));
+            cab.position.set(0,0.55,-0.95);
+            const alm1  = new THREE.Mesh(new THREE.BoxGeometry(0.65,0.2,0.45), mat(0xE8E0D0,0.95));
+            alm1.position.set(-0.4,0.65,-0.6);
+            const alm2  = new THREE.Mesh(new THREE.BoxGeometry(0.65,0.2,0.45), mat(0xE8E0D0,0.95));
+            alm2.position.set(0.4,0.65,-0.6);
+            // Patas
+            [[-0.75,0,-0.95],[-0.75,0,0.95],[0.75,0,-0.95],[0.75,0,0.95]].forEach(([x,y,z])=>{
+                const p = new THREE.Mesh(new THREE.BoxGeometry(0.08,0.18,0.08), mat(0x5B4525));
+                p.position.set(x,0.09,z); g.add(p);
+            });
+            g.add(base); g.add(colch); g.add(cab); g.add(alm1); g.add(alm2);
+            g.position.set(posX, 0, posZ);
+            break;
+        }
+        case 'mesita': {
+            const tab = new THREE.Mesh(new THREE.BoxGeometry(0.55,0.04,0.45), mat(0xC4913A,0.4));
+            tab.position.set(0,0.6,0);
+            const cuerpo = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.5,0.4), mat(0xA07840,0.5));
+            cuerpo.position.set(0,0.3,0);
+            const base2 = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.05,0.4), mat(0x8B6914));
+            base2.position.set(0,0.03,0);
+            // Tirón del cajón
+            const tiron = new THREE.Mesh(new THREE.BoxGeometry(0.1,0.02,0.02), mat(0xD4A96A,0.2,0.8));
+            tiron.position.set(0,0.3,0.21);
+            g.add(tab); g.add(cuerpo); g.add(base2); g.add(tiron);
+            g.position.set(posX, 0, posZ);
+            break;
+        }
+        case 'escritorio': {
+            const tab = new THREE.Mesh(new THREE.BoxGeometry(1.4,0.05,0.7), mat(0xD4C5A9,0.4));
+            tab.position.set(0,0.75,0);
+            // Estructura L
+            const lat = new THREE.Mesh(new THREE.BoxGeometry(0.04,0.75,0.7), mat(0xC4B48A));
+            lat.position.set(-0.68,0.375,0);
+            const lat2 = new THREE.Mesh(new THREE.BoxGeometry(0.04,0.75,0.7), mat(0xC4B48A));
+            lat2.position.set(0.68,0.375,0);
+            const fondo = new THREE.Mesh(new THREE.BoxGeometry(1.4,0.04,0.7), mat(0xC4B48A));
+            fondo.position.set(0,0.02,0);
+            g.add(tab); g.add(lat); g.add(lat2); g.add(fondo);
+            g.position.set(posX, 0, posZ);
+            break;
+        }
+        case 'armario': {
+            const cuerpo = new THREE.Mesh(new THREE.BoxGeometry(1.2,2.1,0.55), mat(0xD4C5A9,0.5));
+            cuerpo.position.set(0,1.05,0);
+            // División central
+            const div = new THREE.Mesh(new THREE.BoxGeometry(0.04,2.0,0.53), mat(0xC4B48A));
+            div.position.set(0,1.0,0);
+            // Puertas
+            const p1 = new THREE.Mesh(new THREE.BoxGeometry(0.56,1.95,0.03), mat(0xE8DCC8,0.3));
+            p1.position.set(-0.3,1.0,0.29);
+            const p2 = new THREE.Mesh(new THREE.BoxGeometry(0.56,1.95,0.03), mat(0xE8DCC8,0.3));
+            p2.position.set(0.3,1.0,0.29);
+            // Tiradores
+            const t1 = new THREE.Mesh(new THREE.BoxGeometry(0.04,0.1,0.04), mat(0xD4A96A,0.2,0.8));
+            t1.position.set(-0.08,1.0,0.31);
+            const t2 = new THREE.Mesh(new THREE.BoxGeometry(0.04,0.1,0.04), mat(0xD4A96A,0.2,0.8));
+            t2.position.set(0.08,1.0,0.31);
+            g.add(cuerpo); g.add(div); g.add(p1); g.add(p2); g.add(t1); g.add(t2);
+            g.position.set(posX, 0, posZ);
+            break;
+        }
+        case 'planta': {
+            const mac  = new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.13,0.32,10), mat(0xC17F3A));
+            mac.position.set(0,0.16,0);
+            const tier = new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.18,0.04,10), mat(0x8B5A1A));
+            tier.position.set(0,0.32,0);
+            const tallo = new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.025,0.5,6), mat(0x3A6B1A));
+            tallo.position.set(0,0.57,0);
+            const hoja = new THREE.Mesh(new THREE.SphereGeometry(0.32,8,6), mat(0x2E8B22,0.8));
+            hoja.position.set(0,1.05,0);
+            hoja.scale.set(1,0.7,1);
+            g.add(mac); g.add(tier); g.add(tallo); g.add(hoja);
+            g.position.set(posX, 0, posZ);
+            break;
+        }
+        case 'lampara_pie': {
+            const base2 = new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.28,0.06,12), mat(0x888888,0.3,0.6));
+            base2.position.set(0,0.03,0);
+            const palo  = new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,1.55,8), mat(0xAAAAAA,0.3,0.7));
+            palo.position.set(0,0.8,0);
+            const pant  = new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.18,0.32,12,1,true), mat(0xFFF8E8,0.9));
+            pant.position.set(0,1.68,0);
+            const bul   = new THREE.Mesh(new THREE.SphereGeometry(0.06,8,8),
+                new THREE.MeshStandardMaterial({color:0xFFFFCC, emissive:0xFFEE88, emissiveIntensity:1.0}));
+            bul.position.set(0,1.6,0);
+            // Luz puntual en la lámpara
+            const luzLamp = new THREE.PointLight(0xFFF5D0, 0.5, 4);
+            luzLamp.position.set(0,1.6,0);
+            g.add(base2); g.add(palo); g.add(pant); g.add(bul); g.add(luzLamp);
+            g.position.set(posX, 0, posZ);
+            break;
+        }
+        case 'ventana_blanca':
+        case 'ventana_negra': {
+            const vW = window._ventanaAncho || 1.20;
+            const vH = window._ventanaAlto  || 0.90;
+            construirGeometriaVentana(g, id, vW, vH);
+            g.position.set(posX, estado.alto * 0.55, posZ);
+            g.userData.ventanaAncho = vW;
+            g.userData.ventanaAlto  = vH;
+            break;
+        }
+
+        case 'ventana_balcon': {
+            const vW = window._ventanaAncho || 2.4;
+            const vH = window._ventanaAlto  || 2.2;
+            construirGeometriaVentanaBalcon(g, vW, vH);
+            g.position.set(posX, vH/2, posZ);
+            g.userData.ventanaAncho = vW;
+            g.userData.ventanaAlto  = vH;
+            break;
+        }
+
+        case 'puerta': {
+            const vW = window._ventanaAncho || 0.9;
+            const vH = window._ventanaAlto  || 2.1;
+            construirGeometriaPuerta(g, vW, vH);
+            g.position.set(posX, vH/2, posZ);
+            g.userData.ventanaAncho = vW;
+            g.userData.ventanaAlto  = vH;
+            break;
+        }
+
+        case 'hueco': {
+            // Abertura sin hoja — solo un marco delgado que marca el vano, para que sea seleccionable
+            const vW = window._ventanaAncho || 0.9;
+            const vH = window._ventanaAlto  || 2.1;
+            construirGeometriaHueco(g, vW, vH);
+            g.position.set(posX, vH/2, posZ);
+            g.userData.ventanaAncho = vW;
+            g.userData.ventanaAlto  = vH;
+            break;
+        }
+
+        case 'toallero': {
+            const matTo = mat(0xC0C0C0, 0.3, 0.8);
+            const barra = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.55,10), matTo);
+            barra.rotation.z = Math.PI/2;
+            g.add(barra);
+            [[-0.26,0],[0.26,0]].forEach(([x])=>{
+                const soporte = new THREE.Mesh(new THREE.BoxGeometry(0.03,0.06,0.03), matTo);
+                soporte.position.set(x, 0, -0.03); g.add(soporte);
+            });
+            g.userData.ventanaAncho = 0.55;
+            g.userData.ventanaAlto  = 0.06;
+            g.position.set(posX, 1.1, posZ);
+            break;
+        }
+
+        case 'estufa': {
+            const cuerpo = new THREE.Mesh(new THREE.BoxGeometry(0.6,0.85,0.6), mat(0xE5E5E5, 0.3, 0.5));
+            cuerpo.position.set(0,0.425,0); g.add(cuerpo);
+            const tapa = new THREE.Mesh(new THREE.BoxGeometry(0.62,0.03,0.62), mat(0x1A1A1A, 0.2, 0.6));
+            tapa.position.set(0,0.865,0); g.add(tapa);
+            [[-0.15,-0.15],[0.15,-0.15],[-0.15,0.15],[0.15,0.15]].forEach(([x,z])=>{
+                const hornilla = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.015,16), mat(0x0D0D0D,0.4,0.3));
+                hornilla.position.set(x,0.885,z); g.add(hornilla);
+            });
+            const perilla = new THREE.Mesh(new THREE.BoxGeometry(0.55,0.15,0.03), mat(0xCCCCCC,0.3,0.6));
+            perilla.position.set(0,0.55,0.31); g.add(perilla);
+            g.position.set(posX, 0, posZ);
+            break;
+        }
+
+        case 'cocina_integral': {
+            const base = new THREE.Mesh(new THREE.BoxGeometry(2.0,0.85,0.6), mat(0xD8CFC0, 0.5));
+            base.position.set(0,0.425,0); g.add(base);
+            const meson = new THREE.Mesh(new THREE.BoxGeometry(2.05,0.04,0.63), mat(0xF5F0E8, 0.15, 0.1));
+            meson.position.set(0,0.87,0); g.add(meson);
+            // Líneas de cajones
+            for (let i=-2;i<=2;i++) {
+                const cajon = new THREE.Mesh(new THREE.BoxGeometry(0.36,0.7,0.02), mat(0xC4B8A4,0.5));
+                cajon.position.set(i*0.38,0.4,0.31); g.add(cajon);
+                const manija = new THREE.Mesh(new THREE.BoxGeometry(0.14,0.02,0.02), mat(0x8A8A8A,0.3,0.7));
+                manija.position.set(i*0.38,0.55,0.33); g.add(manija);
+            }
+            g.position.set(posX, 0, posZ);
+            break;
+        }
+
+        case 'inodoro': {
+            const matI = mat(0xF5F5F5, 0.2, 0.05);
+            const tanque = new THREE.Mesh(new THREE.BoxGeometry(0.38,0.35,0.18), matI);
+            tanque.position.set(0,0.62,-0.18); g.add(tanque);
+            const base = new THREE.Mesh(new THREE.CylinderGeometry(0.19,0.16,0.4,16), matI);
+            base.position.set(0,0.2,0); g.add(base);
+            const asiento = new THREE.Mesh(new THREE.CylinderGeometry(0.21,0.21,0.04,16), mat(0xFFFFFF,0.3));
+            asiento.position.set(0,0.4,0.02); g.add(asiento);
+            g.position.set(posX, 0, posZ);
+            break;
+        }
+
+        case 'ducha': {
+            const base = new THREE.Mesh(new THREE.BoxGeometry(0.9,0.05,0.9), mat(0xE8E8E8, 0.3));
+            base.position.set(0,0.025,0); g.add(base);
+            const vidrio = new THREE.MeshStandardMaterial({ color:0xCFE8F0, transparent:true, opacity:0.18, roughness:0.05, metalness:0.9, side:THREE.DoubleSide });
+            const p1 = new THREE.Mesh(new THREE.BoxGeometry(0.9,2.0,0.02), vidrio); p1.position.set(0,1.0,-0.44); g.add(p1);
+            const p2 = new THREE.Mesh(new THREE.BoxGeometry(0.02,2.0,0.9), vidrio); p2.position.set(-0.44,1.0,0); g.add(p2);
+            const ducharCabezal = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,0.02,16), mat(0xB0B0B0,0.3,0.7));
+            ducharCabezal.position.set(0.2,2.05,-0.35); g.add(ducharCabezal);
+            const brazo = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.3,8), mat(0xB0B0B0,0.3,0.7));
+            brazo.rotation.z = Math.PI/2.3; brazo.position.set(0.1,2.05,-0.42); g.add(brazo);
+            g.position.set(posX, 0, posZ);
+            break;
+        }
+
+        case 'lavamanos': {
+            const matL = mat(0xF5F5F5, 0.2, 0.05);
+            const mueble = new THREE.Mesh(new THREE.BoxGeometry(0.6,0.75,0.45), mat(0xD8CFC0,0.5));
+            mueble.position.set(0,0.375,0); g.add(mueble);
+            const meson = new THREE.Mesh(new THREE.BoxGeometry(0.64,0.04,0.48), matL);
+            meson.position.set(0,0.77,0); g.add(meson);
+            const cubeta = new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.13,0.1,16), mat(0xEAEAEA,0.2));
+            cubeta.position.set(0,0.75,0); g.add(cubeta);
+            const grifo = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.2,8), mat(0xB0B0B0,0.3,0.8));
+            grifo.position.set(0,0.9,-0.15); g.add(grifo);
+            g.position.set(posX, 0, posZ);
+            break;
+        }
+
+        case 'tv': {
+            const pantalla = new THREE.Mesh(new THREE.BoxGeometry(1.1,0.65,0.04), mat(0x0A0A0A,0.2,0.3));
+            pantalla.position.set(0,0.9,0); g.add(pantalla);
+            const marco = new THREE.Mesh(new THREE.BoxGeometry(1.14,0.69,0.02), mat(0x1A1A1A,0.3,0.3));
+            marco.position.set(0,0.9,-0.021); g.add(marco);
+            const base = new THREE.Mesh(new THREE.BoxGeometry(0.3,0.05,0.15), mat(0x2A2A2A,0.4));
+            base.position.set(0,0.55,0.05); g.add(base);
+            const soporte = new THREE.Mesh(new THREE.BoxGeometry(0.05,0.25,0.05), mat(0x2A2A2A,0.4));
+            soporte.position.set(0,0.68,0.05); g.add(soporte);
+            g.position.set(posX, 0, posZ);
+            break;
+        }
+
+        case 'nevera': {
+            const cuerpo = new THREE.Mesh(new THREE.BoxGeometry(0.7,1.75,0.68), mat(0xE8E8E8,0.25,0.4));
+            cuerpo.position.set(0,0.875,0); g.add(cuerpo);
+            const linea = new THREE.Mesh(new THREE.BoxGeometry(0.72,0.03,0.02), mat(0xB0B0B0,0.3,0.5));
+            linea.position.set(0,1.15,0.35); g.add(linea);
+            const manija1 = new THREE.Mesh(new THREE.BoxGeometry(0.03,0.4,0.04), mat(0xC0C0C0,0.2,0.7));
+            manija1.position.set(0.32,1.35,0.36); g.add(manija1);
+            const manija2 = new THREE.Mesh(new THREE.BoxGeometry(0.03,0.55,0.04), mat(0xC0C0C0,0.2,0.7));
+            manija2.position.set(0.32,0.75,0.36); g.add(manija2);
+            g.position.set(posX, 0, posZ);
+            break;
+        }
+
+        case 'lavadora': {
+            const cuerpo = new THREE.Mesh(new THREE.BoxGeometry(0.6,0.85,0.6), mat(0xF0F0F0,0.3,0.3));
+            cuerpo.position.set(0,0.425,0); g.add(cuerpo);
+            const tambor = new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,0.05,24), mat(0x1A1A1A,0.1,0.6));
+            tambor.rotation.x = Math.PI/2; tambor.position.set(0,0.45,0.31); g.add(tambor);
+            const anillo = new THREE.Mesh(new THREE.TorusGeometry(0.22,0.02,8,24), mat(0xB0B0B0,0.2,0.6));
+            anillo.rotation.x = Math.PI/2; anillo.position.set(0,0.45,0.31); g.add(anillo);
+            const panel = new THREE.Mesh(new THREE.BoxGeometry(0.55,0.08,0.02), mat(0xD8D8D8,0.3));
+            panel.position.set(0,0.83,0.3); g.add(panel);
+            g.position.set(posX, 0, posZ);
+            break;
+        }
+
+        case 'microondas': {
+            const cuerpo = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.3,0.4), mat(0x2A2A2A,0.3,0.4));
+            cuerpo.position.set(0,0.15,0); g.add(cuerpo);
+            const puerta = new THREE.Mesh(new THREE.BoxGeometry(0.32,0.24,0.02), mat(0x111111,0.2,0.5));
+            puerta.position.set(0.05,0.15,0.21); g.add(puerta);
+            g.position.set(posX, 0.75, posZ); // sobre un mesón típico
+            break;
+        }
+
+        case 'tapete': {
+            const tela = new THREE.Mesh(new THREE.CylinderGeometry(0.9,0.9,0.02,32), mat(0x8B7355,0.9));
+            tela.position.set(0,0.01,0); g.add(tela);
+            g.position.set(posX, 0, posZ);
+            break;
+        }
+
+        case 'luz_techo': {
+            const base = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,0.04,16), mat(0xD4AF37,0.3,0.6));
+            g.add(base);
+            const pantalla = new THREE.Mesh(new THREE.SphereGeometry(0.15,16,16), new THREE.MeshStandardMaterial({color:0xFFF8E7,transparent:true,opacity:0.85,emissive:0xFFF3C4,emissiveIntensity:0.4}));
+            pantalla.position.set(0,-0.15,0); g.add(pantalla);
+            g.position.set(posX, (estado.alto || 2.6) - 0.1, posZ); // pegado al techo
+            break;
+        }
+
+        default:
+            return null;
+    }
+
+    // Habilitar sombras en todos los meshes del grupo
+    g.traverse(obj => {
+        if (obj.isMesh) { obj.castShadow = true; obj.receiveShadow = true; }
+    });
+
+    return g;
+}
+
+// ── ACTIVAR MODO MOVER MUEBLE ─────────────────────────────────────────────
+function activarMoverMueble(id) {
+    if (muebleSeleccionado === id) {
+        desactivarMoverMueble();
+        return;
+    }
+    muebleSeleccionado = id;
+    modoMover = true;
+    controls.enabled = false;
+    canvas.classList.add('modo-mover');
+    document.getElementById('modoBadge').classList.add('visible');
+    renderListaMuebles();
+    mostrarToast('↔ Haz clic y arrastra el mueble');
+}
+
+function desactivarMoverMueble() {
+    muebleSeleccionado = null;
+    modoMover = false;
+    muebleArrastrando = null;
+    paredVentanaActual = null;
+    controls.enabled = true;
+    canvas.classList.remove('modo-mover');
+    document.getElementById('modoBadge').classList.remove('visible');
+    renderListaMuebles();
+}
+
+// ── ROTAR MUEBLE 45° ─────────────────────────────────────────────────────
+
+function rotarVentana(id) {
+    const g = mobiliarioMeshes[id];
+    if (!g) return;
+    // Alternar entre horizontal (0°) y vertical (90°) en la pared
+    const actual = Math.round(g.rotation.y * 180 / Math.PI) % 180;
+    g.rotation.y = (actual === 0) ? Math.PI/2 : 0;
+    // Actualizar hueco si existe: se vuelve a recortar el muro con el nuevo giro
+    if (huecosVentana[id]) actualizarHuecoVentana(id);
+    mostrarToast('⟂ Girada — arrastra para pegar a nueva pared');
+}
+function rotarMueble(id) {
+    const g = mobiliarioMeshes[id];
+    if (!g) return;
+    g.rotation.y += Math.PI / 4;
+    mostrarToast('↻ Mueble rotado 45°');
+}
+
+// ── MOUSE EVENTS para drag & drop ────────────────────────────────────────
+function getMouseNDC(event) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+        x:  ((event.clientX - rect.left) / rect.width)  * 2 - 1,
+        y: -((event.clientY - rect.top)  / rect.height) * 2 + 1,
+    };
+}
+
+canvas.addEventListener('mousedown', (e) => {
+    if (modoElegirPared || modoEliminarPared || modoDisenarPared) {
+        clickEnPared();
+        e.stopPropagation();
+        return;
+    }
+    if (!modoMover || !muebleSeleccionado) return;
+    const ndc = getMouseNDC(e);
+    mouse.set(ndc.x, ndc.y);
+    raycaster.setFromCamera(mouse, camera);
+
+    const grupo = mobiliarioMeshes[muebleSeleccionado];
+    if (!grupo) return;
+
+    // Para ventanas y puertas: activar drag directamente (renderOrder interfiere con raycast)
+    if (esPegableAPared(muebleSeleccionado)) {
+        muebleArrastrando = grupo;
+        controls.enabled  = false;
+        e.stopPropagation();
+        return;
+    }
+
+    // Para muebles normales: raycast normal
+    const meshesDelGrupo = [];
+    grupo.traverse(o => { if (o.isMesh) meshesDelGrupo.push(o); });
+    const intersects = raycaster.intersectObjects(meshesDelGrupo, true);
+    if (intersects.length > 0) {
+        muebleArrastrando = grupo;
+        controls.enabled  = false;
+        e.stopPropagation();
+    }
+});
+
+canvas.addEventListener('mousemove', (e) => {
+    if (modoElegirPared || modoEliminarPared || modoDisenarPared) {
+        actualizarHoverParedes(getMouseNDC(e));
+        return;
+    }
+    if (!modoMover || !muebleArrastrando) return;
+    const ndc = getMouseNDC(e);
+    mouse.set(ndc.x, ndc.y);
+    raycaster.setFromCamera(mouse, camera);
+
+    const id = muebleArrastrando.userData.muebleId || '';
+    const esVentana = esPegableAPared(id);
+
+    if (esVentana) {
+        // Ventanas y puertas se pegan a la pared más cercana
+        pegarVentanaAPared(muebleArrastrando, ndc);
+    } else {
+        // Muebles normales — plano Y=0
+        raycaster.ray.intersectPlane(planoArrastre, puntoArrastre);
+        const hw = estado.ancho/2 - 0.3;
+        const hl = estado.largo/2 - 0.3;
+        muebleArrastrando.position.x = Math.max(-hw, Math.min(hw, puntoArrastre.x));
+        muebleArrastrando.position.z = Math.max(-hl, Math.min(hl, puntoArrastre.z));
+    }
+});
+
+canvas.addEventListener('mouseup', () => {
+    if (muebleArrastrando) {
+        const id = muebleArrastrando.userData.muebleId || '';
+        if (esPegableAPared(id)) {
+            const pos = muebleArrastrando.position.clone();
+            // Solo crear hueco si llegó a una pared (pos no es 0,0,0)
+            const enPared = Math.abs(pos.x) > 0.5 || Math.abs(pos.z) > 0.5;
+            if (enPared) {
+                crearHuecoVentana(id, pos, muebleArrastrando.rotation.y);
+                mostrarToast(id === 'puerta' ? '🚪 Puerta incrustada ✅' : '🪟 Ventana incrustada ✅');
+            } else {
+                mostrarToast('↔ Arrastra hasta una pared para incrustar');
+            }
+        } else {
+            mostrarToast('✅ Posición guardada');
+        }
+        muebleArrastrando = null;
+    }
+});
+
+// ── TOUCH para móvil ──────────────────────────────────────────────────────
+canvas.addEventListener('touchstart', (e) => {
+    if (!modoMover || !muebleSeleccionado) return;
+    const touch = e.touches[0];
+    const fakeEv = { clientX: touch.clientX, clientY: touch.clientY };
+    const ndc = getMouseNDC(fakeEv);
+    mouse.set(ndc.x, ndc.y);
+    raycaster.setFromCamera(mouse, camera);
+    const grupo = mobiliarioMeshes[muebleSeleccionado];
+    if (!grupo) return;
+    const meshes2 = [];
+    grupo.traverse(o => { if (o.isMesh) meshes2.push(o); });
+    if (raycaster.intersectObjects(meshes2, true).length > 0) {
+        muebleArrastrando = grupo;
+        e.preventDefault();
+    }
+}, { passive:false });
+
+canvas.addEventListener('touchmove', (e) => {
+    if (!modoMover || !muebleArrastrando) return;
+    const touch = e.touches[0];
+    const ndc = getMouseNDC({ clientX: touch.clientX, clientY: touch.clientY });
+    mouse.set(ndc.x, ndc.y);
+    raycaster.setFromCamera(mouse, camera);
+    raycaster.ray.intersectPlane(planoArrastre, puntoArrastre);
+    const hw = estado.ancho/2 - 0.3;
+    const hl = estado.largo/2 - 0.3;
+    muebleArrastrando.position.x = Math.max(-hw, Math.min(hw, puntoArrastre.x));
+    muebleArrastrando.position.z = Math.max(-hl, Math.min(hl, puntoArrastre.z));
+    e.preventDefault();
+}, { passive:false });
+
+canvas.addEventListener('touchend', () => { muebleArrastrando = null; });
+
+// ── MINIMIZAR PANEL CÁMARA ────────────────────────────────────────────────
+let panelMinimizado = false;
+function toggleMinimizarPanel() {
+    panelMinimizado = !panelMinimizado;
+    const body = document.getElementById('cpBody');
+    const btn  = document.getElementById('cpToggleBtn');
+    body.classList.toggle('colapsado', panelMinimizado);
+    btn.textContent = panelMinimizado ? '+' : '—';
+}
+
+// ── MOVIMIENTO WASD + FLECHAS ─────────────────────────────────────────────
+const teclasPresionadas = {};
+const VEL_CAM = 0.04; // metros por frame
+// ═══════════════════════════════════════════════════════════════
+// BLOQUEO DE IMAGEN — pegar este bloque ANTES del addEventListener
+// keydown en visor3d.html
+// ═══════════════════════════════════════════════════════════════
+
+// ── VERIFICAR ROL DEL USUARIO ─────────────────────────────────
+let rolUsuario = null;
+
+let planEmpresaVisor = null;
+let estadoEmpresaVisor = null;
+
+async function verificarRolYAcceso() {
+    try {
+        const { data:{ session } } = await db.auth.getSession();
+        if (!session) { rolUsuario = null; return; }
+        const email = session.user.email;
+        const { data:empresa } = await db.from('empresas').select('id, estado, planes(nombre)').eq('email', email).maybeSingle();
+        if (empresa) { rolUsuario = 'empresa'; planEmpresaVisor = empresa.planes?.nombre || 'basico'; estadoEmpresaVisor = empresa.estado || 'pendiente_pago'; return; }
+        const { data:consumidor } = await db.from('consumidores').select('id').eq('email', email).maybeSingle();
+        if (consumidor) { rolUsuario = 'consumidor'; return; }
+        rolUsuario = null;
+    } catch(e) { rolUsuario = null; }
+}
+
+function imagenBloqueada() {
+    // Empresas siempre pueden descargar (es su visor)
+    return rolUsuario !== 'empresa';
+}
+
+function mostrarModalBloqueo() {
+    let modal = document.getElementById('modalBloqueoImagen');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'modalBloqueoImagen';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;backdrop-filter:blur(8px);';
+        modal.innerHTML = `
+            <div style="background:#1A1A2E;border:1px solid rgba(124,58,237,0.4);border-radius:20px;padding:36px 32px;max-width:420px;width:100%;text-align:center;">
+                <div style="font-size:52px;margin-bottom:16px;">🔒</div>
+                <h2 style="font-size:22px;font-weight:800;color:#F8FAFC;margin-bottom:10px;">Imagen bloqueada</h2>
+                <p style="color:#94A3B8;font-size:14px;line-height:1.7;margin-bottom:24px;">
+                    Para descargar esta imagen necesitas agregar los productos al carrito y completar tu compra. 
+                    Una vez pagado, recibirás la imagen directamente.
+                </p>
+                <div style="display:flex;flex-direction:column;gap:10px;">
+                    <a href="/marketplace" style="background:linear-gradient(135deg,#3B82F6,#7C3AED);color:white;padding:14px 24px;border-radius:50px;font-size:15px;font-weight:700;text-decoration:none;display:block;">
+                        🛒 Ir al marketplace y comprar
+                    </a>
+                    <button onclick="document.getElementById('modalBloqueoImagen').style.display='none'"
+                        style="background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.3);color:#A78BFA;padding:12px 24px;border-radius:50px;font-size:14px;font-weight:600;cursor:pointer;font-family:'Segoe UI',sans-serif;">
+                        ✕ Cerrar
+                    </button>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+    } else {
+        modal.style.display = 'flex';
+    }
+}
+
+function aplicarOverlayBloqueo(imgElement) {
+    const container = imgElement.closest('.foto-ia-container');
+    if (!container || container.querySelector('.overlay-bloqueo')) return;
+    const overlay = document.createElement('div');
+    overlay.className = 'overlay-bloqueo';
+    overlay.style.cssText = 'position:absolute;inset:0;background:linear-gradient(to bottom,transparent 30%,rgba(0,0,0,0.92) 100%);display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:24px;';
+    overlay.innerHTML = `
+        <div style="text-align:center;">
+            <div style="font-size:36px;margin-bottom:8px;">🔒</div>
+            <p style="color:white;font-size:15px;font-weight:700;margin-bottom:4px;">Imagen bloqueada</p>
+            <p style="color:rgba(255,255,255,0.7);font-size:12px;margin-bottom:16px;">Completa tu compra para desbloquear</p>
+            <a href="/marketplace" style="background:linear-gradient(135deg,#3B82F6,#7C3AED);color:white;padding:10px 20px;border-radius:50px;font-size:13px;font-weight:700;text-decoration:none;">
+                🛒 Comprar ahora
+            </a>
+        </div>`;
+    container.style.position = 'relative';
+    container.style.userSelect = 'none';
+    container.appendChild(overlay);
+    imgElement.addEventListener('contextmenu', e => e.preventDefault());
+    imgElement.style.pointerEvents = 'none';
+}
+document.addEventListener('keydown', (e) => {
+    // Si el foco está en un input o textarea, NO capturar teclas de movimiento
+    const tag = document.activeElement?.tagName?.toLowerCase();
+    if (tag === 'input' || tag === 'textarea') {
+        // Solo capturar ESC para salir de modos
+        if (e.key === 'Escape') {
+            document.activeElement.blur();
+            if (modoMover) desactivarMoverMueble();
+        }
+        return; // ignorar todo lo demás
+    }
+
+    teclasPresionadas[e.key.toLowerCase()] = true;
+
+    // ESC: salir modo mover o modo pivote
+    if (e.key === 'Escape') {
+        if (modoMover) desactivarMoverMueble();
+    }
+    // Evitar scroll de página con flechas cuando está en modo pivote
+    if (modoPivote && ['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key.toLowerCase())) {
+        e.preventDefault();
+    }
+});
+
+document.addEventListener('keyup', (e) => {
+    teclasPresionadas[e.key.toLowerCase()] = false;
+});
+
+// Mover cámara con WASD en el loop de animación
+function limitesModelo3D() {
+    if (!modulosActuales3D.length) return { minX:-3, maxX:3, minZ:-3, maxZ:3 };
+    let minX=Infinity, maxX=-Infinity, minZ=Infinity, maxZ=-Infinity;
+    modulosActuales3D.forEach(m => {
+        minX = Math.min(minX, m.cx - m.ancho/2);
+        maxX = Math.max(maxX, m.cx + m.ancho/2);
+        minZ = Math.min(minZ, m.cz - m.largo/2);
+        maxZ = Math.max(maxZ, m.cz + m.largo/2);
+    });
+    return { minX, maxX, minZ, maxZ };
+}
+
+function procesarMovimientoWASD() {
+    if (!modoPivote && !modoCaminarLibre) return;
+
+    // Dirección de vista (hacia donde mira la cámara, ignorando Y)
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    dir.y = 0;
+    dir.normalize();
+
+    // Vector derecha
+    const right = new THREE.Vector3();
+    right.crossVectors(dir, new THREE.Vector3(0,1,0)).normalize();
+
+    const mover = new THREE.Vector3();
+
+    // Adelante / atrás
+    if (teclasPresionadas['w'] || teclasPresionadas['arrowup'])    mover.addScaledVector(dir,  VEL_CAM);
+    if (teclasPresionadas['s'] || teclasPresionadas['arrowdown'])  mover.addScaledVector(dir, -VEL_CAM);
+    // Laterales
+    if (teclasPresionadas['d'] || teclasPresionadas['arrowright']) mover.addScaledVector(right,  VEL_CAM);
+    if (teclasPresionadas['a'] || teclasPresionadas['arrowleft'])  mover.addScaledVector(right, -VEL_CAM);
+    // Altura
+    if (teclasPresionadas['q']) mover.y += VEL_CAM;
+    if (teclasPresionadas['e']) mover.y -= VEL_CAM;
+
+    if (mover.lengthSq() === 0) return;
+
+    const nuevoPos = camera.position.clone().add(mover);
+
+    if (lenteLibre) {
+        nuevoPos.y = Math.max(0.1, nuevoPos.y);   // por el lente se camina libre (puede estar afuera de la casa)
+    } else if (modoCaminarLibre) {
+        // Límites del PLANO REAL (todas las habitaciones), no del cuarto viejo
+        const lim = limitesModelo3D();
+        const margen = 0.2;
+        nuevoPos.x = Math.max(lim.minX + margen, Math.min(lim.maxX - margen, nuevoPos.x));
+        nuevoPos.z = Math.max(lim.minZ + margen, Math.min(lim.maxZ - margen, nuevoPos.z));
+        nuevoPos.y = Math.max(0.3, Math.min(2.4, nuevoPos.y));
+    } else {
+        // Modo pivote viejo — límite del cuarto único
+        const hw = estado.ancho/2 - 0.2;
+        const hl = estado.largo/2 - 0.2;
+        nuevoPos.x = Math.max(-hw, Math.min(hw, nuevoPos.x));
+        nuevoPos.z = Math.max(-hl, Math.min(hl, nuevoPos.z));
+        nuevoPos.y = Math.max(0.3, Math.min(estado.alto - 0.1, nuevoPos.y));
+    }
+
+    // Mover cámara y target juntos (mantiene la dirección de vista)
+    const delta = nuevoPos.clone().sub(camera.position);
+    camera.position.copy(nuevoPos);
+    controls.target.add(delta);
+
+    if (modoPivote) {
+        // Sincronizar sliders del panel (solo existen en modo pivote)
+        const cu = modulosActuales3D.find(m => m.id === cuartoPivoteActual) || { cx: 0, cz: 0 };
+        document.getElementById('cpX').value = (nuevoPos.x - cu.cx).toFixed(2);
+        document.getElementById('cpY').value = nuevoPos.y.toFixed(2);
+        document.getElementById('cpZ').value = (nuevoPos.z - cu.cz).toFixed(2);
+    }
+
+    controls.update();
+}
+
+// ── PORTAFOLIO ────────────────────────────────────────────────────────────
+const TIENDA_DEMO_SLUG = 'pisos-demo';
+
+const NOMBRES_PLAN_BADGE = { basico:'🌱 Básico', profesional:'🚀 Profesional', premium:'⭐ Premium', corporativo:'🏆 Corporativo' };
+
+async function cargarPlanBadge() {
+    try {
+        const { data: { session } } = await db.auth.getSession();
+        if (!session) return; // visitante sin cuenta — deja el badge por defecto
+        const { data: empresa } = await db.from('empresas').select('*, planes(*)').eq('email', session.user.email).maybeSingle();
+        const planNombre = empresa?.planes?.nombre || 'basico';
+        planActualUsuario   = planNombre;
+        estadoActualUsuario = empresa?.estado || null;
+        const badgeEl = document.querySelector('.plan-badge');
+        if (badgeEl) badgeEl.textContent = NOMBRES_PLAN_BADGE[planNombre] || planNombre;
+        actualizarCandadoRecorrido();
+    } catch (e) {
+        console.warn('No se pudo cargar el plan real para el badge:', e);
+    }
+}
+
+async function poblarSelectorTiendas(tiendaPropiaId) {
+    const sel = document.getElementById('selectorTiendaProductos');
+    if (!sel) return;
+    const { data: tiendas } = await db.from('tiendas').select('id,nombre').eq('activa', true).neq('plan_nombre', 'gratis').order('nombre');
+    if (!tiendas || tiendas.length <= 1) { sel.style.display = 'none'; return; }
+
+    sel.innerHTML =
+        `<option value="${tiendaPropiaId}">🏪 Mi tienda</option>` +
+        `<option value="todas">🌐 Todas las tiendas</option>` +
+        tiendas.filter(t => t.id !== tiendaPropiaId).map(t => `<option value="${t.id}">🛍️ ${esc(t.nombre)}</option>`).join('');
+    sel.value = tiendaPropiaId;
+    sel.style.display = 'block';
+}
+
+async function cambiarTiendaProductos(valor) {
+    let productos;
+    if (valor === 'todas') {
+        const { data: tiendas } = await db.from('tiendas').select('id').eq('activa', true).neq('plan_nombre', 'gratis');
+        const ids = (tiendas || []).map(t => t.id);
+        const { data } = await db.from('productos').select('*').in('tienda_id', ids).eq('activo', true).order('categoria');
+        productos = data;
+    } else {
+        const { data } = await db.from('productos').select('*').eq('tienda_id', valor).eq('activo', true).order('categoria');
+        productos = data;
+    }
+    todosProductos = productos || [];
+    if (todosProductos.length === 0) { mostrarEmptyPort('Esa tienda no tiene productos aún'); return; }
+    renderPortafolio(todosProductos);
+    mostrarToast(valor === 'todas' ? '🌐 Mostrando productos de todas las tiendas' : (valor === tiendaIdPropia ? '🏪 Mostrando tu tienda' : '🛍️ Mostrando otra tienda — solo se agrega si lo eliges tú'));
+}
+
+async function cargarPortafolio() {
+    try {
+        let tiendaId     = null;
+        let tiendaNombre = 'Portafolio';
+
+        // 1. Intentar tienda propia del usuario logueado
+        const { data: { session } } = await db.auth.getSession();
+        if (session) {
+            const { data: empresa } = await db.from('empresas').select('id').eq('email', session.user.email).maybeSingle();
+            if (empresa) {
+                const { data: tiendaPropia } = await db.from('tiendas').select('id,nombre').eq('empresa_id', empresa.id).maybeSingle();
+                if (tiendaPropia) { tiendaId = tiendaPropia.id; tiendaNombre = tiendaPropia.nombre; }
+            }
+        }
+
+        // 2. Fallback → tienda demo global
+        let usandoDemo = false;
+        if (!tiendaId) {
+            const { data: demo } = await db.from('tiendas').select('id,nombre').eq('slug', TIENDA_DEMO_SLUG).maybeSingle();
+            if (demo) { tiendaId = demo.id; tiendaNombre = demo.nombre + ' 🏪'; usandoDemo = true; }
+        }
+
+        if (!tiendaId) { mostrarEmptyPort('No hay productos disponibles aún'); return; }
+
+        if (usandoDemo && session) {
+            // Tiene cuenta pero no tiene tienda creada — avisar claramente, porque
+            // en modo demo no se puede guardar ni enviar a producción.
+            setTimeout(() => mostrarToast('ℹ️ Estás viendo la tienda DEMO — crea tu tienda en el Dashboard para guardar recorridos'), 1200);
+        }
+
+        // Actualizar título del panel
+        const tituloPanel = document.querySelector('#pagina-mitienda .panel-titulo, .panel-titulo');
+        document.querySelectorAll('.panel-titulo').forEach(el => {
+            if (el.textContent.includes('Portafolio')) el.textContent = tiendaNombre;
+        });
+
+        const { data: productos } = await db.from('productos').select('*').eq('tienda_id', tiendaId).eq('activo', true).order('categoria');
+        todosProductos = productos || [];
+        if (todosProductos.length === 0) { mostrarEmptyPort('La tienda no tiene productos aún'); return; }
+        renderPortafolio(todosProductos);
+
+        tiendaIdPropia = tiendaId; // recordamos cuál es "mi tienda" para el selector
+        await poblarSelectorTiendas(tiendaId);
+
+        const params = new URLSearchParams(window.location.search);
+        const prodId = params.get('producto');
+        if (prodId) { const prod = todosProductos.find(p => p.id === prodId); if (prod) mostrarProductoCliente(prod); }
+    } catch(e) { console.error(e); mostrarEmptyPort('Error cargando portafolio'); }
+}
+
+function mostrarEmptyPort(msg) {
+    document.getElementById('portafolioContenido').innerHTML = `<div class="empty-port"><div style="font-size:32px;margin-bottom:8px;">🏪</div><p>${esc(msg)}</p></div>`;
+}
+
+function renderPortafolio(productos) {
+    const c = document.getElementById('portafolioContenido');
+    if (!productos.length) { c.innerHTML = `<div class="empty-port"><p>No hay productos en esta categoría</p></div>`; return; }
+    c.innerHTML = `<div class="productos-portafolio">${productos.map(p => {
+        const img = p.imagen_url ? `<img src="${esc(p.imagen_url)}" alt="${esc(p.nombre)}" onerror="this.parentElement.innerHTML='📦'">` : '📦';
+        return `<div class="prod-port-card" id="prodcard-${p.id}" onclick="aplicarProductoPortafolio('${p.id}')">
+            <div class="prod-port-img">${img}</div>
+            <div class="prod-port-info">
+                <div class="prod-port-nombre">${esc(p.nombre)}</div>
+                <div class="prod-port-precio">$${Number(p.precio).toLocaleString('es-CO')}/${esc(p.unidad)||'m²'}</div>
+            </div></div>`;
+    }).join('')}</div>`;
+}
+
+function filtrarPortafolio(cat, btn) {
+    document.querySelectorAll('.tab-port').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    renderPortafolio(cat==='todos' ? todosProductos : todosProductos.filter(p=>p.categoria===cat));
+}
+
+function mostrarProductoCliente(prod) {
+    document.getElementById('clienteSeleccion').style.display = 'block';
+    const imgEl = document.getElementById('clienteSelImg');
+    imgEl.innerHTML = prod.imagen_url ? `<img src="${esc(prod.imagen_url)}" alt="${esc(prod.nombre)}" style="width:100%;height:100%;object-fit:cover;">` : '📦';
+    document.getElementById('clienteSelNombre').textContent = prod.nombre;
+    document.getElementById('clienteSelPrecio').textContent = `$${Number(prod.precio).toLocaleString('es-CO')}/${prod.unidad||'m²'}`;
+    aplicarProductoPortafolio(prod.id);
+}
+
+function aplicarProductoPortafolio(prodId) {
+    const prod = todosProductos.find(p => p.id === prodId);
+    if (!prod) return;
+
+    // Marcar card como activa
+    document.querySelectorAll('.prod-port-card').forEach(c => c.classList.remove('activo'));
+    const card = document.getElementById('prodcard-' + prodId);
+    if (card) card.classList.add('activo');
+    productoActivo = prod;
+
+    // En modo interior → aplicar a superficie seleccionada
+    if (modoInterior && superficieActiva) {
+        aplicarProductoASuperficie(prod, superficieActiva);
+        return;
+    }
+
+    // Si hay un módulo seleccionado en Editor Planta y el producto es de piso/
+    // enchape, asignarlo a ESE módulo (con cálculo real de material/costo) en
+    // vez de al cuarto único viejo — este es ahora el único camino real para
+    // asignar piso; la lista chica que había dentro de "Propiedades" se quitó
+    // porque quedaba duplicada con este panel.
+    if (moduloSeleccionado && ['pisos','enchapes','materiales'].includes(prod.categoria)) {
+        seleccionarPortafolioPiso(prodId);
+        return;
+    }
+
+    // Modo normal (cuarto único, sin módulo de plano seleccionado) — aplicar según categoría
+    const esPiso    = ['pisos','enchapes','materiales'].includes(prod.categoria);
+    const esPintura = prod.categoria === 'pintura';
+
+    if (prod.imagen_url) {
+        const loader = new THREE.TextureLoader();
+        loader.crossOrigin = 'anonymous';
+        loader.load(prod.imagen_url, (texture) => {
+            texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+            if (esPiso) {
+                if (meshes.piso) aplicarMaterialFisico(meshes.piso, prod.imagen_url, estado.ancho, estado.largo,
+                                     { pieza: tamanoPieza(prod, 'ceramica'), tipo: 'ceramica' });
+                mostrarToast('🪵 "' + prod.nombre + '" aplicado al piso ✅');
+            } else if (esPintura) {
+                texture.repeat.set(1,1);
+                ['paredTrasera','paredFrontal','paredIzq','paredDer'].forEach(k => {
+                    if (meshes[k]) meshes[k].material = new THREE.MeshStandardMaterial({ map:texture, roughness:0.85 });
+                });
+                mostrarToast('🎨 "' + prod.nombre + '" aplicado a paredes ✅');
+            } else {
+                if (meshes.piso) aplicarMaterialFisico(meshes.piso, prod.imagen_url, estado.ancho, estado.largo,
+                                     { pieza: tamanoPieza(prod, 'ceramica'), tipo: 'ceramica' });
+                mostrarToast('✅ "' + prod.nombre + '" aplicado');
+            }
+        }, undefined, () => aplicarColorFallback(prod, esPiso, esPintura));
+    } else {
+        aplicarColorFallback(prod, esPiso, esPintura);
+    }
+}
+
+function aplicarColorFallback(prod, esPiso, esPintura) {
+    const cols = {
+        pisos:0xC4913A, enchapes:0xE8E0D0, materiales:0x888888,
+        pintura:0xF5F5F5, cocinas:0xD4C5A9, baños:0xE0EEF4,
+        puertas:0x8B6914, electricos:0xF5F0E0
+    };
+    const color = cols[prod.categoria] || 0xC4913A;
+    if (esPiso) {
+        if (meshes.piso) meshes.piso.material = new THREE.MeshStandardMaterial({ color, roughness:0.5, metalness:0.05 });
+        mostrarToast(`🪵 "${prod.nombre}" aplicado al piso`);
+    } else if (esPintura) {
+        ['paredTrasera','paredFrontal','paredIzq','paredDer'].forEach(k => {
+            if (meshes[k]) meshes[k].material.color.setHex(color);
+        });
+        mostrarToast(`🎨 "${prod.nombre}" aplicado a paredes`);
+    } else {
+        if (meshes.piso) meshes.piso.material = new THREE.MeshStandardMaterial({ color, roughness:0.5 });
+        mostrarToast(`✅ "${prod.nombre}" aplicado`);
+    }
+}
+
+// ── MATERIALES ────────────────────────────────────────────────────────────
+// ── Materiales y visibilidad de la envolvente ────────────────────────────
+// Al entrar con la cámara interior hay que tapar arriba, si no se ve el cielo
+// de la escena desde adentro del cuarto. Antes esto solo funcionaba en el modo
+// de sala rápida (meshes.techo); los planos del Editor Planta se quedaban sin
+// techo porque nunca se creaba uno.
+function mostrarTechosInterior(entrando) {
+    if (meshes.techo) meshes.techo.visible = entrando;
+    if (typeof techosPlanta !== 'undefined' && techosPlanta.length) {
+        // Al salir no se apagan a la fuerza: se vuelve a lo que el usuario
+        // haya dejado marcado en el panel de envolvente.
+        techosPlanta.forEach(t => { t.visible = entrando ? true : !!configEnvolvente.techos; });
+    }
+}
+
+function crearMaterialTecho() {
+    const c = new THREE.Color(configEnvolvente.colorTecho || '#F7F7F5');
+    switch (configEnvolvente.materialTecho) {
+        case 'concreto': // losa a la vista
+            return new THREE.MeshStandardMaterial({ color: c.multiplyScalar(0.82), roughness: 0.95, metalness: 0.0 });
+        case 'madera':   // machimbre / cielo en madera
+            return new THREE.MeshStandardMaterial({ color: 0xB98A55, roughness: 0.7, metalness: 0.0 });
+        default:         // drywall pintado — lo más común en vivienda
+            return new THREE.MeshStandardMaterial({ color: c, roughness: 0.9, metalness: 0.0 });
+    }
+}
+
+function crearMaterialFachada() {
+    const c = new THREE.Color(configEnvolvente.colorFachada || '#D9CFC2');
+    switch (configEnvolvente.materialFachada) {
+        case 'ladrillo': // ladrillo a la vista
+            return new THREE.MeshStandardMaterial({ color: 0xA24F35, roughness: 0.95, metalness: 0.0 });
+        case 'estuco':   // grano fino, un poco más rugoso que la pintura lisa
+            return new THREE.MeshStandardMaterial({ color: c, roughness: 1.0, metalness: 0.0 });
+        case 'concreto':
+            return new THREE.MeshStandardMaterial({ color: 0x9E9A94, roughness: 0.92, metalness: 0.02 });
+        default:         // pintura de fachada
+            return new THREE.MeshStandardMaterial({ color: c, roughness: 0.75, metalness: 0.0 });
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// MAPEO FÍSICO DE MATERIALES
+// El problema de antes: la textura se estiraba con repeat = ancho/1.2, un
+// 1.2 fijo que no tenía nada que ver con el tamaño real del producto. Una
+// baldosa de 60×60 y un listón de 20×120 salían del mismo tamaño en pantalla.
+// Además llegaba una sola imagen de color, sin relieve ni variación de brillo,
+// así que el piso se veía como una calcomanía plana.
+// Ahora: escala real en metros, y a partir de esa única imagen se derivan el
+// mapa de normales (relieve), el de rugosidad (brillo por zonas) y el de
+// oclusión (las juntas se hunden).
+// ═══════════════════════════════════════════════════════════════════════
+
+// Tamaño de pieza por defecto según el tipo de material, en metros.
+const PIEZA_DEFECTO = {
+    ceramica:    [0.45, 0.45],
+    porcelanato: [0.60, 0.60],
+    marmol:      [0.60, 0.60],
+    madera:      [0.19, 1.20],   // listón de piso laminado
+    vinilo:      [0.18, 1.22],
+    concreto:    [1.50, 1.50],   // vaciado: la "pieza" es solo la escala del ruido
+    pared:       [0.30, 0.60],
+    ladrillo:    [0.24, 0.06],
+};
+
+// Saca el formato del nombre o la descripción: "Porcelanato Bianco 60x120",
+// "Baldosa 33 x 33 cm", "Listón 20X120". Devuelve metros o null.
+function medidasDesdeTexto(texto) {
+    if (!texto) return null;
+    const m = String(texto).match(/(\d{1,3})\s*[xX×]\s*(\d{1,3})/);
+    if (!m) return null;
+    let a = parseInt(m[1], 10), b = parseInt(m[2], 10);
+    if (!a || !b) return null;
+    // Los formatos vienen en cm. Si alguien escribió metros (0.6x0.6) no entra
+    // por el regex, y si escribió milímetros (600x600) se normaliza.
+    if (a > 300 || b > 300) { a /= 10; b /= 10; }
+    if (a < 3 || b < 3 || a > 300 || b > 300) return null;
+    return [a / 100, b / 100];
+}
+
+function tamanoPieza(producto, tipoGenerico) {
+    const delTexto = medidasDesdeTexto(producto?.nombre) || medidasDesdeTexto(producto?.descripcion);
+    if (delTexto) return delTexto;
+    return PIEZA_DEFECTO[tipoGenerico] || PIEZA_DEFECTO.ceramica;
+}
+
+// ── Derivar relieve y brillo desde la única imagen de color ──────────────
+// Se cachean: generar estos mapas cuesta unos milisegundos y no tiene sentido
+// rehacerlos cada vez que se selecciona el mismo producto.
+const _cacheMapas = new Map();
+
+function _mapasDerivados(imagen, clave, fuerzaRelieve, rugosidadBase, contrasteRugosidad) {
+    if (_cacheMapas.has(clave)) return _cacheMapas.get(clave);
+
+    const N = 512;
+    const cnv = document.createElement('canvas');
+    cnv.width = cnv.height = N;
+    const ctx = cnv.getContext('2d');
+    ctx.drawImage(imagen, 0, 0, N, N);
+    const src = ctx.getImageData(0, 0, N, N).data;
+
+    // Campo de altura = luminancia. En un piso real las juntas son lo oscuro
+    // y lo oscuro es lo hundido, así que esta suposición funciona bien.
+    const altura = new Float32Array(N * N);
+    for (let i = 0; i < N * N; i++) {
+        altura[i] = (src[i*4]*0.299 + src[i*4+1]*0.587 + src[i*4+2]*0.114) / 255;
+    }
+    const h = (x, y) => altura[(((y % N) + N) % N) * N + (((x % N) + N) % N)];
+
+    // NORMALES por Sobel. El wrap con módulo evita una costura visible en el
+    // borde de cada baldosa cuando la textura se repite.
+    const cN = document.createElement('canvas'); cN.width = cN.height = N;
+    const ctxN = cN.getContext('2d');
+    const imgN = ctxN.createImageData(N, N);
+    // RUGOSIDAD y OCLUSIÓN salen del mismo campo de altura
+    const cR = document.createElement('canvas'); cR.width = cR.height = N;
+    const ctxR = cR.getContext('2d');
+    const imgR = ctxR.createImageData(N, N);
+    const cO = document.createElement('canvas'); cO.width = cO.height = N;
+    const ctxO = cO.getContext('2d');
+    const imgO = ctxO.createImageData(N, N);
+
+    for (let y = 0; y < N; y++) {
+        for (let x = 0; x < N; x++) {
+            const dx = (h(x+1,y-1) + 2*h(x+1,y) + h(x+1,y+1)) - (h(x-1,y-1) + 2*h(x-1,y) + h(x-1,y+1));
+            const dy = (h(x-1,y+1) + 2*h(x,y+1) + h(x+1,y+1)) - (h(x-1,y-1) + 2*h(x,y-1) + h(x+1,y-1));
+            const nx = -dx * fuerzaRelieve, ny = -dy * fuerzaRelieve, nz = 1;
+            const inv = 1 / Math.sqrt(nx*nx + ny*ny + nz*nz);
+            const i = (y*N + x) * 4;
+            imgN.data[i]   = (nx*inv * 0.5 + 0.5) * 255;
+            imgN.data[i+1] = (ny*inv * 0.5 + 0.5) * 255;
+            imgN.data[i+2] = (nz*inv * 0.5 + 0.5) * 255;
+            imgN.data[i+3] = 255;
+
+            // Lo oscuro (junta, veta, poro) es más rugoso: no brilla igual que
+            // la cara pulida de la pieza. Esto es lo que rompe el aspecto de
+            // "plástico uniforme".
+            const lum = altura[y*N + x];
+            const r = Math.max(0.03, Math.min(1, rugosidadBase + (1 - lum) * contrasteRugosidad));
+            imgR.data[i] = imgR.data[i+1] = imgR.data[i+2] = r * 255;
+            imgR.data[i+3] = 255;
+
+            // Oclusión suave: las juntas se ven hundidas incluso sin luz directa
+            const ao = 0.55 + lum * 0.45;
+            imgO.data[i] = imgO.data[i+1] = imgO.data[i+2] = ao * 255;
+            imgO.data[i+3] = 255;
+        }
+    }
+    ctxN.putImageData(imgN, 0, 0);
+    ctxR.putImageData(imgR, 0, 0);
+    ctxO.putImageData(imgO, 0, 0);
+
+    const res = { normal: cN, rugosidad: cR, oclusion: cO };
+    _cacheMapas.set(clave, res);
+    return res;
+}
+
+// Ajusta wrap, repetición real y anisotropía de una textura.
+// La anisotropía es la que más se nota en un piso: sin ella la textura se
+// convierte en una mancha borrosa hacia el fondo del cuarto, porque se mira
+// muy de canto. Es la diferencia entre "piso" y "papel de colgadura".
+function _ajustarTextura(tex, repX, repY, esColor) {
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(repX, repY);
+    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    tex.generateMipmaps = true;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    // Solo el mapa de color va en sRGB. Normales, rugosidad y oclusión son
+    // datos, no color: si se marcan como sRGB salen mal.
+    if (esColor) tex.encoding = THREE.sRGBEncoding;
+    tex.needsUpdate = true;
+    return tex;
+}
+
+// Los mapas de datos (normal/rough/AO) no deben tener la misma repetición que
+// una textura de pared vertical, así que se pasa explícita.
+function _texturaDesdeCanvas(cnv, repX, repY) {
+    const t = new THREE.CanvasTexture(cnv);
+    return _ajustarTextura(t, repX, repY, false);
+}
+
+// ── FUNCIÓN CENTRAL ──────────────────────────────────────────────────────
+// Aplica un material físico a una superficie plana rectangular.
+//   mesh        : el Mesh de piso (o pared) ya creado
+//   url         : imagen del producto
+//   anchoReal   : metros que mide la superficie en X (o a lo largo del muro)
+//   largoReal   : metros que mide la superficie en la otra dirección
+//   opts.pieza  : [ancho, largo] de la pieza en metros
+//   opts.tipo   : material genérico, para acabado base
+function aplicarMaterialFisico(mesh, url, anchoReal, largoReal, opts = {}) {
+    const [pzA, pzL] = opts.pieza || PIEZA_DEFECTO.ceramica;
+    const repX = Math.max(1, anchoReal / pzA);
+    const repY = Math.max(1, largoReal / pzL);
+    const acabado = ACABADO_MATERIAL[opts.tipo] || ACABADO_MATERIAL.ceramica;
+
+    const loader = new THREE.TextureLoader();
+    loader.crossOrigin = 'anonymous';
+    loader.load(url, (mapaColor) => {
+        _ajustarTextura(mapaColor, repX, repY, true);
+
+        const mat = new THREE.MeshStandardMaterial({
+            map: mapaColor,
+            roughness: acabado.roughness,
+            metalness: acabado.metalness,
+        });
+
+        // El canvas necesita la imagen ya decodificada; TextureLoader la deja
+        // en tex.image, así que aquí ya se puede leer.
+        try {
+            const mapas = _mapasDerivados(mapaColor.image, url, acabado.relieve,
+                                          acabado.roughness, acabado.contrasteRug);
+            mat.normalMap    = _texturaDesdeCanvas(mapas.normal, repX, repY);
+            mat.normalScale  = new THREE.Vector2(acabado.escalaNormal, acabado.escalaNormal);
+            mat.roughnessMap = _texturaDesdeCanvas(mapas.rugosidad, repX, repY);
+            mat.aoMap        = _texturaDesdeCanvas(mapas.oclusion, repX, repY);
+            mat.aoMapIntensity = 0.5;
+            // El aoMap se lee de uv2, no de uv. Sin esto no se ve nada y es el
+            // error clásico al meter oclusión en Three.js.
+            if (mesh.geometry.attributes.uv && !mesh.geometry.attributes.uv2) {
+                mesh.geometry.setAttribute('uv2', mesh.geometry.attributes.uv);
+            }
+        } catch (e) {
+            // Imagen de otro dominio sin CORS: el canvas queda "tainted" y no
+            // se puede leer. Se sigue con el mapa de color solo, que igual
+            // queda a escala real.
+            console.warn('No se pudieron derivar los mapas de relieve:', e);
+        }
+
+        mat.needsUpdate = true;
+        mesh.material = mat;
+    });
+}
+
+// Acabado base por material. roughness es qué tan mate, metalness cuánto
+// refleja como metal (casi siempre 0 en materiales de construcción),
+// relieve/escalaNormal cuánto se marca la textura en el relieve.
+const ACABADO_MATERIAL = {
+    madera:      { roughness:0.55, metalness:0.0,  relieve:2.2, escalaNormal:0.6, contrasteRug:0.30 },
+    ceramica:    { roughness:0.22, metalness:0.02, relieve:3.0, escalaNormal:0.8, contrasteRug:0.55 },
+    porcelanato: { roughness:0.12, metalness:0.03, relieve:2.4, escalaNormal:0.6, contrasteRug:0.50 },
+    marmol:      { roughness:0.09, metalness:0.04, relieve:1.4, escalaNormal:0.35, contrasteRug:0.25 },
+    concreto:    { roughness:0.88, metalness:0.0,  relieve:2.6, escalaNormal:0.7, contrasteRug:0.15 },
+    vinilo:      { roughness:0.45, metalness:0.0,  relieve:1.8, escalaNormal:0.45, contrasteRug:0.25 },
+};
+
+// Texturas dibujadas para los pisos exteriores (no dependen de internet).
+// Cada una representa un tramo de "tam" metros y se repite según el tamaño real.
+const _texturasExterior = {};
+function texturaExterior(acabado) {
+    if (_texturasExterior[acabado]) return _texturasExterior[acabado];
+    const N = 256, c = document.createElement('canvas'); c.width = c.height = N;
+    const g = c.getContext('2d');
+    const puntos = (colores, n, rMin, rMax) => { for (let i = 0; i < n; i++) {
+        g.fillStyle = colores[Math.floor(Math.random() * colores.length)];
+        g.beginPath(); g.arc(Math.random()*N, Math.random()*N, rMin + Math.random()*(rMax-rMin), 0, Math.PI*2); g.fill(); } };
+    let tam = 1;
+    if (acabado === 'adoquin') {             // adoquín de 20×10 cm trabado
+        tam = 0.8; g.fillStyle = '#6B3A26'; g.fillRect(0, 0, N, N);
+        const bw = N / 4, bh = N / 8;
+        for (let f = 0; f < 8; f++) for (let k = -1; k < 5; k++) {
+            const x0 = k * bw + (f % 2 ? bw / 2 : 0);
+            const t = 150 + Math.random() * 40;
+            g.fillStyle = `rgb(${t},${t*0.52},${t*0.36})`;
+            g.fillRect(x0 + 2, f * bh + 2, bw - 4, bh - 4);
+        }
+    } else if (acabado === 'baldosa') {      // baldosa de 40×40 cm con junta
+        tam = 0.8; g.fillStyle = '#8E8A82'; g.fillRect(0, 0, N, N);
+        for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) {
+            const t = 196 + Math.random() * 18;
+            g.fillStyle = `rgb(${t},${t-6},${t-16})`;
+            g.fillRect(i * N/2 + 3, j * N/2 + 3, N/2 - 6, N/2 - 6);
+        }
+        puntos(['rgba(120,110,100,0.12)'], 400, 0.5, 1.5);
+    } else if (acabado === 'gravilla') {
+        tam = 0.6; g.fillStyle = '#9C958A'; g.fillRect(0, 0, N, N);
+        puntos(['#C9C2B6','#7E776C','#B3A99A','#E2DCD2','#6A645B'], 1400, 1.5, 4.5);
+    } else if (acabado === 'cesped') {
+        tam = 0.6; g.fillStyle = '#3F6B2A'; g.fillRect(0, 0, N, N);
+        for (let i = 0; i < 2600; i++) {
+            const x0 = Math.random()*N, y0 = Math.random()*N, v = Math.random();
+            g.strokeStyle = v < 0.5 ? '#4F8A33' : (v < 0.8 ? '#5FA03C' : '#35592A');
+            g.lineWidth = 1; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x0 + (Math.random()-0.5)*3, y0 - 3 - Math.random()*4); g.stroke();
+        }
+    } else if (acabado === 'deck') {         // tablas de 14 cm
+        tam = 1.12; g.fillStyle = '#4A2E1A'; g.fillRect(0, 0, N, N);
+        const tb = N / 8;
+        for (let k = 0; k < 8; k++) {
+            const t = 128 + Math.random() * 30;
+            g.fillStyle = `rgb(${t},${t*0.66},${t*0.42})`;
+            g.fillRect(k * tb + 1.5, 0, tb - 3, N);
+            g.strokeStyle = 'rgba(60,35,18,0.25)';
+            for (let v = 0; v < 5; v++) { const xv = k*tb + 3 + Math.random()*(tb-6);
+                g.beginPath(); g.moveTo(xv, 0); g.bezierCurveTo(xv+3, N/3, xv-3, 2*N/3, xv, N); g.stroke(); }
+        }
+    } else {                                 // concreto con juntas cada metro
+        tam = 1; g.fillStyle = '#A3A09A'; g.fillRect(0, 0, N, N);
+        puntos(['rgba(80,78,74,0.10)','rgba(255,255,255,0.10)','rgba(60,58,54,0.08)'], 2200, 0.5, 2);
+        g.strokeStyle = 'rgba(70,68,64,0.55)'; g.lineWidth = 2;
+        g.strokeRect(1, 1, N - 2, N - 2);
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    if (THREE.sRGBEncoding) tex.encoding = THREE.sRGBEncoding;
+    return (_texturasExterior[acabado] = { tex, tam });
+}
+function crearMaterialesExterior(acabado, ancho, largo) {
+    const { tex, tam } = texturaExterior(acabado);
+    const t = tex.clone(); t.needsUpdate = true;
+    t.repeat.set(Math.max(1, ancho / tam), Math.max(1, largo / tam));
+    const rugoso = { concreto:0.92, adoquin:0.85, baldosa:0.6, gravilla:0.95, cesped:1.0, deck:0.7 }[acabado] ?? 0.9;
+    const arriba = new THREE.MeshStandardMaterial({ map: t, roughness: rugoso, metalness: 0 });
+    // Canto: tierra bajo la grama y la gravilla, el mismo material en lo demás
+    const colorCanto = { cesped:0x5A4330, gravilla:0x7A7368, deck:0x5B3A22, adoquin:0x8A5A40 }[acabado] ?? 0x8F8C86;
+    const canto  = new THREE.MeshStandardMaterial({ color: colorCanto, roughness: 0.95, metalness: 0 });
+    return [canto, canto, arriba, canto, canto, canto];   // orden de BoxGeometry: +x −x +y −y +z −z
+}
+
+function crearMaterialPiso(tipo) {
+    const configs = {
+        madera:     {color:0xC4913A,roughness:0.6,metalness:0.0},
+        ceramica:   {color:0xE8E0D0,roughness:0.3,metalness:0.1},
+        concreto:   {color:0x888888,roughness:0.9,metalness:0.0},
+        marmol:     {color:0xF5F0E8,roughness:0.1,metalness:0.2},
+        vinilo:     {color:0x8B6914,roughness:0.5,metalness:0.0},
+        porcelanato:{color:0xF0EDE8,roughness:0.15,metalness:0.15},
+    };
+    const c = configs[tipo]||configs.madera;
+    // Se toman roughness/metalness de la misma tabla que usan los materiales
+    // con textura real, para que un piso genérico y uno del portafolio
+    // reaccionen igual a la luz y no se note el salto al asignar producto.
+    const acab = ACABADO_MATERIAL[tipo] || {};
+    return new THREE.MeshStandardMaterial({
+        color:     c.color,
+        roughness: acab.roughness ?? c.roughness,
+        metalness: acab.metalness ?? c.metalness,
+    });
+}
+
+function crearMaterialPared(color) {
+    return new THREE.MeshStandardMaterial({color:new THREE.Color(color),roughness:0.85,metalness:0.0,side:THREE.FrontSide});
+}
+
+// ── CONSTRUIR HABITACIÓN ──────────────────────────────────────────────────
+function capturarEstadoMobiliario() {
+    return Object.entries(mobiliarioMeshes).map(([id, g]) => ({
+        id,
+        pos: g.position.clone(),
+        rotY: g.rotation.y,
+        ventanaAncho: g.userData.ventanaAncho,
+        ventanaAlto: g.userData.ventanaAlto,
+        teniaHueco: !!huecosVentana[id],
+    }));
+}
+
+function restaurarMobiliario(estadoGuardado) {
+    mobiliarioMeshes = {};
+    Object.keys(huecosVentana).forEach(k => delete huecosVentana[k]);
+    estadoGuardado.forEach(item => {
+        window._ventanaAncho = item.ventanaAncho;
+        window._ventanaAlto  = item.ventanaAlto;
+        const grupo = crearMueble(item.id, item.pos.x, item.pos.z);
+        if (!grupo) return;
+        grupo.position.copy(item.pos);
+        grupo.rotation.y = item.rotY;
+        if (item.ventanaAncho !== undefined) grupo.userData.ventanaAncho = item.ventanaAncho;
+        if (item.ventanaAlto  !== undefined) grupo.userData.ventanaAlto  = item.ventanaAlto;
+        mobiliarioMeshes[item.id] = grupo;
+        scene.add(grupo);
+        if (item.teniaHueco) crearHuecoVentana(item.id, grupo.position, grupo.rotation.y);
+    });
+    window._ventanaAncho = undefined;
+    window._ventanaAlto  = undefined;
+    renderListaMuebles();
+}
+
+function construirHabitacion() {
+    salaConstruida = true;
+    if (typeof actualizarPanelDerecho === 'function') actualizarPanelDerecho();
+    const _vacioEl = document.getElementById('entorno3dVacio');
+    if (_vacioEl) _vacioEl.style.display = 'none';
+    const _mobiliarioGuardado = capturarEstadoMobiliario();
+    const aEliminar = [];
+    scene.traverse(obj => {
+        // El gizmo de edición vive en la escena: si entra aquí se borra al
+        // regenerar y quedan listeners apuntando a un objeto muerto.
+        if (obj === gizmo || (obj.parent && obj.parent === gizmo)) return;
+        // El recorrido, las trayectorias grabadas y el marcador de cámara son
+        // trabajo del usuario: sobreviven a regenerar el plano.
+        if (esPersistente(obj)) return;
+        if (obj.isMesh || obj.isGroup || obj.isSprite) aEliminar.push(obj);
+    });
+    aEliminar.forEach(obj => scene.remove(obj));
+    meshes = {};
+    // Limpiar luces de techo
+    Object.keys(lucesTecho).forEach(k => {
+        document.getElementById(`luz${k.charAt(0).toUpperCase()+k.slice(1)}`)?.classList.remove('activo');
+    });
+    lucesTecho = {};
+    // Limpiar huecos de ventanas
+    limpiarHuecosVentana();
+
+    const {ancho,largo,alto} = estado;
+    const hw=ancho/2, hl=largo/2;
+    modulosActuales3D = [{ id:'unico', nombre:'Sala', cx:0, cz:0, ancho, largo, alto }];
+    const matPared = crearMaterialPared(estado.colorPared);
+    const matPiso  = crearMaterialPiso(estado.materialPiso);
+
+    const piso = new THREE.Mesh(new THREE.BoxGeometry(ancho,0.1,largo), matPiso);
+    piso.position.set(0,-0.05,0); piso.receiveShadow=true;
+    scene.add(piso); meshes.piso=piso;
+
+    // TECHO — oculto por defecto, visible solo en modo interior
+    const matTecho = new THREE.MeshStandardMaterial({color:0xF5F5F5, roughness:0.9, side:THREE.BackSide});
+    const techo = new THREE.Mesh(new THREE.BoxGeometry(ancho, 0.1, largo), matTecho);
+    techo.position.set(0, alto, 0);
+    techo.receiveShadow = true;
+    techo.visible = false; // v2 fix: siempre false al construir
+    scene.add(techo); meshes.techo = techo;
+
+    ['Trasera','Frontal','Izq','Der'].forEach((nombre,i) => {
+        let geo;
+        if (i<2) geo = new THREE.BoxGeometry(ancho,alto,0.1);
+        else     geo = new THREE.BoxGeometry(0.1,alto,largo);
+        const m = new THREE.Mesh(geo, matPared.clone());
+        if (i===0) m.position.set(0,alto/2,-hl);
+        if (i===1) m.position.set(0,alto/2, hl);
+        if (i===2) m.position.set(-hw,alto/2,0);
+        if (i===3) m.position.set( hw,alto/2,0);
+        m.castShadow=true; m.receiveShadow=true;
+        scene.add(m); meshes[`pared${nombre}`]=m;
+    });
+
+    // Puerta
+    const puerta = new THREE.Mesh(new THREE.BoxGeometry(0.9,2.1,0.15),
+        new THREE.MeshStandardMaterial({color:0x8B6914,roughness:0.5}));
+    puerta.position.set(-hw+1.2,1.05,hl); puerta.castShadow=true;
+    scene.add(puerta); meshes.puerta=puerta;
+
+    const marcoMat = new THREE.MeshStandardMaterial({color:0xD4A96A,roughness:0.4});
+    [{geo:new THREE.BoxGeometry(0.08,2.2,0.12),pos:[-hw+0.76,1.1,hl]},{geo:new THREE.BoxGeometry(0.08,2.2,0.12),pos:[-hw+1.64,1.1,hl]},{geo:new THREE.BoxGeometry(1.0,0.08,0.12),pos:[-hw+1.2,2.2,hl]}]
+    .forEach(m => { const marco=new THREE.Mesh(m.geo,marcoMat); marco.position.set(...m.pos); scene.add(marco); });
+
+    // Ventanas
+    const ventanaMat = new THREE.MeshStandardMaterial({color:0xADD8E6,transparent:true,opacity:0.35,metalness:0.1});
+    const marcoVMat  = new THREE.MeshStandardMaterial({color:0xF0F0F0,roughness:0.3});
+    [-hw+1.5,hw-1.5].forEach(x => {
+        const v=new THREE.Mesh(new THREE.BoxGeometry(1.2,1.1,0.05),ventanaMat);
+        v.position.set(x,1.5,-hl); scene.add(v);
+        const mv=new THREE.Mesh(new THREE.BoxGeometry(1.3,1.2,0.08),marcoVMat);
+        mv.position.set(x,1.5,-hl); scene.add(mv);
+        [{geo:new THREE.BoxGeometry(1.2,0.04,0.06),pos:[x,1.5,-hl]},{geo:new THREE.BoxGeometry(0.04,1.1,0.06),pos:[x,1.5,-hl]}]
+        .forEach(c => { const cruz=new THREE.Mesh(c.geo,marcoVMat); cruz.position.set(...c.pos); scene.add(cruz); });
+    });
+
+    // Zócalo
+    const zocaloMat=new THREE.MeshStandardMaterial({color:0xE8E8E8,roughness:0.4});
+    const zh=0.12;
+    [{geo:new THREE.BoxGeometry(ancho,zh,0.03),pos:[0,zh/2,-hl+0.02]},{geo:new THREE.BoxGeometry(ancho,zh,0.03),pos:[0,zh/2,hl-0.02]},
+     {geo:new THREE.BoxGeometry(0.03,zh,largo),pos:[-hw+0.02,zh/2,0]},{geo:new THREE.BoxGeometry(0.03,zh,largo),pos:[hw-0.02,zh/2,0]}]
+    .forEach(z => { const zoc=new THREE.Mesh(z.geo,zocaloMat); zoc.position.set(...z.pos); scene.add(zoc); });
+
+    // Reaplicar — delay para que el mesh esté listo antes de cargar textura
+    if (productoActivo) setTimeout(() => aplicarProductoPortafolio(productoActivo.id), 50);
+    else if (meshes.piso) meshes.piso.material = crearMaterialPiso(estado.materialPiso);
+
+    // Re-agregar muebles/ventanas que estaban en escena, con su posición y huecos originales
+    restaurarMobiliario(_mobiliarioGuardado);
+
+    actualizarStats();
+}
+
+// ── LUCES ─────────────────────────────────────────────────────────────────
+function configurarLuces() {
+    Object.values(luces).forEach(l=>scene.remove(l));
+    luces={};
+    const i = estado.intensidadLuz;
+
+    // Tamaño real de lo que hay en escena — sirve para encuadrar la sombra y
+    // para el alcance de la luz de techo. Antes eran valores fijos: en un
+    // apartamento grande la sombra salía pixelada y en un cuarto chico se
+    // desperdiciaba casi todo el shadow map.
+    const escena = Math.max(4, estado.ancho || 4, estado.largo || 4);
+    const altoEsc = estado.alto || 2.6;
+
+    // Ambiente base, muy bajo: el grueso del relleno lo hace ahora la luz
+    // hemisférica, que es más creíble porque no aplana igual.
+    const amb = new THREE.AmbientLight(0xFFF5E6, 0.14*i);
+    scene.add(amb); luces.ambient = amb;
+
+    // HEMISFÉRICA — cielo por arriba, rebote del piso por abajo. Es lo que
+    // hace que un interior deje de verse plano: las caras que miran al techo
+    // reciben distinta luz que las que miran al suelo, como en la realidad.
+    const hemi = new THREE.HemisphereLight(0xE8F0FF, 0xC9B79C, 0.55*i);
+    hemi.position.set(0, altoEsc, 0);
+    scene.add(hemi); luces.hemi = hemi;
+
+    // Luz solar principal — sombras suaves PCFSoft
+    const dir = new THREE.DirectionalLight(0xFFF8F0, 1.1*i);
+    dir.position.set(escena*0.7, escena*1.1, escena*0.6);
+    dir.castShadow = true;
+    dir.shadow.radius = 4;                        // suaviza las sombras
+    dir.shadow.mapSize.width  = 2048;
+    dir.shadow.mapSize.height = 2048;
+    const margen = escena * 0.75;
+    dir.shadow.camera.left   = -margen;
+    dir.shadow.camera.right  =  margen;
+    dir.shadow.camera.top    =  margen;
+    dir.shadow.camera.bottom = -margen;
+    dir.shadow.camera.near   = 0.5;
+    dir.shadow.camera.far    = escena * 4;
+    // El bias fijo producía sombras despegadas en planos grandes. normalBias
+    // trabaja en proporción a la geometría y evita el "shadow acne" sin
+    // separar la sombra del objeto que la produce.
+    dir.shadow.bias       = -0.0005;
+    dir.shadow.normalBias = 0.02;
+    dir.shadow.camera.updateProjectionMatrix();
+    scene.add(dir); luces.directional = dir;
+
+    // Luz de relleno — lado opuesto, más fría y tenue
+    const fill = new THREE.DirectionalLight(0xCCDDFF, 0.25*i);
+    fill.position.set(-escena*0.6, escena*0.7, -escena*0.5);
+    scene.add(fill); luces.fill = fill;
+
+    // Luz cenital puntual — simula luz de techo
+    const pt = new THREE.PointLight(0xFFFAE6, 0.5*i, escena*2.2, 2);
+    pt.position.set(0, altoEsc-0.3, 0);
+    pt.castShadow = true;
+    pt.shadow.radius = 3;
+    pt.shadow.bias = -0.002;
+    scene.add(pt); luces.point = pt;
+
+    // Bombilla visible
+    const lamp = new THREE.Mesh(
+        new THREE.SphereGeometry(0.1, 8, 8),
+        new THREE.MeshStandardMaterial({ color:0xFFFFCC, emissive:0xFFEE88, emissiveIntensity:0.9 })
+    );
+    lamp.position.set(0, altoEsc-0.2, 0);
+    scene.add(lamp); luces.lampara = lamp;
+    // El entorno (bosque, Tatacoa…) manda sobre la luz de afuera: se reconstruye
+    // con el despeje a la medida de la casa y se ajustan sol, cielo y exposición.
+    if (typeof entornoActual !== 'undefined' && entornoActual !== 'estudio') { construirEntorno(); ajustarLucesEntorno(); }
+}
+
+// ── CAMBIOS ───────────────────────────────────────────────────────────────
+function cambiarDimension(dim,val) {
+    const key=dim==='ancho'?'ancho':dim==='largo'?'largo':'alto';
+    estado[key]=parseFloat(val);
+    document.getElementById(`val${dim.charAt(0).toUpperCase()+dim.slice(1)}`).textContent=parseFloat(val).toFixed(1)+'m';
+    construirHabitacion(); configurarLuces(); centrarCamara();
+}
+
+function cambiarMaterialPiso(tipo,btn) {
+    document.querySelectorAll('[onclick*="cambiarMaterialPiso"]').forEach(b=>b.classList.remove('activo'));
+    btn.classList.add('activo'); estado.materialPiso=tipo;
+    if(meshes.piso) meshes.piso.material=crearMaterialPiso(tipo);
+    mostrarToast(`Piso: ${tipo} ✅`);
+}
+
+function cambiarColorPared(color,btn) {
+    document.querySelectorAll('[onclick*="cambiarColorPared(\'#"]').forEach(b=>b.classList.remove('activo'));
+    if(btn) btn.classList.add('activo'); estado.colorPared=color;
+    ['paredTrasera','paredFrontal','paredIzq','paredDer'].forEach(k=>{ if(meshes[k]) meshes[k].material.color.setStyle(color); });
+}
+function cambiarColorParedCustom(color) { cambiarColorPared(color,null); }
+
+function cambiarLuz(val) {
+    estado.intensidadLuz=val/100;
+    document.getElementById('valLuz').textContent=val+'%';
+    if(luces.ambient)     luces.ambient.intensity    =0.4*estado.intensidadLuz;
+    if(luces.directional) luces.directional.intensity=0.8*estado.intensidadLuz;
+    if(luces.point)       luces.point.intensity      =0.6*estado.intensidadLuz;
+}
+
+function cambiarTipoLuz(tipo,btn) {
+    document.querySelectorAll('[onclick*="cambiarTipoLuz"]').forEach(b=>b.classList.remove('activo'));
+    btn.classList.add('activo');
+    const cols={dia:{a:'#ffffff',d:'#ffffff',p:'#FFFaE6'},noche:{a:'#1a1a3a',d:'#4444ff',p:'#FFAA44'},calida:{a:'#FFE4C4',d:'#FFB347',p:'#FF8C00'},fria:{a:'#E0F0FF',d:'#ADD8E6',p:'#E0F0FF'}};
+    const c=cols[tipo]||cols.dia;
+    if(luces.ambient)     luces.ambient.color.setStyle(c.a);
+    if(luces.directional) luces.directional.color.setStyle(c.d);
+    if(luces.point)       luces.point.color.setStyle(c.p);
+}
+
+function cargarHabitacion(tipo,btn) {
+    document.querySelectorAll('.hab-btn').forEach(b=>b.classList.remove('activo'));
+    btn.classList.add('activo');
+    const configs={sala:{ancho:5.5,largo:6.0,alto:2.8},cocina:{ancho:3.5,largo:4.0,alto:2.6},habitacion:{ancho:4.0,largo:5.0,alto:2.8},bano:{ancho:2.5,largo:3.0,alto:2.6},oficina:{ancho:4.0,largo:5.0,alto:2.8}};
+    const c=configs[tipo]||configs.sala;
+    estado.ancho=c.ancho; estado.largo=c.largo; estado.alto=c.alto;
+    document.querySelector('input[oninput*="ancho"]').value=c.ancho;
+    document.querySelector('input[oninput*="largo"]').value=c.largo;
+    document.querySelector('input[oninput*="alto"]').value=c.alto;
+    const _v=(id,t)=>{const e=document.getElementById(id); if(e) e.textContent=t;};
+    _v('valAncho', c.ancho.toFixed(1)+'m');
+    _v('valLargo', c.largo.toFixed(1)+'m');
+    _v('valAlto',  c.alto.toFixed(1)+'m');
+    construirHabitacion(); configurarLuces(); centrarCamara();
+    mostrarToast(`${tipo.charAt(0).toUpperCase()+tipo.slice(1)} cargada ✅`);
+}
+
+function setCamara(vista) {
+    const {ancho,largo,alto}=estado;
+    const pos={frontal:[0,alto*0.6,largo*1.8],lateral:[ancho*1.8,alto*0.6,0],superior:[0,alto*3.5,0.01],isometrica:[ancho*1.2,alto*2,largo*1.2],interior:[0,alto*0.5,0],libre:[0,alto*2,largo*1.4]};
+    const tgt={frontal:[0,alto*0.5,0],lateral:[0,alto*0.5,0],superior:[0,0,0],isometrica:[0,alto*0.4,0],interior:[0,alto*0.5,-largo/2],libre:[0,alto*0.4,0]};
+    animarCamara(pos[vista]||pos.libre, tgt[vista]||tgt.libre);
+}
+
+function animarCamara(posD,tgtD) {
+    const pi=camera.position.clone(),ti=controls.target.clone();
+    const pd=new THREE.Vector3(...posD),td=new THREE.Vector3(...tgtD);
+    let t=0; const dur=60;
+    function step(){t++;const p=t/dur,e=p<0.5?2*p*p:-1+(4-2*p)*p;
+        camera.position.lerpVectors(pi,pd,e);controls.target.lerpVectors(ti,td,e);
+        controls.update();if(t<dur)requestAnimationFrame(step);}
+    step();
+}
+
+function actualizarStats() {
+    const {ancho,largo,alto}=estado;
+    document.getElementById('statArea').textContent=(ancho*largo).toFixed(1);
+    document.getElementById('statParedes').textContent=(2*(ancho+largo)*alto).toFixed(1);
+    document.getElementById('statPerimetro').textContent=(2*(ancho+largo)).toFixed(1);
+}
+
+function capturarRender() {
+    if (imagenBloqueada()) { mostrarModalBloqueo(); return; }
+    renderer.render(scene,camera);
+    const link=document.createElement('a');
+    // Ya no se descarga sola: llega a la galería de Foto IA, y desde ahí se
+    // descarga, se lleva a Remodelar o al Editor de superficies, o se envía.
+    agregarFotoGaleria('captura', capturaDesdeCamaraFoto());
+    mostrarToast('📸 Guardada en Foto IA — desde ahí la llevas a Remodelar o al Editor de superficies');
+}
+
+let toastTimer;
+function mostrarToast(msg) {
+    const t=document.getElementById('toast');
+    t.textContent=msg; t.classList.add('show');
+    clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),2500);
+}
+
+function onResize() {
+    const {w,h}=getCanvasSize();
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+}
+
+function centrarCamara() {
+    const {ancho,largo,alto}=estado;
+    const dist=Math.max(ancho,largo)*1.4;
+    camera.position.set(0,dist*0.8,dist);
+    controls.target.set(0,alto*0.4,0); controls.update();
+}
+
+window.addEventListener('resize',onResize);
+
+function animate() {
+    requestAnimationFrame(animate);
+    procesarMovimientoWASD();   // ← movimiento suave por frame
+    procesarGrabacionRecorrido(); // ← muestrea la cámara si se está grabando un recorrido
+    // La cámara principal ya NO se mueve a mano durante la reproducción — eso
+    // ahora lo hace la camarita marcadora + la mini-cámara aparte (ver
+    // aplicarFrameRecorrido) — así que controls.update() puede correr
+    // siempre, y el usuario puede orbitar libremente mientras ve la camarita.
+    controls.update();
+
+    // En la cámara interior TÚ eres la cámara: la camarita se esconde (antes
+    // quedaba flotando delante y tapaba la vista) y la sigue a donde mires;
+    // al salir, queda justo donde estabas mirando.
+    if (modoInterior && !reproduciendoRecorrido && salaConstruida) {
+        marcadorCamara.visible = false;
+        marcadorCamara.position.copy(camera.position);
+        marcadorCamara.quaternion.copy(camera.quaternion);
+        cameraPreview.position.copy(camera.position);
+        cameraPreview.quaternion.copy(camera.quaternion);
+        // Mismo lente que tu vista: al salir, la cámara conserva este campo visual
+        if (cameraPreview.fov !== camera.fov) { cameraPreview.fov = camera.fov; cameraPreview.updateProjectionMatrix(); }
+    }
+    // La mini-cámara sigue SIEMPRE a la camarita (no solo al reproducir), así
+    // la pantalla en vivo muestra lo que la cámara ve mientras la arrastras.
+    else if (marcadorCamara.visible && !reproduciendoRecorrido) {
+        cameraPreview.position.copy(marcadorCamara.position);
+        cameraPreview.quaternion.copy(marcadorCamara.quaternion);
+    }
+
+    renderer.render(scene,camera);
+
+    // Pantalla en vivo dentro de Entorno 3D
+    // El gizmo (flechas y anillos) es ayuda del editor: se esconde mientras se
+    // dibuja la vista de la foto; antes aparecía como un punto azul y una línea.
+    const gizmoVisible = gizmo ? gizmo.visible : false;
+    if (gizmo) gizmo.visible = false;
+    if (rendererVivo && vistaActual === '3d' && (marcadorCamara.visible || modoInterior)) {
+        try { rendererVivo.render(scene, cameraPreview); } catch (e) { /* ignorar */ }
+    }
+
+    if (rendererPreview && (vistaActual === 'recorrido' || reproduciendoRecorrido)) {
+        try {
+            rendererPreview.render(scene, cameraPreview);
+        } catch (e) {
+            console.error('Error renderizando la mini-pantalla (vista por dentro):', e);
+        }
+    }
+    if (gizmo) gizmo.visible = gizmoVisible;
+}
+
+// ── PESTAÑAS ──────────────────────────────────────────────────────────────
+let vistaActual='3d', fotoIaUrl=null, salaConstruida=false;
+
+// ── RECORRIDO DE CÁMARA — estado (declarado aquí, antes de la primera
+// llamada a cambiarVista más abajo, para evitar error de inicialización) ──
+let grabandoRecorrido      = false;
+let recorridoFrames        = [];  // [{t, x,y,z, qx,qy,qz,qw}]
+let zonasRecorrido         = [];  // [{t, texto}]
+let tiempoInicioGrabacion  = 0;
+let tiempoBaseSegmento     = 0; // dónde empieza el nuevo tramo en el tiempo total — para SUMAR, no reemplazar
+// Cada grabación (cada trazo o sesión de grabado) tiene su propio color, para
+// distinguir de un vistazo qué línea y qué nodos vinieron de dónde.
+const COLORES_GRABACION = ['#FCD34D', '#3B82F6', '#22C55E', '#EC4899', '#F97316', '#06B6D4', '#A855F7'];
+let numeroGrabacion        = 0;
+let lineasGrabadas         = []; // trayectorias ya convertidas, cada una con su color
+let reproduciendoRecorrido = false;
+let planActualUsuario      = null;
+let estadoActualUsuario    = null;
+let pisosRaycastables      = []; // mallas de piso por módulo, para detectar clics del dibujo 3D
+let modoCaminarLibre       = false; // WASD libre por todo el plano (distinto del modoPivote viejo, de un solo cuarto)
+let tiendaIdPropia         = null; // para el selector de "mi tienda / todas / otra tienda" en productos
+const PLANES_CON_VIDEO     = ['corporativo']; // el módulo de recorrido/video es exclusivo de Corporativo
+
+// ── DIBUJAR RECORRIDO SOBRE EL PLANO (Etapa 1b) ─────────────────────────────
+let modoDibujoRecorrido  = false;
+let dibujandoTrazo       = false;
+let trazoRecorridoPlanta = [];  // [{px,pz}] en el mismo espacio de coordenadas que los módulos
+
+configurarLuces();
+requestAnimationFrame(()=>{ centrarCamara(); animate(); });
+cargarPortafolio();
+cargarPlanBadge();
+{
+    const paramsInicio = new URLSearchParams(window.location.search);
+    if (paramsInicio.get('plano')) {
+        cambiarVista('3d');
+        mostrarToast('🏠 Cargando tu plano...');
+    } else {
+        cambiarVista('planta');
+        mostrarToast('📐 Empieza por tu Editor de Planta');
+    }
+}
+
+// ── PANEL DERECHO: qué se ve en cada pestaña, acordeón y aviso ─────────
+let firmaUltimo3D = null;   // cómo estaba la planta la última vez que se generó el 3D
+
+// "Huella" de todo lo que cambia la geometría: si difiere de la del último
+// 3D generado, el modelo que se ve está viejo.
+function firmaPlanta() {
+    const e = configEnvolvente || {};
+    return JSON.stringify({
+        m: modulosPlanta.map(m => [m.id, m.tipo, m.px, m.pz, m.ancho, m.largo, m.alto, m.nivel, m.forma, m.alturaBase,
+            m.peralte, m.descuelgue, m.espesor, m.tipoTecho, m.pendiente, m.voladizo, m.orientacion,
+            m.materialPiso, m.imagenPisoUrl, m.colorPared, m.acabado, m.nivelExt,
+            m.formaEscalera, m.arranque, m.giro, m.alturaSubir, m.anchoTramo, m.estiloEscalera, m.baranda, m.barandaLado, m.texturaPared, m.texturaLado,
+            m.materialBaranda, m.alturaBaranda, m.baseBaranda, (m.paredesEliminadas || []).join(), JSON.stringify(m.disenoParedes || null)]),
+        v: vanosPlanta.map(v => [v.modulo_a, v.modulo_b, v.lado, v.centro, v.ancho, v.tipo, v.alto, v.bisagra, v.sentido, v.anguloApertura, v.estiloPuerta]),
+        n: typeof nivelesTotales !== 'undefined' ? nivelesTotales : 1,
+        e: [e.fachada, e.materialFachada, e.colorFachada, e.gruesoFachada, e.cubierta, e.pendiente, e.alero, e.girarCubierta],
+    });
+}
+
+function actualizarAvisoRegenerar() {
+    const av = document.getElementById('avisoRegenerar');
+    if (!av) return;
+    let viejo = false;
+    try { viejo = !!(salaConstruida && modulosPlanta.length && firmaUltimo3D && firmaPlanta() !== firmaUltimo3D); }
+    catch (e) { viejo = false; }   // durante la carga la planta todavía no existe
+    av.style.display = viejo ? 'block' : 'none';
+}
+
+function actualizarPanelDerecho() {
+    const pd = document.getElementById('panelDerecho');
+    if (!pd) return;
+    const vista = typeof vistaActual !== 'undefined' ? vistaActual : 'planta';
+    pd.dataset.vistaActiva = vista === '3d' ? '3d' : 'planta';
+    const sinModelo = vista === '3d' && !salaConstruida;
+    pd.classList.toggle('sin-modelo', sinModelo);
+    const avSin = document.getElementById('avisoSinModelo');
+    if (avSin) avSin.style.display = sinModelo ? 'block' : 'none';
+    // En el 3D lo primero es la superficie que se está vistiendo; en la planta, el portafolio
+    const port = document.getElementById('panelPortafolio'), sup = document.getElementById('panelSuperficie');
+    if (port && sup) {
+        if (vista === '3d') port.parentNode.insertBefore(sup, port);
+        else port.parentNode.insertBefore(port, sup);
+    }
+    actualizarAvisoRegenerar();
+    if (typeof renderListaObjetos === 'function') renderListaObjetos(true);
+}
+
+// Acordeón del Entorno 3D: cada sección se abre y cierra tocando su título,
+// y se recuerda cómo la dejó el usuario en este navegador.
+function prepararAcordeonPanel() {
+    let guardado = {};
+    try { guardado = JSON.parse(localStorage.getItem('decoia_panel3d') || '{}'); } catch (e) {}
+    document.querySelectorAll('#panelDerecho .panel-section[data-vista="3d"]:not(#barraPanel3D)').forEach(sec => {
+        const abierta = sec.id in guardado ? guardado[sec.id] : sec.dataset.abierta === '1';
+        sec.classList.toggle('colapsada', !abierta);
+        const titulo = sec.querySelector(':scope > .panel-titulo');
+        if (!titulo) return;
+        titulo.setAttribute('role', 'button');
+        titulo.tabIndex = 0;
+        const alternar = () => {
+            if (document.getElementById('panelDerecho').dataset.vistaActiva !== '3d') return;
+            sec.classList.toggle('colapsada');
+            try {
+                const g = JSON.parse(localStorage.getItem('decoia_panel3d') || '{}');
+                g[sec.id] = !sec.classList.contains('colapsada');
+                localStorage.setItem('decoia_panel3d', JSON.stringify(g));
+            } catch (e) {}
+        };
+        titulo.addEventListener('click', alternar);
+        titulo.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); alternar(); } });
+    });
+}
+
+// Tocar algo en el 3D abre la sección que lo controla y la deja a la vista
+function abrirSeccionPanel(id) {
+    const sec = document.getElementById(id);
+    if (!sec || typeof vistaActual === 'undefined' || vistaActual !== '3d') return;
+    sec.classList.remove('colapsada');
+    sec.classList.remove('recien-abierta'); void sec.offsetWidth; sec.classList.add('recien-abierta');
+    sec.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+function cambiarVista(vista) {
+    vistaActual=vista;
+    document.getElementById('tab3d').classList.toggle('active',    vista==='3d');
+    document.getElementById('tabFoto').classList.toggle('active',  vista==='foto');
+    document.getElementById('tabPlanta').classList.toggle('active',vista==='planta');
+    document.getElementById('tabRecorrido').classList.toggle('active',vista==='recorrido');
+    document.getElementById('tabEditorVideo').classList.toggle('active',vista==='editorvideo');
+    document.getElementById('toolbarPlanta').style.display=vista==='planta'?'flex':'none';
+    document.getElementById('toolbarEntorno3D').style.display=vista==='3d'?'flex':'none';
+    document.getElementById('pantallaVivoEntorno3D').style.display=vista==='3d'?'block':'none';
+    document.getElementById('toolbarRecorrido').style.display=vista==='recorrido'?'flex':'none';
+    document.getElementById('lienzoNodos').style.display=vista==='recorrido'?'block':'none';
+    document.getElementById('toolbarEditorVideo').style.display=vista==='editorvideo'?'flex':'none';
+    canvas.style.display=(vista==='3d'||vista==='recorrido')?'block':'none';
+    document.getElementById('vistaFoto').style.display=vista==='foto'?'flex':'none';
+    document.getElementById('vistaPlanta').style.display=vista==='planta'?'flex':'none';
+    document.getElementById('entorno3dVacio').style.display=(vista==='3d' && !salaConstruida)?'flex':'none';
+    // Panel derecho por pestaña. Regla: la PLANTA es para construir (forma y
+    // medidas; el portafolio sirve para darle piso real a cada cuarto) y el
+    // ENTORNO 3D es para vestir y recorrer (superficie activa, luz, techos y
+    // fachada, muebles, gizmo, muros, cámara). Antes todo esto vivía en la
+    // planta, donde no se ve el 3D. En Nodos, Video y Foto IA no aplica.
+    const pd = document.getElementById('panelDerecho');
+    const conPanel = vista === 'planta' || vista === '3d';
+    if (pd) pd.style.display = conPanel ? 'flex' : 'none';
+    document.body.classList.toggle('sin-panel', !conPanel);
+    actualizarPanelDerecho();
+    // El canvas cambia de ancho al recuperar los 300px, y el renderer no se
+    // entera solo: sin esto la imagen sale estirada hasta el próximo resize.
+    if (typeof onResize === 'function') requestAnimationFrame(onResize);
+    if (vista==='foto') renderGaleria();
+    if (vista==='planta') iniciarEditorPlanta();
+    if (vista==='3d') {
+        actualizarCandadoEntorno3D();
+        // La cámara vive SIEMPRE en el entorno (como el CameraActor de Unreal),
+        // no solo mientras se graba — así se puede ver, arrastrar y orientar
+        // en cualquier momento.
+        if (salaConstruida) {
+            marcadorCamara.visible = true;
+            if (marcadorCamara.position.lengthSq() === 0 && modulosActuales3D.length) {
+                const m0 = modulosActuales3D[0];
+                marcadorCamara.position.set(m0.cx, ALTURA_CAMARA_RECORRIDO, m0.cz);
+            }
+        }
+    }
+    if (vista==='recorrido') { cargarRecorridosGuardados(); actualizarCandadoRecorrido(); renderLienzoNodos(); }
+    if (vista==='editorvideo') { actualizarCandadoEditorVideo(); cargarClipsDisponiblesEditor(); }
+    // Grabar/dibujar y caminar libre viven entre las pestañas 3D y Recorrido
+    // (comparten el mismo canvas) — solo se apagan al salir de las dos.
+    if (vista!=='recorrido' && vista!=='3d' && grabandoRecorrido) toggleGrabarRecorrido();
+    if (vista!=='recorrido' && vista!=='3d' && modoCaminarLibre) {
+        modoCaminarLibre = false;
+        controls.enableZoom = true;
+        controls.enablePan  = true;
+    }
+}
+
+// ── RECORRIDO DE CÁMARA (Etapa 1 del módulo de video con IA) ───────────────
+// Graba la posición/rotación real de la cámara mientras el usuario camina con
+// WASD por el modelo 3D ya generado. No usa IA todavía — es la base sobre la
+// que luego se conecta el editor de nodos por zona y la mejora con IA.
+// (El estado — grabandoRecorrido, recorridoFrames, etc. — se declaró arriba,
+// junto a vistaActual, para que esté listo antes de la primera llamada a
+// cambiarVista al cargar la página.)
+
+function toggleGrabarRecorrido() {
+    const btn = document.getElementById('btnGrabarRecorrido');
+    if (!salaConstruida) { mostrarToast('⚠️ Primero genera un modelo 3D en Editor Planta'); return; }
+    grabandoRecorrido = !grabandoRecorrido;
+    if (grabandoRecorrido) {
+        // Ya NO se borra lo que ya había — el tramo nuevo se SUMA al final
+        // del anterior, para poder grabar/dibujar por partes sin perder lo
+        // que ya tenías (esto era el bug real de "solo me dio 2 nodos").
+        tiempoBaseSegmento    = recorridoFrames.length ? recorridoFrames.at(-1).t + 300 : 0;
+        tiempoInicioGrabacion = performance.now();
+        btn.textContent = '⏹ Detener grabación';
+        btn.style.background = 'rgba(16,185,129,0.2)';
+        btn.style.borderColor = 'rgba(16,185,129,0.5)';
+        btn.style.color = '#6EE7B7';
+        document.getElementById('btnMarcarZona').disabled = false;
+        document.getElementById('btnMarcarZona').style.opacity = '1';
+        document.getElementById('cronometroGrabacion').style.display = 'block';
+        cronometroIntervalo = setInterval(actualizarCronometroGrabacion, 250);
+        mostrarToast('⏺ Grabando — camina con W A S D por el modelo');
+    } else {
+        btn.textContent = '⏺ Grabar recorrido';
+        btn.style.background = 'rgba(239,68,68,0.15)';
+        btn.style.borderColor = 'rgba(239,68,68,0.4)';
+        btn.style.color = '#FCA5A5';
+        document.getElementById('btnMarcarZona').disabled = true;
+        document.getElementById('btnMarcarZona').style.opacity = '0.5';
+        document.getElementById('cronometroGrabacion').style.display = 'none';
+        clearInterval(cronometroIntervalo);
+        const hayFrames = recorridoFrames.length > 1;
+        ['btnReproducirRecorrido','btnDescargarVideo','btnDescargarJSON','btnGuardarRecorrido','btnEnviarProduccion'].forEach(id => {
+            document.getElementById(id).disabled = !hayFrames;
+            document.getElementById(id).style.opacity = hayFrames ? '1' : '0.5';
+        });
+        if (hayFrames) mostrarToast(`✅ Recorrido guardado (${(recorridoFrames.at(-1).t/1000).toFixed(1)}s, ${zonasRecorrido.length} zonas marcadas)`);
+    }
+}
+
+let cronometroIntervalo = null;
+function actualizarCronometroGrabacion() {
+    const seg = (performance.now() - tiempoInicioGrabacion) / 1000;
+    const m = Math.floor(seg / 60).toString().padStart(2, '0');
+    const s = Math.floor(seg % 60).toString().padStart(2, '0');
+    document.getElementById('cronometroGrabacion').textContent = `${m}:${s}`;
+}
+
+// Posiciona la cámara DENTRO del modelo con controles libres (no confundir
+// con "cámara pivote" — modoInterior/activarCamaraPivote — que restringe el
+// movimiento a un punto fijo de un solo cuarto; el recorrido necesita
+// moverse libremente por todo el apartamento con WASD).
+function entrarModoCaminarRecorrido() {
+    if (!salaConstruida) { mostrarToast('⚠️ Primero genera un modelo 3D en Editor Planta'); return; }
+    if (modoInterior) salirCamaraPivote(); // por seguridad, si estaba activo
+    modoCaminarLibre = true;
+    controls.minDistance = 0.05;
+    controls.maxDistance = 25;
+    controls.enabled = true;
+    // Bloquear zoom (scroll) y paneo (arrastre) — solo se debe poder MIRAR
+    // alrededor y moverse con WASD. Sin esto, un scroll sin querer aleja la
+    // cámara del modelo y esa posición se graba tal cual, como si hubieras
+    // "salido" del apartamento sin querer.
+    controls.enableZoom = false;
+    controls.enablePan  = false;
+    const primero = modulosActuales3D[0];
+    if (primero) {
+        camera.position.set(primero.cx, 1.6, primero.cz);
+        controls.target.set(primero.cx, 1.6, primero.cz - 1);
+        controls.update();
+    }
+    mostrarToast('👁️ Estás dentro — camina con W A S D, mira arrastrando el mouse');
+}
+
+function procesarGrabacionRecorrido() {
+    if (!grabandoRecorrido) return;
+    const t = tiempoBaseSegmento + (performance.now() - tiempoInicioGrabacion);
+    // Muestrea ~10 veces por segundo — suficiente para un recorrido suave sin
+    // guardar miles de puntos innecesarios.
+    if (recorridoFrames.length && t - recorridoFrames.at(-1).t < 100) return;
+    const p = camera.position, q = camera.quaternion;
+    recorridoFrames.push({ t, x:p.x, y:p.y, z:p.z, qx:q.x, qy:q.y, qz:q.z, qw:q.w });
+}
+
+function marcarZonaActual() {
+    if (!grabandoRecorrido) return;
+    const texto = prompt('¿Qué zona es esta? (ej: "Sala — luz cálida, estilo moderno")', '');
+    if (!texto) return;
+    const t = tiempoBaseSegmento + (performance.now() - tiempoInicioGrabacion);
+    const pos = posicionAutoNodo(zonasRecorrido.length + nodosReferencia.length);
+    zonasRecorrido.push({ id: nuevoIdNodo(), t, texto, prompt: '', color: '#7C3AED', textura_url: '', orden: zonasRecorrido.length + 1, x: pos.x, y: pos.y });
+    renderLienzoNodos();
+    mostrarToast(`📍 Zona marcada: ${texto}`);
+}
+
+// ── LIENZO DE NODOS FLOTANTE ─────────────────────────────────────────────
+// Reemplaza la vieja lista vertical de tarjetas — ahora los nodos (zonas
+// grabadas Y referencias externas subidas) viven en un lienzo libre, se
+// pueden arrastrar, conectar con flechas, y tienen un orden asignable.
+let nodosReferencia    = []; // [{id, url, esVideo, nota, orden, x, y}]
+let conexionesCanvas   = []; // [{desde, hacia}] — ids de nodos
+let arrastrandoNodoId  = null;
+let offsetArrastreNodo = { x: 0, y: 0 };
+let dibujandoConexionDesde = null;
+
+function nuevoIdNodo() { return 'n_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7); }
+
+function posicionAutoNodo(indice) {
+    // Empieza más abajo y más a la izquierda — la mini-pantalla vive fija
+    // arriba a la derecha del lienzo, así los nodos nunca nacen tapados.
+    const col = indice % 4, fila = Math.floor(indice / 4);
+    return { x: 40 + col * 210, y: 300 + fila * 150 };
+}
+
+function todosLosNodos() {
+    // Une zonas grabadas + referencias externas en una sola lista para
+    // dibujar/conectar, cada una con tipo para saber cómo renderizarla.
+    return [
+        ...zonasRecorrido.map(z => ({ ...z, tipo: 'zona' })),
+        ...nodosReferencia.map(r => ({ ...r, tipo: 'referencia' })),
+    ];
+}
+
+async function subirReferenciaExterna(archivo) {
+    if (!archivo) return;
+    const esVideo = archivo.type.startsWith('video/');
+    if (!esVideo && !archivo.type.startsWith('image/')) { mostrarToast('⚠️ Solo se aceptan imágenes o videos'); return; }
+    if (archivo.size > 50 * 1024 * 1024) { mostrarToast('⚠️ Máximo 50MB por archivo'); return; }
+
+    mostrarToast('⏳ Subiendo referencia...');
+    const ext = archivo.name.split('.').pop();
+    const nombreArchivo = `${nuevoIdNodo()}.${ext}`;
+
+    const { error } = await db.storage.from('nodos-referencias').upload(nombreArchivo, archivo, { upsert: true, contentType: archivo.type });
+    if (error) { console.error(error); mostrarToast('❌ No se pudo subir el archivo'); return; }
+
+    const { data: { publicUrl } } = db.storage.from('nodos-referencias').getPublicUrl(nombreArchivo);
+    const nota = prompt('¿Qué es esta referencia? (ej: "Video de dron — aquí se construye la casa")', '') || '';
+
+    const pos = posicionAutoNodo(zonasRecorrido.length + nodosReferencia.length);
+    nodosReferencia.push({
+        id: nuevoIdNodo(), url: publicUrl, esVideo, nota,
+        orden: todosLosNodos().length + 1, x: pos.x, y: pos.y,
+    });
+    document.getElementById('inputReferenciaExterna').value = '';
+    renderLienzoNodos();
+    mostrarToast('✅ Referencia agregada al lienzo');
+}
+
+function renderLienzoNodos() {
+    const cont = document.getElementById('nodosFlotantesCont');
+    const svg  = document.getElementById('svgConexionesNodos');
+    const vacio = document.getElementById('lienzoNodosVacio');
+    if (!cont || !svg) return;
+
+    const nodos = todosLosNodos();
+    vacio.style.display = nodos.length ? 'none' : 'block';
+
+    cont.innerHTML = nodos.map(n => {
+        if (n.tipo === 'zona') {
+            return `
+            <div class="nodo-flotante" data-id="${n.id}" style="position:absolute;left:${n.x}px;top:${n.y}px;width:190px;background:rgba(124,58,237,0.12);border:2.5px solid ${esc(n.color || '#7C3AED')};border-radius:10px;padding:10px;cursor:grab;user-select:none;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                    <span style="font-size:12px;font-weight:700;color:var(--texto);">🎬 ${esc(n.texto)}</span>
+                    <input type="number" value="${n.orden||1}" min="1" onchange="actualizarOrdenNodo('${n.id}',this.value)" title="Orden en la secuencia"
+                        style="width:34px;background:rgba(0,0,0,0.3);border:1px solid rgba(124,58,237,0.4);border-radius:5px;color:#FCD34D;font-size:11px;text-align:center;padding:2px;">
+                </div>
+                ${n.piso_info ? `<div style="font-size:9.5px;color:#6EE7B7;margin-bottom:4px;">${esc(n.piso_info)}</div>` : ''}
+                ${n.prompt_movimiento ? `<div style="font-size:9.5px;color:#FCD34D;margin-bottom:4px;">🎥 ${esc(n.prompt_movimiento)}</div>` : ''}
+                <div style="font-size:10px;color:var(--gris);margin-bottom:6px;">${(n.t/1000).toFixed(1)}s</div>
+                <div style="display:flex;gap:4px;">
+                    <button onclick="reproducirSegmentoNodo('${n.id}')" title="Reproducir solo este nodo" style="background:rgba(16,185,129,0.15);border:none;color:#6EE7B7;padding:4px 8px;border-radius:5px;font-size:10px;cursor:pointer;">▶</button>
+                    <button onclick="editarNodoZona('${n.id}')" style="flex:1;background:rgba(255,255,255,0.06);border:none;color:var(--texto);padding:4px;border-radius:5px;font-size:10px;cursor:pointer;">✏️ Editar prompt</button>
+                </div>
+                <div class="conector conector-der" data-id="${n.id}" style="position:absolute;right:-7px;top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;background:#7C3AED;border:2px solid white;cursor:crosshair;"></div>
+                <div class="conector conector-izq" data-id="${n.id}" style="position:absolute;left:-7px;top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;background:rgba(255,255,255,0.2);border:2px solid white;"></div>
+            </div>`;
+        } else {
+            return `
+            <div class="nodo-flotante" data-id="${n.id}" style="position:absolute;left:${n.x}px;top:${n.y}px;width:190px;background:rgba(245,158,11,0.12);border:1.5px solid rgba(245,158,11,0.5);border-radius:10px;padding:10px;cursor:grab;user-select:none;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                    <span style="font-size:12px;font-weight:700;color:#FCD34D;">${n.esVideo ? '🎥' : '🖼️'} Referencia externa</span>
+                    <input type="number" value="${n.orden||1}" min="1" onchange="actualizarOrdenNodo('${n.id}',this.value)" title="Orden en la secuencia"
+                        style="width:34px;background:rgba(0,0,0,0.3);border:1px solid rgba(245,158,11,0.4);border-radius:5px;color:#FCD34D;font-size:11px;text-align:center;padding:2px;">
+                </div>
+                ${n.esVideo
+                    ? `<video src="${esc(n.url)}" style="width:100%;height:80px;object-fit:cover;border-radius:6px;margin-bottom:6px;" muted></video>`
+                    : `<img src="${esc(n.url)}" style="width:100%;height:80px;object-fit:cover;border-radius:6px;margin-bottom:6px;">`}
+                <div style="font-size:10px;color:var(--gris);line-height:1.3;">${esc(n.nota || 'Sin nota')}</div>
+                <div class="conector conector-der" data-id="${n.id}" style="position:absolute;right:-7px;top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;background:#F59E0B;border:2px solid white;cursor:crosshair;"></div>
+                <div class="conector conector-izq" data-id="${n.id}" style="position:absolute;left:-7px;top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;background:rgba(255,255,255,0.2);border:2px solid white;"></div>
+            </div>`;
+        }
+    }).join('');
+
+    dibujarConexionesSVG();
+}
+
+function posicionNodo(id) {
+    const el = document.querySelector(`.nodo-flotante[data-id="${id}"]`);
+    if (!el) return null;
+    return { x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight };
+}
+
+function dibujarConexionesSVG() {
+    const svg = document.getElementById('svgConexionesNodos');
+    svg.innerHTML = `<defs><marker id="flechaNodo" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#A78BFA"/></marker></defs>`;
+    conexionesCanvas.forEach(c => {
+        const a = posicionNodo(c.desde), b = posicionNodo(c.hacia);
+        if (!a || !b) return;
+        const x1 = a.x + a.w, y1 = a.y + a.h/2, x2 = b.x, y2 = b.y + b.h/2;
+        const mx = (x1 + x2) / 2;
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`);
+        path.setAttribute('stroke', '#A78BFA');
+        path.setAttribute('stroke-width', '2.5');
+        path.setAttribute('fill', 'none');
+        path.setAttribute('marker-end', 'url(#flechaNodo)');
+        svg.appendChild(path);
+    });
+}
+
+function actualizarOrdenNodo(id, valor) {
+    const orden = parseInt(valor) || 1;
+    const z = zonasRecorrido.find(n => n.id === id);
+    if (z) { z.orden = orden; return; }
+    const r = nodosReferencia.find(n => n.id === id);
+    if (r) r.orden = orden;
+}
+
+function editarNodoZona(id) {
+    const z = zonasRecorrido.find(n => n.id === id);
+    if (!z) return;
+    const nuevoPrompt = prompt('Prompt para esta zona:', z.prompt || '');
+    if (nuevoPrompt !== null) z.prompt = nuevoPrompt;
+}
+
+// ── Arrastrar nodos y conectar con flechas ──────────────────────────────
+document.addEventListener('mousedown', (e) => {
+    if (vistaActual !== 'recorrido') return;
+    const conectorDer = e.target.closest('.conector-der');
+    if (conectorDer) { dibujandoConexionDesde = conectorDer.dataset.id; return; }
+    const nodoEl = e.target.closest('.nodo-flotante');
+    if (nodoEl) {
+        arrastrandoNodoId = nodoEl.dataset.id;
+        offsetArrastreNodo = { x: e.clientX - nodoEl.offsetLeft, y: e.clientY - nodoEl.offsetTop };
+    }
+});
+document.addEventListener('mousemove', (e) => {
+    if (vistaActual !== 'recorrido') return;
+    if (arrastrandoNodoId) {
+        const el = document.querySelector(`.nodo-flotante[data-id="${arrastrandoNodoId}"]`);
+        if (!el) return;
+        const nuevoX = Math.max(0, e.clientX - offsetArrastreNodo.x);
+        const nuevoY = Math.max(0, e.clientY - offsetArrastreNodo.y);
+        el.style.left = nuevoX + 'px';
+        el.style.top  = nuevoY + 'px';
+        const z = zonasRecorrido.find(n => n.id === arrastrandoNodoId);
+        if (z) { z.x = nuevoX; z.y = nuevoY; }
+        const r = nodosReferencia.find(n => n.id === arrastrandoNodoId);
+        if (r) { r.x = nuevoX; r.y = nuevoY; }
+        dibujarConexionesSVG();
+    }
+});
+document.addEventListener('mouseup', (e) => {
+    if (vistaActual !== 'recorrido') return;
+    if (dibujandoConexionDesde) {
+        const conectorIzq = e.target.closest('.conector-izq');
+        if (conectorIzq && conectorIzq.dataset.id !== dibujandoConexionDesde) {
+            conexionesCanvas.push({ desde: dibujandoConexionDesde, hacia: conectorIzq.dataset.id });
+            dibujarConexionesSVG();
+        }
+        dibujandoConexionDesde = null;
+    }
+    arrastrandoNodoId = null;
+});
+
+function actualizarZonaRecorrido(i, campo, valor) {
+    if (!zonasRecorrido[i]) return;
+    zonasRecorrido[i][campo] = valor;
+}
+
+let detenerReproduccionSolicitado = false;
+
+async function reproducirRecorrido() {
+    if (reproduciendoRecorrido || recorridoFrames.length < 2) return;
+    reproduciendoRecorrido = true;
+    detenerReproduccionSolicitado = false;
+    marcadorCamara.visible = true;
+    actualizarBotonReproducir(true);
+    const inicio = performance.now();
+    const duracion = recorridoFrames.at(-1).t;
+    try {
+        await new Promise((resolve, reject) => {
+            function paso() {
+                try {
+                    const t = performance.now() - inicio;
+                    aplicarFrameRecorrido(t);
+                    if (t < duracion && !detenerReproduccionSolicitado) requestAnimationFrame(paso);
+                    else resolve();
+                } catch (err) {
+                    reject(err);
+                }
+            }
+            requestAnimationFrame(paso);
+        });
+    } catch (err) {
+        console.error('❌ Error reproduciendo el recorrido — se detuvo automáticamente:', err);
+        mostrarToast('❌ Error reproduciendo — revisa la consola (F12)');
+    } finally {
+        // Pase lo que pase (incluso si algo falla a mitad de la reproducción),
+        // el estado SIEMPRE se libera — así "Detener" nunca queda pegado.
+        marcadorCamara.visible = false;
+        if (estelaCamaraObj) { scene.remove(estelaCamaraObj); estelaCamaraObj = null; }
+        reproduciendoRecorrido = false;
+        detenerReproduccionSolicitado = false;
+        actualizarBotonReproducir(false);
+    }
+}
+
+function detenerReproduccion() {
+    detenerReproduccionSolicitado = true;
+}
+
+function limpiarRecorridoCompleto() {
+    if (!confirm('¿Borrar todo el recorrido grabado, todos los nodos y las conexiones? No se puede deshacer.')) return;
+    recorridoFrames  = [];
+    zonasRecorrido    = [];
+    nodosReferencia   = [];
+    conexionesCanvas  = [];
+    tiempoBaseSegmento = 0;
+    numeroGrabacion    = 0;
+    lineasGrabadas.forEach(l => scene.remove(l));
+    lineasGrabadas     = [];
+    ['btnReproducirRecorrido','btnDescargarVideo','btnDescargarJSON','btnGuardarRecorrido','btnEnviarProduccion'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
+    });
+    renderLienzoNodos();
+    mostrarToast('🗑️ Todo limpio — puedes empezar de cero');
+}
+
+async function enviarAProduccion() {
+    if (recorridoFrames.length < 2) { mostrarToast('⚠️ Graba o dibuja un recorrido primero'); return; }
+    const { tiendaId, empresaId } = await obtenerContextoTiendaParaRecorrido();
+    if (!tiendaId) { mostrarToast('⚠️ Primero crea tu tienda en el Dashboard — esto necesita una tienda real, no el modo demo'); return; }
+
+    const nombre = prompt('Nombre para enviar a producción (aparecerá en Editor de video):', `Recorrido ${new Date().toLocaleDateString('es-CO')}`);
+    if (nombre === null) return;
+
+    const btn = document.getElementById('btnEnviarProduccion');
+    btn.disabled = true; btn.textContent = 'Enviando...';
+
+    const { data, error } = await db.from('recorridos_camara').insert({
+        tienda_id: tiendaId, empresa_id: empresaId,
+        nombre: nombre.trim() || 'Recorrido sin nombre',
+        frames: recorridoFrames, zonas: zonasRecorrido,
+        nodos_referencia: nodosReferencia, conexiones: conexionesCanvas,
+        duracion_ms: recorridoFrames.at(-1).t,
+    }).select().single();
+
+    btn.disabled = false; btn.textContent = '📤 Enviar a producción (Editor de video)';
+
+    if (error || !data) {
+        console.error(error);
+        mostrarToast('❌ No se pudo enviar a producción');
+        return;
+    }
+
+    cambiarVista('editorvideo');
+    agregarClipATimeline(data.id, data.nombre, data.duracion_ms);
+    mostrarToast('📤 Enviado — revisa la línea de tiempo en Editor de video');
+}
+
+async function reproducirSegmentoNodo(nodoId) {
+    if (reproduciendoRecorrido) return;
+    const nodos = [...zonasRecorrido].sort((a, b) => (a.orden || 0) - (b.orden || 0));
+    const idx = nodos.findIndex(n => n.id === nodoId);
+    if (idx === -1) return;
+    const inicioSeg = nodos[idx].t;
+    const finSeg = idx < nodos.length - 1 ? nodos[idx + 1].t : recorridoFrames.at(-1).t;
+
+    reproduciendoRecorrido = true;
+    detenerReproduccionSolicitado = false;
+    marcadorCamara.visible = true;
+    actualizarBotonReproducir(true);
+    const tInicioReal = performance.now();
+    try {
+        await new Promise((resolve, reject) => {
+            function paso() {
+                try {
+                    const t = inicioSeg + (performance.now() - tInicioReal);
+                    aplicarFrameRecorrido(t);
+                    if (t < finSeg && !detenerReproduccionSolicitado) requestAnimationFrame(paso);
+                    else resolve();
+                } catch (err) {
+                    reject(err);
+                }
+            }
+            requestAnimationFrame(paso);
+        });
+    } catch (err) {
+        console.error('❌ Error reproduciendo el nodo — se detuvo automáticamente:', err);
+        mostrarToast('❌ Error reproduciendo — revisa la consola (F12)');
+    } finally {
+        marcadorCamara.visible = false;
+        if (estelaCamaraObj) { scene.remove(estelaCamaraObj); estelaCamaraObj = null; }
+        reproduciendoRecorrido = false;
+        detenerReproduccionSolicitado = false;
+        actualizarBotonReproducir(false);
+    }
+}
+
+function actualizarBotonReproducir(reproduciendo) {
+    ['btnReproducirRecorrido', 'btnReproducirRecorridoNodos'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (!btn) return;
+        if (reproduciendo) {
+            btn.textContent = '⏹ Detener reproducción';
+            btn.onclick = detenerReproduccion;
+            btn.style.background = 'rgba(239,68,68,0.2)';
+            btn.style.color = '#FCA5A5';
+        } else {
+            btn.textContent = '▶ Reproducir';
+            btn.onclick = reproducirRecorrido;
+            btn.style.background = 'rgba(16,185,129,0.15)';
+            btn.style.color = '#6EE7B7';
+        }
+    });
+}
+
+function aplicarFrameRecorrido(t) {
+    // Busca los dos frames grabados más cercanos a t e interpola entre ellos
+    // para que la reproducción se vea suave aunque se haya grabado a ~10fps.
+    let i = 0;
+    while (i < recorridoFrames.length - 1 && recorridoFrames[i+1].t < t) i++;
+    const a = recorridoFrames[i], b = recorridoFrames[Math.min(i+1, recorridoFrames.length-1)];
+    const rango = Math.max(1, b.t - a.t);
+    const f = Math.min(1, Math.max(0, (t - a.t) / rango));
+    const pos = new THREE.Vector3(
+        a.x + (b.x - a.x) * f,
+        a.y + (b.y - a.y) * f,
+        a.z + (b.z - a.z) * f,
+    );
+    const qa = new THREE.Quaternion(a.qx, a.qy, a.qz, a.qw);
+    const qb = new THREE.Quaternion(b.qx, b.qy, b.qz, b.qw);
+    // OJO: en esta versión de Three.js, slerpQuaternions() no siempre devuelve
+    // "this" para encadenar — por eso NO se puede hacer
+    // "new THREE.Quaternion().slerpQuaternions(...)" en una sola línea (eso
+    // era el bug real: "quat" quedaba undefined). Se crea aparte y se llama.
+    const quat = new THREE.Quaternion();
+    quat.slerpQuaternions(qa, qb, f);
+
+    // La cámara PRINCIPAL (Entorno 3D) no se toca — el usuario sigue
+    // orbitando libre y ve a la camarita moverse desde afuera. La mini-
+    // cámara (Nodos + exportar video) sí recorre el camino en primera
+    // persona real.
+    marcadorCamara.position.copy(pos);
+    marcadorCamara.quaternion.copy(quat);
+    cameraPreview.position.copy(pos);
+    cameraPreview.quaternion.copy(quat);
+    actualizarEstelaCamara(t);
+}
+
+async function descargarVideoRecorrido() {
+    if (recorridoFrames.length < 2) return;
+    const btn = document.getElementById('btnDescargarVideo');
+    btn.disabled = true;
+    btn.innerHTML = '<span style="display:inline-block;width:10px;height:10px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:6px;"></span>Grabando video...';
+    try {
+        // Se graba desde la MINI-pantalla (mini-cámara en primera persona),
+        // no desde el canvas principal — ese ahora queda libre para que el
+        // usuario orbite y mire la camarita moverse desde afuera, así que ya
+        // no sirve como fuente del video final.
+        if (!rendererPreview) throw new Error('No hay mini-cámara disponible');
+        const stream = canvasPreviewEl.captureStream(30);
+        const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm';
+        const grabador = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 6_000_000 });
+        const chunks = [];
+        grabador.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+        const terminado = new Promise(resolve => grabador.onstop = resolve);
+        grabador.start();
+        await reproducirRecorrido();
+        grabador.stop();
+        await terminado;
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `recorrido_decoiarte_${Date.now()}.webm`;
+        a.click();
+        URL.revokeObjectURL(url);
+        mostrarToast('✅ Video del recorrido descargado');
+    } catch (e) {
+        console.error(e);
+        mostrarToast('❌ No se pudo grabar el video. Prueba en Chrome o Edge.');
+    }
+    btn.disabled = false;
+    btn.innerHTML = '🎥 Descargar video (.webm)';
+}
+
+function descargarJSONRecorrido() {
+    if (recorridoFrames.length < 2) return;
+    const data = { frames: recorridoFrames, zonas: zonasRecorrido, generado: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `recorrido_decoiarte_${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function actualizarFormaCamara() {
+    const video = PLANES_CON_VIDEO.includes(planActualUsuario);
+    formaVideoCam.visible = video;
+    formaFotoCam.visible  = !video;
+    const t = document.getElementById('tituloVistaCamara');
+    if (t) t.textContent = video ? 'VISTA DE LA CÁMARA' : '📸 VISTA DE LA FOTO';
+    const tp = document.getElementById('tituloSecCamara');
+    if (tp) tp.textContent = video ? '🎥 Cámara' : '📸 Cámara de fotos';
+}
+
+function actualizarCandadoEntorno3D() {
+    actualizarFormaCamara();
+    const desbloqueado = PLANES_CON_VIDEO.includes(planActualUsuario) && estadoActualUsuario === 'activo';
+    const bloqueo    = document.getElementById('bloqueoEntorno3D');
+    const contenido  = document.getElementById('contenidoEntorno3DReal');
+    if (!bloqueo || !contenido) return;
+    bloqueo.style.display   = desbloqueado ? 'none' : 'block';
+    contenido.style.display = desbloqueado ? 'flex' : 'none';
+    document.getElementById('toolbarEntorno3D').classList.toggle('compacto', !desbloqueado);
+}
+
+function actualizarCandadoRecorrido() {
+    const desbloqueado = PLANES_CON_VIDEO.includes(planActualUsuario) && estadoActualUsuario === 'activo';
+    const bloqueo    = document.getElementById('bloqueoRecorrido');
+    const contenido  = document.getElementById('contenidoRecorridoReal');
+    if (!bloqueo || !contenido) return;
+    bloqueo.style.display   = desbloqueado ? 'none' : 'block';
+    contenido.style.display = desbloqueado ? 'flex' : 'none';
+}
+
+// ── EDITOR DE VIDEO — clips guardados → línea de tiempo → config por clip ──
+// Reusa los recorridos ya guardados en Supabase (recorridos_camara) como
+// "clips" de origen. La línea de tiempo hoy vive solo en memoria del
+// navegador (no se persiste todavía) — construir esa persistencia es un
+// siguiente paso, no algo que se perdió.
+let clipsDisponiblesEditor  = [];
+let timelineClips           = []; // [{key, recorrido_id, nombre, duracion_ms, prompt_ia, usar_ia, audio_url}]
+let clipTimelineSeleccionado = null; // key del clip seleccionado en el panel derecho
+
+function actualizarCandadoEditorVideo() {
+    const desbloqueado = PLANES_CON_VIDEO.includes(planActualUsuario) && estadoActualUsuario === 'activo';
+    const bloqueo    = document.getElementById('bloqueoEditorVideo');
+    const contenido  = document.getElementById('contenidoEditorVideoReal');
+    if (!bloqueo || !contenido) return;
+    bloqueo.style.display   = desbloqueado ? 'none' : 'block';
+    contenido.style.display = desbloqueado ? 'flex' : 'none';
+}
+
+async function cargarClipsDisponiblesEditor() {
+    const cont = document.getElementById('listaClipsDisponibles');
+    const { tiendaId } = await obtenerContextoTiendaParaRecorrido();
+    if (!tiendaId) { cont.innerHTML = `<div style="color:var(--gris);font-size:12px;">Primero crea tu tienda en el Dashboard para ver tus clips.</div>`; return; }
+
+    const { data, error } = await db.from('recorridos_camara')
+        .select('id,nombre,duracion_ms,created_at')
+        .eq('tienda_id', tiendaId)
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+    if (error) { cont.innerHTML = `<div style="color:#FCA5A5;font-size:12px;">No se pudieron cargar los clips.</div>`; return; }
+    clipsDisponiblesEditor = data || [];
+
+    if (!clipsDisponiblesEditor.length) {
+        cont.innerHTML = `<div style="color:var(--gris);font-size:12px;">Todavía no tienes recorridos guardados. Ve a la pestaña 🎬 Recorrido, graba uno, y dale "Guardar recorrido".</div>`;
+        return;
+    }
+
+    cont.innerHTML = clipsDisponiblesEditor.map(c => `
+        <div style="min-width:150px;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.25);border-radius:8px;padding:10px;flex-shrink:0;">
+            <div style="font-size:12.5px;font-weight:700;color:var(--texto);margin-bottom:2px;">${esc(c.nombre)}</div>
+            <div style="font-size:10.5px;color:var(--gris);margin-bottom:8px;">${(c.duracion_ms/1000).toFixed(1)}s</div>
+            <button onclick='agregarClipATimeline(${JSON.stringify(c.id)}, ${JSON.stringify(c.nombre)}, ${c.duracion_ms})' style="width:100%;background:var(--degradado);color:white;border:none;padding:6px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;">➕ Agregar</button>
+        </div>`).join('');
+}
+
+function agregarClipATimeline(recorridoId, nombre, duracionMs) {
+    const key = `tl_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    timelineClips.push({
+        key, recorrido_id: recorridoId, nombre, duracion_ms: duracionMs,
+        prompt_ia: '', usar_ia: false, audio_url: '',
+    });
+    renderTimeline();
+    mostrarToast(`✅ "${nombre}" agregado a la línea de tiempo`);
+}
+
+function renderTimeline() {
+    const cont = document.getElementById('timelineContenedor');
+    if (!timelineClips.length) {
+        cont.innerHTML = `<div style="color:var(--gris);font-size:12.5px;padding:20px;">Agrega clips de arriba para armar el video.</div>`;
+    } else {
+        cont.innerHTML = timelineClips.map((c, i) => `
+            <div onclick="seleccionarClipTimeline('${c.key}')" style="cursor:pointer;min-width:130px;background:${clipTimelineSeleccionado===c.key ? 'rgba(124,58,237,0.3)' : 'rgba(124,58,237,0.1)'};border:1px solid ${clipTimelineSeleccionado===c.key ? '#7C3AED' : 'rgba(124,58,237,0.25)'};border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:4px;">
+                <div style="font-size:11px;font-weight:700;color:var(--texto);">${i+1}. ${esc(c.nombre)}</div>
+                <div style="font-size:10px;color:var(--gris);">${(c.duracion_ms/1000).toFixed(1)}s ${c.usar_ia ? '· 🪄 IA' : ''} ${c.audio_url ? '· 🎵' : ''}</div>
+                <div style="display:flex;gap:4px;margin-top:4px;" onclick="event.stopPropagation()">
+                    <button onclick="moverClipTimeline('${c.key}',-1)" style="flex:1;background:rgba(255,255,255,0.06);border:none;color:var(--gris);border-radius:4px;padding:3px;cursor:pointer;font-size:11px;">◀</button>
+                    <button onclick="moverClipTimeline('${c.key}',1)" style="flex:1;background:rgba(255,255,255,0.06);border:none;color:var(--gris);border-radius:4px;padding:3px;cursor:pointer;font-size:11px;">▶</button>
+                    <button onclick="quitarClipTimeline('${c.key}')" style="flex:1;background:rgba(239,68,68,0.15);border:none;color:#FCA5A5;border-radius:4px;padding:3px;cursor:pointer;font-size:11px;">✕</button>
+                </div>
+            </div>`).join('');
+    }
+    const totalMs = timelineClips.reduce((s, c) => s + c.duracion_ms, 0);
+    document.getElementById('timelineTotalDuracion').textContent = `Duración total: ${(totalMs/1000).toFixed(1)}s — ${timelineClips.length} clip(s)`;
+    renderPanelConfigClip();
+}
+
+function moverClipTimeline(key, direccion) {
+    const i = timelineClips.findIndex(c => c.key === key);
+    const j = i + direccion;
+    if (i < 0 || j < 0 || j >= timelineClips.length) return;
+    [timelineClips[i], timelineClips[j]] = [timelineClips[j], timelineClips[i]];
+    renderTimeline();
+}
+
+function quitarClipTimeline(key) {
+    timelineClips = timelineClips.filter(c => c.key !== key);
+    if (clipTimelineSeleccionado === key) clipTimelineSeleccionado = null;
+    renderTimeline();
+}
+
+function seleccionarClipTimeline(key) {
+    clipTimelineSeleccionado = key;
+    renderTimeline();
+}
+
+function actualizarConfigClipTimeline(key, campo, valor) {
+    const clip = timelineClips.find(c => c.key === key);
+    if (!clip) return;
+    clip[campo] = valor;
+    if (campo === 'usar_ia') renderTimeline(); // para actualizar el badge "🪄 IA"
+}
+
+function renderPanelConfigClip() {
+    const panel = document.getElementById('panelConfigClipTimeline');
+    const clip = timelineClips.find(c => c.key === clipTimelineSeleccionado);
+    if (!clip) {
+        panel.innerHTML = `<div style="color:var(--gris);font-size:12.5px;">Selecciona un clip de la línea de tiempo para configurarlo (prompt de IA, audio).</div>`;
+        return;
+    }
+    panel.innerHTML = `
+        <div style="font-size:11px;font-weight:700;color:#A78BFA;text-transform:uppercase;margin-bottom:10px;">${esc(clip.nombre)}</div>
+
+        <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--texto);margin-bottom:10px;cursor:pointer;">
+            <input type="checkbox" ${clip.usar_ia ? 'checked' : ''} onchange="actualizarConfigClipTimeline('${clip.key}','usar_ia',this.checked)">
+            🪄 Mejorar este clip con IA
+        </label>
+        <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:6px;padding:8px;font-size:11px;color:#FCD34D;margin-bottom:12px;">
+            ⏳ La conexión con la IA de video todavía no está activa — se conecta en el siguiente paso. Por ahora puedes dejar preparado el prompt.
+        </div>
+
+        <label style="font-size:11px;color:var(--gris);text-transform:uppercase;font-weight:700;">Prompt para este clip</label>
+        <textarea oninput="actualizarConfigClipTimeline('${clip.key}','prompt_ia',this.value)" placeholder="Ej: luz cálida, estilo moderno, mantener la arquitectura exacta"
+            style="width:100%;min-height:70px;margin-top:6px;background:rgba(0,0,0,0.25);border:1px solid rgba(124,58,237,0.25);border-radius:6px;color:var(--texto);font-size:12px;padding:8px;resize:vertical;box-sizing:border-box;">${esc(clip.prompt_ia)}</textarea>
+
+        <label style="font-size:11px;color:var(--gris);text-transform:uppercase;font-weight:700;display:block;margin-top:14px;">🎵 Audio (URL, opcional)</label>
+        <input type="text" value="${esc(clip.audio_url)}" oninput="actualizarConfigClipTimeline('${clip.key}','audio_url',this.value)" placeholder="https://..."
+            style="width:100%;margin-top:6px;background:rgba(0,0,0,0.25);border:1px solid rgba(124,58,237,0.25);border-radius:6px;color:var(--texto);font-size:12px;padding:7px;box-sizing:border-box;">
+    `;
+}
+
+// ── GUARDAR / CARGAR RECORRIDOS EN SUPABASE ─────────────────────────────
+let recorridoTiendaId  = null;
+let recorridoEmpresaId = null;
+
+async function obtenerContextoTiendaParaRecorrido() {
+    if (recorridoTiendaId) return { tiendaId: recorridoTiendaId, empresaId: recorridoEmpresaId };
+    const { data: { session } } = await db.auth.getSession();
+    if (!session) return { tiendaId: null, empresaId: null };
+    const { data: empresa } = await db.from('empresas').select('id').eq('email', session.user.email).maybeSingle();
+    if (!empresa) return { tiendaId: null, empresaId: null };
+    const { data: tienda } = await db.from('tiendas').select('id').eq('empresa_id', empresa.id).maybeSingle();
+    recorridoTiendaId  = tienda?.id || null;
+    recorridoEmpresaId = empresa.id;
+    return { tiendaId: recorridoTiendaId, empresaId: recorridoEmpresaId };
+}
+
+async function guardarRecorridoEnSupabase() {
+    if (recorridoFrames.length < 2) return;
+    const { tiendaId, empresaId } = await obtenerContextoTiendaParaRecorrido();
+    if (!tiendaId) { mostrarToast('⚠️ Primero crea tu tienda en el Dashboard — esto necesita una tienda real, no el modo demo'); return; }
+
+    const nombre = prompt('Nombre para este recorrido (ej: "Apartamento 501 - recorrido sala-comedor")', '');
+    if (nombre === null) return; // canceló
+
+    const btn = document.getElementById('btnGuardarRecorrido');
+    btn.disabled = true; btn.textContent = 'Guardando...';
+
+    const { error } = await db.from('recorridos_camara').insert({
+        tienda_id:   tiendaId,
+        empresa_id:  empresaId,
+        nombre:      nombre.trim() || 'Recorrido sin nombre',
+        frames:      recorridoFrames,
+        zonas:       zonasRecorrido,
+        nodos_referencia: nodosReferencia,
+        conexiones:       conexionesCanvas,
+        duracion_ms: recorridoFrames.at(-1).t,
+    });
+
+    btn.disabled = false; btn.textContent = '💾 Guardar recorrido';
+
+    if (error) {
+        console.error(error);
+        mostrarToast('❌ No se pudo guardar el recorrido');
+        return;
+    }
+    mostrarToast('✅ Recorrido guardado');
+    cargarRecorridosGuardados();
+}
+
+async function cargarRecorridosGuardados() {
+    const cont = document.getElementById('listaRecorridosGuardados');
+    const { tiendaId } = await obtenerContextoTiendaParaRecorrido();
+    if (!tiendaId) { cont.innerHTML = ''; return; }
+
+    const { data, error } = await db.from('recorridos_camara')
+        .select('id,nombre,duracion_ms,created_at')
+        .eq('tienda_id', tiendaId)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+    if (error || !data || data.length === 0) { cont.innerHTML = ''; return; }
+
+    cont.innerHTML = `<div style="font-size:11px;font-weight:700;color:#A78BFA;text-transform:uppercase;margin-bottom:2px;">Recorridos guardados</div>` +
+        data.map(r => `
+        <div style="display:flex;justify-content:space-between;align-items:center;background:rgba(124,58,237,0.08);border-radius:6px;padding:6px 8px;">
+            <div style="cursor:pointer;flex:1;" onclick="cargarRecorridoGuardado('${r.id}')">
+                <div style="color:var(--texto);font-weight:600;">${esc(r.nombre)}</div>
+                <div style="color:var(--gris);font-size:10px;">${(r.duracion_ms/1000).toFixed(1)}s · ${new Date(r.created_at).toLocaleDateString('es-CO')}</div>
+            </div>
+            <button onclick="borrarRecorridoGuardado('${r.id}')" style="background:none;border:none;color:#FCA5A5;cursor:pointer;font-size:14px;">✕</button>
+        </div>`).join('');
+}
+
+async function cargarRecorridoGuardado(id) {
+    const { data, error } = await db.from('recorridos_camara').select('*').eq('id', id).maybeSingle();
+    if (error || !data) { mostrarToast('❌ No se pudo cargar el recorrido'); return; }
+
+    recorridoFrames = data.frames;
+    zonasRecorrido   = data.zonas || [];
+    nodosReferencia  = data.nodos_referencia || [];
+    conexionesCanvas = data.conexiones || [];
+    renderLienzoNodos();
+    ['btnReproducirRecorrido','btnDescargarVideo','btnDescargarJSON','btnGuardarRecorrido','btnEnviarProduccion'].forEach(elId => {
+        document.getElementById(elId).disabled = false;
+        document.getElementById(elId).style.opacity = '1';
+    });
+    cambiarVista('recorrido');
+    mostrarToast(`✅ Recorrido "${data.nombre}" cargado`);
+}
+
+async function borrarRecorridoGuardado(id) {
+    if (!confirm('¿Borrar este recorrido guardado?')) return;
+    const { error } = await db.from('recorridos_camara').delete().eq('id', id);
+    if (error) { mostrarToast('❌ No se pudo borrar'); return; }
+    mostrarToast('🗑️ Recorrido borrado');
+    cargarRecorridosGuardados();
+}
+
+// ── DIBUJAR RECORRIDO SOBRE EL MODELO 3D (clic real, no el plano 2D) ───────
+let modoDibujo3D    = false;
+let dibujando3D      = false;
+let trazo3D          = []; // [{x,z,moduloId,moduloNombre}]
+let lineaTrazo3DObj  = null;
+const raycaster3D = new THREE.Raycaster();
+raycaster3D.layers.enable(CAPA_AYUDAS);   // para poder agarrar la camarita, que vive en la capa de ayudas
+const mouse3D     = new THREE.Vector2();
+
+const PROMPTS_PREDETERMINADOS_POR_ZONA = {
+    bano:       'Luz cálida-neutra, ambiente limpio. Agregar accesorios típicos de baño (jabón, shampoo, toallas) sin exagerar. Mantener la arquitectura exacta.',
+    cocina:     'Luz neutra brillante, ambiente funcional. Mantener la arquitectura exacta, no inventar muebles fijos nuevos.',
+    sala:       'Luz cálida acogedora, estilo moderno. Mantener la arquitectura exacta.',
+    habitacion: 'Luz cálida suave, ambiente de descanso. Mantener la arquitectura exacta.',
+    pasillo:    'Luz neutra uniforme, transición fluida entre espacios.',
+};
+function promptPredeterminadoPorNombre(nombre) {
+    const n = (nombre || '').toLowerCase();
+    if (n.includes('baño')) return PROMPTS_PREDETERMINADOS_POR_ZONA.bano;
+    if (n.includes('cocina')) return PROMPTS_PREDETERMINADOS_POR_ZONA.cocina;
+    if (n.includes('sala')) return PROMPTS_PREDETERMINADOS_POR_ZONA.sala;
+    if (n.includes('habita') || n.includes('cuarto') || n.includes('dormitorio')) return PROMPTS_PREDETERMINADOS_POR_ZONA.habitacion;
+    if (n.includes('pasillo')) return PROMPTS_PREDETERMINADOS_POR_ZONA.pasillo;
+    return '';
+}
+
+function toggleDibujo3D() {
+    modoDibujo3D = !modoDibujo3D;
+    const btn = document.getElementById('btnDibujar3D');
+    document.getElementById('hintDibujo3D').style.display = modoDibujo3D ? 'block' : 'none';
+    if (modoDibujo3D) {
+        if (!salaConstruida) { mostrarToast('⚠️ Primero genera un modelo 3D en Editor Planta'); modoDibujo3D = false; return; }
+        btn.textContent = '✋ Salir del modo dibujo';
+        btn.style.background = 'rgba(245,158,11,0.3)';
+        controls.enabled = false; // el arrastre dibuja, no orbita, mientras esté activo
+        apartarTechosParaRecorrido(true);
+        trazo3D = [];
+        if (lineaTrazo3DObj) { scene.remove(lineaTrazo3DObj); lineaTrazo3DObj = null; }
+        document.getElementById('btnUsarTrazo3D').style.display = 'none';
+    } else {
+        btn.textContent = '🎯 Dibujar recorrido sobre el modelo';
+        btn.style.background = 'rgba(245,158,11,0.15)';
+        controls.enabled = true;
+        apartarTechosParaRecorrido(false);
+        marcadorCamara.visible = false;
+    }
+}
+
+function raycastPiso3D(e) {
+    const rect = canvas.getBoundingClientRect();
+    mouse3D.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse3D.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster3D.setFromCamera(mouse3D, camera);
+    const hits = raycaster3D.intersectObjects(pisosRaycastables);
+    return hits.length ? hits[0] : null;
+}
+
+function agregarPuntoTrazo3D(hit) {
+    const ud = hit.object.userData || {};
+    trazo3D.push({ x: hit.point.x, z: hit.point.z, moduloId: ud.moduloId, moduloNombre: ud.moduloNombre });
+    dibujarLineaTrazo3D();
+    actualizarCamaraMientrasDibuja();
+}
+
+// ── ARRASTRAR LA CÁMARA — el camino que recorra queda grabado ─────────────
+let modoArrastrarCamara = false;
+let arrastrandoCamara   = false;
+
+// ── TEXTURAS DECOIARTE (img/texturas) ────────────────────────────────────
+// Generadas por procedimiento, sin costuras y con mapa de relieve (_n). Se
+// pueden cambiar por fotos reales CC0 (Poly Haven, ambientCG) con el mismo nombre.
+const _cacheTex = {};
+const _cargadorTex = new THREE.TextureLoader();
+// Copias hechas antes de que llegue la imagen: en three 0.128 una copia NO se
+// entera cuando la imagen termina de descargar (el loader solo le pone la
+// imagen al original). Sin esto, la primera vez la textura salía en blanco.
+const _copiasPendientes = {};
+function texturaDeco(nombre, relieve) {
+    const clave = nombre + (relieve ? '_n' : '');
+    if (!_cacheTex[clave]) {
+        _copiasPendientes[clave] = [];
+        const t = _cargadorTex.load(`img/texturas/${clave}.jpg`, () => {
+            t.needsUpdate = true;
+            _copiasPendientes[clave].forEach(c => { c.image = t.image; c.needsUpdate = true; });
+            _copiasPendientes[clave] = [];
+        });
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        if (!relieve && THREE.sRGBEncoding) t.encoding = THREE.sRGBEncoding;
+        t.anisotropy = renderer.capabilities.getMaxAnisotropy ? Math.min(8, renderer.capabilities.getMaxAnisotropy()) : 1;
+        _cacheTex[clave] = t;
+    }
+    return _cacheTex[clave];
+}
+// Ejecuta fn cuando la imagen (y su relieve) ya estén: al instante si ya llegaron
+function alCargarTextura(nombre, fn) {
+    const base = texturaDeco(nombre, false); texturaDeco(nombre, true);
+    if (base.image) { fn(); return; }
+    const espera = setInterval(() => { if (base.image) { clearInterval(espera); fn(); } }, 150);
+    setTimeout(() => clearInterval(espera), 30000);
+}
+// Copia con su propia repetición (la imagen se comparte: no se descarga dos veces)
+function texturaRepetida(nombre, rx, ry, relieve) {
+    const base = texturaDeco(nombre, relieve), t = base.clone();
+    t.repeat.set(rx, ry);
+    if (base.image) t.needsUpdate = true;
+    else _copiasPendientes[nombre + (relieve ? '_n' : '')].push(t);   // recibirá la imagen al llegar
+    return t;
+}
+
+// Texturas de pared: tramo que cubre la imagen en metros (ancho, alto) y su rugosidad
+const TEXTURAS_PARED = [
+    { clave: 'ladrillo', nombre: 'Ladrillo a la vista', img: 'pared_ladrillo', tramo: [1.0, 1.0],  rug: 0.85, relieve: 1.0 },
+    { clave: 'piedra',   nombre: 'Piedra',              img: 'pared_piedra',   tramo: [1.4, 1.4],  rug: 0.9,  relieve: 1.2 },
+    { clave: 'estuco',   nombre: 'Estuco',              img: 'pared_estuco',   tramo: [1.5, 1.5],  rug: 0.95, relieve: 0.6 },
+    { clave: 'concreto', nombre: 'Concreto a la vista', img: 'pared_concreto', tramo: [2.4, 2.4],  rug: 0.8,  relieve: 0.7 },
+    { clave: 'madera',   nombre: 'Madera en listones',  img: 'pared_madera',   tramo: [1.2, 1.2],  rug: 0.6,  relieve: 0.8 },
+];
+function texturaParedPorClave(k) { return TEXTURAS_PARED.find(t => t.clave === k) || null; }
+
+// Aplica la textura elegida a los muros de cada cuarto (por dentro), con la
+// escala real del material según el largo y alto de cada tramo de muro.
+// Un muro puede tener un material por cara (textura solo adentro o solo
+// afuera): el resaltado del mouse debe tocar todas sus caras.
+function emisivoMuro(m, hex) {
+    if (!m || !m.material) return;
+    (Array.isArray(m.material) ? m.material : [m.material]).forEach(mm => { if (mm.emissive) mm.emissive.setHex(hex); });
+}
+// Cara de AFUERA de cada muro, en el orden de caras de BoxGeometry (+x −x +y −y +z −z)
+const CARA_AFUERA = { este: 0, oeste: 1, sur: 4, norte: 5 };
+function materialConTextura(base, tx, L, H) {
+    const mm = base.clone();
+    mm.map = texturaRepetida(tx.img, L / tx.tramo[0], H / tx.tramo[1], false);
+    mm.normalMap = texturaRepetida(tx.img, L / tx.tramo[0], H / tx.tramo[1], true);
+    mm.normalScale = new THREE.Vector2(tx.relieve, tx.relieve);
+    mm.color.set(0xFFFFFF); mm.roughness = tx.rug; mm.emissive && mm.emissive.setHex(0);
+    return mm;
+}
+// Texturas de cada cuarto según su lado: 'adentro' (por defecto), 'afuera' o
+// 'ambas'. Afuera también se viste la capa de fachada si la casa la tiene.
+function aplicarTexturasParedes() {
+    scene.traverse(o => {
+        const u = o.userData || {};
+        if (!o.isMesh || !(u.esPared || u.esFachada)) return;
+        if (!u._matOriginal) u._matOriginal = Array.isArray(o.material) ? o.material[0] : o.material;
+        const mod = modulosPlanta.find(m => m.id === u.moduloId);
+        const tx = mod && texturaParedPorClave(mod.texturaPared);
+        const lado = (mod && mod.texturaLado) || 'adentro';
+        (u._matsTex || []).forEach(mm => mm.dispose());
+        u._matsTex = [];
+        if (!tx) { o.material = u._matOriginal; u._texPared = null; return; }
+        const p = o.geometry.parameters || {};
+        const L = Math.max(p.width || 1, p.depth || 1), H = p.height || 2.6;
+        const conTex = materialConTextura(u._matOriginal, tx, L, H);
+        u._matsTex.push(conTex);
+        const liso = u._matOriginal;
+        if (u.esFachada) {                                // capa de fachada: solo afuera
+            o.material = (lado === 'afuera' || lado === 'ambas') ? conTex : liso;
+        } else if (lado === 'ambas') {
+            o.material = conTex;
+        } else {
+            const cara = CARA_AFUERA[u.lado];
+            if (cara === undefined) o.material = lado === 'adentro' ? conTex : liso;
+            else {
+                const caras = Array(6).fill(lado === 'adentro' ? conTex : liso);
+                caras[cara] = lado === 'adentro' ? liso : conTex;
+                o.material = caras;
+            }
+        }
+        u._texPared = tx.clave;
+    });
+}
+let ladoTexturaActual = 'adentro';
+function elegirLadoTextura(cual, lado) {
+    ladoTexturaActual = lado;
+    if (cual === 'planta') { if (moduloSeleccionado) moduloSeleccionado.texturaLado = lado; }
+    else modulosPlanta.forEach(m => { if (esCuarto(m.tipo)) m.texturaLado = lado; });
+    marcarLadoTextura(cual, lado);
+    if (salaConstruida) { aplicarTexturasParedes(); registrarCambioPlanta(); firmaUltimo3D = firmaPlanta(); actualizarAvisoRegenerar(); }
+    mostrarToast({ adentro: '🛋️ Textura por dentro', afuera: '🏠 Textura por fuera (fachada)', ambas: '⇆ Textura por dentro y por fuera' }[lado]);
+}
+function marcarLadoTextura(cual, lado) {
+    document.querySelectorAll(`.lado-textura[data-paleta="${cual}"] button`).forEach(b => b.classList.toggle('activa', b.dataset.lado === lado));
+}
+function elegirTexturaPared(cual, clave) {
+    const tx = texturaParedPorClave(clave);
+    if (cual === 'planta') {
+        if (!moduloSeleccionado) return;
+        moduloSeleccionado.texturaPared = clave;
+        moduloSeleccionado.texturaLado = moduloSeleccionado.texturaLado || ladoTexturaActual;
+        dibujarPlanta();
+    } else {
+        if (!salaConstruida) { mostrarToast('⚠️ Genera un modelo 3D primero'); return; }
+        modulosPlanta.forEach(m => { if (esCuarto(m.tipo)) { m.texturaPared = clave; m.texturaLado = ladoTexturaActual; } });
+        registrarCambioPlanta();
+    }
+    if (salaConstruida) { aplicarTexturasParedes(); firmaUltimo3D = firmaPlanta(); actualizarAvisoRegenerar(); }
+    marcarTexturas(cual, clave);
+    mostrarToast(`🧱 ${tx ? tx.nombre : 'Textura'} DecoIArte ${cual === 'planta' ? 'en ' + (moduloSeleccionado?.nombre || 'el cuarto') : 'en toda la casa'}`);
+}
+function marcarTexturas(cual, clave) {
+    document.querySelectorAll(`.paleta-texturas[data-paleta="${cual}"] button`).forEach(b => b.classList.toggle('activa', b.dataset.clave === clave));
+    const tx = texturaParedPorClave(clave);
+    const el = document.getElementById(cual === 'planta' ? 'nombrePinturaPlanta' : 'nombrePintura3D');
+    if (el && tx) el.textContent = `Textura DecoIArte · ${tx.nombre}`;
+}
+
+// ── ENTORNOS Y REALISMO ──────────────────────────────────────────────────
+// El entorno no es una foto de fondo: es un cielo físico (Sky.js) con su sol,
+// un terreno con textura, vegetación y paisaje, y de ese cielo salen los
+// reflejos (mapa de entorno PMREM) y el color de la luz. Todo lo calcula la
+// tarjeta gráfica con three.js; no hay IA generando la imagen.
+const ENTORNOS = {
+    estudio: null,   // el lienzo oscuro de siempre, para trabajar sin distracciones
+    // Calibrado a ojo con capturas: el cielo físico es muy brillante por diseño
+    // (los ejemplos oficiales usan exposición ~0,5); con exposición 1 todo se lavaba.
+    bosque:  { sky: { turbidity: 8, rayleigh: 1.2, mie: 0.005, g: 0.8, azim: 140 }, suelo: 'pasto', vege: 'bosque',
+               niebla: 0x9DB3A6, nieblaCerca: 90, nieblaLejos: 520, sol: 0xFFEAC8, solI: 2.6, cielo: 0xB9D3EA, rebote: 0x3F5230, hemiI: 0.32, exp: 0.55 },
+    tatacoa: { sky: { turbidity: 5, rayleigh: 0.8, mie: 0.004, g: 0.75, azim: 200 }, suelo: 'tatacoa', vege: 'tatacoa',
+               niebla: 0xD9BC98, nieblaCerca: 120, nieblaLejos: 650, sol: 0xFFDDAA, solI: 3.0, cielo: 0xC9DCEF, rebote: 0x9C5530, hemiI: 0.3, exp: 0.5 },
+    montana: { sky: { turbidity: 3, rayleigh: 1.4, mie: 0.005, g: 0.8, azim: 110 }, suelo: 'montana', vege: 'montana',
+               niebla: 0xAFC0D0, nieblaCerca: 110, nieblaLejos: 700, sol: 0xFFF0D8, solI: 2.6, cielo: 0xBFD5EC, rebote: 0x46523F, hemiI: 0.32, exp: 0.55 },
+    ciudad:  { sky: { turbidity: 9, rayleigh: 1.0, mie: 0.006, g: 0.8, azim: 150 }, suelo: 'asfalto', vege: 'ciudad',
+               niebla: 0xB4BCC6, nieblaCerca: 120, nieblaLejos: 650, sol: 0xFFF0DA, solI: 2.6, cielo: 0xC2D5EA, rebote: 0x5A5C60, hemiI: 0.3, exp: 0.55 },
+    playa:   { sky: { turbidity: 5, rayleigh: 1.7, mie: 0.004, g: 0.8, azim: 160 }, suelo: 'arena', vege: 'playa',
+               niebla: 0xBCD6E4, nieblaCerca: 110, nieblaLejos: 700, sol: 0xFFEFD2, solI: 2.8, cielo: 0xBFDDF3, rebote: 0xC9B48A, hemiI: 0.3, exp: 0.5 },
+};
+const NIVELES_REALISMO = {
+    basico:   { pr: 1,   sombra: 1024, suave: false, veg: 0.4, nota: 'Rápido: para equipos sencillos y celulares.' },
+    realista: { pr: 1.5, sombra: 2048, suave: true,  veg: 1.0, nota: 'Equilibrado: el recomendado para la mayoría de equipos.' },
+    alto:     { pr: 2,   sombra: 4096, suave: true,  veg: 1.7, nota: 'Sombras finas y más vegetación. Pide un equipo con buena tarjeta gráfica.' },
+    ultra:    { pr: 2,   sombra: 4096, suave: true,  veg: 2.5, nota: 'Máximo detalle para fotos. Solo en equipos potentes.' },
+};
+// "var" a propósito: configurarLuces() corre una vez al cargar la página, antes
+// de llegar aquí, y consulta entornoActual; con let rompería la carga.
+var entornoActual = 'estudio', realismoActual = 'realista', horaSol = 10, esNoche = false;
+var grupoEntorno = null, cieloEntorno = null, texEntorno = null;
+try { entornoActual = localStorage.getItem('decoia_entorno') || 'estudio'; realismoActual = localStorage.getItem('decoia_realismo') || 'realista';
+      horaSol = parseFloat(localStorage.getItem('decoia_hora_sol')) || 10; esNoche = localStorage.getItem('decoia_noche') === '1'; } catch (e) {}
+if (!(entornoActual in ENTORNOS)) entornoActual = 'estudio';
+if (!(realismoActual in NIVELES_REALISMO)) realismoActual = 'realista';
+
+// Azar con semilla: el mismo entorno siempre queda igual (no "baila" al regenerar)
+function azarConSemilla(semilla) { let a = semilla >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+// Dirección del sol según la hora (6 a 18) y el rumbo del entorno
+function direccionSol(cfg) {
+    const t = (horaSol - 6) / 12;                                   // 0 amanecer · 0,5 mediodía · 1 atardecer
+    const elev = Math.max(3, Math.sin(Math.PI * t) * 72);           // grados sobre el horizonte
+    const azim = cfg.sky.azim + (t - 0.5) * 150;
+    return new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - elev), THREE.MathUtils.degToRad(azim));
+}
+
+// Área de la casa (con sus exteriores) que el entorno deja despejada
+function areaCasa() {
+    const b = new THREE.Box3();
+    // Sin la camarita: si queda lejos, el despeje no debe estirarse hasta ella
+    scene.traverse(o => { const u = o.userData || {}; if ((u.tipoEstructura || u.esPared || u.esTecho) && u.tipoEstructura !== 'camara' && !u.esEntorno) b.expandByObject(o); });
+    if (b.isEmpty()) b.setFromCenterAndSize(new THREE.Vector3(), new THREE.Vector3(8, 3, 8));
+    return b;
+}
+
+function instanciar(geo, mat, n, colocar) {
+    const im = new THREE.InstancedMesh(geo, mat, n), m = new THREE.Matrix4(), c = new THREE.Color();
+    for (let i = 0; i < n; i++) { const r = colocar(i, m, c); im.setMatrixAt(i, m); if (r && im.setColorAt) im.setColorAt(i, c); }
+    im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    return im;
+}
+
+function construirEntorno() {
+    quitarEntorno(false);
+    const cfg = ENTORNOS[entornoActual];
+    if (!cfg) return;
+    const nivel = NIVELES_REALISMO[realismoActual];
+    grupoEntorno = new THREE.Group(); grupoEntorno.userData.esEntorno = true;
+
+    // ── NOCHE: cielo oscuro con estrellas y luna; la casa se ilumina por dentro ──
+    if (esNoche) {
+        const R0 = azarConSemilla(7), n = 1800, pts = new Float32Array(n * 3), cols = new Float32Array(n * 3);
+        for (let i = 0; i < n; i++) {
+            const u = R0() * 2 - 1, a = R0() * Math.PI * 2, rr = Math.sqrt(1 - u * u), y = Math.abs(u);
+            pts.set([rr * Math.cos(a) * 900, y * 900 + 20, rr * Math.sin(a) * 900], i * 3);
+            const b = 0.55 + R0() * 0.45; cols.set([b, b, Math.min(1, b + 0.1)], i * 3);
+        }
+        const geoE = new THREE.BufferGeometry();
+        geoE.setAttribute('position', new THREE.BufferAttribute(pts, 3)); geoE.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+        const estrellas = new THREE.Points(geoE, new THREE.PointsMaterial({ size: 1.6, sizeAttenuation: false, vertexColors: true, fog: false, transparent: true, opacity: 0.9 }));
+        grupoEntorno.add(estrellas);
+        const luna = new THREE.Mesh(new THREE.SphereGeometry(14, 24, 16), new THREE.MeshBasicMaterial({ color: 0xF2F0E6, fog: false }));
+        luna.position.copy(direccionLuna(cfg).multiplyScalar(850)); grupoEntorno.add(luna);
+        texEntorno = null;
+    }
+    // ── Cielo físico: sol, dispersión, horizonte ──
+    if (THREE.Sky && !esNoche) {
+        cieloEntorno = new THREE.Sky(); cieloEntorno.scale.setScalar(450000);
+        const u = cieloEntorno.material.uniforms;
+        u.turbidity.value = cfg.sky.turbidity; u.rayleigh.value = cfg.sky.rayleigh;
+        u.mieCoefficient.value = cfg.sky.mie; u.mieDirectionalG.value = cfg.sky.g;
+        u.sunPosition.value.copy(direccionSol(cfg));
+        cieloEntorno.userData.esEntorno = true;
+        grupoEntorno.add(cieloEntorno);
+        // Reflejos: el mismo cielo, filtrado para materiales físicos (PMREM)
+        try {
+            const escenaCielo = new THREE.Scene(), c2 = new THREE.Sky(); c2.scale.setScalar(450000);
+            Object.keys(u).forEach(k => { if (c2.material.uniforms[k] && u[k].value && u[k].value.copy) c2.material.uniforms[k].value.copy(u[k].value); else if (c2.material.uniforms[k]) c2.material.uniforms[k].value = u[k].value; });
+            escenaCielo.add(c2);
+            const pmrem = new THREE.PMREMGenerator(renderer);
+            if (texEntorno) texEntorno.dispose();
+            texEntorno = pmrem.fromScene(escenaCielo).texture;
+            pmrem.dispose();
+        } catch (e) { texEntorno = null; }
+    }
+
+    // ── Terreno (despejado donde está la casa) ──
+    const casa = areaCasa();
+    const centro = casa.getCenter(new THREE.Vector3()), tam = casa.getSize(new THREE.Vector3());
+    // El terreno queda a ras con los andenes y zonas verdes (su cara de arriba)
+    let sueloY = -0.12;
+    modulosPlanta.forEach(m => { if (m.tipo === 'exterior' && (m.nivel || 0) === 0) sueloY = Math.min(sueloY, (m.nivelExt ?? 0) - 0.005); });
+    // Textura real del suelo (con relieve), a escala: un tramo cada pocos metros
+    // Fotos reales (Babylon.js Assets, CC BY 4.0 — ver img/texturas/CREDITOS.txt): [imagen, metros por tramo, tinte]
+    const SUELO_IMG = { pasto: ['pasto_hojas', 4, 0xFFFFFF], montana: ['piedras', 6, 0xD8DCCB], tatacoa: ['tierra_agrietada', 6, 0xE8A07A],
+                        arena: ['arena', 4, 0xFFFFFF], asfalto: ['asfalto', 5, 0xFFFFFF] }[cfg.suelo];
+    const rep = 1200 / SUELO_IMG[1];
+    // Mientras llega la foto, el suelo muestra un color parecido (sin foto se vería negro)
+    const COLOR_ESPERA = { pasto: 0x4E6B35, montana: 0x7E8072, tatacoa: 0xB06F45, arena: 0xD9C6A0, asfalto: 0x3A3B3E }[cfg.suelo] || 0x777777;
+    const matTerreno = new THREE.MeshStandardMaterial({ color: COLOR_ESPERA, normalScale: new THREE.Vector2(0.9, 0.9),
+        roughness: cfg.suelo === 'asfalto' ? 0.9 : 0.97, metalness: 0, envMapIntensity: 0.35 });
+    alCargarTextura(SUELO_IMG[0], () => {
+        matTerreno.map = texturaRepetida(SUELO_IMG[0], rep, rep);
+        matTerreno.normalMap = texturaRepetida(SUELO_IMG[0], rep, rep, true);
+        matTerreno.color.set(SUELO_IMG[2]); matTerreno.needsUpdate = true;
+    });
+    const terreno = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1200), matTerreno);
+    terreno.rotation.x = -Math.PI / 2; terreno.position.set(centro.x, sueloY, centro.z); terreno.receiveShadow = true;
+    terreno.userData.esEntorno = true;
+    grupoEntorno.add(terreno);
+    // Sobrecimiento: la casa asienta en el terreno en vez de flotar
+    if (sueloY < -0.1) modulosActuales3D.filter(m => (m.nivel || 0) === 0).forEach(m => {
+        const h = -0.1 - sueloY;
+        const base = new THREE.Mesh(new THREE.BoxGeometry(m.ancho + 0.2, h, m.largo + 0.2), new THREE.MeshStandardMaterial({ color: 0x9A968F, roughness: 0.95 }));
+        base.position.set(m.cx, sueloY + h / 2, m.cz); base.receiveShadow = true; base.castShadow = true;
+        grupoEntorno.add(base);
+    });
+
+    // ── Vegetación y paisaje ──
+    const R = azarConSemilla({ bosque: 11, tatacoa: 23, montana: 37, playa: 41 }[cfg.vege] || 1);
+    const radio0 = Math.max(tam.x, tam.z) / 2 + 7;              // despeje alrededor de la casa
+    const lejos = 150;
+    const punto = (min = radio0, max = lejos) => { const a = R() * Math.PI * 2, d = min + Math.sqrt(R()) * (max - min);
+        return [centro.x + Math.cos(a) * d, centro.z + Math.sin(a) * d]; };
+    const cant = n => Math.max(8, Math.round(n * nivel.veg));
+    const matTronco = new THREE.MeshStandardMaterial({ color: 0x4A3526, roughness: 0.9, envMapIntensity: 0.3 });
+    const matHoja = new THREE.MeshStandardMaterial({ color: 0xFFFFFF, roughness: 0.85, envMapIntensity: 0.3, flatShading: true });
+    const q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), sc = new THREE.Vector3();
+    if (cfg.vege === 'bosque' || cfg.vege === 'montana') {
+        const pinos = cfg.vege === 'montana', n = cant(pinos ? 260 : 320);
+        const pos = Array.from({ length: n }, () => punto()), tamA = pos.map(() => (pinos ? 0.9 : 0.8) + R() * 0.8);
+        grupoEntorno.add(instanciar(new THREE.CylinderGeometry(0.12, 0.2, 2.2, 6), matTronco, n, (i, m) => {
+            m.compose(p.set(pos[i][0], sueloY + 1.1 * tamA[i], pos[i][1]), q.identity(), sc.setScalar(tamA[i])); }));
+        const copa = pinos ? new THREE.ConeGeometry(1.1, 4.2, 8) : new THREE.IcosahedronGeometry(1.7, 1);
+        grupoEntorno.add(instanciar(copa, matHoja, n, (i, m, c) => {
+            m.compose(p.set(pos[i][0], sueloY + (pinos ? 3.6 : 3.2) * tamA[i], pos[i][1]), q.setFromEuler(e.set(0, R() * 6, 0)), sc.set(tamA[i], tamA[i] * (pinos ? 1 : 0.85 + R() * 0.3), tamA[i]));
+            c.setHSL(pinos ? 0.36 + R() * 0.04 : 0.24 + R() * 0.07, 0.45 + R() * 0.2, 0.13 + R() * 0.08); return true; }));
+    }
+    if (cfg.vege === 'montana') {   // cordillera al fondo: relieve irregular, roca y nieve en las cimas
+        const geoM = new THREE.ConeGeometry(1, 1, 18, 8);
+        const pos = geoM.attributes.position, colores = [], cRoca = new THREE.Color(0x5E6878), cNieve = new THREE.Color(0xF4F7FA), cVerde = new THREE.Color(0x4C5A42);
+        for (let i = 0; i < pos.count; i++) {
+            const y = pos.getY(i) + 0.5;                                  // 0 abajo · 1 cima
+            const f = 1 + (R() - 0.5) * 0.35 * (1 - y * 0.5);             // bordes quebrados
+            pos.setX(i, pos.getX(i) * f); pos.setZ(i, pos.getZ(i) * f); pos.setY(i, pos.getY(i) + (R() - 0.5) * 0.04);
+            const c = y > 0.72 ? cNieve : (y < 0.25 ? cVerde.clone().lerp(cRoca, y * 4) : cRoca.clone().lerp(cNieve, Math.max(0, (y - 0.6) * 3)));
+            colores.push(c.r, c.g, c.b);
+        }
+        geoM.setAttribute('color', new THREE.Float32BufferAttribute(colores, 3));
+        geoM.computeVertexNormals();
+        // Sin niebla: a esa distancia la niebla las borraba; el tono azulado lo da el color
+        const matM = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true, fog: false, envMapIntensity: 0.4 });
+        const n = 16;
+        grupoEntorno.add(instanciar(geoM, matM, n, (i, m) => {
+            const a = (i / n) * Math.PI * 2 + R() * 0.25, d = 480 + R() * 160, h = 110 + R() * 150;
+            m.compose(p.set(centro.x + Math.cos(a) * d, sueloY + h / 2 - 8, centro.z + Math.sin(a) * d), q.setFromEuler(e.set(0, R() * 3, 0)), sc.set(170 + R() * 120, h, 170 + R() * 120)); }));
+    }
+    if (cfg.vege === 'tatacoa') {
+        const n = cant(140), matC = new THREE.MeshStandardMaterial({ color: 0x4E6B3A, roughness: 0.8, envMapIntensity: 0.3 });
+        const pos = Array.from({ length: n }, () => punto()), tamC = pos.map(() => 0.7 + R() * 0.9);
+        grupoEntorno.add(instanciar(new THREE.CylinderGeometry(0.16, 0.2, 2.4, 8), matC, n, (i, m) => {       // cactus
+            m.compose(p.set(pos[i][0], sueloY + 1.2 * tamC[i], pos[i][1]), q.identity(), sc.setScalar(tamC[i])); }));
+        grupoEntorno.add(instanciar(new THREE.CylinderGeometry(0.11, 0.13, 0.9, 7), matC, n, (i, m) => {       // brazos
+            m.compose(p.set(pos[i][0] + 0.32 * tamC[i], sueloY + 1.55 * tamC[i], pos[i][1]), q.identity(), sc.setScalar(tamC[i])); }));
+        const nR = cant(90), matR = new THREE.MeshStandardMaterial({ color: 0xFFFFFF, roughness: 1, flatShading: true, envMapIntensity: 0.3 });
+        grupoEntorno.add(instanciar(new THREE.IcosahedronGeometry(1, 0), matR, nR, (i, m, c) => {             // cárcavas y rocas
+            const [x, z] = punto(radio0 + 8, 260), h = 1.5 + R() * (R() < 0.2 ? 14 : 5);
+            m.compose(p.set(x, sueloY + h * 0.35, z), q.setFromEuler(e.set(0, R() * 6, 0)), sc.set(2 + R() * 9, h, 2 + R() * 9));
+            if (R() < 0.35) c.setHSL(0.08, 0.06, 0.38 + R() * 0.08); else c.setHSL(0.04 + R() * 0.03, 0.55, 0.3 + R() * 0.08); return true; }));
+    }
+    if (cfg.vege === 'ciudad') construirCiudad(grupoEntorno, centro, tam, sueloY, R, nivel);
+    if (cfg.vege === 'playa') {
+        const mar = new THREE.Mesh(new THREE.PlaneGeometry(3000, 1400), new THREE.MeshStandardMaterial({ color: 0x0E4C66, roughness: 0.08, metalness: 0, envMapIntensity: 0.9 }));
+        mar.rotation.x = -Math.PI / 2; mar.position.set(centro.x, sueloY + 0.02, centro.z - radio0 - 30 - 700); mar.userData.esEntorno = true;
+        grupoEntorno.add(mar);
+        const n = cant(70), pos = Array.from({ length: n }, () => { let pt; do { pt = punto(radio0, 120); } while (pt[1] < centro.z - radio0 - 25); return pt; });
+        const incl = pos.map(() => (R() - 0.5) * 0.35), alto = pos.map(() => 5 + R() * 3);
+        grupoEntorno.add(instanciar(new THREE.CylinderGeometry(0.14, 0.24, 1, 7), matTronco, n, (i, m) => {
+            m.compose(p.set(pos[i][0], sueloY + alto[i] / 2, pos[i][1]), q.setFromEuler(e.set(incl[i], 0, incl[i] * 0.6)), sc.set(1, alto[i], 1)); }));
+        const hojas = new THREE.BoxGeometry(3.2, 0.05, 0.7);
+        grupoEntorno.add(instanciar(hojas, matHoja, n * 6, (i, m, c) => {
+            const k = Math.floor(i / 6), a = (i % 6) / 6 * Math.PI * 2 + R() * 0.3;
+            const cx = pos[k][0] + Math.sin(incl[k] * 0.6) * alto[k] * 0.5, cz = pos[k][1] - Math.sin(incl[k]) * alto[k] * 0.5;
+            m.compose(p.set(cx + Math.cos(a) * 1.4, sueloY + alto[k] - 0.25, cz + Math.sin(a) * 1.4), q.setFromEuler(e.set(0, -a, -0.35)), sc.set(1, 1, 1));
+            c.setHSL(0.27 + R() * 0.05, 0.5, 0.2 + R() * 0.07); return true; }));
+    }
+    grupoEntorno.traverse(o => { o.userData.esEntorno = true; if (o.isInstancedMesh) { o.castShadow = nivel.veg >= 1.7; o.frustumCulled = false; } });
+    scene.add(grupoEntorno);
+
+    // ── Aire, fondo y alcance de la vista ──
+    scene.fog = esNoche ? new THREE.Fog(0x0A1020, 50, 380) : new THREE.Fog(cfg.niebla, cfg.nieblaCerca, cfg.nieblaLejos);
+    scene.background = esNoche ? new THREE.Color(0x050814) : null;
+    scene.environment = texEntorno;
+    camera.far = 2000; camera.updateProjectionMatrix();
+    cameraPreview.far = 2000; cameraPreview.updateProjectionMatrix();
+    renderer.toneMappingExposure = esNoche ? 0.95 : cfg.exp;
+}
+// La luna sale por el lado contrario al sol de la tarde, alta en el cielo
+function direccionLuna(cfg) {
+    return new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - 48), THREE.MathUtils.degToRad(cfg.sky.azim + 160));
+}
+
+// ── CIUDAD: manzanas con edificios, andenes, calles y postes ─────────────
+// La casa queda en su lote con jardín; alrededor, manzanas de 40 m con calles
+// de 16 m. Las fachadas son texturas de ventanas que se encienden de noche.
+function texturaFachada(variante, noche) {
+    const N = 1024, B = 8, c = document.createElement('canvas'); c.width = c.height = N;
+    const g = c.getContext('2d'), R = azarConSemilla(100 + variante), paso = N / B;
+    const muro = ['#8E8A84', '#9B5A43', '#5E6F7E'][variante];
+    g.fillStyle = noche ? '#000' : muro; g.fillRect(0, 0, N, N);
+    for (let fy = 0; fy < B; fy++) for (let fx = 0; fx < B; fx++) {
+        const x = fx * paso, y = fy * paso, vidrioTodo = variante === 2;
+        const wx = x + (vidrioTodo ? 6 : 22), wy = y + (vidrioTodo ? 6 : 26), ww = paso - (vidrioTodo ? 12 : 44), wh = paso - (vidrioTodo ? 12 : 46);
+        if (noche) {
+            if (R() < 0.42) { const k = 0.6 + R() * 0.4; g.fillStyle = `rgba(255,${Math.round(200 + R() * 40)},${Math.round(130 + R() * 60)},${k})`; g.fillRect(wx, wy, ww, wh); }
+        } else {
+            const grd = g.createLinearGradient(wx, wy, wx + ww, wy + wh);
+            grd.addColorStop(0, '#3E5566'); grd.addColorStop(0.55, '#7C95A6'); grd.addColorStop(1, '#2C3E4B');
+            g.fillStyle = grd; g.fillRect(wx, wy, ww, wh);
+            g.strokeStyle = variante === 1 ? '#E9E4DA' : '#2A2D31'; g.lineWidth = 4; g.strokeRect(wx, wy, ww, wh);
+            g.beginPath(); g.moveTo(wx + ww / 2, wy); g.lineTo(wx + ww / 2, wy + wh); g.stroke();
+            if (!vidrioTodo) { g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(x, y + paso - 8, paso, 8); }   // cornisa de cada piso
+        }
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    if (THREE.sRGBEncoding) t.encoding = THREE.sRGBEncoding;
+    return t;
+}
+// Caja con UV escaladas: la textura (8 × 8 ventanas = 24 × 25,6 m) queda a escala real en cada edificio
+function cajaEdificio(w, h, d) {
+    const geo = new THREE.BoxGeometry(w, h, d), uv = geo.attributes.uv, TW = 24, TH = 25.6;
+    const anchoCara = [d, d, w, w, w, w];
+    for (let cara = 0; cara < 6; cara++) for (let k = 0; k < 4; k++) {
+        const i = cara * 4 + k;
+        if (cara === 2 || cara === 3) { uv.setXY(i, 0, 0); continue; }    // techo y piso: color plano
+        uv.setXY(i, uv.getX(i) * anchoCara[cara] / TW, uv.getY(i) * h / TH);
+    }
+    uv.needsUpdate = true;
+    return geo;
+}
+function construirCiudad(grupo, centro, tam, sueloY, R, nivel) {
+    const lote = Math.max(tam.x, tam.z) + 14;                 // la casa con su jardín
+    const MZ = Math.max(40, lote), CALLE = 16, PASO = MZ + CALLE;
+    // Lote con jardín y su andén alrededor
+    const jardin = new THREE.Mesh(new THREE.PlaneGeometry(lote, lote), new THREE.MeshStandardMaterial({
+        map: texturaRepetida('pasto_hojas', lote / 4, lote / 4), normalMap: texturaRepetida('pasto_hojas', lote / 4, lote / 4, true), roughness: 0.97, envMapIntensity: 0.3 }));
+    jardin.rotation.x = -Math.PI / 2; jardin.position.set(centro.x, sueloY + 0.01, centro.z); jardin.receiveShadow = true; grupo.add(jardin);
+    const matAnden = new THREE.MeshStandardMaterial({ map: texturaRepetida('anden_losetas', 1, 1), normalMap: texturaRepetida('anden_losetas', 1, 1, true), roughness: 0.9, envMapIntensity: 0.3 });
+    const andenes = [];
+    const anillo = (cx, cz, lado, ancho) => {       // un andén alrededor de un rectángulo lado × lado
+        [[0, -1], [0, 1], [-1, 0], [1, 0]].forEach(([sx, sz]) => {
+            const largo = sx ? lado : lado + ancho * 2, w = sx ? ancho : largo, d = sx ? largo : ancho;
+            const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.15, d), matAnden.clone());
+            m.material.map = texturaRepetida('anden_losetas', w / 2.4, d / 2.4); m.material.normalMap = texturaRepetida('anden_losetas', w / 2.4, d / 2.4, true);
+            m.position.set(cx + sx * (lado / 2 + ancho / 2), sueloY + 0.075, cz + sz * (lado / 2 + ancho / 2)); m.receiveShadow = true; grupo.add(m); andenes.push(m);
+        });
+    };
+    anillo(centro.x, centro.z, lote, 3);
+    // Manzanas alrededor
+    const matFach = [0, 1, 2].map(v => new THREE.MeshStandardMaterial({ map: texturaFachada(v, false), emissiveMap: texturaFachada(v, true),
+        emissive: new THREE.Color(0xFFD9A0), emissiveIntensity: esNoche ? 1.3 : 0, roughness: v === 2 ? 0.25 : 0.8, envMapIntensity: v === 2 ? 0.9 : 0.35 }));
+    const matTecho = new THREE.MeshStandardMaterial({ color: 0x6B6B6B, roughness: 0.95 });
+    const matManzana = new THREE.MeshStandardMaterial({ map: texturaRepetida('anden_losetas', MZ / 2.4, MZ / 2.4), normalMap: texturaRepetida('anden_losetas', MZ / 2.4, MZ / 2.4, true), roughness: 0.9, envMapIntensity: 0.3 });
+    const radioC = realismoActual === 'basico' ? 170 : (realismoActual === 'realista' ? 260 : 340);
+    const nB = Math.ceil(radioC / PASO);
+    const matPoste = new THREE.MeshStandardMaterial({ color: 0x2F3236, roughness: 0.5, metalness: 0.7 });
+    const matFarol = new THREE.MeshStandardMaterial({ color: 0xF4F1E6, emissive: 0xFFE2A8, emissiveIntensity: esNoche ? 2.2 : 0 });
+    const postes = [];
+    for (let i = -nB; i <= nB; i++) for (let j = -nB; j <= nB; j++) {
+        const bx = centro.x + i * PASO, bz = centro.z + j * PASO;
+        if (i === 0 && j === 0) continue;                               // manzana de la casa
+        if (Math.hypot(i, j) * PASO > radioC) continue;
+        const base = new THREE.Mesh(new THREE.BoxGeometry(MZ, 0.15, MZ), matManzana);
+        base.position.set(bx, sueloY + 0.075, bz); base.receiveShadow = true; grupo.add(base);
+        const nEd = 1 + Math.floor(R() * 4), cerca = Math.hypot(i, j) <= 1.5;
+        for (let k = 0; k < nEd; k++) {
+            const w = 10 + R() * 14, d = 10 + R() * 14;
+            const h = (cerca ? 6 + R() * 14 : 9 + R() * 55) * (R() < 0.08 ? 2 : 1);
+            const px = bx + (R() - 0.5) * (MZ - w - 4), pz = bz + (R() - 0.5) * (MZ - d - 4);
+            const ed = new THREE.Mesh(cajaEdificio(w, h, d), [0, 1, 2, 3, 4, 5].map(f => f === 2 || f === 3 ? matTecho : matFach[Math.floor(R() * 3)]));
+            ed.position.set(px, sueloY + 0.15 + h / 2, pz); ed.castShadow = cerca; ed.receiveShadow = true; grupo.add(ed);
+        }
+        // Postes de luz en las esquinas de la manzana
+        [[-1, -1], [1, 1]].forEach(([sx, sz]) => postes.push([bx + sx * (MZ / 2 - 1), bz + sz * (MZ / 2 - 1)]));
+    }
+    // Postes también alrededor del lote de la casa
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz]) => postes.push([centro.x + sx * (lote / 2 + 1.5), centro.z + sz * (lote / 2 + 1.5)]));
+    grupo.add(instanciar(new THREE.CylinderGeometry(0.07, 0.1, 7, 8), matPoste, postes.length, (i, m) => {
+        m.compose(new THREE.Vector3(postes[i][0], sueloY + 3.6, postes[i][1]), new THREE.Quaternion(), new THREE.Vector3(1, 1, 1)); }));
+    grupo.add(instanciar(new THREE.BoxGeometry(0.5, 0.14, 0.26), matFarol, postes.length, (i, m) => {
+        m.compose(new THREE.Vector3(postes[i][0], sueloY + 7.05, postes[i][1]), new THREE.Quaternion(), new THREE.Vector3(1, 1, 1)); }));
+    // De noche, los postes junto a la casa iluminan de verdad
+    if (esNoche) postes.slice(-4).forEach(([x, z]) => { const l = new THREE.PointLight(0xFFD9A0, 1.4, 22, 2); l.position.set(x, sueloY + 6.8, z); grupo.add(l); });
+}
+
+function quitarEntorno(restaurarEstudio) {
+    if (grupoEntorno) {
+        scene.remove(grupoEntorno);
+        grupoEntorno.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { (Array.isArray(o.material) ? o.material : [o.material]).forEach(mm => { if (mm.map) mm.map.dispose(); mm.dispose(); }); } });
+        grupoEntorno = null; cieloEntorno = null;
+    }
+    if (restaurarEstudio) {
+        scene.background = null;
+        scene.fog = new THREE.Fog(0x0F0F1A, 20, 60);
+        scene.environment = null;
+        if (texEntorno) { texEntorno.dispose(); texEntorno = null; }
+        camera.far = 100; camera.updateProjectionMatrix();
+        cameraPreview.far = 100; cameraPreview.updateProjectionMatrix();
+        renderer.toneMappingExposure = 1.0;
+    }
+}
+
+// Sol, cielo y rebote del suelo según el entorno y la hora
+function ajustarLucesEntorno() {
+    const cfg = ENTORNOS[entornoActual];
+    if (!cfg) return;
+    const dir = esNoche ? direccionLuna(cfg) : direccionSol(cfg), casa = areaCasa(), centro = casa.getCenter(new THREE.Vector3());
+    const tam = casa.getSize(new THREE.Vector3()), R = Math.max(tam.x, tam.z, 6);
+    const t = (horaSol - 6) / 12, tarde = Math.pow(Math.abs(t - 0.5) * 2, 3);   // 0 al mediodía, 1 al amanecer/atardecer
+    const colorSol = esNoche ? new THREE.Color(0x9DB4FF) : new THREE.Color(cfg.sol).lerp(new THREE.Color(0xFF9A4D), tarde * 0.8);
+    if (luces.directional) {
+        const d = luces.directional;
+        d.color.copy(colorSol);
+        d.intensity = esNoche ? 0.35 * estado.intensidadLuz : cfg.solI * (0.45 + 0.55 * Math.sin(Math.PI * Math.max(0.05, t))) * estado.intensidadLuz;
+        d.position.copy(centro).addScaledVector(dir, R * 2.2);
+        d.target.position.copy(centro); scene.add(d.target);
+        const m = R * 0.9;
+        Object.assign(d.shadow.camera, { left: -m, right: m, top: m, bottom: -m, near: 0.5, far: R * 5 });
+        d.shadow.camera.updateProjectionMatrix();
+    }
+    if (luces.hemi) { luces.hemi.color.set(esNoche ? 0x1E2A4A : cfg.cielo); luces.hemi.groundColor.set(esNoche ? 0x0B0E14 : cfg.rebote);
+                      luces.hemi.intensity = (esNoche ? 0.18 : cfg.hemiI) * estado.intensidadLuz; }
+    if (luces.ambient) luces.ambient.intensity = (esNoche ? 0.04 : 0.1) * estado.intensidadLuz;
+    if (luces.fill) luces.fill.intensity = 0.1 * estado.intensidadLuz;
+    // Adentro: la luz de techo se compensa con la exposición, para que la casa
+    // conserve la calidez que tiene en Estudio (con exposición baja se apagaba).
+    const compensa = esNoche ? 2.2 : 1 / cfg.exp;   // de noche la casa brilla por dentro
+    if (luces.point) { luces.point.intensity = 0.5 * estado.intensidadLuz * compensa; luces.point.color.set(esNoche ? 0xFFD49A : 0xFFFAE6); }
+    scene.traverse(o => { if (o.isLight && o.userData && o.userData.luzTecho) o.intensity = (o.userData.intBase ?? o.intensity) * compensa; });
+    // En la casa el cielo aporta REFLEJOS, no relleno: el mapa de entorno ilumina
+    // igual detrás de muros y techo, y a plena fuerza aplanaba y azulaba el interior.
+    scene.traverse(o => {
+        if (!o.isMesh || (o.userData && o.userData.esEntorno)) return;
+        (Array.isArray(o.material) ? o.material : [o.material]).forEach(mm => {
+            if (mm && mm.isMeshStandardMaterial) mm.envMapIntensity = mm.roughness < 0.4 ? 0.8 : 0.3;   // lo pulido refleja más
+        });
+    });
+    aplicarRealismo(false);
+}
+
+function aplicarRealismo(reconstruir) {
+    const n = NIVELES_REALISMO[realismoActual];
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, n.pr));
+    renderer.shadowMap.type = n.suave ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+    if (luces.directional) {
+        const sm = luces.directional.shadow;
+        if (sm.mapSize.x !== n.sombra) { sm.mapSize.set(n.sombra, n.sombra); if (sm.map) { sm.map.dispose(); sm.map = null; } }
+        sm.radius = n.suave ? 4 : 1;
+    }
+    if (reconstruir && entornoActual !== 'estudio') construirEntorno();
+}
+
+function elegirEntorno(nombre) {
+    if (!(nombre in ENTORNOS)) return;
+    entornoActual = nombre;
+    try { localStorage.setItem('decoia_entorno', nombre); } catch (e) {}
+    if (nombre === 'estudio') { quitarEntorno(true); configurarLuces(); }
+    else configurarLuces();     // configurarLuces construye el entorno y ajusta la luz
+    marcarPanelEntorno();
+    mostrarToast({ estudio: '🌑 Estudio: el lienzo de trabajo', bosque: '🌲 Tu casa en el bosque', tatacoa: '🏜️ Tu casa en el desierto de la Tatacoa',
+                   montana: '🏔️ Tu casa en la montaña', playa: '🏖️ Tu casa frente al mar', ciudad: '🏙️ Tu casa en la ciudad' }[nombre]);
+}
+function elegirRealismo(nivel) {
+    if (!(nivel in NIVELES_REALISMO)) return;
+    realismoActual = nivel;
+    try { localStorage.setItem('decoia_realismo', nivel); } catch (e) {}
+    aplicarRealismo(true);
+    if (entornoActual !== 'estudio') ajustarLucesEntorno();
+    marcarPanelEntorno();
+}
+function cambiarHoraSol(v) {
+    horaSol = parseFloat(v) || 10;
+    try { localStorage.setItem('decoia_hora_sol', horaSol); } catch (e) {}
+    const h = Math.floor(horaSol), mi = Math.round((horaSol - h) * 60);
+    document.getElementById('peHora').textContent = `${h}:${String(mi).padStart(2, '0')}`;
+    const cfg = ENTORNOS[entornoActual];
+    if (cfg && cieloEntorno && !esNoche) {
+        cieloEntorno.material.uniforms.sunPosition.value.copy(direccionSol(cfg));
+        ajustarLucesEntorno();
+        clearTimeout(cambiarHoraSol._t);   // los reflejos del cielo se recalculan al soltar
+        cambiarHoraSol._t = setTimeout(() => construirEntorno(), 350);
+    }
+}
+function elegirDiaNoche(noche) {
+    esNoche = !!noche;
+    try { localStorage.setItem('decoia_noche', esNoche ? '1' : '0'); } catch (e) {}
+    if (entornoActual === 'estudio') { mostrarToast('Elige un entorno (bosque, playa…) para ver el día y la noche'); marcarPanelEntorno(); return; }
+    configurarLuces();
+    marcarPanelEntorno();
+    mostrarToast(esNoche ? '🌙 De noche: la casa se ilumina por dentro' : '☀️ De día');
+}
+function marcarPanelEntorno() {
+    document.querySelectorAll('#panelEntorno [data-dn]').forEach(b => b.classList.toggle('activo', (b.dataset.dn === 'noche') === esNoche));
+    const fs = document.getElementById('peFilaSol'); if (fs) fs.style.display = esNoche ? 'none' : '';
+    document.querySelectorAll('#panelEntorno [data-entorno]').forEach(b => b.classList.toggle('activo', b.dataset.entorno === entornoActual));
+    document.querySelectorAll('#panelEntorno [data-nivel]').forEach(b => b.classList.toggle('activo', b.dataset.nivel === realismoActual));
+    document.getElementById('peNota').textContent = NIVELES_REALISMO[realismoActual].nota;
+    document.getElementById('peSol').value = horaSol;
+    const h = Math.floor(horaSol), mi = Math.round((horaSol - h) * 60);
+    document.getElementById('peHora').textContent = `${h}:${String(mi).padStart(2, '0')}`;
+}
+function plegarPanelEntorno() {
+    const p = document.getElementById('panelEntorno');
+    p.classList.toggle('plegado');
+    document.getElementById('peFlecha').textContent = p.classList.contains('plegado') ? '▸' : '▾';
+}
+// Se ve en el Entorno 3D con un modelo, fuera de la cámara interior; se corre a
+// la derecha si la columna de "Grabar recorrido" (Corporativo) está abierta.
+function actualizarPanelEntorno() {
+    const p = document.getElementById('panelEntorno');
+    if (!p) return;
+    const ver = vistaActual === '3d' && salaConstruida && !modoInterior;
+    p.style.display = ver ? 'block' : 'none';
+    const tb = document.getElementById('toolbarEntorno3D');
+    p.style.left = (tb && !tb.classList.contains('compacto') && getComputedStyle(tb).display !== 'none') ? '232px' : '12px';
+}
+setInterval(actualizarPanelEntorno, 500);
+setTimeout(() => { marcarPanelEntorno(); aplicarRealismo(false); }, 0);
+
+// ── PINTURAS DECOIARTE ───────────────────────────────────────────────────
+// Colores de pared listos para aplicar. No son productos: no entran al
+// carrito. Más adelante estarán también las pinturas que suban las tiendas.
+const PINTURAS_DECOIARTE = [
+    ['Blanco Hueso', '#EFE9DD'], ['Blanco Nube', '#F2F0EB'], ['Arena Cálida', '#E3D5BE'], ['Beige Lino', '#D8C9AF'], ['Greige', '#C9C1B4'],
+    ['Gris Perla', '#D1CFCA'], ['Gris Niebla', '#A7ABAE'], ['Grafito', '#4B4E53'], ['Verde Salvia', '#A9B49B'], ['Verde Oliva', '#7B7F5B'],
+    ['Azul Niebla', '#A3B6C3'], ['Azul Petróleo', '#2F5662'], ['Terracota', '#B8674B'], ['Rosa Palo', '#D9BAB0'], ['Mostaza', '#C9A33D'],
+];
+function nombrePintura(hex) {
+    const p = PINTURAS_DECOIARTE.find(([, h]) => h.toLowerCase() === String(hex || '').toLowerCase());
+    return p ? p[0] : null;
+}
+function prepararPaletas() {
+    document.querySelectorAll('.paleta-texturas').forEach(caja => {
+        caja.innerHTML = TEXTURAS_PARED.map(t =>
+            `<button type="button" style="background-image:url('img/texturas/${t.img}.jpg')" title="Textura DecoIArte · ${t.nombre}" data-clave="${t.clave}"
+                onclick="elegirTexturaPared('${caja.dataset.paleta}', '${t.clave}')"></button>`).join('');
+    });
+    document.querySelectorAll('.paleta-pintura').forEach(caja => {
+        caja.innerHTML = PINTURAS_DECOIARTE.map(([n, h]) =>
+            `<button type="button" style="background:${h}" title="Pintura DecoIArte · ${n}" data-hex="${h}"
+                onclick="elegirPintura('${caja.dataset.paleta}', '${h}')"></button>`).join('');
+    });
+}
+function marcarPaleta(cual, hex) {
+    document.querySelectorAll(`.paleta-pintura[data-paleta="${cual}"] button`).forEach(b =>
+        b.classList.toggle('activa', b.dataset.hex.toLowerCase() === String(hex || '').toLowerCase()));
+    const n = nombrePintura(hex);
+    const el = document.getElementById(cual === 'planta' ? 'nombrePinturaPlanta' : cual === '3d' ? 'nombrePintura3D' : 'nombrePinturaEP');
+    if (el) el.textContent = n ? `Pintura DecoIArte · ${n}` : '';
+}
+function elegirPintura(cual, hex) {
+    if (cual === 'planta') {
+        if (!moduloSeleccionado) return;
+        moduloSeleccionado.texturaPared = null;
+        marcarTexturas('planta', null);
+        document.getElementById('propColorPared').value = hex;
+        actualizarPropModulo();
+        marcarPaleta('planta', hex);
+    } else if (cual === '3d') {
+        pintarTodaLaCasa(hex);
+    } else if (cual === 'ep') {
+        epCampo('color', hex); epPropiedades();
+    }
+}
+// Pinta por dentro todos los cuartos, en la planta y en el 3D al instante
+// (la fachada no se toca: tiene su propio acabado en Techos y fachada).
+function pintarTodaLaCasa(hex) {
+    if (!salaConstruida) { mostrarToast('⚠️ Genera un modelo 3D primero'); return; }
+    const ids = new Set();
+    modulosPlanta.forEach(m => { if (esCuarto(m.tipo)) { m.colorPared = hex; m.pinturaNombre = nombrePintura(hex); m.texturaPared = null; ids.add(m.id); } });
+    aplicarTexturasParedes();   // quita las texturas antes de pintar
+    scene.traverse(o => {
+        const u = o.userData || {};
+        if (u.esPared && !u.esFachada && o.material && o.material.color && (ids.has(u.moduloId) || !modulosPlanta.length)) o.material.color.setStyle(hex);
+    });
+    estado.colorPared = hex;
+    ['paredTrasera', 'paredFrontal', 'paredIzq', 'paredDer'].forEach(k => { if (meshes[k]) meshes[k].material.color.setStyle(hex); });
+    registrarCambioPlanta();
+    firmaUltimo3D = firmaPlanta();   // el 3D ya quedó pintado: no pedir regenerar
+    actualizarAvisoRegenerar();
+    marcarPaleta('3d', hex);
+    const n = nombrePintura(hex);
+    mostrarToast(n ? `🎨 Casa pintada con Pintura DecoIArte · ${n}` : '🎨 Casa pintada');
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', prepararPaletas); else prepararPaletas();
+
+// ── MOVIMIENTOS PREDETERMINADOS DEL LENTE ────────────────────────────────
+// Afuera mueven la cámara; en la cámara interior (tú eres la cámara) mueven
+// tu vista. Giro e inclinación en grados exactos; pasos en metros exactos.
+function orientacionLente() {
+    if (modoInterior) {
+        const d = controls.target.clone().sub(camera.position).normalize();
+        return { yaw: Math.atan2(-d.x, -d.z), pitch: Math.asin(Math.max(-1, Math.min(1, d.y))), pos: camera.position };
+    }
+    const e = new THREE.Euler().setFromQuaternion(marcadorCamara.quaternion, 'YXZ');
+    return { yaw: e.y, pitch: e.x, pos: marcadorCamara.position };
+}
+function ponerOrientacionLente(yaw, pitch) {
+    const LIM = THREE.MathUtils.degToRad(85);
+    pitch = Math.max(-LIM, Math.min(LIM, pitch));
+    if (modoInterior) {
+        const d = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+        controls.target.copy(camera.position).addScaledVector(d, 0.3); controls.update();
+    } else {
+        marcadorCamara.rotation.set(pitch, yaw, 0, 'YXZ');
+    }
+}
+function lente(accion) {
+    if (!salaConstruida) { mostrarToast('⚠️ Genera un modelo 3D primero'); return; }
+    const g = THREE.MathUtils.degToRad(parseFloat(document.getElementById('pasoGrados').value) || 15);
+    const paso = parseFloat(document.getElementById('pasoMetros').value) || 0.25;
+    let { yaw, pitch, pos } = orientacionLente();
+    const frente = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+    const lado = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+    const mover = v => { pos.add(v); if (modoInterior) { controls.target.add(v); controls.update(); } };
+    switch (accion) {
+        case 'izq':      yaw += g; break;
+        case 'der':      yaw -= g; break;
+        case 'voltear':  yaw += Math.PI; break;
+        case 'arriba':   pitch += g; break;
+        case 'abajo':    pitch -= g; break;
+        case 'nivelar':  pitch = 0; break;
+        case 'adelante': if (!ejesBloqueados.x || !ejesBloqueados.z) mover(frente.multiplyScalar(paso).multiply(ejesLibres())); break;
+        case 'atras':    if (!ejesBloqueados.x || !ejesBloqueados.z) mover(frente.multiplyScalar(-paso).multiply(ejesLibres())); break;
+        case 'izqLado':  mover(lado.multiplyScalar(-paso).multiply(ejesLibres())); break;
+        case 'subir':    if (!ejesBloqueados.y) mover(new THREE.Vector3(0, paso, 0)); break;
+        case 'bajar':    if (!ejesBloqueados.y) { mover(new THREE.Vector3(0, -Math.min(paso, pos.y - 0.1), 0)); } break;
+        case 'ojos':     if (!ejesBloqueados.y) { const base = (modulosActuales3D.find(m => Math.abs(pos.x - m.cx) < m.ancho / 2 && Math.abs(pos.z - m.cz) < m.largo / 2) || {}).baseY || 0;
+                             mover(new THREE.Vector3(0, base + 1.6 - pos.y, 0)); } break;
+    }
+    if (['izq', 'der', 'voltear', 'arriba', 'abajo', 'nivelar'].includes(accion)) ponerOrientacionLente(yaw, pitch);
+    if (!modoInterior) marcadorCamara.visible = true;
+    leerLente();
+}
+function leerLente() {
+    const el = document.getElementById('lecturaCamara');
+    if (!el || !salaConstruida) return;
+    const { yaw, pitch, pos } = orientacionLente();
+    const grados = v => Math.round(THREE.MathUtils.radToDeg(v));
+    let giro = ((grados(yaw) % 360) + 360) % 360;
+    el.innerHTML = `Giro <b style="color:var(--texto)">${giro}°</b> · Inclinación <b style="color:var(--texto)">${grados(pitch) > 0 ? '+' : ''}${grados(pitch)}°</b> · Altura <b style="color:var(--texto)">${pos.y.toFixed(2)} m</b>${modoInterior ? ' · <span style="color:#86EFAC">por el lente</span>' : ''}`;
+}
+setInterval(() => { if (vistaActual === '3d') leerLente(); }, 400);
+
+// Candado por ejes: la cámara (y lo que se mueva con el gizmo) no se sale de ese eje
+const ejesBloqueados = { x: false, y: false, z: false };
+function ejesLibres() { return new THREE.Vector3(ejesBloqueados.x ? 0 : 1, ejesBloqueados.y ? 0 : 1, ejesBloqueados.z ? 0 : 1); }
+function aplicarEjesGizmo() {
+    if (gizmo) { gizmo.showX = !ejesBloqueados.x; gizmo.showY = !ejesBloqueados.y; gizmo.showZ = !ejesBloqueados.z; }
+    ['x', 'y', 'z'].forEach(k => {
+        const b = document.getElementById('eje' + k.toUpperCase());
+        if (b) { b.style.background = ejesBloqueados[k] ? 'rgba(245,158,11,0.2)' : 'var(--oscuro)'; b.style.borderColor = ejesBloqueados[k] ? '#F59E0B' : 'rgba(124,58,237,0.3)';
+                 b.textContent = (ejesBloqueados[k] ? '🔒 ' : '') + (k === 'y' ? 'Y (altura)' : k.toUpperCase()); }
+    });
+}
+function alternarEje(k) {
+    ejesBloqueados[k] = !ejesBloqueados[k];
+    aplicarEjesGizmo();
+    mostrarToast(ejesBloqueados[k] ? `🔒 Eje ${k.toUpperCase()} bloqueado: no se mueve en esa dirección` : `🔓 Eje ${k.toUpperCase()} libre`);
+}
+
+// ── CÁMARA PARA TODOS LOS PLANES: traerla, moverla y ver lo que ve ────────
+function traerCamaraAMiVista() {
+    if (!salaConstruida) { mostrarToast('⚠️ Genera un modelo 3D primero'); return; }
+    marcadorCamara.position.copy(camera.position);
+    marcadorCamara.quaternion.copy(camera.quaternion);
+    marcadorCamara.visible = !modoInterior;
+    mostrarToast('📍 La cámara quedó donde estás mirando — la vista previa muestra la foto');
+}
+function moverCamaraConFlechas() {
+    if (!salaConstruida) { mostrarToast('⚠️ Genera un modelo 3D primero'); return; }
+    if (modoInterior) { mostrarToast('En la cámara interior tú eres la cámara: camina y mira'); return; }
+    marcadorCamara.visible = true;
+    if (!modoTransformar) activarModoTransformar();
+    seleccionarParaTransformar(marcadorCamara);
+    mostrarToast('✥ Arrastra las flechas para moverla y los anillos para girarla (W mover · E girar · Esc salir)');
+}
+function verDesdeLaCamara() {
+    if (!salaConstruida) { mostrarToast('⚠️ Genera un modelo 3D primero'); return; }
+    const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(marcadorCamara.quaternion);
+    camera.position.copy(marcadorCamara.position).addScaledVector(dir, -0.6);
+    controls.target.copy(marcadorCamara.position).addScaledVector(dir, 2);
+    controls.update();
+    mostrarToast('👁️ Estás viendo desde la cámara');
+}
+
+// Foto limpia desde la cámara: se dibuja con una copia de la cámara de la
+// vista previa, que solo ve la casa (capa 0), sin la camarita, el gizmo ni el
+// tubo del recorrido. Antes la foto salía de la vista del usuario, con todas
+// esas ayudas encima, y así se le mandaba a la IA. En la cámara interior la
+// foto es exactamente lo que el usuario ve.
+function capturaDesdeCamaraFoto() {
+    if (!salaConstruida) return canvas.toDataURL('image/png', 1.0);
+    const cam = cameraPreview.clone();
+    cam.layers.set(0);
+    if (modoInterior) { cam.position.copy(camera.position); cam.quaternion.copy(camera.quaternion); cam.fov = camera.fov; }
+    cam.aspect = canvas.width / canvas.height;
+    cam.updateProjectionMatrix();
+    const gizmoVisible = gizmo ? gizmo.visible : false;   // el gizmo no sale en la foto
+    if (gizmo) gizmo.visible = false;
+    renderer.render(scene, cam);
+    const url = canvas.toDataURL('image/png', 1.0);
+    if (gizmo) gizmo.visible = gizmoVisible;
+    renderer.render(scene, camera);
+    return url;
+}
+
+// ── CONTROL MANUAL DE LA CÁMARA DE VIDEO ─────────────────────────────────
+const PASO_ROTACION = Math.PI / 18; // 10 grados por clic
+
+function rotarCamaraVideo(eje, dir) {
+    if (!salaConstruida) { mostrarToast('⚠️ Genera un modelo 3D primero'); return; }
+    if (modoInterior) { mostrarToast('En la cámara interior tú eres la cámara: gira con el mouse'); return; }
+    marcadorCamara.rotation.order = 'YXZ';   // girar y mirar arriba sin que se ladee
+    if (eje === 'yaw')   marcadorCamara.rotation.y += PASO_ROTACION * dir;
+    if (eje === 'pitch') marcadorCamara.rotation.x += PASO_ROTACION * dir;
+    // Si ya hay un trazo, guardar esta orientación en el último punto para
+    // que la grabación respete hacia dónde el usuario dejó mirando la cámara.
+    if (trazo3D.length) {
+        const u = trazo3D.at(-1);
+        u.rotY = marcadorCamara.rotation.y;
+        u.rotX = marcadorCamara.rotation.x;
+    }
+}
+
+function cambiarAlturaCamaraVideo(valor) {
+    ALTURA_CAMARA_RECORRIDO = parseFloat(valor);
+    document.getElementById('valorAlturaCam').textContent = ALTURA_CAMARA_RECORRIDO.toFixed(1);
+    if (marcadorCamara.visible) marcadorCamara.position.y = ALTURA_CAMARA_RECORRIDO;
+}
+
+function cambiarVelocidadRecorrido(valor) {
+    VELOCIDAD_RECORRIDO = parseFloat(valor);
+    document.getElementById('valorVelocidadCam').textContent = VELOCIDAD_RECORRIDO.toFixed(1);
+}
+
+function toggleArrastrarCamara() {
+    modoArrastrarCamara = !modoArrastrarCamara;
+    const btn = document.getElementById('btnArrastrarCamara');
+    document.getElementById('hintArrastrarCamara').style.display = modoArrastrarCamara ? 'block' : 'none';
+    if (modoArrastrarCamara) {
+        if (!salaConstruida) { mostrarToast('⚠️ Primero genera un modelo 3D en Editor Planta'); modoArrastrarCamara = false; return; }
+        if (modoDibujo3D) toggleDibujo3D();   // no pueden estar los dos a la vez
+        btn.textContent = '✋ Salir del modo cámara';
+        btn.style.background = 'rgba(34,211,238,0.35)';
+        controls.enabled = false;
+        apartarTechosParaRecorrido(true);
+        trazo3D = [];
+        // Colocar la cámara en el centro del primer módulo para empezar
+        const primero = modulosActuales3D[0];
+        if (primero) {
+            marcadorCamara.visible = true;
+            marcadorCamara.position.set(primero.cx, ALTURA_CAMARA_RECORRIDO, primero.cz);
+            trazo3D.push({ x: primero.cx, z: primero.cz, moduloId: primero.id, moduloNombre: primero.nombre });
+        }
+        mostrarToast('🎥 Arrastra la cámara por el modelo — su recorrido queda grabado');
+    } else {
+        btn.textContent = '🎥 Arrastrar la cámara';
+        btn.style.background = 'rgba(34,211,238,0.15)';
+        controls.enabled = true;
+        if (trazo3D.length > 1) document.getElementById('btnUsarTrazo3D').style.display = 'block';
+    }
+}
+
+// Agarrar la cámara con el mouse
+canvas.addEventListener('mousedown', (e) => {
+    if (!modoArrastrarCamara) return;
+    const rect = canvas.getBoundingClientRect();
+    mouse3D.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse3D.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster3D.setFromCamera(mouse3D, camera);
+    // ¿tocó la cámara?
+    const tocaCamara = raycaster3D.intersectObject(marcadorCamara, true);
+    if (tocaCamara.length) arrastrandoCamara = true;
+});
+
+canvas.addEventListener('mousemove', (e) => {
+    if (!modoArrastrarCamara || !arrastrandoCamara) return;
+    const hit = raycastPiso3D(e);   // dónde está el mouse sobre el piso del modelo
+    if (!hit) return;
+    const ud = hit.object.userData || {};
+    const ultimo = trazo3D.at(-1);
+    // Solo agrega punto si se movió lo suficiente (evita miles de puntos)
+    if (!ultimo || Math.hypot(hit.point.x - ultimo.x, hit.point.z - ultimo.z) > 0.15) {
+        trazo3D.push({ x: hit.point.x, z: hit.point.z, moduloId: ud.moduloId, moduloNombre: ud.moduloNombre });
+        dibujarLineaTrazo3D();
+        actualizarCamaraMientrasDibuja();
+    }
+});
+
+canvas.addEventListener('mouseup', () => {
+    if (!modoArrastrarCamara) return;
+    arrastrandoCamara = false;
+    if (trazo3D.length > 1) document.getElementById('btnUsarTrazo3D').style.display = 'block';
+});
+
+function actualizarCamaraMientrasDibuja() {
+    // Si el usuario está colocando la cámara a mano con el gizmo, el recorrido
+    // no debe arrebatársela a mitad del arrastre.
+    if (objetoTransformar === marcadorCamara) return;
+    // Muestra la camarita EN LA PUNTA del trazo mientras dibujas, mirando
+    // hacia donde te estás moviendo — así sabes de una vez hacia dónde va a
+    // quedar mirando la grabación, sin tener que adivinar con solo la línea.
+    if (!trazo3D.length) { marcadorCamara.visible = false; return; }
+    const ultimo = trazo3D.at(-1);
+    marcadorCamara.visible = true;
+    marcadorCamara.position.set(ultimo.x, ALTURA_CAMARA_RECORRIDO, ultimo.z);
+    if (trazo3D.length >= 2) {
+        const anterior = trazo3D[trazo3D.length - 2];
+        const dx = ultimo.x - anterior.x, dz = ultimo.z - anterior.z;
+        if (Math.abs(dx) > 0.001 || Math.abs(dz) > 0.001) {
+            marcadorCamara.lookAt(ultimo.x + dx, ALTURA_CAMARA_RECORRIDO, ultimo.z + dz);
+        }
+    }
+}
+
+// Mover la cámara con las FLECHAS del teclado mientras dibujas — cada paso
+// agrega un punto al trazo, igual que si lo hubieras dibujado con el mouse.
+const PASO_FLECHA = 0.4; // metros por pulsación
+document.addEventListener('keydown', (e) => {
+    if (!modoDibujo3D || !trazo3D.length) return;
+    const teclas = { 'arrowleft': [-1,0], 'arrowright': [1,0], 'arrowup': [0,-1], 'arrowdown': [0,1] };
+    const dir = teclas[e.key.toLowerCase()];
+    if (!dir) return;
+    e.preventDefault();
+    const ultimo = trazo3D.at(-1);
+    trazo3D.push({
+        x: ultimo.x + dir[0] * PASO_FLECHA,
+        z: ultimo.z + dir[1] * PASO_FLECHA,
+        moduloId: ultimo.moduloId, moduloNombre: ultimo.moduloNombre,
+    });
+    dibujarLineaTrazo3D();
+    actualizarCamaraMientrasDibuja();
+    document.getElementById('btnUsarTrazo3D').style.display = 'block';
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// OBJETOS PERSISTENTES
+// La limpieza de escena barría TODO lo que fuera Mesh, Group o Sprite. Eso
+// incluía el recorrido de cámara, las trayectorias ya grabadas y el propio
+// marcador de la cámara: al regenerar el 3D desaparecían de la pantalla
+// aunque los datos siguieran en memoria. Peor con el marcador, que después
+// se le seguía asignando posición y visibilidad estando ya fuera de la
+// escena, así que no volvía nunca hasta recargar la página.
+// El recorrido es trabajo del usuario, no geometría del plano: no se borra
+// cuando se reconstruye el plano.
+// ═══════════════════════════════════════════════════════════════════════
+function marcarPersistente(obj) {
+    if (!obj) return obj;
+    obj.userData = obj.userData || {};
+    obj.userData.persistente = true;
+    return obj;
+}
+
+function esPersistente(obj) {
+    let o = obj;
+    while (o) {
+        if (o.userData && o.userData.persistente) return true;
+        o = o.parent;
+    }
+    return false;
+}
+
+// Si algo persistente quedó huérfano por una limpieza vieja, se devuelve a
+// la escena. Así se recupera solo, sin obligar a recargar.
+function garantizarPersistentes() {
+    [marcadorCamara, lineaTrazo3DObj, ...lineasGrabadas].forEach(o => {
+        if (o && o.parent !== scene) scene.add(o);
+    });
+}
+
+// Techos y cubierta se apartan mientras se trabaja el recorrido, y vuelven a
+// como estaban al terminar. Aunque el trazo ya se ve por encima de todo, con
+// la losa puesta no se distingue el piso ni las zonas por donde se pasa.
+let _techosAntesDeDibujar = null;
+function apartarTechosParaRecorrido(activar) {
+    if (activar) {
+        if (_techosAntesDeDibujar === null) {
+            _techosAntesDeDibujar = {
+                techos: techosPlanta.map(t => t.visible),
+                plafones: plafonesPlanta.map(t => t.visible),
+                cubierta: cubiertaPlanta.map(c => c.visible),
+            };
+        }
+        techosPlanta.forEach(t => { t.visible = false; });
+        plafonesPlanta.forEach(t => { t.visible = false; });
+        cubiertaPlanta.forEach(c => { c.visible = false; });
+    } else if (_techosAntesDeDibujar) {
+        techosPlanta.forEach((t, i) => { t.visible = _techosAntesDeDibujar.techos[i] ?? false; });
+        plafonesPlanta.forEach((t, i) => { t.visible = _techosAntesDeDibujar.plafones[i] ?? true; });
+        cubiertaPlanta.forEach((c, i) => { c.visible = _techosAntesDeDibujar.cubierta[i] ?? true; });
+        _techosAntesDeDibujar = null;
+    }
+}
+
+function dibujarLineaTrazo3D() {
+    if (lineaTrazo3DObj) scene.remove(lineaTrazo3DObj);
+    if (trazo3D.length < 2) return;
+    // OJO: THREE.Line con linewidth>1 casi nunca se ve más grueso en el
+    // navegador (limitación de WebGL, no del código) — por eso se usa un
+    // tubo real (geometría 3D) en vez de una línea, para que sí se vea grueso.
+    const puntos = trazo3D.map(p => new THREE.Vector3(p.x, 1.0, p.z));
+    const curva = new THREE.CatmullRomCurve3(puntos);
+    const segmentos = Math.max(12, puntos.length * 4);
+    const geo = new THREE.TubeGeometry(curva, segmentos, 0.35, 12, false);
+    // depthTest en false = se dibuja encima de todo. Es lo que hace que el
+    // recorrido siga viéndose con el techo puesto, en vez de quedar tapado
+    // por la losa que está justo encima de él.
+    const mat = new THREE.MeshBasicMaterial({ color: 0x22D3EE, depthTest: false, depthWrite: false });
+    lineaTrazo3DObj = new THREE.Mesh(geo, mat);
+    lineaTrazo3DObj.renderOrder = 999;
+    soloEnEditor(lineaTrazo3DObj);   // se dibuja encima de todo: si la cámara que graba lo viera, saldría en el video
+    marcarPersistente(lineaTrazo3DObj);
+    scene.add(lineaTrazo3DObj);
+}
+
+canvas.addEventListener('mousedown', (e) => {
+    if (!modoDibujo3D) return;
+    const hit = raycastPiso3D(e);
+    if (!hit) return;
+    dibujando3D = true;
+    // OJO — ANTES aquí había `trazo3D = []`, que BORRABA todo lo dibujado
+    // cada vez que se volvía a presionar el mouse. Por eso, al dibujar en
+    // varios trazos, solo sobrevivían las zonas del último — esa era la causa
+    // real de "pasé por 5 zonas y solo salieron 2". Ahora se acumula.
+    agregarPuntoTrazo3D(hit);
+});
+canvas.addEventListener('mousemove', (e) => {
+    if (!modoDibujo3D || !dibujando3D) return;
+    const hit = raycastPiso3D(e);
+    if (!hit) return;
+    const ultimo = trazo3D.at(-1);
+    if (!ultimo || Math.hypot(hit.point.x - ultimo.x, hit.point.z - ultimo.z) > 0.15) {
+        agregarPuntoTrazo3D(hit);
+    }
+});
+canvas.addEventListener('mouseup', () => {
+    if (!modoDibujo3D) return;
+    dibujando3D = false;
+    if (trazo3D.length > 1) document.getElementById('btnUsarTrazo3D').style.display = 'block';
+});
+
+// ── DIBUJAR RECORRIDO SOBRE EL PLANO (Etapa 1b) ─────────────────────────────
+// Alternativa a caminar con WASD: el usuario dibuja con el mouse/dedo por
+// dónde debe pasar la cámara, directo sobre el Editor Planta. El trazo se
+// convierte en la MISMA estructura de datos (recorridoFrames) que genera
+// grabar caminando — así que reproducir/exportar funciona igual sin importar
+// cómo nació el recorrido.
+// Ajustables desde los sliders del panel de animación de cámara
+let ALTURA_CAMARA_RECORRIDO = 1.6;  // metros — altura de "ojos" al caminar
+let VELOCIDAD_RECORRIDO     = 1.2;  // metros/segundo — paso caminando normal
+const ESPACIADO_RESAMPLEO     = 0.35; // metros entre puntos ya suavizados
+
+function convertirTrazo3DARecorrido() {
+    if (trazo3D.length < 2) return;
+
+    // Prompt de movimiento de cámara para ESTA línea, antes de crear los nodos
+    const promptMovimiento = prompt(
+        '¿Cómo quieres que se mueva la cámara en este recorrido? (opcional)\n\n' +
+        'Ej: "avance lento y suave, girando despacio al entrar a cada cuarto"',
+        ''
+    );
+    if (promptMovimiento === null) return; // canceló
+
+    // ── RESAMPLEO a espaciado uniforme ───────────────────────────────────
+    // OJO: la versión anterior estaba MAL. Comparaba el espaciado contra la
+    // longitud de CADA segmento por separado; como el dibujo agrega puntos
+    // cada ~0.15m y el espaciado buscado es 0.35m, la condición nunca se
+    // cumplía y casi no generaba puntos — el recorrido salía como una recta
+    // que ignoraba toda la curva dibujada. Ahora la distancia se acumula a lo
+    // largo de TODA la polilínea, como debe ser.
+    const suavizado = [trazo3D[0]];
+    let acumulado = 0; // distancia recorrida desde el último punto emitido
+    for (let i = 1; i < trazo3D.length; i++) {
+        const a = trazo3D[i-1], b = trazo3D[i];
+        const segLen = Math.hypot(b.x - a.x, b.z - a.z);
+        if (segLen < 1e-9) continue;
+        let pos = 0; // avance dentro de este segmento
+        while (acumulado + (segLen - pos) >= ESPACIADO_RESAMPLEO) {
+            pos += ESPACIADO_RESAMPLEO - acumulado;
+            const f = pos / segLen;
+            suavizado.push({
+                x: a.x + (b.x - a.x) * f, z: a.z + (b.z - a.z) * f,
+                moduloId: f < 0.5 ? a.moduloId : b.moduloId,
+                moduloNombre: f < 0.5 ? a.moduloNombre : b.moduloNombre,
+            });
+            acumulado = 0;
+        }
+        acumulado += segLen - pos;
+    }
+    // SIEMPRE incluir el último punto real del trazo. El resampleo solo agrega
+    // puntos en múltiplos exactos del espaciado, así que el tramo final se
+    // quedaba fuera y el recorrido terminaba ANTES de llegar a la última zona
+    // — por eso "faltaba el último nodo".
+    const ultimoReal = trazo3D.at(-1);
+    const ultimoSuave = suavizado.at(-1);
+    if (!ultimoSuave || Math.hypot(ultimoReal.x - ultimoSuave.x, ultimoReal.z - ultimoSuave.z) > 0.01) {
+        suavizado.push({ ...ultimoReal });
+    }
+    if (suavizado.length < 2) suavizado.push({ ...trazo3D.at(-1) });
+
+    const offsetTiempo = recorridoFrames.length ? recorridoFrames.at(-1).t + 300 : 0;
+
+    // OJO — ESTE ERA EL BUG DE "GRABA HACIA ATRÁS":
+    // `Object3D.lookAt()` orienta el objeto para que su cara +Z mire al
+    // objetivo, pero una cámara mira por su -Z. Al copiar la rotación de un
+    // Object3D a la cámara, quedaba girada 180° — grababa exactamente al
+    // revés de la dirección dibujada. Usando una Camera como dummy, la
+    // rotación ya sale correcta (verificado con prueba: antes daba (-1,0,0)
+    // cuando debía dar (1,0,0)).
+    const dummy3D = new THREE.PerspectiveCamera();
+    let distanciaAcumulada = 0;
+    const nuevosFrames = suavizado.map((p, i) => {
+        if (i > 0) distanciaAcumulada += Math.hypot(p.x - suavizado[i-1].x, p.z - suavizado[i-1].z);
+        const t = offsetTiempo + (distanciaAcumulada / VELOCIDAD_RECORRIDO) * 1000;
+        // Mirar unos puntos MÁS ADELANTE da un giro más natural. En los
+        // últimos puntos se usa la dirección del tramo anterior (no la propia
+        // posición, que dejaría la rotación indefinida).
+        let dx, dz;
+        if (i < suavizado.length - 1) {
+            const mira = suavizado[Math.min(i + 3, suavizado.length - 1)];
+            dx = mira.x - p.x;  dz = mira.z - p.z;
+        } else {
+            const anterior = suavizado[Math.max(0, i - 1)];
+            dx = p.x - anterior.x;  dz = p.z - anterior.z;
+        }
+        if (Math.abs(dx) < 1e-6 && Math.abs(dz) < 1e-6) { dx = 0; dz = -1; } // sin dirección → mirar a -Z
+        dummy3D.position.set(p.x, ALTURA_CAMARA_RECORRIDO, p.z);
+        dummy3D.lookAt(p.x + dx, ALTURA_CAMARA_RECORRIDO, p.z + dz);
+        const q = dummy3D.quaternion;
+        return { t, x: p.x, y: ALTURA_CAMARA_RECORRIDO, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w };
+    });
+    // Se SUMA al final de lo que ya había — antes esto reemplazaba todo, y
+    // era la causa real de "solo me dio 2 nodos" cuando dibujabas por partes.
+    recorridoFrames = recorridoFrames.concat(nuevosFrames);
+
+    // Pausa al final: repite el último frame 1.2 segundos más. Sin esto, la
+    // reproducción termina en el instante exacto en que la cámara llega a la
+    // última zona, y no se alcanza a ver.
+    const ultimoFrame = recorridoFrames.at(-1);
+    if (ultimoFrame) {
+        recorridoFrames.push({ ...ultimoFrame, t: ultimoFrame.t + 1200 });
+    }
+
+    // Auto-generar un nodo/zona por cada módulo distinto que tocó el trazo.
+    // BUG CORREGIDO: antes se recorría `suavizado` (el trazo resampleado cada
+    // 0.35m), y por eso las zonas angostas o cruzadas rápido se PERDÍAN — si
+    // ningún punto resampleado caía dentro de una zona, esa zona nunca
+    // generaba nodo. Esa era la causa real de "trabajé 5 zonas y solo salieron
+    // 2". Ahora se recorre el trazo ORIGINAL (`trazo3D`), que tiene todos los
+    // puntos por donde de verdad pasó el mouse.
+    const colorGrabacion = COLORES_GRABACION[numeroGrabacion % COLORES_GRABACION.length];
+    let moduloAnterior = null;
+    trazo3D.forEach((p) => {
+        if (p.moduloId && p.moduloId !== moduloAnterior) {
+            // Buscar el frame más cercano en posición, para saber en qué
+            // segundo del recorrido cae esta zona
+            let mejorT = offsetTiempo, mejorDist = Infinity;
+            nuevosFrames.forEach(fr => {
+                const d = Math.hypot(fr.x - p.x, fr.z - p.z);
+                if (d < mejorDist) { mejorDist = d; mejorT = fr.t; }
+            });
+            const modInfo = modulosActuales3D.find(m => m.id === p.moduloId);
+            const pisoInfo = modInfo?.imagenPisoUrl
+                ? '🪵 Piso real del portafolio de la tienda asignado'
+                : `Piso genérico: ${modInfo?.materialPiso || 'sin definir'}`;
+            const pos = posicionAutoNodo(zonasRecorrido.length + nodosReferencia.length);
+            zonasRecorrido.push({
+                id: nuevoIdNodo(), t: mejorT, texto: p.moduloNombre || 'Zona',
+                prompt: promptPredeterminadoPorNombre(p.moduloNombre),
+                color: colorGrabacion,          // color de ESTA grabación
+                grabacion: numeroGrabacion,     // a qué grabación pertenece
+                prompt_movimiento: promptMovimiento || '', // cómo debe moverse la cámara en este recorrido
+                textura_url: modInfo?.imagenPisoUrl || '',
+                piso_info: pisoInfo,
+                orden: zonasRecorrido.length + 1, x: pos.x, y: pos.y,
+            });
+            moduloAnterior = p.moduloId;
+        }
+    });
+    numeroGrabacion++;
+
+    renderLienzoNodos();
+    ['btnReproducirRecorrido','btnDescargarVideo','btnDescargarJSON','btnGuardarRecorrido','btnEnviarProduccion'].forEach(id => {
+        document.getElementById(id).disabled = false;
+        document.getElementById(id).style.opacity = '1';
+    });
+
+    // La línea del trazo se queda visible en el 3D, con el color de su
+    // grabación — así ves todas las trayectorias grabadas a la vez y sabes
+    // cuál es cuál (antes se borraba al convertir y se perdía la referencia).
+    if (lineaTrazo3DObj) {
+        lineaTrazo3DObj.material = new THREE.MeshBasicMaterial({ color: colorGrabacion, depthTest: false, depthWrite: false });
+        lineaTrazo3DObj.renderOrder = 999;
+        lineasGrabadas.push(lineaTrazo3DObj);
+        lineaTrazo3DObj = null;
+    }
+    document.getElementById('btnUsarTrazo3D').style.display = 'none';
+    modoDibujo3D = false;
+    apartarTechosParaRecorrido(false);
+    marcadorCamara.visible = false;
+    document.getElementById('btnDibujar3D').textContent = '🎯 Dibujar recorrido sobre el modelo';
+    document.getElementById('btnDibujar3D').style.background = 'rgba(245,158,11,0.15)';
+    document.getElementById('hintDibujo3D').style.display = 'none';
+    controls.enabled = true;
+
+    mostrarToast(`✅ Recorrido creado — ${zonasRecorrido.length} zona(s) detectadas con su piso ya asignado`);
+}
+
+function toggleDibujoRecorrido() {
+    modoDibujoRecorrido = !modoDibujoRecorrido;
+    const btn = document.getElementById('btnDibujarRecorrido');
+    if (!btn) return;   // el botón ya no existe en el HTML; sin este guarda, explota
+    const c   = document.getElementById('canvasPlanta');
+    if (modoDibujoRecorrido) {
+        btn.textContent = '✋ Salir del modo dibujo';
+        btn.style.background = 'rgba(245,158,11,0.3)';
+        c.style.cursor = 'crosshair';
+        mostrarToast('✏️ Dibuja con el mouse el recorrido de la cámara sobre el plano');
+    } else {
+        btn.textContent = '✏️ Dibujar recorrido';
+        btn.style.background = 'rgba(245,158,11,0.15)';
+        c.style.cursor = 'crosshair'; // el editor de planta ya usa crosshair por defecto
+    }
+}
+
+function convertirTrazoARecorrido() {
+    if (trazoRecorridoPlanta.length < 2) return;
+
+    // 1. Convertir píxeles del canvas a metros reales (misma escala que los módulos)
+    const puntosMetros = trazoRecorridoPlanta.map(p => ({ x: p.px / ESCALA, z: p.pz / ESCALA }));
+
+    // 2. Resamplear a espaciado uniforme — el trazo a mano tiene puntos muy
+    //    juntos donde el mouse fue lento y muy separados donde fue rápido;
+    //    esto evita que el recorrido final se sienta con tirones de velocidad.
+    const suavizado = [puntosMetros[0]];
+    let distanciaSobrante = 0;
+    for (let i = 1; i < puntosMetros.length; i++) {
+        let a = puntosMetros[i - 1], b = puntosMetros[i];
+        let segLen = Math.hypot(b.x - a.x, b.z - a.z);
+        let recorrido = distanciaSobrante;
+        while (recorrido + ESPACIADO_RESAMPLEO <= segLen) {
+            recorrido += ESPACIADO_RESAMPLEO;
+            const f = recorrido / segLen;
+            suavizado.push({ x: a.x + (b.x - a.x) * f, z: a.z + (b.z - a.z) * f });
+        }
+        distanciaSobrante = segLen - recorrido;
+    }
+    if (suavizado.length < 2) suavizado.push(puntosMetros.at(-1));
+
+    // 3. Construir recorridoFrames: posición a altura fija de "ojos", mirando
+    //    siempre hacia el siguiente punto del trazo.
+    const dummy = new THREE.PerspectiveCamera(); // OJO: debe ser una Camera, NO un Object3D
+    let distanciaAcumulada = 0;
+    recorridoFrames = suavizado.map((p, i) => {
+        if (i > 0) distanciaAcumulada += Math.hypot(p.x - suavizado[i-1].x, p.z - suavizado[i-1].z);
+        const t = (distanciaAcumulada / VELOCIDAD_RECORRIDO) * 1000; // ms
+        const siguiente = suavizado[Math.min(i + 1, suavizado.length - 1)];
+        dummy.position.set(p.x, ALTURA_CAMARA_RECORRIDO, p.z);
+        dummy.lookAt(siguiente.x, ALTURA_CAMARA_RECORRIDO, siguiente.z);
+        const q = dummy.quaternion;
+        return { t, x: p.x, y: ALTURA_CAMARA_RECORRIDO, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w };
+    });
+    zonasRecorrido = [];
+
+    // 4. Habilitar los mismos controles de reproducir/exportar que usa el
+    //    recorrido grabado caminando, y saltar a esa pestaña.
+    ['btnReproducirRecorrido','btnDescargarVideo','btnDescargarJSON','btnGuardarRecorrido','btnEnviarProduccion'].forEach(id => {
+        document.getElementById(id).disabled = false;
+        document.getElementById(id).style.opacity = '1';
+    });
+    renderLienzoNodos();
+    cambiarVista('recorrido');
+    mostrarToast(`✅ Recorrido creado a partir del dibujo (${(recorridoFrames.at(-1).t/1000).toFixed(1)}s de recorrido)`);
+}
+// ── CAPTURAR + IA ─────────────────────────────────────────────────────────
+async function capturarYGenerarIA() {
+    const btn = document.getElementById('btnCapturarIA');
+    const promptUser = document.getElementById('promptIA').value.trim();
+    btn.disabled = true;
+    btn.innerHTML = '<span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:6px;"></span>Generando...';
+    mostrarToast('🤖 IA procesando tu render...');
+    try {
+        renderer.render(scene, camera);
+        const base64Canvas = capturaDesdeCamaraFoto().split(',')[1];
+        const { ancho, largo, alto } = estado;
+
+        // Describir muebles con posición (excluye ventanas/puerta, que tienen descripción propia más abajo)
+        const mueblesList = Object.entries(mobiliarioMeshes).filter(([id]) => !esPegableAPared(id)).map(([id, g]) => {
+            const p = g.position;
+            let pos = '';
+            if (Math.abs(p.z + largo/2) < 0.8)      pos = 'contra pared del fondo';
+            else if (Math.abs(p.z - largo/2) < 0.8) pos = 'contra pared frontal';
+            else if (Math.abs(p.x + ancho/2) < 0.8) pos = 'contra pared izquierda';
+            else if (Math.abs(p.x - ancho/2) < 0.8) pos = 'contra pared derecha';
+            else pos = 'al centro';
+            return id.replace(/_/g,' ') + ' ' + pos;
+        });
+
+        // Ventanas y puerta — incluyendo balcón
+        const ventanaDesc = ['ventana_blanca','ventana_negra','ventana_balcon','puerta','hueco','toallero'].filter(v => mobiliarioMeshes[v]).map(v => {
+            const g  = mobiliarioMeshes[v];
+            const vw = (g.userData.ventanaAncho || 1.2).toFixed(2);
+            const vh = (g.userData.ventanaAlto  || 0.9).toFixed(2);
+            const p  = g.position;
+            let paredV = '';
+            if (Math.abs(p.z + largo/2) < 0.5)      paredV = 'pared del fondo';
+            else if (Math.abs(p.z - largo/2) < 0.5) paredV = 'pared frontal';
+            else if (Math.abs(p.x + ancho/2) < 0.5) paredV = 'pared izquierda';
+            else if (Math.abs(p.x - ancho/2) < 0.5) paredV = 'pared derecha';
+            const tipo = v === 'ventana_balcon'
+                ? `ventana balcón piso-a-techo ${vw}×${vh}m de aluminio, 3 hojas verticales`
+                : v === 'puerta'
+                ? `puerta de madera ${vw}×${vh}m`
+                : `ventana corrediza aluminio marco ${v==='ventana_blanca'?'blanco':'negro'} ${vw}×${vh}m`;
+            const pctAncho = ((parseFloat(vw)/ancho)*100).toFixed(0);
+            const pctAlto  = ((parseFloat(vh)/alto)*100).toFixed(0);
+            return `${tipo} en ${paredV} (ocupa ${pctAncho}% del ancho y ${pctAlto}% del alto de esa pared)`;
+        }).join('. ');
+
+        // Luces techo
+        const lucesDesc = Object.keys(lucesTecho).map(k =>
+            ({ojoBuey:'ojos de buey',lineal:'luz lineal',colgante:'lámpara colgante',led:'tira LED'}[k]||k)
+        ).join(', ');
+
+        // Material aplicado
+        let matDesc = `piso de ${estado.materialPiso}`;
+        if (productoActivo) matDesc += `, ${productoActivo.nombre} en ${etiquetaSuperficie(superficieActiva)||'piso'}`;
+
+        // Proporciones relativas del espacio
+        const propAncho = (ancho / largo).toFixed(2);
+        const propAlto  = (alto  / largo).toFixed(2);
+        const areaM2    = (ancho * largo).toFixed(1);
+
+        // Posición relativa de muebles (en % del espacio)
+        const mueblesConPct = Object.entries(mobiliarioMeshes).map(([id, g]) => {
+            const p  = g.position;
+            const px = (((p.x + ancho/2) / ancho) * 100).toFixed(0);
+            const pz = (((p.z + largo/2) / largo) * 100).toFixed(0);
+            const py = ((p.y / alto) * 100).toFixed(0);
+            return `${id.replace(/_/g,' ')} en posición X:${px}% Y:${py}% Z:${pz}% del espacio`;
+        }).join('; ');
+
+        const promptFinal =
+            `INSTRUCCIÓN CRÍTICA: Renderiza EXACTAMENTE lo que muestra la imagen de referencia adjunta, respetando todas las proporciones espaciales. ` +
+            `Es un ${estado.habitacion} de ${ancho.toFixed(2)}m ancho × ${largo.toFixed(2)}m largo × ${alto.toFixed(2)}m alto. ` +
+            `Proporción ancho/largo=${propAncho}, altura/largo=${propAlto}. Área total: ${areaM2}m². ` +
+            `${matDesc}. Paredes color ${estado.colorPared}. ` +
+            (mueblesConPct ? `Mobiliario con posición exacta en porcentaje del espacio: ${mueblesConPct}. ` : '') +
+            (ventanaDesc ? `Ventanas (respetar tamaño proporcional a la pared): ${ventanaDesc}. ` : '') +
+            (lucesDesc ? `Iluminación de techo: ${lucesDesc}. ` : '') +
+            `REGLAS OBLIGATORIAS: ` +
+            `(1) Las dimensiones del espacio deben ser visualmente correctas — si el cuarto es más ancho que largo, debe verse así. ` +
+            `(2) Los muebles deben tener escala proporcional al espacio — una cama en un cuarto de 3m ocupa más espacio visual que en uno de 6m. ` +
+            `(3) Las ventanas deben verse exactamente del tamaño indicado respecto a la pared donde están. ` +
+            `(4) La perspectiva y punto de fuga deben coincidir con la imagen de referencia. ` +
+            `(5) NO inventar muebles, plantas, ni elementos que no estén en la imagen de referencia. ` +
+            `Fotografía arquitectónica hiperrealista, iluminación cinematográfica ACES, sombras PCFSoft, texturas PBR. Sin texto, sin marcas de agua. ` +
+            (promptUser ? `Estilo adicional: ${promptUser}.` : 'Estilo moderno contemporáneo, luz natural cálida.');
+
+        // El servidor verifica con la sesión que la empresa sea tuya antes de gastar el cupo
+        const { data: { session: sesRender } } = await db.auth.getSession();
+        if (!sesRender) throw new Error('Tu sesión expiró. Vuelve a iniciar sesión.');
+        const response = await fetch('https://decoia.onrender.com/generar-render-3d', {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sesRender.access_token },
+            body: JSON.stringify({ imagen_base64: base64Canvas, prompt: promptFinal, empresa_id: await obtenerEmpresaId() })
+        });
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.detail || ('Error del servidor: ' + response.status));
+        }
+        const data = await response.json();
+        if (data.status === 'error') throw new Error(data.mensaje || data.error || 'Error desconocido');
+        if (!data.url_imagen) throw new Error('No se recibió URL de imagen');
+        fotoIaUrl = data.url_imagen;
+        agregarFotoGaleria('ia', data.url_imagen);
+        document.getElementById('tabFoto').textContent = '📸 Render IA ✅';
+        mostrarToast('✅ ¡Render generado! Abriendo pestaña...');
+        setTimeout(() => cambiarVista('foto'), 1500);
+    } catch(e) {
+        console.error(e);
+        mostrarToast('❌ ' + (e.message || 'Error generando render'));
+    }
+    btn.disabled = false;
+    btn.innerHTML = '🤖 Capturar + IA hiperrealista';
+}
+
+async function obtenerEmpresaId() {
+    try {
+        const {data:{session}}=await db.auth.getSession();
+        if(!session) return null;
+        const {data:empresa}=await db.from('empresas').select('id').eq('email',session.user.email).maybeSingle();
+        return empresa?.id||null;
+    } catch(e){return null;}
+}
+
+async function cargarFotoIA() {
+    const params=new URLSearchParams(window.location.search);
+    const urlParam=params.get('foto');
+    cargarGaleria();
+    if(urlParam){fotoIaUrl=decodeURIComponent(urlParam);
+        if (!fotoOculta(fotoIaUrl) && !galeriaFotos.some(f => f.url === fotoIaUrl)) agregarFotoGaleria('whatsapp', fotoIaUrl);
+        return;}
+    try {
+        const {data:{session}}=await db.auth.getSession();
+        if(!session) return;
+        const {data:empresa}=await db.from('empresas').select('id').eq('email',session.user.email).maybeSingle();
+        if(!empresa) return;
+        const {data:img}=await db.from('imagenes').select('url_generada').eq('empresa_id',empresa.id).order('created_at',{ascending:false}).limit(1).maybeSingle();
+        // La última foto del bot de WhatsApp va al final y con su etiqueta: antes
+        // aparecía sola en Foto IA y parecía del proyecto.
+        if(img?.url_generada && !fotoOculta(img.url_generada) && !galeriaFotos.some(f => f.url === img.url_generada)){ fotoIaUrl=img.url_generada;
+            galeriaFotos.push({ id:'wa_ultima', tipo:'whatsapp', url:img.url_generada, fecha:0 });
+            if (!fotoGaleriaSel) fotoGaleriaSel = galeriaFotos[0].id;
+            actualizarPestanaFoto(); if (vistaActual==='foto') renderGaleria(); }
+    } catch(e){}
+}
+
+// ── CARRITO: productos del diseño, con cantidades y total ────────────────
+// Sale de lo que se eligió: el piso de cada cuarto en la planta y lo que se
+// puso en paredes en la cámara interior. Un mismo producto en varios cuartos
+// se suma y se calcula junto (salen menos cajas que por separado).
+const productosUsados = new Map();        // id → producto (se guarda al elegirlo)
+const productosSuperficies = {};          // superficie → { prodId, area, lugar }
+function productoPorId(id) { return productosUsados.get(id) || (todosProductos || []).find(p => p.id === id) || null; }
+
+function lineasCarrito() {
+    const grupos = new Map();   // prodId → { prod, area, lugares[] }
+    const sumar = (prodId, area, lugar) => {
+        const prod = productoPorId(prodId);
+        if (!prod || !(area > 0)) return;
+        const g = grupos.get(prodId) || { prod, area: 0, lugares: [] };
+        g.area += area; g.lugares.push(`${lugar} ${area.toFixed(1)} m²`);
+        grupos.set(prodId, g);
+    };
+    let areaPisos = 0;
+    modulosPlanta.forEach(m => {
+        if (!esCuarto(m.tipo) || !m.imagenPisoId) return;
+        const a = m.ancho * m.largo;
+        areaPisos += a;
+        sumar(m.imagenPisoId, a, `Piso ${m.nombre.replace(/^\S+\s/, '')}`);
+    });
+    Object.values(productosSuperficies).forEach(sp => sumar(sp.prodId, sp.area, sp.lugar));
+    const lineas = [...grupos.values()].map(g => {
+        const c = cantidadProducto(g.prod, g.area);
+        const deOtra = tiendaIdPropia && g.prod.tienda_id && g.prod.tienda_id !== tiendaIdPropia;
+        return { prod: g.prod, nombre: g.prod.nombre, imagen: g.prod.imagen_url, lugares: g.lugares, area: g.area, deOtra, ...c };
+    });
+    // Mortero para instalar los pisos, si la tienda tiene cemento y arena en su catálogo
+    const prodCemento = (todosProductos || []).find(p => p.tipo_calculo === 'cemento_arena' && p.datos_mortero?.material === 'cemento' && p.datos_mortero?.uso === 'piso');
+    const prodArena   = (todosProductos || []).find(p => p.tipo_calculo === 'cemento_arena' && p.datos_mortero?.material === 'arena'   && p.datos_mortero?.uso === 'piso');
+    if (areaPisos > 0 && (prodCemento || prodArena)) {
+        const base = prodCemento || prodArena;
+        const { bultosCemento, arenaM3 } = calcularCementoArena(areaPisos, base.datos_mortero.espesor_cm || 2.5, base.datos_mortero.proporcion || 4);
+        if (prodCemento) lineas.push({ prod: prodCemento, nombre: prodCemento.nombre, imagen: prodCemento.imagen_url, lugares: ['Para instalar los pisos'],
+            cantidad: bultosCemento, unidad: bultosCemento === 1 ? 'bulto' : 'bultos', precioUnidad: prodCemento.precio || 0,
+            subtotal: bultosCemento * (prodCemento.precio || 0), texto: `${bultosCemento} bulto${bultosCemento === 1 ? '' : 's'} de 50 kg` });
+        if (prodArena) { const m3 = Math.ceil(arenaM3);
+            lineas.push({ prod: prodArena, nombre: prodArena.nombre, imagen: prodArena.imagen_url, lugares: ['Para instalar los pisos'],
+            cantidad: m3, unidad: 'm³', precioUnidad: prodArena.precio || 0, subtotal: m3 * (prodArena.precio || 0), texto: `${m3} m³` }); }
+    }
+    return lineas;
+}
+
+function puedeVerCarrito() {
+    // Igual que el cálculo de materiales: Premium o Corporativo con pago activo
+    return !(rolUsuario === 'empresa' && (!['premium','corporativo'].includes(planEmpresaVisor) || estadoEmpresaVisor !== 'activo'));
+}
+const pesos = n => '$' + Math.round(n || 0).toLocaleString('es-CO');
+
+function htmlCarrito() {
+    if (!puedeVerCarrito()) return `<div class="carrito"><div class="carrito-titulo">🛒 Productos de este diseño</div>
+        <div class="carrito-vacio">🔒 El carrito con cantidades y total está disponible desde el plan <b>Premium</b> con el pago activo.</div></div>`;
+    const lineas = lineasCarrito();
+    if (!lineas.length) return `<div class="carrito"><div class="carrito-titulo">🛒 Productos de este diseño</div>
+        <div class="carrito-vacio">Aún no hay productos. Elige el <b>piso de cada cuarto</b> en el Editor Planta (Propiedades → portafolio) o viste una pared en la cámara interior del Entorno 3D.</div></div>`;
+    const propias = lineas.filter(l => !l.deOtra), ajenas = lineas.filter(l => l.deOtra);
+    const total = propias.reduce((t, l) => t + l.subtotal, 0);
+    const fila = l => `<div class="carrito-fila${l.deOtra ? ' ajena' : ''}">
+        ${l.imagen ? `<img src="${esc(l.imagen)}" alt="" loading="lazy">` : '<div class="carrito-sin-foto">📦</div>'}
+        <div class="carrito-info"><div class="carrito-nombre">${esc(l.nombre)}</div><div class="carrito-lugar">${esc(l.lugares.join(' · '))}</div></div>
+        <div class="carrito-cant">${esc(l.texto)}<span>${pesos(l.precioUnidad)} c/u</span></div>
+        <div class="carrito-sub">${pesos(l.subtotal)}</div></div>`;
+    return `<div class="carrito">
+        <div class="carrito-titulo">🛒 Productos de este diseño <span>${propias.length} producto${propias.length === 1 ? '' : 's'}</span></div>
+        ${propias.map(fila).join('')}
+        ${ajenas.length ? `<div class="carrito-aviso">De otra tienda (no entran en tu cotización):</div>${ajenas.map(fila).join('')}` : ''}
+        <div class="carrito-total"><span>Total estimado</span><b>${pesos(total)}</b></div>
+        <div class="carrito-nota">Cantidades con el desperdicio de cada producto. Para obras grandes, confírmalas con el maestro de obra.</div>
+        <div class="galeria-acciones" style="justify-content:flex-start;">
+            <button class="ga-whatsapp" onclick="enviarCotizacionWhatsApp()">💬 Enviar cotización + foto</button>
+            <button class="ga-superficies" onclick="cotizacionPDF()">🧾 Cotización en PDF</button>
+            <button class="ga-secundario" onclick="copiarCotizacion()">📋 Copiar</button>
+        </div></div>`;
+}
+function textoCotizacion() {
+    const propias = lineasCarrito().filter(l => !l.deOtra);
+    const total = propias.reduce((t, l) => t + l.subtotal, 0);
+    return 'Cotización de tu remodelación — DecoIArte 🏠\n\n'
+        + propias.map(l => `• ${l.nombre}: ${l.texto} → ${pesos(l.subtotal)}\n   (${l.lugares.join(', ')})`).join('\n')
+        + `\n\nTotal estimado: ${pesos(total)}\nCantidades incluyen desperdicio.`;
+}
+async function copiarCotizacion() {
+    try { await navigator.clipboard.writeText(textoCotizacion()); mostrarToast('📋 Cotización copiada'); }
+    catch (e) { mostrarToast('⚠️ No se pudo copiar'); }
+}
+async function enviarCotizacionWhatsApp() {
+    let texto = textoCotizacion();
+    const f = galeriaFotos.find(x => x.id === fotoGaleriaSel);
+    if (f) { try { texto += `\n\nAsí quedaría: ${await urlPublicaFoto(f)}`; } catch (e) {} }
+    window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank');
+}
+async function cotizacionPDF() {
+    const propias = lineasCarrito().filter(l => !l.deOtra && l.cantidad > 0);
+    if (!propias.length) { mostrarToast('⚠️ No hay productos de tu tienda en el carrito'); return; }
+    if (!tiendaIdPropia) { mostrarToast('⚠️ Inicia sesión con tu cuenta de tienda'); return; }
+    try {
+        mostrarToast('🧾 Generando la cotización…');
+        const { data: { session } } = await db.auth.getSession();
+        if (!session) throw new Error('Tu sesión expiró. Vuelve a iniciar sesión.');
+        const r = await fetch('https://decoia.onrender.com/generar-cotizacion', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+            body: JSON.stringify({ tienda_id: tiendaIdPropia, tienda_nombre: '',
+                items: propias.map(l => ({ nombre: l.nombre, cantidad: l.cantidad, unidad: l.unidad,
+                    precio_unitario: l.cantidad ? Math.round(l.subtotal / l.cantidad) : 0 })),
+                notas: 'Cantidades calculadas desde el diseño 3D, con el desperdicio de cada producto.' }),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.detail || ('Error ' + r.status));
+        window.open(d.url_pdf, '_blank');
+        mostrarToast(`🧾 Cotización ${d.numero || ''} lista`);
+    } catch (e) { mostrarToast('⚠️ ' + (e.message || 'No se pudo generar la cotización')); }
+}
+
+// ── GALERÍA DE FOTO IA ───────────────────────────────────────────────────
+// Toda foto que sale del visor llega aquí: las capturas ("Capturar render" y
+// la de la cámara interior) y las Foto IA. Se guardan en este navegador
+// (IndexedDB) para que no se pierdan al recargar. Desde aquí se llevan a
+// Remodelar o al Editor de superficies, se mandan al cliente o se descargan.
+let galeriaFotos = [];
+let fotoGaleriaSel = null;
+const GALERIA_MAX = 40;
+function _dbGaleria() {
+    return new Promise((ok, mal) => {
+        const req = indexedDB.open('decoia_visor', 1);
+        req.onupgradeneeded = () => req.result.createObjectStore('fotos', { keyPath: 'id' });
+        req.onsuccess = () => ok(req.result);
+        req.onerror = () => mal(req.error);
+    });
+}
+async function _galeriaGuardar(f) {
+    try { const d = await _dbGaleria(); d.transaction('fotos', 'readwrite').objectStore('fotos').put(f); } catch (e) {}
+}
+async function _galeriaBorrar(id) {
+    try { const d = await _dbGaleria(); d.transaction('fotos', 'readwrite').objectStore('fotos').delete(id); } catch (e) {}
+}
+async function cargarGaleria() {
+    try {
+        const d = await _dbGaleria();
+        const todas = await new Promise(ok => { const r = d.transaction('fotos').objectStore('fotos').getAll(); r.onsuccess = () => ok(r.result || []); r.onerror = () => ok([]); });
+        const ya = new Set(galeriaFotos.map(f => f.id));
+        galeriaFotos = [...galeriaFotos, ...todas.filter(f => !ya.has(f.id))].sort((a, b) => b.fecha - a.fecha);
+        if (!fotoGaleriaSel && galeriaFotos.length) fotoGaleriaSel = galeriaFotos[0].id;
+        actualizarPestanaFoto();
+        if (vistaActual === 'foto') renderGaleria();
+    } catch (e) {}
+}
+// Una captura PNG pesa varios MB: se guarda en JPEG, que se ve igual y pesa poco
+function _aJPEG(dataUrl) {
+    return new Promise(ok => {
+        const im = new Image();
+        im.onload = () => { const c = document.createElement('canvas'); c.width = im.width; c.height = im.height;
+            c.getContext('2d').drawImage(im, 0, 0); ok(c.toDataURL('image/jpeg', 0.9)); };
+        im.onerror = () => ok(dataUrl);
+        im.src = dataUrl;
+    });
+}
+async function agregarFotoGaleria(tipo, fuente) {
+    const f = { id: 'f_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6), tipo, fecha: Date.now() };
+    if (fuente.startsWith('data:')) f.dataUrl = await _aJPEG(fuente); else f.url = fuente;
+    galeriaFotos.unshift(f);
+    while (galeriaFotos.length > GALERIA_MAX) { const v = galeriaFotos.pop(); if (v.tipo !== 'whatsapp') _galeriaBorrar(v.id); }
+    fotoGaleriaSel = f.id;
+    if (tipo !== 'whatsapp') _galeriaGuardar(f);
+    actualizarPestanaFoto();
+    if (vistaActual === 'foto') renderGaleria();
+    return f;
+}
+function actualizarPestanaFoto() {
+    const n = galeriaFotos.length;
+    document.getElementById('tabFoto').textContent = n ? `📸 Foto IA (${n})` : '📸 Foto IA';
+}
+const ETIQUETA_FOTO = { captura:'📸 Captura del 3D', ia:'✨ Foto IA', whatsapp:'💬 Del bot de WhatsApp' };
+function renderGaleria() {
+    const cont = document.getElementById('fotoIaContenido');
+    document.getElementById('btnEnviarCliente').style.display = 'none';
+    const btnEdViejo = document.getElementById('btnEditorSuperficiesVisor');
+    if (btnEdViejo) btnEdViejo.style.display = 'none';
+    if (!galeriaFotos.length) {
+        cont.innerHTML = `<div class="foto-empty"><div class="icon">📸</div>
+            <p style="font-size:15px;margin-bottom:8px;">Aún no hay fotos de este proyecto</p>
+            <p style="font-size:13px;color:var(--gris);">En el Entorno 3D toca <b>📸 Capturar render</b> o <b>🤖 Foto IA</b>: todas las fotos llegan aquí.</p></div>
+            <div class="galeria" style="padding-top:0;">${htmlCarrito()}</div>`;
+        return;
+    }
+    const f = galeriaFotos.find(x => x.id === fotoGaleriaSel) || galeriaFotos[0];
+    fotoGaleriaSel = f.id;
+    const src = f.dataUrl || f.url;
+    cont.innerHTML = `<div class="galeria">
+        <div class="galeria-principal"><img src="${esc(src)}" alt="Foto del proyecto"><span class="galeria-etiqueta">${ETIQUETA_FOTO[f.tipo] || '📸 Foto'}</span></div>
+        <div class="galeria-acciones">
+            <button class="ga-remodelar" onclick="llevarFotoA('remodelar')">🛋️ Llevar a Remodelar</button>
+            <button class="ga-superficies" onclick="llevarFotoA('superficies')">🧱 Llevar al Editor de superficies</button>
+            <button class="ga-whatsapp" onclick="enviarAlCliente()">💬 Enviar al cliente</button>
+            <button class="ga-secundario" onclick="descargarFotoGaleria()">⬇ Descargar</button>
+            <button class="ga-quitar" onclick="quitarFotoGaleria()">🗑 Quitar</button>
+        </div>
+        <div class="galeria-tira">${galeriaFotos.map(x => `<div class="miniatura${x.id === f.id ? ' activa' : ''}" onclick="fotoGaleriaSel='${x.id}'; renderGaleria();">
+            <img src="${esc(x.dataUrl || x.url)}" alt="" loading="lazy"><span>${(ETIQUETA_FOTO[x.tipo] || '📸').split(' ')[0]}</span></div>`).join('')}</div>
+        ${htmlCarrito()}
+    </div>`;
+}
+// Remodelar y el Editor de superficies reciben la foto por su dirección web.
+// Las capturas viven solo en este navegador: se suben una vez a la carpeta de
+// la tienda (bucket portafolio, <empresa>/visor/…) y se recuerda la dirección.
+async function urlPublicaFoto(f) {
+    if (f.url) return f.url;
+    if (f.urlSubida) return f.urlSubida;
+    const empresaId = await obtenerEmpresaId();
+    if (!empresaId) throw new Error('Inicia sesión con tu cuenta de tienda para llevar la foto.');
+    const blob = await (await fetch(f.dataUrl)).blob();
+    const ruta = `${empresaId}/visor/${f.id}.jpg`;
+    const { error } = await db.storage.from('portafolio').upload(ruta, blob, { upsert: true, contentType: 'image/jpeg' });
+    if (error) throw error;
+    f.urlSubida = db.storage.from('portafolio').getPublicUrl(ruta).data.publicUrl;
+    _galeriaGuardar(f);
+    return f.urlSubida;
+}
+async function llevarFotoA(destino) {
+    const f = galeriaFotos.find(x => x.id === fotoGaleriaSel);
+    if (!f) return;
+    try {
+        mostrarToast('⏳ Preparando la foto…');
+        const url = await urlPublicaFoto(f);
+        const volver = encodeURIComponent('/visor3d');
+        const tienda = (typeof tiendaIdPropia !== 'undefined' && tiendaIdPropia) ? `&tienda=${encodeURIComponent(tiendaIdPropia)}` : '';
+        location.href = destino === 'remodelar'
+            ? `/remodelar?img=${encodeURIComponent(url)}${tienda}`
+            : `/editor-superficies?img=${encodeURIComponent(url)}&volver=${volver}${tienda}`;
+    } catch (e) {
+        mostrarToast('⚠️ ' + (e.message || 'No se pudo preparar la foto'));
+    }
+}
+function descargarFotoGaleria() {
+    const f = galeriaFotos.find(x => x.id === fotoGaleriaSel);
+    if (!f) return;
+    const a = document.createElement('a');
+    a.href = f.dataUrl || f.url; a.download = `decoiarte_${f.tipo}_${f.fecha}.jpg`; a.target = '_blank';
+    a.click();
+}
+// Las fotos del bot no viven en este navegador (se leen de la base cada vez):
+// al quitarlas se anota su dirección para no volver a mostrarlas aquí. La foto
+// sigue existiendo para el cliente y en la bandeja del asesor.
+function fotoOculta(url) {
+    try { return (JSON.parse(localStorage.getItem('decoia_fotos_ocultas') || '[]')).includes(url); } catch (e) { return false; }
+}
+function ocultarFoto(url) {
+    try {
+        const l = JSON.parse(localStorage.getItem('decoia_fotos_ocultas') || '[]');
+        if (!l.includes(url)) { l.push(url); localStorage.setItem('decoia_fotos_ocultas', JSON.stringify(l.slice(-200))); }
+    } catch (e) {}
+}
+function quitarFotoGaleria() {
+    const f = galeriaFotos.find(x => x.id === fotoGaleriaSel);
+    const aviso = f && f.tipo === 'whatsapp'
+        ? '¿Quitar esta foto de tu galería? (El cliente la sigue teniendo; solo deja de salir aquí.)'
+        : '¿Quitar esta foto de la galería?';
+    if (!f || !confirm(aviso)) return;
+    galeriaFotos = galeriaFotos.filter(x => x.id !== f.id);
+    if (f.tipo === 'whatsapp' && f.url) ocultarFoto(f.url);
+    _galeriaBorrar(f.id);
+    fotoGaleriaSel = galeriaFotos[0]?.id || null;
+    actualizarPestanaFoto();
+    renderGaleria();
+}
+
+async function enviarAlCliente() {
+    const f = galeriaFotos.find(x => x.id === fotoGaleriaSel);
+    let url = fotoIaUrl;
+    if (f) { try { url = await urlPublicaFoto(f); } catch (e) { mostrarToast('⚠️ ' + e.message); return; } }
+    if (!url) return;
+    const msg=encodeURIComponent(`Hola! Te comparto el render de tu espacio remodelado con DecoIArte 🏠✨\n\nVer imagen: ${url}`);
+    window.open(`https://wa.me/?text=${msg}`,'_blank');
+}
+
+// ── CÁMARA PIVOTE ─────────────────────────────────────────────────────────
+let modoPivote=false;
+
+
+// ── TOGGLE CÁMARA INTERIOR ────────────────────────────────────────────────
+function toggleCamaraInterior() {
+    if (modoInterior) {
+        salirCamaraPivote();
+    } else {
+        activarCamaraPivote();
+    }
+}
+let cuartoPivoteActual = null; // id del módulo donde está la cámara interior ahora
+
+// Al entrar se guarda TU vista del proyecto; al salir se devuelve tal cual y
+// la cámara se queda donde quedó el lente. Antes, al salir, tu vista se
+// quedaba en el lente y la cámara aparecía a tu lado.
+let vistaAntesDelLente = null;
+let lenteLibre = false;   // entraste por el lente: se camina sin los límites del cuarto
+function activarCamaraPivote() {
+    if(modoMover) desactivarMoverMueble();
+    if (objetoTransformar === marcadorCamara) salirModoTransformar();
+    if (!modoInterior) vistaAntesDelLente = { pos: camera.position.clone(), target: controls.target.clone(), fov: camera.fov,
+        min: controls.minDistance, max: controls.maxDistance, polar: controls.maxPolarAngle };
+    modoPivote=true;
+    modoInterior=true;
+    mostrarTechosInterior(true);
+    // Cambiar texto del botón
+    const btnCam = document.getElementById('btnCamaraInterior');
+    if (btnCam) { btnCam.textContent = '🚪 Salir de cámara interior'; btnCam.style.background='rgba(239,68,68,0.12)'; btnCam.style.borderColor='rgba(239,68,68,0.35)'; btnCam.style.color='#FCA5A5'; }
+    const panelSup = document.getElementById('panelSuperficie');
+    const supHintEl = document.getElementById('supHint');
+    if (panelSup) panelSup.classList.add('visible');
+    if (supHintEl) supHintEl.textContent = 'Haz click en un botón para seleccionar la superficie a decorar';
+    document.getElementById('camaraPivote').classList.add('activa');
+
+    // Elegir el cuarto más cercano al punto donde estaba mirando la cámara orbital
+    const selector = document.getElementById('cpSelectorCuarto');
+    const select   = document.getElementById('cpCuartoSelect');
+    if (modulosActuales3D.length > 1) {
+        selector.style.display = 'block';
+        select.innerHTML = modulosActuales3D.map(m => `<option value="${m.id}">${esc(m.nombre)}</option>`).join('');
+        const t = controls.target;
+        let masCercano = modulosActuales3D[0], mejorDist = Infinity;
+        modulosActuales3D.forEach(m => {
+            const d = Math.hypot(m.cx - t.x, m.cz - t.z);
+            if (d < mejorDist) { mejorDist = d; masCercano = m; }
+        });
+        select.value = masCercano.id;
+        cuartoPivoteActual = masCercano.id;
+    } else {
+        selector.style.display = 'none';
+        cuartoPivoteActual = modulosActuales3D[0]?.id ?? null;
+    }
+
+    // Si la cámara quedó dentro de un cuarto, se entra DESDE ella: mismo sitio
+    // y misma dirección. Antes se entraba al centro del cuarto más cercano a la
+    // vista y parecía otra cámara.
+    const pc = marcadorCamara.position;
+    const dentro = modulosActuales3D.find(m => Math.abs(pc.x - m.cx) < m.ancho / 2 && Math.abs(pc.z - m.cz) < m.largo / 2);
+    if (dentro && pc.lengthSq() > 0) {
+        cuartoPivoteActual = dentro.id;
+        if (select) select.value = dentro.id;
+    }
+    controls.enabled=false;
+    aplicarLimitesCuartoPivote();
+    lenteLibre = false;
+    if (pc.lengthSq() > 0) {
+        // "Desde la posición de la cámara": exactamente donde está el lente,
+        // aunque esté afuera de la casa, con su misma dirección y su mismo lente.
+        lenteLibre = true;
+        if (dentro) {
+            document.getElementById('cpX').value = pc.x - dentro.cx;
+            document.getElementById('cpZ').value = pc.z - dentro.cz;
+            document.getElementById('cpY').value = pc.y;
+        }
+        camera.position.copy(pc);
+        camera.fov = cameraPreview.fov || 60; camera.updateProjectionMatrix();
+        document.getElementById('cpFov').value = camera.fov;
+        const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(marcadorCamara.quaternion);
+        controls.enabled = true;
+        controls.target.copy(pc).addScaledVector(dir, 0.3);
+        controls.minDistance = 0.1; controls.maxDistance = 0.5;
+        controls.update();
+        mostrarToast('📷 Estás viendo por el lente de la cámara — arrastra para mirar, WASD para caminar');
+    } else {
+        mostrarToast('📷 Modo cámara interior — arrastra para mirar');
+    }
+    renderListaObjetos(true);
+}
+
+function aplicarLimitesCuartoPivote() {
+    const cuarto = modulosActuales3D.find(m => m.id === cuartoPivoteActual) || modulosActuales3D[0];
+    if (!cuarto) return;
+    const { cx, cz, ancho, largo, alto } = cuarto;
+    document.getElementById('cpX').min=-(ancho/2-0.4); document.getElementById('cpX').max=(ancho/2-0.4);
+    document.getElementById('cpZ').min=-(largo/2-0.4); document.getElementById('cpZ').max=(largo/2-0.4);
+    document.getElementById('cpY').max=Math.max(0.6, alto-0.3);
+    document.getElementById('cpX').value=0; document.getElementById('cpZ').value=0; document.getElementById('cpY').value=1.6;
+    moverCamaraPivote(cx, cz);
+}
+
+function cambiarCuartoCamaraPivote(id) {
+    cuartoPivoteActual = id;
+    aplicarLimitesCuartoPivote();
+    const cuarto = modulosActuales3D.find(m => m.id === id);
+    mostrarToast(`📷 Entraste a ${cuarto?.nombre || 'otro cuarto'}`);
+}
+
+function moverCamaraPivote(offsetX=null, offsetZ=null) {
+    const cuarto = modulosActuales3D.find(m => m.id === cuartoPivoteActual) || { cx:0, cz:0 };
+    const baseX = offsetX !== null ? offsetX : cuarto.cx;
+    const baseZ = offsetZ !== null ? offsetZ : cuarto.cz;
+    const x=parseFloat(document.getElementById('cpX').value)+baseX;
+    const y=parseFloat(document.getElementById('cpY').value);
+    const z=parseFloat(document.getElementById('cpZ').value)+baseZ;
+    const fov=parseFloat(document.getElementById('cpFov').value);
+    camera.position.set(x,y,z); camera.fov=fov; camera.updateProjectionMatrix();
+    // El punto de mira va a 0,3 m (dentro de los límites 0,1–0,5 de abajo).
+    // Antes iba a 2 m y los controles empujaban la cámara 1,5 m hacia adelante:
+    // nunca quedaba donde marcaban los deslizadores.
+    controls.enabled=true; controls.target.set(x,y,z-0.3);
+    controls.minDistance=0.1; controls.maxDistance=0.5; controls.update();
+}
+
+function capturarDesdeInterior() {
+    if (imagenBloqueada()) { mostrarModalBloqueo(); return; }
+    renderer.render(scene,camera);
+    agregarFotoGaleria('captura', capturaDesdeCamaraFoto());
+    mostrarToast('📸 Guardada en Foto IA');
+}
+
+function salirCamaraPivote() {
+    modoPivote=false;
+    modoInterior=false;
+    if (salaConstruida && vistaActual === '3d') marcadorCamara.visible = true;   // queda donde estabas mirando
+    setTimeout(() => renderListaObjetos(true), 0);
+    document.getElementById('panelDerecho')?.classList.remove('con-superficie');
+    document.getElementById('camaraPivote').classList.remove('activa');
+    mostrarTechosInterior(false);
+    // Restaurar botón
+    const btnCamS = document.getElementById('btnCamaraInterior');
+    if (btnCamS) { btnCamS.textContent = '📷 Entrar con cámara interior'; btnCamS.style.background='rgba(124,58,237,0.15)'; btnCamS.style.borderColor='rgba(124,58,237,0.3)'; btnCamS.style.color='#A78BFA'; }
+    const panelSupSalir = document.getElementById('panelSuperficie');
+    if (panelSupSalir) panelSupSalir.classList.remove('visible');
+    // Quitar highlight de superficie
+    quitarHighlightSuperficie();
+    controls.minDistance=2; controls.maxDistance=25; controls.maxPolarAngle=Math.PI/1.8;
+    lenteLibre = false;
+    // Vuelves a TU vista de antes de entrar; la cámara queda donde dejaste el lente
+    if (vistaAntesDelLente) {
+        const v = vistaAntesDelLente;
+        camera.position.copy(v.pos); camera.fov = v.fov; camera.updateProjectionMatrix();
+        controls.enabled = true;
+        controls.minDistance = v.min; controls.maxDistance = v.max; controls.maxPolarAngle = v.polar;
+        controls.target.copy(v.target); controls.update();
+        vistaAntesDelLente = null;
+        mostrarToast('🔄 Volviste a tu vista — la cámara quedó donde la dejaste');
+    } else { setCamara('libre'); mostrarToast('🔄 Vista libre restaurada'); }
+}
+
+
+// ── SELECCIÓN DE SUPERFICIE ───────────────────────────────────────────────
+// materialOriginalSuperficie declarado arriba
+
+function seleccionarSuperficie(nombre, btn) {
+    superficieActiva = nombre;
+    // En el 3D el portafolio solo aparece al vestir una superficie (enchapar o
+    // pintar una pared): los pisos de cada cuarto se eligen en la planta.
+    document.getElementById('panelDerecho')?.classList.add('con-superficie');
+    abrirSeccionPanel('panelSuperficie');
+
+    // Actualizar botones
+    document.querySelectorAll('.sup-btn').forEach(b => b.classList.remove('activo'));
+    if (btn) btn.classList.add('activo');
+
+    // Quitar highlight anterior
+    quitarHighlightSuperficie();
+
+    // Aplicar highlight naranja suave a la superficie seleccionada
+    const mesh = meshes[nombre];
+    if (mesh) {
+        materialOriginalSuperficie = { nombre, material: mesh.material.clone() };
+        // Overlay de selección — emissive amarillo suave
+        mesh.material.emissive = new THREE.Color(0xFFAA00);
+        mesh.material.emissiveIntensity = 0.25;
+        mostrarToast(`🎯 Superficie: ${etiquetaSuperficie(nombre)} — elige un producto del portafolio`);
+    }
+}
+
+function quitarHighlightSuperficie() {
+    if (materialOriginalSuperficie) {
+        const mesh = meshes[materialOriginalSuperficie.nombre];
+        if (mesh && mesh.material) {
+            mesh.material.emissive = new THREE.Color(0x000000);
+            mesh.material.emissiveIntensity = 0;
+        }
+        materialOriginalSuperficie = null;
+    }
+}
+
+function etiquetaSuperficie(nombre) {
+    const map = { piso:'Piso', techo:'Techo', paredTrasera:'Pared fondo', paredFrontal:'Pared frente', paredIzq:'Pared izquierda', paredDer:'Pared derecha' };
+    return map[nombre] || nombre;
+}
+
+// ── LUCES DE TECHO ────────────────────────────────────────────────────────
+const CONFIGS_LUZ_TECHO = {
+    ojoBuey: { cantidad: 4, radio: 0.08, color: 0xFFFFEE, emissive: 0xFFFF88, intLuz: 1.2, rangeLuz: 4 },
+    lineal:  { cantidad: 2, radio: 0,    color: 0xFFFFFF, emissive: 0xFFFFFF, intLuz: 0.8, rangeLuz: 6, esLineal: true },
+    colgante:{ cantidad: 1, radio: 0.12, color: 0xFFEECC, emissive: 0xFFDD88, intLuz: 1.5, rangeLuz: 5 },
+    led:     { cantidad: 0, esLed: true, color: 0x4488FF, emissive: 0x2266FF, intLuz: 0.6 },
+};
+
+function toggleLuzTecho(tipo, btn) {
+    // Si ya está activa, quitarla
+    if (lucesTecho[tipo]) {
+        scene.remove(lucesTecho[tipo]);
+        delete lucesTecho[tipo];
+        btn.classList.remove('activo');
+        mostrarToast('💡 Luz quitada');
+        return;
+    }
+
+    btn.classList.add('activo');
+    const cfg = CONFIGS_LUZ_TECHO[tipo];
+    const grupo = new THREE.Group();
+    const { ancho, largo, alto } = estado;
+
+    if (cfg.esLed) {
+        // Tira LED — franja de luz en el perímetro del techo
+        const matLed = new THREE.MeshStandardMaterial({ color: cfg.color, emissive: new THREE.Color(cfg.emissive), emissiveIntensity: 1.5 });
+        const ledAncho = new THREE.Mesh(new THREE.BoxGeometry(ancho - 0.2, 0.04, 0.06), matLed);
+        ledAncho.position.set(0, alto - 0.05, -largo/2 + 0.1);
+        const ledAncho2 = ledAncho.clone();
+        ledAncho2.position.set(0, alto - 0.05, largo/2 - 0.1);
+        const ledLargo = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.04, largo - 0.2), matLed);
+        ledLargo.position.set(-ancho/2 + 0.1, alto - 0.05, 0);
+        const ledLargo2 = ledLargo.clone();
+        ledLargo2.position.set(ancho/2 - 0.1, alto - 0.05, 0);
+        grupo.add(ledAncho, ledAncho2, ledLargo, ledLargo2);
+        // Luz ambiental suave azulada
+        const luzLed = new THREE.PointLight(cfg.color, cfg.intLuz, ancho + largo);
+        luzLed.userData.luzTecho = true; luzLed.userData.intBase = cfg.intLuz;   // para compensarla con la exposición del entorno
+        luzLed.position.set(0, alto - 0.1, 0);
+        grupo.add(luzLed);
+
+    } else if (cfg.esLineal) {
+        // Barras lineales
+        const matLineal = new THREE.MeshStandardMaterial({ color: 0xFFFFFF, emissive: new THREE.Color(0xFFFFFF), emissiveIntensity: 1.2 });
+        [-ancho/4, ancho/4].forEach((x, i) => {
+            const barra = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.04, largo * 0.6), matLineal);
+            barra.position.set(x, alto - 0.05, 0);
+            grupo.add(barra);
+            const luz = new THREE.PointLight(0xFFFFEE, cfg.intLuz, cfg.rangeLuz);
+            luz.userData.luzTecho = true; luz.userData.intBase = cfg.intLuz;   // para compensarla con la exposición del entorno
+            luz.position.set(x, alto - 0.15, 0);
+            grupo.add(luz);
+        });
+
+    } else {
+        // Ojos de buey o colgante — distribución en cuadrícula
+        const matBombilla = new THREE.MeshStandardMaterial({ color: cfg.color, emissive: new THREE.Color(cfg.emissive), emissiveIntensity: 1.0 });
+        const matAro = new THREE.MeshStandardMaterial({ color: 0xCCCCCC, roughness: 0.3, metalness: 0.8 });
+
+        const posiciones = cfg.cantidad === 1
+            ? [[0, 0]]
+            : [[-ancho/3, -largo/3], [ancho/3, -largo/3], [-ancho/3, largo/3], [ancho/3, largo/3]];
+
+        posiciones.forEach(([x, z]) => {
+            // Aro metálico
+            const aro = new THREE.Mesh(new THREE.CylinderGeometry(cfg.radio + 0.03, cfg.radio + 0.03, 0.04, 16, 1, true), matAro);
+            aro.position.set(x, alto - 0.05, z);
+            grupo.add(aro);
+
+            // Bombilla
+            const bombilla = new THREE.Mesh(new THREE.SphereGeometry(cfg.radio, 12, 8), matBombilla);
+            if (tipo === 'colgante') {
+                // Cable
+                const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.4, 6), new THREE.MeshStandardMaterial({ color: 0x333333 }));
+                cable.position.set(x, alto - 0.25, z);
+                grupo.add(cable);
+                bombilla.position.set(x, alto - 0.5, z);
+                // Pantalla del colgante
+                const pantalla = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.18, 0.14, 0.2, 12, 1, true),
+                    new THREE.MeshStandardMaterial({ color: 0xF5F0E8, roughness: 0.9, side: THREE.DoubleSide })
+                );
+                pantalla.position.set(x, alto - 0.5, z);
+                grupo.add(pantalla);
+            } else {
+                bombilla.position.set(x, alto - 0.07, z);
+            }
+            grupo.add(bombilla);
+
+            // Luz puntual
+            const luz = new THREE.PointLight(cfg.color, cfg.intLuz, cfg.rangeLuz);
+            luz.userData.luzTecho = true; luz.userData.intBase = cfg.intLuz;   // para compensarla con la exposición del entorno
+            luz.position.set(x, alto - 0.15, z);
+            luz.castShadow = true;
+            grupo.add(luz);
+        });
+    }
+
+    scene.add(grupo);
+    lucesTecho[tipo] = grupo;
+    mostrarToast(`💡 ${tipo === 'ojoBuey' ? 'Ojos de buey' : tipo === 'lineal' ? 'Luz lineal' : tipo === 'colgante' ? 'Colgante' : 'Tira LED'} agregados ✅`);
+}
+
+// aplicarProductoPortafolio ya integrado arriba
+
+function aplicarProductoASuperficie(prod, superficie) {
+    const mesh = meshes[superficie];
+    if (!mesh) { mostrarToast('⚠️ Superficie no disponible'); return; }
+
+    const etiqueta = etiquetaSuperficie(superficie);
+    // Se anota qué producto quedó en esta superficie y su área, para el carrito
+    // (antes solo se ponía la textura y no quedaba registro de qué se usó).
+    const areaSup = (superficie === 'piso' || superficie === 'techo') ? estado.ancho * estado.largo
+        : (superficie === 'paredTrasera' || superficie === 'paredFrontal') ? estado.ancho * estado.alto : estado.largo * estado.alto;
+    productosUsados.set(prod.id, prod);
+    productosSuperficies[superficie] = { prodId: prod.id, area: areaSup, lugar: etiqueta };
+
+    if (prod.imagen_url) {
+        const loader = new THREE.TextureLoader();
+        loader.crossOrigin = 'anonymous';
+        loader.load(prod.imagen_url, (texture) => {
+            // Cada superficie tiene sus propias dimensiones reales: el piso
+            // mide ancho×largo, las paredes de fondo ancho×alto y las
+            // laterales largo×alto. Antes todas usaban el mismo 1.2 fijo.
+            let dimA, dimB;
+            if (superficie === 'piso' || superficie === 'techo')                     { dimA = estado.ancho; dimB = estado.largo; }
+            else if (superficie === 'paredTrasera' || superficie === 'paredFrontal') { dimA = estado.ancho; dimB = estado.alto;  }
+            else                                                                     { dimA = estado.largo; dimB = estado.alto;  }
+            const tipoSup = superficie === 'piso' ? 'ceramica' : 'concreto';
+            aplicarMaterialFisico(mesh, prod.imagen_url, dimA, dimB, {
+                pieza: tamanoPieza(prod, superficie === 'piso' ? 'ceramica' : 'pared'),
+                tipo:  tipoSup,
+            });
+            mostrarToast(`✅ "${prod.nombre}" → ${etiqueta}`);
+        }, undefined, () => {
+            // Fallback color
+            const cols = { pisos:0xC4913A, enchapes:0xE8E0D0, materiales:0x888888, pintura:0xF5F5F5 };
+            const color = cols[prod.categoria] || 0xC4913A;
+            mesh.material = new THREE.MeshStandardMaterial({ color, roughness:0.5 });
+            mostrarToast(`✅ "${prod.nombre}" → ${etiqueta}`);
+        });
+    } else {
+        const cols = { pisos:0xC4913A, enchapes:0xE8E0D0, materiales:0x888888, pintura:0xF5F5F5, cocinas:0xD4C5A9, baños:0xE0EEF4, puertas:0x8B6914 };
+        const color = cols[prod.categoria] || 0xC4913A;
+        mesh.material = new THREE.MeshStandardMaterial({ color, roughness:0.5 });
+        mostrarToast(`✅ "${prod.nombre}" → ${etiqueta}`);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    await verificarRolYAcceso();
+    // Visor 3D = Premium en adelante (/estructura). Antes dejaba entrar a
+    // Profesional por link directo aunque el botón del dashboard estuviera bloqueado.
+    if (rolUsuario === 'empresa' && (!PLANES_VISOR_3D.includes(planEmpresaVisor) || estadoEmpresaVisor !== 'activo')) {
+        mostrarBloqueoPlanVisor();
+        return;
+    }
+    cargarFotoIA();
+});
+// (Antes también se llamaba aquí, antes de revisar el plan: la foto del bot
+// entraba dos veces a la galería y se cargaba aunque el plan no tuviera acceso.)
+
+const PLANES_VISOR_3D = ['premium', 'corporativo'];
+function mostrarBloqueoPlanVisor() {
+    const pagoPendiente = PLANES_VISOR_3D.includes(planEmpresaVisor) && estadoEmpresaVisor !== 'activo';
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(10,10,20,0.97);display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;';
+    overlay.innerHTML = pagoPendiente ? `
+        <div style="max-width:420px;">
+            <div style="font-size:56px;margin-bottom:16px;">⏳</div>
+            <div style="font-size:20px;font-weight:800;color:white;margin-bottom:10px;">Tu plan está pendiente de activación</div>
+            <div style="font-size:14px;color:#9CA3AF;margin-bottom:24px;line-height:1.6;">Ya elegiste el plan correcto para el Visor 3D. En cuanto se confirme el pago, esta función se desbloquea sola.</div>
+            <a href="/dashboard#plan" style="display:inline-block;background:linear-gradient(135deg,#7C3AED,#3B82F6);color:white;padding:12px 28px;border-radius:50px;font-weight:700;text-decoration:none;font-size:14px;">Ir a Mi Plan →</a>
+        </div>` : `
+        <div style="max-width:420px;">
+            <div style="font-size:56px;margin-bottom:16px;">🏗️</div>
+            <div style="font-size:20px;font-weight:800;color:white;margin-bottom:10px;">El Visor 3D es del plan Premium en adelante</div>
+            <div style="font-size:14px;color:#9CA3AF;margin-bottom:24px;line-height:1.6;">Tu plan actual es ${planEmpresaVisor === 'profesional' ? 'Profesional' : 'Básico'}. Con Premium desbloqueas la planta, el 3D con entornos, la cámara de fotos, la Foto IA y el carrito para cotizar.</div>
+            <a href="/dashboard#plan" style="display:inline-block;background:linear-gradient(135deg,#7C3AED,#3B82F6);color:white;padding:12px 28px;border-radius:50px;font-weight:700;text-decoration:none;font-size:14px;">Ver planes y actualizar →</a>
+        </div>`;
+    document.body.appendChild(overlay);
+}
+// ── EDITOR PLANTA L T U ───────────────────────────────────────────────────
+let modulosPlanta = [];
+let vanosPlanta   = []; // vanos (puertas/pasos) colocados sobre las paredes compartidas
+let moduloSeleccionado = null;
+let dragging = false;
+let dragOffsetX = 0, dragOffsetZ = 0;
+const ESCALA = 40; // píxeles por metro
+// ── NIVELES Y CAPAS ──────────────────────────────────────────────────────
+// Un proyecto puede tener varios pisos (nivel 0, 1, 2...) y cada nivel tiene
+// dos capas de dibujo: la PLANTA (cuartos, muros, estructura) y el TECHO
+// (plafones y bandejas de cielo raso). Los elementos de techo viven en el
+// mismo arreglo modulosPlanta, así que heredan gratis el arrastre, el
+// redimensionar, el panel de propiedades y el borrar que ya funcionaban.
+let nivelActivo     = 0;
+let capaActiva      = 'planta';   // 'planta' | 'techo'
+let nivelesTotales  = 1;
+let alturaEntrepiso = 2.80;       // alto libre + espesor de losa, en metros
+
+function capaDe(m)  { return m.capa  || 'planta'; }
+function nivelDe(m) { return m.nivel || 0; }
+
+// Todo lo del piso actual se ve y se toca en el MISMO lienzo: cuartos,
+// estructura, plafones y cubiertas juntos. Antes se filtraba también por
+// capa, y al pasar a Techo parecía que se abría otro lienzo en blanco porque
+// los cuartos se iban a fantasma. El interruptor Planta/Techo ahora solo
+// cambia qué botones se muestran, no qué se puede editar.
+// El filtro por NIVEL sí se queda: arrastrar en el piso 2 no debe mover
+// cosas del piso 1 que están justo debajo.
+function modulosEditables() {
+    return modulosPlanta.filter(m => nivelDe(m) === nivelActivo);
+}
+
+const COLORES_MODULO = {
+    sala:'#3B82F6', cocina:'#10B981', habitacion:'#7C3AED',
+    bano:'#F59E0B', pasillo:'#94A3B8', zona:'#EF4444', pared:'#78716C', vidrio:'#38BDF8',
+    columna:'#A8A29E', viga:'#927C58', plafon:'#C084FC', cubierta:'#F97316', exterior:'#84CC16', escalera:'#F59E0B', hueco:'#38BDF8', baranda:'#CBD5E1'
+};
+const EMOJIS_MODULO = {
+    sala:'🛋️', cocina:'🍳', habitacion:'🛏️',
+    bano:'🚿', pasillo:'🚶', zona:'📦', pared:'🧱', vidrio:'🪟',
+    columna:'🏛️', viga:'🪵', plafon:'⬜', cubierta:'🏠', exterior:'🟫', escalera:'🪜', hueco:'⬚', baranda:'🚧'
+};
+// ── ENVOLVENTE: techos interiores + fachada exterior ─────────────────────
+// "Techo" es el cielo raso de cada cuarto (se ve desde adentro).
+// "Fachada" es la cara exterior de los muros perimetrales (se ve desde afuera).
+// "Cubierta" es el remate de arriba del proyecto visto desde afuera.
+// Son tres cosas distintas y por eso se configuran por separado.
+let configEnvolvente = {
+    techos:          false,        // arrancan ocultos para poder ver la planta desde arriba
+    materialTecho:   'drywall',    // 'drywall' | 'concreto' | 'madera'
+    colorTecho:      '#F7F7F5',
+    fachada:         true,         // dar acabado distinto a los muros que dan al exterior
+    materialFachada: 'pintura',    // 'pintura' | 'ladrillo' | 'estuco' | 'concreto'
+    colorFachada:    '#D9CFC2',
+    gruesoFachada:   0.20,         // los muros exteriores son más gruesos que los interiores (10cm)
+    cubierta:        'ninguna',    // ver el selector: 10 formas paramétricas
+    pendiente:       35,           // % de inclinación de los faldones
+    alero:           0.5,          // vuelo por fuera del muro, en metros
+    girarCubierta:   false,        // cumbrera en el otro sentido
+};
+let techosPlanta   = [];   // losas automáticas de cada cuarto (se ocultan/muestran)
+let plafonesPlanta = [];   // figuras de cielo raso dibujadas por el usuario: siempre visibles
+let cubiertaPlanta = [];   // meshes de la cubierta exterior
+let puertasPlanta  = [];   // { grupo, pivote, vano, angMax } — hojas abribles
+
+// Tipos que NO son un cuarto: no llevan piso, no abren vanos en el vecino y no
+// suman área habitable. Antes esta lista estaba escrita a mano en 5 sitios
+// distintos; centralizarla evita que columna/viga se cuelen en las estadísticas.
+const TIPOS_NO_CUARTO = ['pared', 'vidrio', 'columna', 'viga', 'plafon', 'cubierta', 'exterior', 'escalera', 'hueco', 'baranda'];
+const esCuarto = t => !TIPOS_NO_CUARTO.includes(t);
+
+function iniciarEditorPlanta() {
+    const c = document.getElementById('canvasPlanta');
+    if (!c) return;
+    const cont = c.parentElement;
+    // Dar tiempo a que el DOM esté visible antes de medir
+    setTimeout(() => {
+        c.width  = cont.offsetWidth  || window.innerWidth - 280;
+        c.height = cont.offsetHeight || window.innerHeight - 150;
+        dibujarPlanta();
+        c.onmousedown = onPlantaMouseDown;
+        c.onmousemove = onPlantaMouseMove;
+        c.onmouseup   = onPlantaMouseUp;
+        c.ontouchstart = e => { e.preventDefault(); onPlantaMouseDown(e.touches[0]); };
+        c.ontouchmove  = e => { e.preventDefault(); onPlantaMouseMove(e.touches[0]); };
+        c.ontouchend   = e => { e.preventDefault(); onPlantaMouseUp(); };
+    }, 100);
+    // Zoom con scroll del mouse
+        c.onwheel = (e) => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? 0.9 : 1.1;
+            zoomPlanta  = Math.max(0.3, Math.min(3, zoomPlanta * delta));
+            dibujarPlanta();
+        };
+
+        // Tecla Supr/Retroceso para eliminar el módulo seleccionado.
+        // OJO: antes borraba el cuarto aunque el usuario estuviera ESCRIBIENDO en
+        // una casilla (corregir "6.5" en el ancho con Retroceso se llevaba el
+        // cuarto entero). Ahora solo actúa en la planta y fuera de las casillas.
+        document.onkeydown = (e) => {
+            if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+            const el = document.activeElement;
+            if (el && (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable)) return;
+            if (vistaActual !== 'planta' || !moduloSeleccionado) return;
+            e.preventDefault();
+            eliminarModuloSeleccionado();
+            mostrarToast('🗑️ Módulo eliminado — Ctrl+Z para recuperarlo');
+        };
+}
+
+// Cambiar de "capa" ya NO oculta nada del lienzo: solo cambia qué paleta de
+// botones se ve, para no tener veinte botones apilados.
+window.cambiarCapa = function(capa) {
+    capaActiva = capa;
+    const on  = (b) => { b.style.border='1px solid #7C3AED'; b.style.background='rgba(124,58,237,0.3)'; b.style.color='#fff'; };
+    const off = (b) => { b.style.border='1px solid rgba(148,163,184,0.3)'; b.style.background='rgba(255,255,255,0.04)'; b.style.color='var(--gris)'; };
+    const bp = document.getElementById('capaPlanta'), bt = document.getElementById('capaTecho');
+    capa === 'planta' ? (on(bp), off(bt)) : (on(bt), off(bp));
+    document.getElementById('grupoPlanta').style.display = capa === 'planta' ? 'flex' : 'none';
+    document.getElementById('grupoTecho').style.display  = capa === 'techo'  ? 'flex' : 'none';
+    dibujarPlanta();
+    actualizarListaModulos();
+};
+
+window.cambiarNivel = function(delta) {
+    const nuevo = nivelActivo + delta;
+    if (nuevo < 0) { mostrarToast('Ya estás en el primer piso'); return; }
+    if (nuevo >= nivelesTotales) { mostrarToast('No hay más pisos — usa "➕ Piso"'); return; }
+    nivelActivo = nuevo;
+    moduloSeleccionado = null;
+    document.getElementById('panelPropiedades').style.display = 'none';
+    refrescarEtiquetaNivel();
+    dibujarPlanta();
+    actualizarListaModulos();
+};
+
+window.agregarNivel = function() {
+    nivelesTotales++;
+    nivelActivo = nivelesTotales - 1;
+    refrescarEtiquetaNivel();
+    dibujarPlanta();
+    actualizarListaModulos();
+    mostrarToast(`🏢 Piso ${nivelActivo+1} creado — el de abajo se ve punteado para alinear`);
+};
+
+// Copiar el piso actual al siguiente. En un edificio los pisos tipo se
+// repiten, así que rehacerlos a mano sería absurdo.
+window.duplicarNivel = function() {
+    const origen = modulosPlanta.filter(m => nivelDe(m) === nivelActivo);
+    if (!origen.length) { mostrarToast('⚠️ Este piso está vacío'); return; }
+    nivelesTotales++;
+    const destino = nivelesTotales - 1;
+    origen.forEach(m => {
+        const copia = JSON.parse(JSON.stringify(m));
+        copia.id = nuevoIdModulo();
+        copia.nivel = destino;
+        modulosPlanta.push(copia);
+    });
+    nivelActivo = destino;
+    refrescarEtiquetaNivel();
+    dibujarPlanta();
+    actualizarListaModulos();
+    mostrarToast(`⧉ Piso ${destino+1} copiado del ${destino} — ${origen.length} elementos`);
+};
+
+function refrescarEtiquetaNivel() {
+    const el = document.getElementById('nivelEtiqueta');
+    if (el) el.textContent = `Piso ${nivelActivo+1} de ${nivelesTotales}`;
+}
+
+// Altura de cumbrera resultante: es el dato que el usuario necesita ver para
+// saber si el techo le cabe o se le pasa de altura permitida.
+function infoDeCubierta() {
+    const m = moduloSeleccionado, el = document.getElementById('infoCubierta');
+    if (!m || !el) return;
+    const p = (m.pendiente ?? 35) / 100;
+    const t = m.tipoTecho || 'dos_aguas';
+    const g = (m.orientacion ?? 0) % 180 !== 0;
+    const luz = g ? m.largo : m.ancho, otro = g ? m.ancho : m.largo;
+    let sube = 0;
+    if (t === 'un_agua')            sube = otro * p;
+    else if (t === 'dos_aguas')     sube = (otro/2) * p;
+    else if (t === 'cuatro_aguas' || t === 'piramidal') sube = (Math.min(luz, otro)/2) * p;
+    const grados = Math.atan(p) * 180 / Math.PI;
+    el.innerHTML = t === 'plana'
+        ? `Techo plano a <b style="color:var(--texto);">${(m.alturaBase ?? 2.6).toFixed(2)} m</b>.`
+        : `Cumbrera a <b style="color:var(--texto);">${((m.alturaBase ?? 2.6) + sube).toFixed(2)} m</b> · sube ${sube.toFixed(2)} m · ${grados.toFixed(1)}°`;
+}
+
+window.agregarCubierta = function(forma) {
+    if (capaActiva !== 'techo') cambiarCapa('techo');
+    agregarModulo('cubierta');
+    const m = modulosPlanta[modulosPlanta.length-1];
+    m.forma  = forma;
+    m.nombre = '🏠 ' + ({rect:'Cubierta', cuadrado:'Cubierta cuadrada', triangulo:'Cubierta triangular', hexagono:'Cubierta hexagonal'}[forma]);
+    if (forma === 'cuadrado' || forma === 'hexagono') { m.ancho = 7; m.largo = 7; }
+    if (forma === 'triangulo') { m.tipoTecho = 'dos_aguas'; }
+    seleccionarModulo(m.id);
+    dibujarPlanta();
+    actualizarListaModulos();
+};
+
+window.agregarPlafon = function(forma) {
+    agregarModulo('plafon');
+    const m = modulosPlanta[modulosPlanta.length-1];
+    m.forma  = forma;
+    m.nombre = '⬜ ' + (forma === 'circulo' ? 'Plafón redondo' : forma === 'L' ? 'Plafón en L' : 'Bandeja');
+    if (forma === 'circulo') { m.ancho = 1.6; m.largo = 1.6; }
+    seleccionarModulo(m.id);
+    dibujarPlanta();
+    actualizarListaModulos();
+};
+
+// Resta rectángulos (huecos) a un rectángulo: devuelve los pedazos que quedan.
+// Con un hueco salen hasta 4 franjas; con varios, se resta uno por uno.
+function restarHuecos(rect, huecos) {
+    let pedazos = [rect];
+    (huecos || []).forEach(h => {
+        const nuevos = [];
+        pedazos.forEach(p => {
+            const ix0 = Math.max(p.x0, h.x0), ix1 = Math.min(p.x1, h.x1), iz0 = Math.max(p.z0, h.z0), iz1 = Math.min(p.z1, h.z1);
+            if (ix1 - ix0 <= 0.01 || iz1 - iz0 <= 0.01) { nuevos.push(p); return; }   // no se tocan
+            if (iz0 - p.z0 > 0.01) nuevos.push({ x0: p.x0, x1: p.x1, z0: p.z0, z1: iz0 });   // franja de arriba
+            if (p.z1 - iz1 > 0.01) nuevos.push({ x0: p.x0, x1: p.x1, z0: iz1, z1: p.z1 });   // franja de abajo
+            if (ix0 - p.x0 > 0.01) nuevos.push({ x0: p.x0, x1: ix0, z0: iz0, z1: iz1 });     // izquierda
+            if (p.x1 - ix1 > 0.01) nuevos.push({ x0: ix1, x1: p.x1, z0: iz0, z1: iz1 });     // derecha
+        });
+        pedazos = nuevos;
+    });
+    return pedazos;
+}
+
+// ── BARANDAS ─────────────────────────────────────────────────────────────
+// Una línea en la planta (el lado largo del módulo). En madera: pasamanos y
+// balaustres; metálica: tubo y barrotes; vidrio: paneles de vidrio templado
+// con pasamanos metálico. Parales cada 1,2 m aprox.
+function datosBaranda(m) {
+    const b = m.baranda || { material: m.materialBaranda, alto: m.alturaBaranda, base: m.baseBaranda };
+    return { material: b.material || 'metalica', alto: b.alto ?? 0.95, base: b.base ?? 0, L: Math.max(m.ancho, m.largo), aLoLargoX: m.ancho >= m.largo };
+}
+function construirBaranda3D(mod, x, z, baseY) {
+    const d = datosBaranda(mod), g = new THREE.Group(), L = d.L, H = d.alto;
+    const madera = d.material === 'madera', vidrio = d.material === 'vidrio';
+    const matEst = madera ? new THREE.MeshStandardMaterial({ color: 0x7A4E2D, roughness: 0.6 })
+                          : new THREE.MeshStandardMaterial({ color: vidrio ? 0xB8BEC6 : 0x2A2B2E, roughness: 0.35, metalness: 0.8 });
+    const nPost = Math.max(2, Math.round(L / 1.2) + 1), grueso = madera ? 0.08 : 0.045;
+    const add = (geo, mat, px, py, pz) => { const m = new THREE.Mesh(geo, mat); m.position.set(px, py, pz); m.castShadow = true; m.receiveShadow = true; g.add(m); };
+    for (let i = 0; i < nPost; i++) add(new THREE.BoxGeometry(grueso, H, grueso), matEst, -L / 2 + i * L / (nPost - 1), H / 2, 0);
+    add(new THREE.BoxGeometry(L + grueso, madera ? 0.05 : 0.045, madera ? 0.1 : 0.05), matEst, 0, H, 0);          // pasamanos
+    if (vidrio) {
+        const matV = new THREE.MeshStandardMaterial({ color: 0xCFEFEA, roughness: 0.05, transparent: true, opacity: 0.32, depthWrite: false });
+        for (let i = 0; i < nPost - 1; i++) {
+            const tramo = L / (nPost - 1);
+            add(new THREE.BoxGeometry(tramo - 0.06, H - 0.15, 0.012), matV, -L / 2 + (i + 0.5) * tramo, 0.08 + (H - 0.15) / 2, 0);
+        }
+    } else {
+        add(new THREE.BoxGeometry(L, madera ? 0.05 : 0.03, madera ? 0.06 : 0.03), matEst, 0, 0.08, 0);             // travesaño de abajo
+        const paso = madera ? 0.13 : 0.11, n = Math.floor(L / paso);
+        for (let i = 1; i < n; i++) {                                                                                 // balaustres / barrotes
+            const px = -L / 2 + i * paso;
+            if (Math.abs(((px + L / 2) % (L / (nPost - 1)))) < 0.05) continue;   // no encima de un paral
+            add(madera ? new THREE.BoxGeometry(0.04, H - 0.13, 0.04) : new THREE.CylinderGeometry(0.008, 0.008, H - 0.12, 6), matEst, px, 0.08 + (H - 0.11) / 2, 0);
+        }
+    }
+    g.rotation.y = d.aLoLargoX ? 0 : Math.PI / 2;
+    g.position.set(x, baseY + d.base, z);
+    g.userData = { moduloId: mod.id, moduloNombre: mod.nombre, tipoEstructura: 'baranda' };
+    return g;
+}
+function htmlMaterialBaranda(m) {
+    const d = datosBaranda(m), nPost = Math.max(2, Math.round(d.L / 1.2) + 1);
+    const que = { madera: `balaustres de madera (${Math.floor(d.L / 0.13)} aprox.)`, metalica: `barrotes metálicos (${Math.floor(d.L / 0.11)} aprox.)`,
+                  vidrio: `vidrio templado: <b>${((d.alto - 0.15) * d.L).toFixed(2)} m²</b> en ${nPost - 1} paneles` }[d.material];
+    return `<div style="background:rgba(203,213,225,0.07);border:1px solid rgba(203,213,225,0.3);border-radius:10px;padding:10px;font-size:12px;">
+        <div style="font-weight:700;color:#E2E8F0;margin-bottom:4px;">🚧 ${d.L.toFixed(2)} metros lineales</div>
+        <div>Parales: <b>${nPost}</b> · Pasamanos: <b>${d.L.toFixed(2)} m</b></div>
+        <div>Relleno: ${que}</div>
+        <div style="color:var(--gris);font-size:10px;margin-top:6px;line-height:1.5;">En balcones y huecos la altura mínima usual es 0,90–1,00 m; confírmala con quien va a construir.</div>
+    </div>`;
+}
+
+// ── ESCALERAS ────────────────────────────────────────────────────────────
+// Se trazan en un marco propio: W de ancho (x) por D de recorrido (z), con el
+// primer escalón en z = +D/2 subiendo hacia z = −D/2. Después se gira según
+// el lado donde arranca. El número de escalones sale de la altura a subir con
+// contrahuellas cercanas a 17,5 cm; la huella, del largo disponible.
+const ANGULO_ARRANQUE = { sur: 0, norte: Math.PI, este: Math.PI / 2, oeste: -Math.PI / 2 };
+const COLOR_ACABADO_ESC = { concreto: 0xA3A09A, madera: 0x8B5A2B, porcelanato: 0xE5E1DA, marmol: 0xF1EEE8 };
+// Baranda de proyectos viejos: true = a los dos lados, false = sin baranda
+function barandaDe(m) { return m.barandaLado || (m.baranda === false ? 'ninguna' : 'ambos'); }
+function datosEscalera(m) {
+    const e = m.escalera || { forma: m.formaEscalera, arranque: m.arranque, giro: m.giro, alto: m.alturaSubir,
+        tramo: m.anchoTramo, estilo: m.estiloEscalera, acabado: m.acabado, baranda: m.baranda !== false, barandaLado: m.barandaLado };
+    const arr = e.arranque || 'sur';
+    const lateral = arr === 'este' || arr === 'oeste';
+    let estilo = e.estilo === 'flotante' ? 'espina' : (e.estilo || 'maciza');   // "flotante" de antes = espina central
+    if (e.acabado === 'vidrio' && estilo === 'maciza') estilo = 'espina';        // el vidrio va en huellas, no en bloques
+    const barLado = e.barandaLado || (e.baranda === false ? 'ninguna' : 'ambos');
+    return { forma: e.forma || 'recta', arranque: arr, giro: e.giro || 'der', alto: e.alto || alturaEntrepiso,
+        w: e.tramo || 0.9, estilo, acabado: e.acabado || 'concreto', baranda: barLado !== 'ninguna', barandaLado: barLado,
+        W: lateral ? m.largo : m.ancho, D: lateral ? m.ancho : m.largo, theta: ANGULO_ARRANQUE[arr] ?? 0 };
+}
+function trazaEscalera(e) {
+    const n = Math.max(2, Math.round(e.alto / 0.175)), c = e.alto / n;
+    const { W, D } = e, w = Math.min(e.w, W, D);
+    const pasos = [], descansos = [], ruta = [], barandas = [];
+    const sx = e.giro === 'izq' ? -1 : 1;
+    let huellaMin = Infinity;
+    if (e.forma === 'caracol') {
+        const R = Math.min(W, D) / 2, giro = e.giro === 'izq' ? -1 : 1;
+        const delta = Math.min(Math.PI / 6, (Math.PI * 2 * 0.92) / n);   // máx. 30° por escalón
+        for (let i = 0; i < n; i++) pasos.push({ sector: true, r: R, a0: giro > 0 ? i * delta : -(i + 1) * delta, da: delta, y: (i + 1) * c });
+        for (let i = 0; i <= n; i++) { const a = giro * (i + 0.5) * delta; ruta.push([R * 0.62 * Math.sin(a), R * 0.62 * Math.cos(a), Math.min(e.alto, (i + 0.5) * c)]); }
+        const borde = []; for (let i = 0; i <= n; i++) { const a = giro * i * delta; borde.push([R * 0.97 * Math.sin(a), R * 0.97 * Math.cos(a), i * c]); }
+        barandas.push({ lado: 'ext', pts: borde });
+        huellaMin = R * 0.62 * delta;   // huella medida en la línea de paso
+    } else if (e.forma === 'recta') {
+        const h = D / n; huellaMin = h;
+        for (let i = 0; i < n; i++) pasos.push({ x0: -W / 2, x1: W / 2, z0: D / 2 - (i + 1) * h, z1: D / 2 - i * h, y: (i + 1) * c });
+        ruta.push([0, D / 2, 0], [0, -D / 2, e.alto]);
+        // La baranda va 5 cm hacia adentro, para no salirse del módulo
+        barandas.push({ lado: 'izquierda', pts: [[-W / 2 + 0.05, D / 2 - 0.05, c], [-W / 2 + 0.05, -D / 2 + 0.05, e.alto]] },
+                      { lado: 'derecha',   pts: [[W / 2 - 0.05, D / 2 - 0.05, c], [W / 2 - 0.05, -D / 2 + 0.05, e.alto]] });
+    } else {
+        const n1 = Math.floor(n / 2), n2 = n - n1;
+        const x1a = -sx * W / 2, x1b = -sx * (W / 2 - w);                 // tramo 1, del lado contrario al giro
+        const x1lo = Math.min(x1a, x1b), x1hi = Math.max(x1a, x1b), xc1 = (x1lo + x1hi) / 2;
+        const h1 = (D - w) / n1; huellaMin = h1;
+        for (let i = 0; i < n1; i++) pasos.push({ x0: x1lo, x1: x1hi, z0: D / 2 - (i + 1) * h1, z1: D / 2 - i * h1, y: (i + 1) * c });
+        const yD = n1 * c;
+        if (e.forma === 'L') {
+            descansos.push({ x0: x1lo, x1: x1hi, z0: -D / 2, z1: -D / 2 + w, y: yD });
+            const R2 = W - w, h2 = R2 / n2; huellaMin = Math.min(huellaMin, h2);
+            const xIni = sx > 0 ? x1hi : x1lo;
+            for (let j = 0; j < n2; j++) { const a = xIni + sx * j * h2, b = xIni + sx * (j + 1) * h2;
+                pasos.push({ x0: Math.min(a, b), x1: Math.max(a, b), z0: -D / 2, z1: -D / 2 + w, y: yD + (j + 1) * c }); }
+            ruta.push([xc1, D / 2, 0], [xc1, -D / 2 + w / 2, yD], [sx * W / 2, -D / 2 + w / 2, e.alto]);
+            barandas.push({ lado: 'int', pts: [[x1b, D / 2, 0], [x1b, -D / 2 + w, yD]] }, { lado: 'int', pts: [[xIni, -D / 2 + w - 0.04, yD], [sx * W / 2, -D / 2 + w - 0.04, e.alto]] });
+        } else {   // U
+            descansos.push({ x0: -W / 2, x1: W / 2, z0: -D / 2, z1: -D / 2 + w, y: yD });
+            const x2lo = sx > 0 ? W / 2 - w : -W / 2, x2hi = x2lo + w, xc2 = (x2lo + x2hi) / 2;
+            const h2 = (D - w) / n2; huellaMin = Math.min(huellaMin, h2);
+            for (let j = 0; j < n2; j++) pasos.push({ x0: x2lo, x1: x2hi, z0: -D / 2 + w + j * h2, z1: -D / 2 + w + (j + 1) * h2, y: yD + (j + 1) * c });
+            ruta.push([xc1, D / 2, 0], [xc1, -D / 2 + w / 2, yD], [xc2, -D / 2 + w / 2, yD], [xc2, D / 2, e.alto]);
+            const xin2 = sx > 0 ? x2lo : x2hi;
+            barandas.push({ lado: 'int', pts: [[x1b, D / 2, 0], [x1b, -D / 2 + w, yD]] }, { lado: 'int', pts: [[xin2, -D / 2 + w, yD], [xin2, D / 2, e.alto]] });
+        }
+    }
+    return { n, c, huella: huellaMin, pasos, descansos, ruta, barandas, w };
+}
+// Local → mundo (giro alrededor de Y, igual que Object3D.rotation.y)
+function giroEsc(x, z, th) { return [x * Math.cos(th) + z * Math.sin(th), -x * Math.sin(th) + z * Math.cos(th)]; }
+
+function barraEntre(p1, p2, grueso, alto, mat) {
+    const a = new THREE.Vector3(...p1), b = new THREE.Vector3(...p2);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(grueso, alto, a.distanceTo(b)), mat);
+    m.position.copy(a).add(b).multiplyScalar(0.5);
+    m.lookAt(b);
+    return m;
+}
+function construirEscalera3D(mod, x, z, baseY) {
+    const e = datosEscalera(mod), t = trazaEscalera(e);
+    const g = new THREE.Group();   // se arma en su marco y al final se gira y se ubica
+    const esVidrio = e.acabado === 'vidrio';
+    const mat = esVidrio
+        ? new THREE.MeshStandardMaterial({ color: 0xCFEFEA, roughness: 0.05, metalness: 0, transparent: true, opacity: 0.38, depthWrite: false })
+        : new THREE.MeshStandardMaterial({ color: COLOR_ACABADO_ESC[e.acabado] ?? 0xA3A09A,
+            roughness: e.acabado === 'porcelanato' || e.acabado === 'marmol' ? 0.35 : 0.8, metalness: 0 });
+    const matZanca = new THREE.MeshStandardMaterial({ color: 0x3F3F46, roughness: 0.6, metalness: 0.4 });
+    const matMetal = new THREE.MeshStandardMaterial({ color: 0x27272A, roughness: 0.35, metalness: 0.8 });
+    const maciza = e.estilo === 'maciza';
+    const espHuella = esVidrio ? 0.025 : 0.045;
+    t.pasos.forEach(p => {
+        let malla;
+        if (p.sector) {   // caracol: rellena = cuña hasta el piso; flotante = solo la huella
+            const alto = maciza ? p.y : espHuella;
+            malla = new THREE.Mesh(new THREE.CylinderGeometry(p.r, p.r, alto, 16, 1, false, p.a0, p.da), mat);
+            malla.position.set(0, p.y - alto / 2, 0);
+        } else {
+            const alto = maciza ? p.y : espHuella;
+            malla = new THREE.Mesh(new THREE.BoxGeometry(p.x1 - p.x0, alto, p.z1 - p.z0), mat);
+            malla.position.set((p.x0 + p.x1) / 2, p.y - alto / 2, (p.z0 + p.z1) / 2);
+        }
+        malla.castShadow = true; malla.receiveShadow = true;
+        g.add(malla);
+    });
+    t.descansos.forEach(d => {
+        const alto = maciza ? d.y : 0.12;
+        const malla = new THREE.Mesh(new THREE.BoxGeometry(d.x1 - d.x0, alto, d.z1 - d.z0), mat);
+        malla.position.set((d.x0 + d.x1) / 2, d.y - alto / 2, (d.z0 + d.z1) / 2);
+        malla.castShadow = true; malla.receiveShadow = true;
+        g.add(malla);
+    });
+    if (e.forma === 'caracol') {   // columna central
+        const col = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, e.alto + 1, 20), matMetal);
+        col.position.y = (e.alto + 1) / 2; g.add(col);
+    } else if (!maciza) {
+        const anchoTramo = e.forma === 'recta' ? e.W : t.w;
+        for (let i = 0; i < t.ruta.length - 1; i++) {
+            const [ax, az, ay] = t.ruta[i], [bx, bz, by] = t.ruta[i + 1];
+            if (Math.abs(ay - by) < 0.01) continue;   // tramo plano: es el descanso
+            if (e.estilo === 'esqueleto') {
+                // Dos zancas a los lados del tramo
+                const L = Math.hypot(bx - ax, bz - az) || 1, nx = -(bz - az) / L, nz = (bx - ax) / L, d = anchoTramo / 2 - 0.06;
+                [-1, 1].forEach(k => g.add(barraEntre([ax + nx * d * k, ay - 0.12, az + nz * d * k], [bx + nx * d * k, by - 0.12, bz + nz * d * k], 0.06, 0.26, matZanca)));
+            } else {
+                // Espina central (la viga del medio)
+                g.add(barraEntre([ax, ay - 0.2, az], [bx, by - 0.2, bz], 0.14, 0.18, matZanca));
+            }
+        }
+        if (e.estilo === 'espina') {   // un apoyo en "diente de sierra" bajo cada huella, sobre la espina
+            t.pasos.forEach(p => {
+                if (p.sector) return;
+                // La espina pasa por el centro de cada huella en todas las formas
+                const diente = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 0.14), matZanca);
+                diente.position.set((p.x0 + p.x1) / 2, p.y - espHuella - 0.07, (p.z0 + p.z1) / 2);
+                g.add(diente);
+            });
+        }
+    }
+    if (e.baranda) {
+        const H = 0.9;
+        t.barandas.filter(b => e.barandaLado === 'ambos' || b.lado === 'int' || b.lado === 'ext' || b.lado === e.barandaLado).map(b => b.pts).forEach(linea => {
+            for (let i = 0; i < linea.length - 1; i++) {
+                const [ax, az, ay] = linea[i], [bx, bz, by] = linea[i + 1];
+                g.add(barraEntre([ax, ay + H, az], [bx, by + H, bz], 0.045, 0.045, matMetal));
+            }
+            // Parales cada ~1 m sobre toda la baranda
+            let total = 0; for (let i = 0; i < linea.length - 1; i++) total += Math.hypot(linea[i + 1][0] - linea[i][0], linea[i + 1][1] - linea[i][1]);
+            const cada = Math.max(2, Math.round(total / 1.0));
+            const punto = f => { let d = f * total;
+                for (let i = 0; i < linea.length - 1; i++) { const [ax, az, ay] = linea[i], [bx, bz, by] = linea[i + 1];
+                    const seg = Math.hypot(bx - ax, bz - az); if (d <= seg || i === linea.length - 2) { const k = seg ? Math.min(1, d / seg) : 0; return [ax + (bx - ax) * k, az + (bz - az) * k, ay + (by - ay) * k]; } d -= seg; } };
+            for (let k = 0; k <= cada; k++) { const [px, pz, py] = punto(k / cada);
+                const poste = new THREE.Mesh(new THREE.BoxGeometry(0.035, H, 0.035), matMetal);
+                poste.position.set(px, py + H / 2, pz); g.add(poste); }
+        });
+    }
+    g.rotation.y = e.theta;
+    g.position.set(x, baseY, z);
+    g.userData = { moduloId: mod.id, moduloNombre: mod.nombre, tipoEstructura: 'escalera' };
+    return g;
+}
+function dibujarEscaleraPlanta(ctx, m, color) {
+    const e = datosEscalera(m), t = trazaEscalera(e);
+    const cx = m.px + m.ancho * ESCALA / 2, cz = m.pz + m.largo * ESCALA / 2;
+    const P = (x, z) => { const [wx, wz] = giroEsc(x, z, e.theta); return [cx + wx * ESCALA, cz + wz * ESCALA]; };
+    ctx.save();
+    ctx.strokeStyle = color; ctx.lineWidth = 1;
+    t.pasos.forEach(p => {
+        ctx.beginPath();
+        if (p.sector) {
+            const n0 = P(0, 0), a = P(p.r * Math.sin(p.a0), p.r * Math.cos(p.a0));
+            ctx.moveTo(...n0); ctx.lineTo(...a);
+        } else { const q = [P(p.x0, p.z0), P(p.x1, p.z0), P(p.x1, p.z1), P(p.x0, p.z1)]; ctx.moveTo(...q[0]); q.slice(1).forEach(v => ctx.lineTo(...v)); ctx.closePath(); }
+        ctx.stroke();
+    });
+    if (e.forma === 'caracol') { const c0 = P(0, 0); ctx.beginPath(); ctx.arc(c0[0], c0[1], Math.min(e.W, e.D) / 2 * ESCALA, 0, Math.PI * 2); ctx.stroke(); }
+    t.descansos.forEach(d => { ctx.beginPath(); const q = [P(d.x0, d.z0), P(d.x1, d.z0), P(d.x1, d.z1), P(d.x0, d.z1)]; ctx.moveTo(...q[0]); q.slice(1).forEach(v => ctx.lineTo(...v)); ctx.closePath(); ctx.stroke(); });
+    // Flecha de "SUBE" por la línea de paso
+    ctx.strokeStyle = '#FDE68A'; ctx.fillStyle = '#FDE68A'; ctx.lineWidth = 1.8;
+    ctx.beginPath(); t.ruta.forEach(([x, z], i) => { const [px, pz] = P(x, z); i ? ctx.lineTo(px, pz) : ctx.moveTo(px, pz); }); ctx.stroke();
+    const [ux, uz] = P(t.ruta.at(-1)[0], t.ruta.at(-1)[1]), [vx, vz] = P(t.ruta.at(-2)[0], t.ruta.at(-2)[1]);
+    const ang = Math.atan2(uz - vz, ux - vx);
+    ctx.beginPath(); ctx.moveTo(ux, uz); ctx.lineTo(ux - 9 * Math.cos(ang - 0.45), uz - 9 * Math.sin(ang - 0.45)); ctx.lineTo(ux - 9 * Math.cos(ang + 0.45), uz - 9 * Math.sin(ang + 0.45)); ctx.closePath(); ctx.fill();
+    // "SUBE" sobre el primer escalón, hacia adentro de la escalera
+    const [sx0, sz0] = P(t.ruta[0][0], t.ruta[0][1]), [sx1, sz1] = P(t.ruta[1][0], t.ruta[1][1]);
+    const dl = Math.hypot(sx1 - sx0, sz1 - sz0) || 1;
+    ctx.font = 'bold 10px Segoe UI'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('SUBE', sx0 + (sx1 - sx0) / dl * 16, sz0 + (sz1 - sz0) / dl * 16);
+    ctx.restore();
+}
+function htmlMaterialEscalera(m) {
+    const e = datosEscalera(m), t = trazaEscalera(e);
+    const cCm = t.c * 100, hCm = t.huella * 100, blondel = 2 * cCm + hCm;
+    // En la caracol la huella se mide en la línea por donde uno camina (60 % del radio): ahí 20 cm ya es cómodo
+    const esCaracol = e.forma === 'caracol';
+    const bien = esCaracol ? (cCm <= 19.5 && hCm >= 20)
+                           : (cCm >= 15 && cCm <= 18.5 && blondel >= 60 && blondel <= 66 && hCm >= 25);
+    let consejo = '';
+    if (esCaracol && hCm < 20) consejo = 'La caracol quedó estrecha: agranda el diámetro del módulo.';
+    else if (!esCaracol && hCm < 25) consejo = 'La huella quedó corta: dale más largo al módulo o cambia a otra forma.';
+    else if (!esCaracol && blondel > 66) consejo = 'Paso largo: acorta un poco el módulo o sube la altura.';
+    else if (!esCaracol && blondel < 60) consejo = 'Paso corto: alarga el módulo.';
+    if (e.forma === 'U' && e.W < 2 * e.w) consejo = 'Para una U, el ancho del módulo debe ser al menos dos tramos (' + (2 * e.w).toFixed(2) + ' m).';
+    let material = '';
+    if (e.estilo === 'maciza') {
+        let vol = 0;
+        t.pasos.forEach(p => vol += p.sector ? p.r * p.r * p.da / 2 * p.y : (p.x1 - p.x0) * (p.z1 - p.z0) * p.y);
+        t.descansos.forEach(d => vol += (d.x1 - d.x0) * (d.z1 - d.z0) * d.y);
+        vol *= 0.55;   // se funde en rampa con los escalones encima: aprox. la mitad del bloque lleno
+        const r = calcularMaterialEstructura({ tipo: 'columna', ancho: vol, largo: 1, alto: 1 });
+        material = `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.08);">Concreto: <b>${r.volumen.toFixed(2)} m³</b> · Cemento: <b>${r.bultos} bultos</b> · Acero: <b>${Math.round(r.acero)} kg</b></div>`;
+    } else {
+        const area = t.pasos.reduce((a, p) => a + (p.sector ? p.r * p.r * p.da / 2 : (p.x1 - p.x0) * (p.z1 - p.z0)), 0);
+        const que = e.acabado === 'vidrio' ? 'vidrio templado laminado (19 mm)' : e.acabado;
+        const soporte = e.forma === 'caracol' ? 'columna central' : (e.estilo === 'esqueleto' ? 'dos zancas metálicas' : 'espina central metálica');
+        material = `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.08);">Huellas: <b>${t.pasos.length}</b> piezas · <b>${area.toFixed(2)} m²</b> de ${que}<br>Estructura: <b>${soporte}</b></div>`;
+    }
+    return `<div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:10px;font-size:12px;">
+        <div style="font-weight:700;color:#FCD34D;margin-bottom:4px;">🪜 ${t.n} escalones</div>
+        <div>Contrahuella: <b>${cCm.toFixed(1)} cm</b> · Huella: <b>${hCm.toFixed(1)} cm</b></div>
+        ${esCaracol ? `<div>Huella en la línea de paso: <b>${hCm.toFixed(1)} cm</b> ${bien ? '✅ cómoda' : '⚠️'}</div>`
+                    : `<div>Comodidad (2 contrahuellas + huella): <b>${blondel.toFixed(1)} cm</b> ${bien ? '✅ cómoda' : '⚠️'}</div>`}
+        ${consejo ? `<div style="color:#FCD34D;margin-top:4px;">${consejo}</div>` : ''}
+        ${material}
+        <div style="color:var(--gris);font-size:10px;margin-top:6px;line-height:1.5;">Lo cómodo: contrahuella de 15 a 18 cm, huella de 25 cm o más y 2 contrahuellas + huella entre 60 y 66 cm.</div>
+    </div>`;
+}
+// Medidas de fábrica que dan huellas cómodas con 2,80 m de altura y tramos de 90 cm
+const MEDIDAS_ESCALERA = { recta: [1.0, 4.5], L: [3.2, 3.2], U: [2.0, 3.2], caracol: [2.0, 2.0] };
+function cambiarFormaEscalera() {
+    const m = moduloSeleccionado;
+    if (!m || m.tipo !== 'escalera') return;
+    m.formaEscalera = document.getElementById('propFormaEsc').value;
+    const [an, la] = MEDIDAS_ESCALERA[m.formaEscalera] || [1, 4.5];
+    m.ancho = an; m.largo = la;
+    seleccionarModulo(m.id);
+    dibujarPlanta();
+}
+
+// ── PISOS EXTERIORES ─────────────────────────────────────────────────────
+// El mismo rectángulo de la planta, pero acostado sobre el suelo: andenes,
+// losas, patios y zonas verdes alrededor de la casa. No es un cuarto (está en
+// TIPOS_NO_CUARTO): no levanta muros, no abre vanos y no suma área habitable.
+// "nivelExt" es la altura de su cara de arriba respecto al piso de adentro.
+const NOMBRE_EXTERIOR = { anden:'🟫 Andén', losa:'🟫 Losa', patio:'🟫 Patio', zona_verde:'🌿 Zona verde', terraza:'🪵 Terraza' };
+const DEFECTO_EXTERIOR = {
+    anden:      { acabado:'concreto', espesor:0.10, nivelExt:-0.15 },
+    losa:       { acabado:'concreto', espesor:0.12, nivelExt:0     },
+    patio:      { acabado:'adoquin',  espesor:0.08, nivelExt:-0.05 },
+    zona_verde: { acabado:'cesped',   espesor:0.05, nivelExt:-0.15 },
+    terraza:    { acabado:'deck',     espesor:0.10, nivelExt:0     },
+};
+function cambiarSubtipoExterior() {
+    if (!moduloSeleccionado || moduloSeleccionado.tipo !== 'exterior') return;
+    const sub = document.getElementById('propSubtipoExt').value;
+    const nombreEraAuto = Object.values(NOMBRE_EXTERIOR).includes(moduloSeleccionado.nombre);
+    moduloSeleccionado.subtipo = sub;
+    Object.assign(moduloSeleccionado, DEFECTO_EXTERIOR[sub] || {});
+    if (nombreEraAuto) moduloSeleccionado.nombre = NOMBRE_EXTERIOR[sub] || moduloSeleccionado.nombre;
+    seleccionarModulo(moduloSeleccionado.id);   // repinta el panel con los valores sugeridos
+}
+
+// Identificadores de módulo únicos. Antes eran "el milisegundo actual": dos
+// módulos creados en el mismo milisegundo quedaban con el mismo id y el visor
+// los confundía (un vano "de la Sala hacia la Sala"). Copiar un piso usaba
+// milisegundo + azar, que también podía repetirse con muchos cuartos.
+let _ultimoIdModulo = 0;
+function nuevoIdModulo() {
+    let id = Math.max(Date.now(), _ultimoIdModulo + 1);
+    while (modulosPlanta.some(m => m.id === id)) id++;
+    return (_ultimoIdModulo = id);
+}
+
+function agregarModulo(tipo) {
+    document.getElementById('plantaInstruccion').style.display = 'none';
+    const id = nuevoIdModulo();
+    const c  = document.getElementById('canvasPlanta');
+    const px = 100 + (modulosPlanta.length % 3) * (4 * ESCALA + 10);
+    const pz = 80  + Math.floor(modulosPlanta.length / 3) * (4 * ESCALA + 10);
+    // Medidas por defecto según el tipo. Columna: 30×30cm de piso a techo
+    // (sección típica de vivienda en Colombia). Viga: 25cm de ancho, 4m de luz,
+    // colgando con 40cm de peralte pegada al techo.
+    const MEDIDAS_DEFECTO = {
+        pasillo: { ancho:1.5,  largo:6.0 },
+        pared:   { ancho:0.15, largo:2.0 },
+        vidrio:  { ancho:0.15, largo:2.0 },
+        columna: { ancho:0.30, largo:0.30 },
+        viga:    { ancho:0.25, largo:4.00 },
+        plafon:   { ancho:2.50, largo:2.50 },
+        cubierta: { ancho:8.00, largo:6.00 },
+        exterior: { ancho:1.20, largo:6.00 },   // un andén típico
+        escalera: { ancho:1.00, largo:4.50 },   // recta de 16 escalones de 28 cm
+        hueco:    { ancho:1.20, largo:2.60 },   // lo justo para que llegue una escalera
+        baranda:  { ancho:3.00, largo:0.08 },   // una línea: el largo manda, el grosor casi no
+    };
+    const med = MEDIDAS_DEFECTO[tipo] || { ancho:4, largo:4 };
+    const nuevo = {
+        id, tipo,
+        nombre: EMOJIS_MODULO[tipo] + ' ' + tipo.charAt(0).toUpperCase() + tipo.slice(1),
+        x: px / ESCALA, z: pz / ESCALA,   // posición en metros — derivada de px/pz, misma fuente que el dibujo
+        ancho: med.ancho,
+        largo: med.largo,
+        alto:  2.6,
+        px, pz,
+        nivel: nivelActivo,
+        capa:  tipo === 'plafon' ? 'techo' : 'planta',
+    };
+    if (tipo === 'cubierta') {
+        // Los parámetros clave del diagrama: inclinación, altura, voladizo y
+        // orientación. Con esos cuatro y la figura, sale cualquier techo.
+        nuevo.forma       = 'rect';        // 'rect' | 'cuadrado' | 'triangulo' | 'hexagono'
+        nuevo.tipoTecho   = 'dos_aguas';
+        nuevo.pendiente   = 35;            // %
+        nuevo.alturaBase  = 2.60;          // dónde arranca el alero sobre el piso del nivel
+        nuevo.voladizo    = 0.50;          // vuelo por fuera de la figura
+        nuevo.orientacion = 0;             // grados: gira la cumbrera
+    }
+    if (tipo === 'plafon') {
+        nuevo.forma      = 'rect';   // 'rect' | 'circulo' | 'L'
+        nuevo.descuelgue = 0.25;     // cuánto baja respecto al techo, en metros
+        nuevo.espesor    = 0.10;     // tercer eje: el canto de la bandeja
+        nuevo.colorPared = '#F7F7F5';
+    }
+    if (tipo === 'columna') {
+        nuevo.forma = 'cuadrada';   // 'cuadrada' | 'redonda'
+    }
+    if (tipo === 'exterior') {
+        Object.assign(nuevo, DEFECTO_EXTERIOR.anden, { subtipo: 'anden', nombre: NOMBRE_EXTERIOR.anden });
+    }
+    if (tipo === 'baranda') {
+        Object.assign(nuevo, { materialBaranda: 'metalica', alturaBaranda: 0.95, baseBaranda: 0, nombre: '🚧 Baranda' });
+    }
+    if (tipo === 'escalera') {
+        Object.assign(nuevo, { formaEscalera: 'recta', arranque: 'sur', giro: 'der', alturaSubir: alturaEntrepiso,
+            anchoTramo: 0.9, estiloEscalera: 'maciza', acabado: 'concreto', baranda: true, nombre: '🪜 Escalera' });
+    }
+    if (tipo === 'viga') {
+        nuevo.peralte     = 0.40;   // alto del elemento (canto de la viga)
+        nuevo.alturaBase  = 2.20;   // desde el piso hasta la cara inferior → 2.20 + 0.40 = 2.60 (pega al techo)
+    }
+    modulosPlanta.push(nuevo);
+    seleccionarModulo(id);
+    dibujarPlanta();
+    actualizarListaModulos();
+}
+
+// ── VANOS: geometría, selección y arrastre ───────────────────────────────
+let vanoSeleccionado = null;
+let vanoArrastrando  = null;
+
+// Hacia dónde queda el interior del módulo A según el lado en que vive el vano.
+// Vectores (x, z) del mundo. Se usa en el plano 2D para el arco de barrido y
+// tiene su equivalente en el 3D (signoDentroLocal), para que la puerta abra
+// hacia el mismo lado en los dos sitios.
+const NORMAL_DENTRO_2D = { norte:[0,1], sur:[0,-1], oeste:[1,0], este:[-1,0] };
+
+// Devuelve las coordenadas en píxeles del vano sobre su pared, para dibujarlo
+// y para detectar clics. El vano vive sobre el lado compartido entre dos
+// módulos, así que se ubica usando el módulo A y el lado guardado.
+function geometriaVanoEnPlano(v) {
+    const a = modulosPlanta.find(m => m.id === v.modulo_a);
+    if (!a) return null;
+    const mitad = v.ancho / 2;
+    const ini = (v.centro - mitad) * ESCALA;
+    const fin = (v.centro + mitad) * ESCALA;
+    if (v.lado === 'norte')      return { x1: ini, z1: a.pz,               x2: fin, z2: a.pz,               horizontal: true };
+    if (v.lado === 'sur')        return { x1: ini, z1: a.pz + a.largo*ESCALA, x2: fin, z2: a.pz + a.largo*ESCALA, horizontal: true };
+    if (v.lado === 'oeste')      return { x1: a.px,                    z1: ini, x2: a.px,                    z2: fin, horizontal: false };
+    if (v.lado === 'este')       return { x1: a.px + a.ancho*ESCALA,   z1: ini, x2: a.px + a.ancho*ESCALA,   z2: fin, horizontal: false };
+    return null;
+}
+
+// ── CONTACTOS ENTRE MÓDULOS (para poner vanos) ───────────────────────────
+// Dónde se tocan dos cuartos, o un cuarto y un piso exterior (la puerta de la
+// sala que sale al andén). El cuarto siempre queda como modulo_a y el lado es
+// el del cuarto: así el 3D le abre el hueco a SU muro. Los contactos con un
+// exterior NO van en paredes_compartidas: ese muro sigue siendo fachada.
+function contactosPlanta() {
+    const TOL = 0.15, MIN = 0.05, lista = [];
+    const P = m => ({ x: m.px / ESCALA, z: m.pz / ESCALA, an: m.ancho, la: m.largo });
+    for (let i = 0; i < modulosPlanta.length; i++) {
+        for (let j = i + 1; j < modulosPlanta.length; j++) {
+            const mi = modulosPlanta[i], mj = modulosPlanta[j];
+            let cu, ot, exterior;
+            if (esCuarto(mi.tipo) && esCuarto(mj.tipo))          { cu = mi; ot = mj; exterior = false; }
+            else if (esCuarto(mi.tipo) && mj.tipo === 'exterior') { cu = mi; ot = mj; exterior = true; }
+            else if (esCuarto(mj.tipo) && mi.tipo === 'exterior') { cu = mj; ot = mi; exterior = true; }
+            else continue;
+            if (nivelDe(cu) !== nivelDe(ot)) continue;
+            const a = P(cu), b = P(ot);
+            const push = (lado, ini, fin) => { if (fin - ini > MIN) lista.push({ modulo_a: cu.id, modulo_b: ot.id, lado, ini, fin, exterior, nivel: nivelDe(cu) }); };
+            if (Math.abs(a.z - (b.z + b.la)) < TOL) push('norte', Math.max(a.x, b.x), Math.min(a.x + a.an, b.x + b.an));
+            if (Math.abs((a.z + a.la) - b.z) < TOL) push('sur',   Math.max(a.x, b.x), Math.min(a.x + a.an, b.x + b.an));
+            if (Math.abs(a.x - (b.x + b.an)) < TOL) push('oeste', Math.max(a.z, b.z), Math.min(a.z + a.la, b.z + b.la));
+            if (Math.abs((a.x + a.an) - b.x) < TOL) push('este',  Math.max(a.z, b.z), Math.min(a.z + a.la, b.z + b.la));
+        }
+    }
+    return lista;
+}
+const claveMuro = o => `${o.modulo_a}|${o.modulo_b}|${o.lado}`;
+// Muros donde el usuario borró el último vano: al regenerar el 3D no se le
+// vuelve a abrir un arco solo. Se reabren con el botón ＋ de la planta.
+const murosCerrados = new Set();
+let botonesMasVano = [];   // { px, pz, contacto } — los ＋ dibujados en la planta
+
+// ── DESHACER / REHACER (Ctrl+Z / Ctrl+Y) ─────────────────────────────────
+// PLANTA: en vez de engancharse a cada una de las funciones que cambian algo
+// (y arriesgar que se escape una), cada redibujo compara una foto de la planta
+// (módulos, vanos, muros cerrados, niveles) con la última guardada. Si cambió,
+// la anterior va a la pila. Los cambios seguidos — escribir un ancho, arrastrar
+// un cuarto — esperan a que el usuario termine y quedan como UN solo paso.
+// 3D: cada arrastre del gizmo (mover, rotar, escalar) es un paso.
+const HISTORIAL_MAX = 60;
+var pilaDeshacer = [], pilaRehacer = [];
+var _timerHistorial = null, _restaurandoHistorial = false, _punteroAbajoPlanta = false;
+function estadoPlantaJSON() {
+    return JSON.stringify({ m: modulosPlanta, v: vanosPlanta, c: [...murosCerrados], n: nivelesTotales });
+}
+var estadoConfirmado = estadoPlantaJSON();
+
+function registrarCambioPlanta() {
+    if (_restaurandoHistorial) return;
+    clearTimeout(_timerHistorial);
+    _timerHistorial = setTimeout(confirmarCambioPlanta, 350);
+}
+function confirmarCambioPlanta() {
+    clearTimeout(_timerHistorial);
+    if (_punteroAbajoPlanta) { _timerHistorial = setTimeout(confirmarCambioPlanta, 250); return; }   // sigue arrastrando
+    const actual = estadoPlantaJSON();
+    if (actual === estadoConfirmado) return;
+    pilaDeshacer.push(estadoConfirmado);
+    if (pilaDeshacer.length > HISTORIAL_MAX) pilaDeshacer.shift();
+    pilaRehacer = [];
+    estadoConfirmado = actual;
+    actualizarBotonesHistorial();
+}
+function aplicarEstadoPlanta(json) {
+    const e = JSON.parse(json);
+    _restaurandoHistorial = true;
+    modulosPlanta = e.m;
+    vanosPlanta   = e.v;
+    murosCerrados.clear(); (e.c || []).forEach(k => murosCerrados.add(k));
+    nivelesTotales = e.n || 1;
+    if (nivelActivo > nivelesTotales - 1) nivelActivo = nivelesTotales - 1;
+    estadoConfirmado = json;
+    const idSel = moduloSeleccionado ? moduloSeleccionado.id : null;
+    moduloSeleccionado = null; vanoSeleccionado = null;
+    if (idSel && modulosPlanta.some(m => m.id === idSel)) seleccionarModulo(idSel);
+    else document.getElementById('panelPropiedades').style.display = 'none';
+    if (typeof renderPanelVano === 'function') renderPanelVano();
+    refrescarEtiquetaNivel();
+    dibujarPlanta();
+    actualizarListaModulos();
+    _restaurandoHistorial = false;
+    actualizarBotonesHistorial();
+    if (typeof actualizarAvisoRegenerar === 'function') actualizarAvisoRegenerar();
+}
+function deshacerPlanta() {
+    confirmarCambioPlanta();   // si había un cambio a medio guardar, primero se guarda
+    if (!pilaDeshacer.length) { mostrarToast('Nada que deshacer'); return; }
+    pilaRehacer.push(estadoConfirmado);
+    aplicarEstadoPlanta(pilaDeshacer.pop());
+    mostrarToast(`↶ Deshecho — quedan ${pilaDeshacer.length} paso${pilaDeshacer.length === 1 ? '' : 's'} atrás`);
+}
+function rehacerPlanta() {
+    confirmarCambioPlanta();
+    if (!pilaRehacer.length) { mostrarToast('Nada que rehacer'); return; }
+    pilaDeshacer.push(estadoConfirmado);
+    aplicarEstadoPlanta(pilaRehacer.pop());
+    mostrarToast('↷ Rehecho');
+}
+
+var pila3D = [], pila3DRehacer = [];
+function fotoObjeto(o) { return { o, p: o.position.clone(), r: o.rotation.clone(), s: o.scale.clone() }; }
+function ponerFoto(f) {
+    f.o.position.copy(f.p); f.o.rotation.copy(f.r); f.o.scale.copy(f.s);
+    if (objetoTransformar === f.o && typeof mostrarMedidasTF === 'function') mostrarMedidasTF();
+}
+function guardarPaso3D() {
+    if (!objetoTransformar) return;
+    pila3D.push(fotoObjeto(objetoTransformar));
+    if (pila3D.length > HISTORIAL_MAX) pila3D.shift();
+    pila3DRehacer = [];
+    actualizarBotonesHistorial();
+}
+function deshacer3D() {
+    const f = pila3D.pop();
+    // La pieza pudo desaparecer al regenerar el 3D: esos pasos ya no aplican
+    if (!f || !f.o.parent) { pila3D = []; actualizarBotonesHistorial(); mostrarToast('Nada que deshacer en el 3D'); return; }
+    pila3DRehacer.push(fotoObjeto(f.o));
+    ponerFoto(f);
+    actualizarBotonesHistorial();
+    mostrarToast('↶ Movimiento deshecho');
+}
+function rehacer3D() {
+    const f = pila3DRehacer.pop();
+    if (!f || !f.o.parent) { pila3DRehacer = []; actualizarBotonesHistorial(); mostrarToast('Nada que rehacer en el 3D'); return; }
+    pila3D.push(fotoObjeto(f.o));
+    ponerFoto(f);
+    actualizarBotonesHistorial();
+    mostrarToast('↷ Movimiento rehecho');
+}
+function actualizarBotonesHistorial() {
+    const set = (id, on) => { const b = document.getElementById(id); if (b) { b.disabled = !on; b.style.opacity = on ? '1' : '0.4'; } };
+    set('btnDeshacerPlanta', pilaDeshacer.length > 0);
+    set('btnRehacerPlanta',  pilaRehacer.length > 0);
+    set('btnDeshacer3D',     pila3D.length > 0);
+    set('btnRehacer3D',      pila3DRehacer.length > 0);
+}
+
+// Mientras el dedo o el mouse sigan abajo en la planta, el cambio no se cierra
+document.getElementById('canvasPlanta')?.addEventListener('pointerdown', () => { _punteroAbajoPlanta = true; });
+document.addEventListener('pointerup', () => { if (_punteroAbajoPlanta) { _punteroAbajoPlanta = false; registrarCambioPlanta(); } });
+
+document.addEventListener('keydown', (e) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    const k = (e.key || '').toLowerCase();
+    if (k !== 'z' && k !== 'y') return;
+    if (vistaActual !== 'planta' && vistaActual !== '3d') return;
+    // También dentro de las casillas manda NUESTRO historial. El Ctrl+Z del
+    // navegador no deshace solo esa casilla sino la última escritura de toda la
+    // página, y encima de valores que el visor cambió por código: pulsarlo en
+    // "Nombre" dejaba el ancho en 44 en vez de 4. Cada cambio de casilla ya es
+    // un paso de nuestro historial, así que no se pierde nada.
+    // (Los textos largos —textarea, como las indicaciones— sí usan el del navegador.)
+    const el = document.activeElement;
+    if (el && el.tagName === 'TEXTAREA') return;
+    if (el && (el.tagName === 'INPUT' || el.tagName === 'SELECT')) el.blur();
+    const rehacer = k === 'y' || e.shiftKey;
+    if (vistaActual === 'planta')  { e.preventDefault(); rehacer ? rehacerPlanta() : deshacerPlanta(); }
+    else if (vistaActual === '3d') { e.preventDefault(); rehacer ? rehacer3D() : deshacer3D(); }
+});
+
+function crearVanoEnContacto(c) {
+    const largo = c.fin - c.ini;
+    const nuevo = {
+        id: 'v_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+        modulo_a: c.modulo_a, modulo_b: c.modulo_b, lado: c.lado, nivel: c.nivel || 0,
+        centro: (c.ini + c.fin) / 2,
+        ancho: Math.min(0.9, Math.max(0.6, largo - 0.2)),
+        // Hacia afuera lo normal es una PUERTA; entre cuartos, el paso libre de siempre
+        tipo: c.exterior ? 'puerta' : 'arco',
+        alto: 2.1, bisagra: 'izq', sentido: 'dentro', anguloApertura: 75, abierta: true,
+        limIni: c.ini, limFin: c.fin,
+    };
+    vanosPlanta.push(nuevo);
+    murosCerrados.delete(claveMuro(c));
+    seleccionarVano(nuevo);
+    const otro = modulosPlanta.find(m => m.id === c.modulo_b);
+    mostrarToast(c.exterior ? `🚪 Puerta hacia ${otro ? otro.nombre : 'afuera'} — arrástrala y vuelve a generar el 3D`
+                            : '➕ Vano creado — arrástralo a su posición');
+}
+
+// ── PUERTA, VANO O ARCO EN CUALQUIER MURO ────────────────────────────────
+// No necesita que dos zonas se toquen: como la puerta de entrada de un plano
+// de venta. Se marca "libre" y se conserva al regenerar el 3D.
+let modoPuertaLibre = false;
+function alternarPuertaLibre() {
+    modoPuertaLibre = !modoPuertaLibre;
+    const b = document.getElementById('btnPuertaLibre');
+    if (b) b.textContent = modoPuertaLibre ? '✖ Cancelar (toca el borde de un cuarto)' : '🚪 Poner puerta en cualquier muro';
+    document.getElementById('canvasPlanta').style.cursor = modoPuertaLibre ? 'crosshair' : '';
+    if (modoPuertaLibre) mostrarToast('🚪 Toca el borde (muro) de un cuarto donde quieras la puerta');
+}
+function ponerPuertaLibre(mx, my) {
+    const TOL = 12;   // px
+    let mejor = null;
+    modulosEditables().filter(m => esCuarto(m.tipo)).forEach(m => {
+        const x0 = m.px, x1 = m.px + m.ancho * ESCALA, z0 = m.pz, z1 = m.pz + m.largo * ESCALA;
+        const lados = [
+            { lado: 'norte', d: Math.abs(my - z0), dentro: mx >= x0 && mx <= x1, u: mx / ESCALA, ini: x0 / ESCALA, fin: x1 / ESCALA },
+            { lado: 'sur',   d: Math.abs(my - z1), dentro: mx >= x0 && mx <= x1, u: mx / ESCALA, ini: x0 / ESCALA, fin: x1 / ESCALA },
+            { lado: 'oeste', d: Math.abs(mx - x0), dentro: my >= z0 && my <= z1, u: my / ESCALA, ini: z0 / ESCALA, fin: z1 / ESCALA },
+            { lado: 'este',  d: Math.abs(mx - x1), dentro: my >= z0 && my <= z1, u: my / ESCALA, ini: z0 / ESCALA, fin: z1 / ESCALA },
+        ];
+        lados.forEach(l => { if (l.dentro && l.d <= TOL && (!mejor || l.d < mejor.d)) mejor = { ...l, m }; });
+    });
+    if (!mejor) { mostrarToast('Toca justo sobre el borde de un cuarto'); return; }
+    const largoMuro = mejor.fin - mejor.ini;
+    const ancho = Math.min(0.9, Math.max(0.6, largoMuro - 0.2));
+    const centro = Math.max(mejor.ini + ancho / 2 + 0.05, Math.min(mejor.fin - ancho / 2 - 0.05, mejor.u));
+    // Si en ese punto el muro lo comparte otro cuarto, se usa ese contacto (hueco en los dos muros)
+    const c = contactosPlanta().find(k => k.modulo_a === mejor.m.id && k.lado === mejor.lado && !k.exterior && centro >= k.ini && centro <= k.fin);
+    const nuevo = {
+        id: 'v_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+        modulo_a: mejor.m.id, modulo_b: c ? c.modulo_b : null, lado: mejor.lado, nivel: nivelDe(mejor.m),
+        centro, ancho, tipo: 'puerta', alto: 2.1, bisagra: 'izq', sentido: 'dentro', anguloApertura: 75, abierta: true,
+        limIni: c ? c.ini : mejor.ini, limFin: c ? c.fin : mejor.fin, libre: !c,
+    };
+    vanosPlanta.push(nuevo);
+    alternarPuertaLibre();
+    seleccionarVano(nuevo);
+    mostrarToast('🚪 Puerta puesta — arrástrala sobre el muro o cámbiala a arco o vano');
+}
+
+// ¿El clic cayó sobre algún vano? Devuelve el vano o null.
+function vanoEnPunto(px, pz) {
+    const TOL = 10; // píxeles de tolerancia
+    for (const v of vanosPlanta) {
+        const g = geometriaVanoEnPlano(v);
+        if (!g) continue;
+        if (g.horizontal) {
+            if (Math.abs(pz - g.z1) < TOL && px >= Math.min(g.x1,g.x2) - TOL && px <= Math.max(g.x1,g.x2) + TOL) return v;
+        } else {
+            if (Math.abs(px - g.x1) < TOL && pz >= Math.min(g.z1,g.z2) - TOL && pz <= Math.max(g.z1,g.z2) + TOL) return v;
+        }
+    }
+    return null;
+}
+
+function seleccionarVano(v) {
+    vanoSeleccionado = v;
+    moduloSeleccionado = null;
+    renderPanelVano();
+    dibujarPlanta();
+}
+
+function moverVanoA(px, pz) {
+    if (!vanoArrastrando) return;
+    const v = vanoArrastrando;
+    // Deslizar SOLO a lo largo de su pared, sin salirse del tramo compartido
+    const nuevoCentro = (v.lado === 'norte' || v.lado === 'sur') ? px / ESCALA : pz / ESCALA;
+    const mitad = v.ancho / 2;
+    v.centro = Math.max(v.limIni + mitad, Math.min(v.limFin - mitad, nuevoCentro));
+    dibujarPlanta();
+}
+
+function actualizarVano(campo, valor) {
+    if (!vanoSeleccionado) return;
+    if (campo === 'ancho') {
+        const maxAncho = vanoSeleccionado.limFin - vanoSeleccionado.limIni;
+        vanoSeleccionado.ancho = Math.max(0.4, Math.min(maxAncho, parseFloat(valor)));
+        // Reajustar el centro si al ensanchar se sale del tramo
+        const mitad = vanoSeleccionado.ancho / 2;
+        vanoSeleccionado.centro = Math.max(vanoSeleccionado.limIni + mitad,
+                                   Math.min(vanoSeleccionado.limFin - mitad, vanoSeleccionado.centro));
+    } else if (campo === 'tipo') {
+        vanoSeleccionado.tipo = valor;
+        // Al convertirlo en puerta se le dan valores de hoja por defecto si aún no los tiene
+        if (valor === 'puerta') {
+            vanoSeleccionado.bisagra        = vanoSeleccionado.bisagra        || 'izq';
+            vanoSeleccionado.sentido        = vanoSeleccionado.sentido        || 'dentro';
+            vanoSeleccionado.anguloApertura = vanoSeleccionado.anguloApertura ?? 75;
+            if (vanoSeleccionado.abierta === undefined) vanoSeleccionado.abierta = true;
+        }
+    } else if (campo === 'bisagra' || campo === 'sentido') {
+        vanoSeleccionado[campo] = valor;
+    } else if (campo === 'estilo') {
+        vanoSeleccionado.estiloPuerta = valor;
+        // Una doble o una corrediza necesitan más ancho que una sencilla
+        const minimo = { doble: 1.2, corrediza: 0.8, plegable: 0.8 }[valor];
+        const maxAncho = vanoSeleccionado.limFin - vanoSeleccionado.limIni;
+        if (minimo && vanoSeleccionado.ancho < minimo && maxAncho >= minimo) actualizarVano('ancho', minimo);
+    } else if (campo === 'apertura') {
+        const ang = Math.max(0, Math.min(90, parseFloat(valor) || 0));
+        vanoSeleccionado.anguloApertura = ang;
+        vanoSeleccionado.abierta = ang > 0;
+    } else if (campo === 'alto') {
+        vanoSeleccionado.alto = Math.max(1.6, Math.min(2.5, parseFloat(valor)));
+    }
+    renderPanelVano();
+    dibujarPlanta();
+}
+
+function borrarVano() {
+    if (!vanoSeleccionado) return;
+    const clave = claveMuro(vanoSeleccionado);
+    vanosPlanta = vanosPlanta.filter(v => v.id !== vanoSeleccionado.id);
+    if (!vanosPlanta.some(v => claveMuro(v) === clave)) murosCerrados.add(clave);
+    vanoSeleccionado = null;
+    renderPanelVano();
+    dibujarPlanta();
+    mostrarToast('🗑️ Vano eliminado — la pared queda cerrada');
+}
+
+// Duplicar un vano en la misma pared — para el caso real de un baño con dos
+// puertas (una a la alcoba, otra al pasillo).
+function duplicarVano() {
+    if (!vanoSeleccionado) return;
+    const v = vanoSeleccionado;
+    const copia = { ...v, id: 'v_' + Date.now() + '_' + Math.random().toString(36).slice(2,6) };
+    const mitad = copia.ancho / 2;
+    copia.centro = Math.min(v.limFin - mitad, v.centro + v.ancho + 0.3);
+    vanosPlanta.push(copia);
+    seleccionarVano(copia);
+    mostrarToast('➕ Vano duplicado — arrástralo a su posición');
+}
+
+function renderPanelVano() {
+    const panel = document.getElementById('panelVano');
+    if (!panel) return;
+    if (!vanoSeleccionado) { panel.style.display = 'none'; return; }
+    const v = vanoSeleccionado;
+    const maxAncho = (v.limFin - v.limIni).toFixed(2);
+    const btn = (tipo, etiqueta, color) => `
+        <button onclick="actualizarVano('tipo','${tipo}')" style="flex:1;padding:6px 2px;border-radius:6px;font-size:10.5px;font-weight:700;cursor:pointer;border:1px solid ${v.tipo===tipo?color:'rgba(148,163,184,0.3)'};background:${v.tipo===tipo?color+'40':'rgba(255,255,255,0.04)'};color:${v.tipo===tipo?'#fff':'var(--gris)'};">${etiqueta}</button>`;
+    const esPuerta = v.tipo === 'puerta';
+    const llevaDintel = v.tipo === 'vano' || esPuerta;
+    panel.style.display = 'block';
+    panel.innerHTML = `
+        <div style="font-size:11px;font-weight:700;color:#22C55E;text-transform:uppercase;margin-bottom:8px;">🚪 Vano seleccionado</div>
+        <label style="font-size:11px;color:var(--gris);">Ancho: <b style="color:var(--texto);">${v.ancho.toFixed(2)} m</b> (máx ${maxAncho})</label>
+        <input type="range" min="0.4" max="${maxAncho}" step="0.05" value="${v.ancho}" oninput="actualizarVano('ancho', this.value)" style="width:100%;margin:4px 0 10px;">
+        <label style="font-size:11px;color:var(--gris);display:block;margin-bottom:4px;">Tipo</label>
+        <div style="display:flex;gap:4px;margin-bottom:6px;">
+            ${btn('arco',   'Arco',   '#22C55E')}
+            ${btn('vano',   'Vano',   '#38BDF8')}
+            ${btn('puerta', 'Puerta', '#F59E0B')}
+        </div>
+        <div style="font-size:10px;color:var(--gris);line-height:1.5;margin-bottom:10px;">
+            <b style="color:#6EE7B7;">Arco</b>: paso libre de piso a techo.<br>
+            <b style="color:#7DD3FC;">Vano</b>: hueco con dintel y marco, sin hoja.<br>
+            <b style="color:#FCD34D;">Puerta</b>: marco + hoja que se abre.
+        </div>
+        ${llevaDintel ? `
+        <label style="font-size:11px;color:var(--gris);">Alto del hueco: <b style="color:var(--texto);">${(v.alto||2.1).toFixed(2)} m</b></label>
+        <input type="range" min="1.6" max="2.5" step="0.05" value="${v.alto||2.1}" oninput="actualizarVano('alto', this.value)" style="width:100%;margin:4px 0 10px;">` : ''}
+        ${esPuerta ? `
+        <div style="border-top:1px solid rgba(245,158,11,0.25);padding-top:10px;margin-top:4px;">
+            <div style="font-size:10.5px;font-weight:700;color:#FCD34D;text-transform:uppercase;margin-bottom:6px;">Tipo de puerta</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:10px;">
+                ${[['sencilla','🚪 Sencilla'],['doble','🚪🚪 Doble'],['corrediza','↔ Corrediza'],['vidrio','🪟 Vidrio'],['plegable','〰 Plegable']].map(([k,et]) => {
+                    const on = (v.estiloPuerta || 'sencilla') === k;
+                    return `<button onclick="actualizarVano('estilo','${k}')" style="padding:6px 2px;border-radius:6px;font-size:10.5px;font-weight:700;cursor:pointer;border:1px solid ${on?'#F59E0B':'rgba(148,163,184,0.3)'};background:${on?'rgba(245,158,11,0.25)':'rgba(255,255,255,0.04)'};color:${on?'#FCD34D':'var(--gris)'};">${et}</button>`; }).join('')}
+            </div>
+            <div style="font-size:10.5px;font-weight:700;color:#FCD34D;text-transform:uppercase;margin-bottom:6px;">Hoja de la puerta</div>
+            <label style="font-size:11px;color:var(--gris);display:block;margin-bottom:4px;">${{corrediza:'Se corre hacia', plegable:'Se pliega hacia', doble:'Bisagras (a los dos lados)'}[v.estiloPuerta] || 'Bisagra'}</label>
+            <div style="display:flex;gap:5px;margin-bottom:8px;">
+                <button onclick="actualizarVano('bisagra','izq')" style="flex:1;padding:6px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid ${(v.bisagra||'izq')==='izq'?'#F59E0B':'rgba(148,163,184,0.3)'};background:${(v.bisagra||'izq')==='izq'?'rgba(245,158,11,0.25)':'rgba(255,255,255,0.04)'};color:${(v.bisagra||'izq')==='izq'?'#FCD34D':'var(--gris)'};">◀ Izquierda</button>
+                <button onclick="actualizarVano('bisagra','der')" style="flex:1;padding:6px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid ${v.bisagra==='der'?'#F59E0B':'rgba(148,163,184,0.3)'};background:${v.bisagra==='der'?'rgba(245,158,11,0.25)':'rgba(255,255,255,0.04)'};color:${v.bisagra==='der'?'#FCD34D':'var(--gris)'};">Derecha ▶</button>
+            </div>
+            <label style="font-size:11px;color:var(--gris);display:block;margin-bottom:4px;">Abre hacia</label>
+            <div style="display:flex;gap:5px;margin-bottom:8px;">
+                <button onclick="actualizarVano('sentido','dentro')" style="flex:1;padding:6px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid ${(v.sentido||'dentro')==='dentro'?'#F59E0B':'rgba(148,163,184,0.3)'};background:${(v.sentido||'dentro')==='dentro'?'rgba(245,158,11,0.25)':'rgba(255,255,255,0.04)'};color:${(v.sentido||'dentro')==='dentro'?'#FCD34D':'var(--gris)'};">Adentro</button>
+                <button onclick="actualizarVano('sentido','fuera')" style="flex:1;padding:6px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid ${v.sentido==='fuera'?'#F59E0B':'rgba(148,163,184,0.3)'};background:${v.sentido==='fuera'?'rgba(245,158,11,0.25)':'rgba(255,255,255,0.04)'};color:${v.sentido==='fuera'?'#FCD34D':'var(--gris)'};">Afuera</button>
+            </div>
+            <label style="font-size:11px;color:var(--gris);">Apertura: <b style="color:var(--texto);">${v.abierta === false ? 'cerrada' : (v.anguloApertura ?? 75) + '°'}</b></label>
+            <input type="range" min="0" max="90" step="5" value="${v.abierta === false ? 0 : (v.anguloApertura ?? 75)}" oninput="actualizarVano('apertura', this.value)" style="width:100%;margin:4px 0 8px;">
+            <button onclick="actualizarVano('apertura', ${v.abierta === false ? 75 : 0})" style="width:100%;padding:7px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid rgba(245,158,11,0.35);background:rgba(245,158,11,0.12);color:#FCD34D;">${v.abierta === false ? '🚪 Abrir' : '🚪 Dejar cerrada'}</button>
+            <div style="font-size:10px;color:var(--gris);line-height:1.5;margin-top:6px;">En el 3D también puedes hacer clic sobre la hoja para abrirla o cerrarla.</div>
+        </div>` : ''}
+        <div style="font-size:10.5px;color:var(--gris);line-height:1.5;margin:10px 0 8px;">Arrástralo sobre la pared para moverlo. Vuelve a generar el 3D para ver el cambio.</div>
+        <div style="display:flex;gap:5px;">
+            <button onclick="duplicarVano()" style="flex:1;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.35);color:#6EE7B7;padding:6px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;">➕ Otro vano</button>
+            <button onclick="borrarVano()" style="flex:1;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#FCA5A5;padding:6px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;">🗑️ Borrar</button>
+        </div>`;
+}
+
+function dibujarPlanta() {
+    registrarCambioPlanta();
+    const c   = document.getElementById('canvasPlanta');
+    if (!c) return;
+    const ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, c.width, c.height);
+
+    ctx.save();
+    ctx.translate(panX, panY);
+    ctx.scale(zoomPlanta, zoomPlanta);
+
+    // Grid de fondo
+    ctx.strokeStyle = 'rgba(124,58,237,0.08)';
+    ctx.lineWidth   = 1;
+    const w = c.width  / zoomPlanta;
+    const h = c.height / zoomPlanta;
+    for (let x = 0; x < w; x += ESCALA) {
+        ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke();
+    }
+    for (let y = 0; y < h; y += ESCALA) {
+        ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();
+    }
+
+    // Trazar la silueta de un módulo según su forma. Los cuartos y la
+    // estructura son rectángulos; un plafón puede ser redondo o en L.
+    function trazarForma(m, pw, ph) {
+        ctx.beginPath();
+        if (m.forma === 'circulo') {
+            ctx.ellipse(m.px + pw/2, m.pz + ph/2, pw/2, ph/2, 0, 0, Math.PI*2);
+        } else if (m.forma === 'L') {
+            const cx = pw*0.5, cy = ph*0.5;
+            ctx.moveTo(m.px, m.pz);
+            ctx.lineTo(m.px + pw, m.pz);
+            ctx.lineTo(m.px + pw, m.pz + cy);
+            ctx.lineTo(m.px + cx, m.pz + cy);
+            ctx.lineTo(m.px + cx, m.pz + ph);
+            ctx.lineTo(m.px, m.pz + ph);
+            ctx.closePath();
+        } else if (m.forma === 'triangulo') {
+            ctx.moveTo(m.px + pw/2, m.pz);
+            ctx.lineTo(m.px + pw, m.pz + ph);
+            ctx.lineTo(m.px, m.pz + ph);
+            ctx.closePath();
+        } else if (m.forma === 'hexagono') {
+            for (let k = 0; k < 6; k++) {
+                const a = Math.PI/6 + k * Math.PI/3;
+                const px = m.px + pw/2 + Math.cos(a)*pw/2;
+                const pz = m.pz + ph/2 + Math.sin(a)*ph/2;
+                k ? ctx.lineTo(px, pz) : ctx.moveTo(px, pz);
+            }
+            ctx.closePath();
+        } else if (m.tipo === 'columna' && m.forma === 'redonda') {
+            ctx.ellipse(m.px + pw/2, m.pz + ph/2, pw/2, ph/2, 0, 0, Math.PI*2);
+        } else {
+            ctx.roundRect(m.px, m.pz, pw, ph,
+                (m.tipo === 'columna' || m.tipo === 'viga') ? 2 : 6);
+        }
+    }
+
+    // FANTASMAS — lo que NO se está editando ahora se dibuja tenue, para poder
+    // alinearse contra ello sin poder tocarlo por accidente. Son dos cosas:
+    // el nivel de abajo (esencial para que los muros de un piso caigan sobre
+    // los del otro) y la otra capa del mismo nivel.
+    // El único fantasma que queda es el PISO DE ABAJO, que sirve para alinear
+    // muros y columnas entre niveles. Todo lo del piso actual se dibuja sólido.
+    modulosPlanta.forEach(m => {
+        if (nivelDe(m) !== nivelActivo - 1) return;
+        const pw = m.ancho * ESCALA, ph = m.largo * ESCALA;
+        ctx.save();
+        ctx.globalAlpha = 0.30;
+        ctx.strokeStyle = '#94A3B8';
+        ctx.lineWidth   = 1.5;
+        ctx.setLineDash([5, 4]);
+        trazarForma(m, pw, ph);
+        ctx.stroke();
+        ctx.restore();
+    });
+
+    // Módulos de la capa y el nivel activos
+    // Los pisos exteriores van por debajo de todo: rodean la casa, no la tapan
+    const capa2D = m => m.tipo === 'exterior' ? 0 : (m.tipo === 'hueco' ? 2 : 1);   // exteriores abajo, huecos encima
+    [...modulosEditables()].sort((a, b) => capa2D(a) - capa2D(b)).forEach(m => {
+        const pw = m.ancho * ESCALA;
+        const ph = m.largo * ESCALA;
+        const selec = moduloSeleccionado && moduloSeleccionado.id === m.id;
+        const color = m.tipo === 'exterior'
+            ? ({ concreto:'#A3A3A3', adoquin:'#C2703D', baldosa:'#D6CFC4', gravilla:'#B8AE9C', cesped:'#65A30D', deck:'#A16207' }[m.acabado] || COLORES_MODULO.exterior)
+            : (COLORES_MODULO[m.tipo] || '#7C3AED');
+
+        // Sombra
+        ctx.shadowColor = color;
+        ctx.shadowBlur  = selec ? 16 : 6;
+
+        // Fondo — la columna se dibuja MACIZA (es un elemento estructural que
+        // ocupa el espacio de verdad, no un área) y la viga con línea punteada
+        // porque va por encima de la cabeza, no toca el piso.
+        const esColumna2D = m.tipo === 'columna';
+        const esViga2D    = m.tipo === 'viga';
+        ctx.fillStyle = esColumna2D ? color + 'CC' : color + (m.tipo === 'exterior' ? (selec ? '70' : '55') : (selec ? '40' : '25'));
+        trazarForma(m, pw, ph);
+        ctx.fill();
+
+        // Borde
+        ctx.strokeStyle = selec ? color : color + '80';
+        ctx.lineWidth   = selec ? 3 : 1.5;
+        if (esViga2D) ctx.setLineDash([6, 4]);
+        if (m.tipo === 'exterior') ctx.setLineDash([3, 3]);   // punteado fino: está afuera, sobre el suelo
+        if (m.tipo === 'hueco') ctx.setLineDash([8, 5]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        if (m.tipo === 'escalera') dibujarEscaleraPlanta(ctx, m, color);
+        if (m.tipo === 'baranda') {   // en planta: la línea con sus parales
+            const larga = m.ancho >= m.largo, L = Math.max(m.ancho, m.largo), n = Math.max(2, Math.round(L / 1.2) + 1);
+            ctx.save(); ctx.fillStyle = color;
+            for (let i = 0; i < n; i++) { const f = i / (n - 1);
+                const px = larga ? m.px + f * pw : m.px + pw / 2, pz = larga ? m.pz + ph / 2 : m.pz + f * ph;
+                ctx.beginPath(); ctx.arc(px, pz, 3, 0, Math.PI * 2); ctx.fill(); }
+            ctx.restore();
+        }
+        if (m.tipo === 'hueco') {   // así se dibuja un vacío en un plano: la cruz de esquina a esquina
+            ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 1.2; ctx.setLineDash([5, 4]);
+            ctx.beginPath(); ctx.moveTo(m.px, m.pz); ctx.lineTo(m.px + pw, m.pz + ph); ctx.moveTo(m.px + pw, m.pz); ctx.lineTo(m.px, m.pz + ph); ctx.stroke();
+            ctx.restore();
+        }
+
+        // LIMATESAS Y CUMBRERA — así se lee un techo en un plano de verdad:
+        // por dónde caen las aguas. Sin estas líneas dos cubiertas distintas
+        // se ven idénticas en planta.
+        if (m.tipo === 'cubierta') {
+            const g = (m.orientacion ?? 0) % 180 !== 0;   // ¿cumbrera girada?
+            const x0 = m.px, z0 = m.pz, x1 = m.px + pw, z1 = m.pz + ph;
+            const cx = x0 + pw/2, cz = z0 + ph/2;
+            ctx.save();
+            ctx.strokeStyle = '#FDBA74';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            const t = m.tipoTecho || 'dos_aguas';
+            if (t === 'dos_aguas') {
+                g ? (ctx.moveTo(cx, z0), ctx.lineTo(cx, z1))
+                  : (ctx.moveTo(x0, cz), ctx.lineTo(x1, cz));
+            } else if (t === 'cuatro_aguas') {
+                const d = Math.min(pw, ph)/2;
+                if (g) { ctx.moveTo(cx, z0+d); ctx.lineTo(cx, z1-d); }
+                else   { ctx.moveTo(x0+d, cz); ctx.lineTo(x1-d, cz); }
+                ctx.moveTo(x0,z0); ctx.lineTo(g?cx:x0+d, g?z0+d:cz);
+                ctx.moveTo(x1,z0); ctx.lineTo(g?cx:x1-d, g?z0+d:cz);
+                ctx.moveTo(x0,z1); ctx.lineTo(g?cx:x0+d, g?z1-d:cz);
+                ctx.moveTo(x1,z1); ctx.lineTo(g?cx:x1-d, g?z1-d:cz);
+            } else if (t === 'piramidal') {
+                [[x0,z0],[x1,z0],[x1,z1],[x0,z1]].forEach(([a,b])=>{ ctx.moveTo(a,b); ctx.lineTo(cx,cz); });
+            } else if (t === 'un_agua') {
+                // Flecha en el sentido de la caída
+                const ang = (m.orientacion ?? 0) * Math.PI/180;
+                const dx = Math.cos(ang), dz = Math.sin(ang), L = Math.min(pw,ph)*0.32;
+                ctx.moveTo(cx - dx*L, cz - dz*L); ctx.lineTo(cx + dx*L, cz + dz*L);
+                ctx.moveTo(cx + dx*L, cz + dz*L); ctx.lineTo(cx + dx*L - (dx+dz)*L*0.35, cz + dz*L - (dz-dx)*L*0.35);
+                ctx.moveTo(cx + dx*L, cz + dz*L); ctx.lineTo(cx + dx*L - (dx-dz)*L*0.35, cz + dz*L - (dz+dx)*L*0.35);
+            }
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        ctx.shadowBlur = 0;
+
+        // Etiqueta — en columnas y vigas el rótulo se sale del elemento (una
+        // columna de 30cm son 12px en pantalla), así que va por fuera.
+        const elementoDelgado = pw < 55 || ph < 30;
+        ctx.textAlign    = 'center';
+        ctx.textBaseline = 'middle';
+        if (elementoDelgado) {
+            ctx.fillStyle = color;
+            ctx.font      = 'bold 10px Segoe UI';
+            const etiqueta = esViga2D
+                ? `${m.nombre} · ${m.largo}m · h${(m.alturaBase ?? 2.2).toFixed(2)}`
+                : `${m.nombre} · ${m.ancho}×${m.largo}`;
+            ctx.fillText(etiqueta, m.px + pw/2, m.pz - 9);
+        } else {
+            ctx.fillStyle = 'white';
+            ctx.font      = `bold ${Math.min(13, pw/6)}px Segoe UI`;
+            ctx.fillText(m.nombre, m.px + pw/2, m.pz + ph/2 - 8);
+            ctx.fillStyle = 'rgba(255,255,255,0.6)';
+            ctx.font      = `${Math.min(11, pw/7)}px Segoe UI`;
+            const sub = m.tipo === 'cubierta'
+                ? `${m.ancho}×${m.largo}m · ${(m.pendiente ?? 35)}% · vuelo ${(m.voladizo ?? 0.5)}m`
+                : m.tipo === 'plafon'
+                ? `${m.ancho}m × ${m.largo}m · baja ${(m.descuelgue ?? 0.25).toFixed(2)}m`
+                : `${m.ancho}m × ${m.largo}m`;
+            ctx.fillText(sub, m.px + pw/2, m.pz + ph/2 + 10);
+        }
+
+        // Handle de resize (esquina inf-der) — más grande para facilitar click
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(m.px + pw, m.pz + ph, 7, 0, Math.PI*2);
+        ctx.fill();
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth   = 1.5;
+        ctx.stroke();
+    });
+
+    // ── ＋ PARA AGREGAR VANO en cada muro que se toca y no tiene ninguno ──
+    // Celeste entre cuartos; verde lima hacia un piso exterior (andén, patio…).
+    botonesMasVano = [];
+    if (!modoDibujoRecorrido) contactosPlanta().forEach(c => {
+        if (c.nivel !== nivelActivo) return;
+        if (vanosPlanta.some(v => claveMuro(v) === claveMuro(c))) return;
+        const a = modulosPlanta.find(m => m.id === c.modulo_a);
+        if (!a) return;
+        const med = (c.ini + c.fin) / 2 * ESCALA;
+        const px = (c.lado === 'norte' || c.lado === 'sur') ? med : (c.lado === 'oeste' ? a.px : a.px + a.ancho * ESCALA);
+        const pz = (c.lado === 'oeste' || c.lado === 'este') ? med : (c.lado === 'norte' ? a.pz : a.pz + a.largo * ESCALA);
+        const col = c.exterior ? '#A3E635' : '#38BDF8';
+        ctx.save();
+        ctx.shadowColor = col; ctx.shadowBlur = 8;
+        ctx.fillStyle = '#0F0F1A'; ctx.strokeStyle = col; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(px, pz, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.shadowBlur = 0; ctx.fillStyle = col;
+        ctx.fillRect(px - 4.5, pz - 1, 9, 2); ctx.fillRect(px - 1, pz - 4.5, 2, 9);
+        ctx.restore();
+        botonesMasVano.push({ px, pz, contacto: c });
+    });
+
+    // ── VANOS (puertas / pasos entre zonas) ──────────────────────────────
+    // Se dibujan como una barra sobre la pared donde están. Verde = arco
+    // (de piso a techo), naranja = puerta (con dintel encima).
+    vanosPlanta.forEach(v => {
+        const a = modulosPlanta.find(m => m.id === v.modulo_a);
+        if (a && nivelDe(a) !== nivelActivo) return;
+        const geo = geometriaVanoEnPlano(v);
+        if (!geo) return;
+        const selec = vanoSeleccionado && vanoSeleccionado.id === v.id;
+        const COLOR_VANO = { arco:'#22C55E', vano:'#38BDF8', puerta:'#F59E0B' };
+        ctx.strokeStyle = COLOR_VANO[v.tipo] || '#22C55E';
+        ctx.lineWidth   = (selec ? 9 : 6) / zoomPlanta;
+        ctx.lineCap     = 'round';
+        ctx.beginPath();
+        ctx.moveTo(geo.x1, geo.z1);
+        ctx.lineTo(geo.x2, geo.z2);
+        ctx.stroke();
+        if (selec) {
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth   = 2 / zoomPlanta;
+            ctx.stroke();
+        }
+        ctx.lineCap = 'butt';
+
+        // ARCO DE BARRIDO — así se dibuja una puerta en un plano de verdad:
+        // la hoja como una línea desde la bisagra y el cuarto de círculo que
+        // barre al abrirse. Sirve para ver si la puerta choca con un mueble.
+        if (v.tipo === 'puerta') {
+            const anchoPx    = v.ancho * ESCALA;
+            const bisagraIzq = (v.bisagra || 'izq') === 'izq';
+            const hx = bisagraIzq ? geo.x1 : geo.x2;
+            const hz = bisagraIzq ? geo.z1 : geo.z2;
+            // Ángulo de la pared: desde la bisagra hacia el otro extremo del vano.
+            // En el canvas el eje Y crece hacia abajo y coincide con la Z del
+            // mundo, así que atan2(dz, dx) da el mismo ángulo en ambos lados.
+            const dx = bisagraIzq ? geo.x2 - geo.x1 : geo.x1 - geo.x2;
+            const dz = bisagraIzq ? geo.z2 - geo.z1 : geo.z1 - geo.z2;
+            const angBase = Math.atan2(dz, dx);
+            // Normal que apunta hacia ADENTRO del módulo A (el dueño del lado).
+            // Es la misma tabla que usa el 3D, para que el plano y el modelo
+            // muestren la puerta abriendo hacia el mismo lado.
+            const nd = NORMAL_DENTRO_2D[v.lado];
+            const signo = (v.sentido || 'dentro') === 'fuera' ? -1 : 1;
+            let delta = Math.atan2(nd[1]*signo, nd[0]*signo) - angBase;
+            while (delta >  Math.PI) delta -= 2*Math.PI;
+            while (delta < -Math.PI) delta += 2*Math.PI;
+
+            ctx.strokeStyle = 'rgba(245,158,11,0.55)';
+            ctx.lineWidth   = 1.5 / zoomPlanta;
+            ctx.beginPath();
+            ctx.arc(hx, hz, anchoPx, angBase, angBase + delta, delta < 0);
+            ctx.stroke();
+
+            // hoja dibujada en su ángulo real de apertura
+            const t = (v.abierta === false ? 0 : (v.anguloApertura ?? 75)) / 90;
+            const angHoja = angBase + delta * t;
+            ctx.strokeStyle = '#FCD34D';
+            ctx.lineWidth   = 2.5 / zoomPlanta;
+            ctx.beginPath();
+            ctx.moveTo(hx, hz);
+            ctx.lineTo(hx + Math.cos(angHoja) * anchoPx, hz + Math.sin(angHoja) * anchoPx);
+            ctx.stroke();
+        }
+    });
+
+    // Trazo del recorrido de cámara (Etapa 1b) — se dibuja en el mismo
+    // espacio de coordenadas que los módulos, respetando pan/zoom.
+    if (trazoRecorridoPlanta.length > 1) {
+        ctx.strokeStyle = '#FCD34D';
+        ctx.lineWidth   = 3 / zoomPlanta;
+        ctx.setLineDash([8 / zoomPlanta, 6 / zoomPlanta]);
+        ctx.beginPath();
+        ctx.moveTo(trazoRecorridoPlanta[0].px, trazoRecorridoPlanta[0].pz);
+        trazoRecorridoPlanta.forEach(p => ctx.lineTo(p.px, p.pz));
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Punto de inicio (verde) y flecha de dirección final (punto amarillo)
+        const inicio = trazoRecorridoPlanta[0];
+        const fin    = trazoRecorridoPlanta.at(-1);
+        ctx.fillStyle = '#34D399';
+        ctx.beginPath(); ctx.arc(inicio.px, inicio.pz, 6/zoomPlanta, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#FCD34D';
+        ctx.beginPath(); ctx.arc(fin.px, fin.pz, 6/zoomPlanta, 0, Math.PI*2); ctx.fill();
+    }
+
+    ctx.restore();
+
+    // Indicador de zoom
+    if (zoomPlanta !== 1) {
+        ctx.fillStyle = 'rgba(124,58,237,0.7)';
+        ctx.fillRect(8, 8, 70, 24);
+        ctx.fillStyle = 'white';
+        ctx.font      = 'bold 12px Segoe UI';
+        ctx.textAlign = 'left';
+        ctx.fillText(`🔍 ${Math.round(zoomPlanta*100)}%`, 14, 24);
+    }
+}
+// ── VARIABLES ZOOM Y RESIZE ───────────────────────────────────────────────
+let zoomPlanta   = 1;
+let panX = 0, panY = 0;
+let resizing     = false;
+let resizeModulo = null;
+
+function coordsCanvas(e) {
+    const c    = document.getElementById('canvasPlanta');
+    const rect = c.getBoundingClientRect();
+    return {
+        mx: (e.clientX - rect.left - panX) / zoomPlanta,
+        my: (e.clientY - rect.top  - panY) / zoomPlanta
+    };
+}
+
+function onPlantaMouseDown(e) {
+    const { mx, my } = coordsCanvas(e);
+
+    if (modoDibujoRecorrido) {
+        dibujandoTrazo = true;
+        trazoRecorridoPlanta = [{ px: mx, pz: my }];
+        document.getElementById('btnUsarTrazo')?.style && (document.getElementById('btnUsarTrazo').style.display = 'none');
+        dibujarPlanta();
+        return;
+    }
+
+    // Modo "puerta en cualquier muro": se pone donde se toque el borde de un cuarto
+    if (modoPuertaLibre) { ponerPuertaLibre(mx, my); return; }
+
+    // ¿Clic sobre un ＋? Crea el vano en ese muro (hacia un exterior: una puerta).
+    const mas = botonesMasVano.find(b => Math.hypot(mx - b.px, my - b.pz) <= 12);
+    if (mas) { crearVanoEnContacto(mas.contacto); return; }
+
+    // ¿Clic sobre un VANO? Se revisa ANTES que los módulos, porque el vano
+    // vive sobre el borde de una zona y si no tendría prioridad el módulo.
+    const vanoClic = vanoEnPunto(mx, my);
+    if (vanoClic) {
+        seleccionarVano(vanoClic);
+        vanoArrastrando = vanoClic;
+        return;
+    }
+
+    // Verificar si clickeó el handle de resize (esquina inf-der)
+    const editables = modulosEditables();
+    for (let i = editables.length - 1; i >= 0; i--) {
+        const m  = editables[i];
+        const pw = m.ancho * ESCALA;
+        const ph = m.largo * ESCALA;
+        const hx = m.px + pw;
+        const hy = m.pz + ph;
+        if (Math.abs(mx - hx) < 12 && Math.abs(my - hy) < 12) {
+            seleccionarModulo(m.id);
+            resizing     = true;
+            resizeModulo = m;
+            return;
+        }
+    }
+
+    // Buscar módulo clickeado
+    for (let i = editables.length - 1; i >= 0; i--) {
+        const m  = editables[i];
+        const pw = m.ancho * ESCALA;
+        const ph = m.largo * ESCALA;
+        if (mx >= m.px && mx <= m.px + pw && my >= m.pz && my <= m.pz + ph) {
+            seleccionarModulo(m.id);
+            dragging    = true;
+            dragOffsetX = mx - m.px;
+            dragOffsetZ = my - m.pz;
+            return;
+        }
+    }
+
+    // Click en vacío — deseleccionar
+    moduloSeleccionado = null;
+    vanoSeleccionado   = null;
+    renderPanelVano();
+    document.getElementById('panelPropiedades').style.display = 'none';
+    dibujarPlanta();
+}
+
+function onPlantaMouseMove(e) {
+    const { mx, my } = coordsCanvas(e);
+
+    if (modoDibujoRecorrido) {
+        if (!dibujandoTrazo) return;
+        const ultimo = trazoRecorridoPlanta.at(-1);
+        // Solo agrega un punto nuevo si el mouse se movió lo suficiente —
+        // evita guardar miles de puntos casi idénticos.
+        if (Math.hypot(mx - ultimo.px, my - ultimo.pz) > 6) {
+            trazoRecorridoPlanta.push({ px: mx, pz: my });
+            dibujarPlanta();
+        }
+        return;
+    }
+
+    // Arrastrar un vano a lo largo de su pared
+    if (vanoArrastrando) { moverVanoA(mx, my); return; }
+
+    if (resizing && resizeModulo) {
+        const snap  = ESCALA * 0.5;
+        const newPw = Math.round((mx - resizeModulo.px) / snap) * snap;
+        const newPh = Math.round((my - resizeModulo.pz) / snap) * snap;
+        resizeModulo.ancho = Math.max(1, newPw / ESCALA);
+        resizeModulo.largo = Math.max(1, newPh / ESCALA);
+        if (moduloSeleccionado?.id === resizeModulo.id) {
+            document.getElementById('propAncho').value = resizeModulo.ancho.toFixed(1);
+            document.getElementById('propLargo').value = resizeModulo.largo.toFixed(1);
+        }
+        dibujarPlanta();
+        return;
+    }
+
+    if (dragging && moduloSeleccionado) {
+        const snap = ESCALA * 0.5;
+        moduloSeleccionado.px = Math.round((mx - dragOffsetX) / snap) * snap;
+        moduloSeleccionado.pz = Math.round((my - dragOffsetZ) / snap) * snap;
+        moduloSeleccionado.x  = moduloSeleccionado.px / ESCALA;
+        moduloSeleccionado.z  = moduloSeleccionado.pz / ESCALA;
+        dibujarPlanta();
+    }
+
+    // Cambiar cursor cerca del handle de resize
+    const c = document.getElementById('canvasPlanta');
+    let nearHandle = false;
+    for (const m of modulosEditables()) {
+        const hx = m.px + m.ancho * ESCALA;
+        const hy = m.pz + m.largo * ESCALA;
+        if (Math.abs(mx - hx) < 12 && Math.abs(my - hy) < 12) {
+            nearHandle = true; break;
+        }
+    }
+    c.style.cursor = nearHandle ? 'se-resize' : (dragging ? 'grabbing' : 'crosshair');
+}
+
+function onPlantaMouseUp() {
+    if (modoDibujoRecorrido) {
+        dibujandoTrazo = false;
+        if (trazoRecorridoPlanta.length > 1) {
+            document.getElementById('btnUsarTrazo')?.style && (document.getElementById('btnUsarTrazo').style.display = 'block');
+        }
+        return;
+    }
+    dragging  = false;
+    resizing  = false;
+    resizeModulo = null;
+    vanoArrastrando = null;
+}
+
+function seleccionarModulo(id) {
+    moduloSeleccionado = modulosPlanta.find(m => m.id === id);
+    if (!moduloSeleccionado) return;
+    const panel = document.getElementById('panelPropiedades');
+    panel.style.display = 'flex';
+    document.getElementById('propNombre').textContent      = moduloSeleccionado.nombre;
+    document.getElementById('propNombreInput').value       = moduloSeleccionado.nombre;
+    document.getElementById('propAncho').value             = moduloSeleccionado.ancho;
+    document.getElementById('propLargo').value             = moduloSeleccionado.largo;
+    document.getElementById('propAlto').value              = moduloSeleccionado.alto;
+    document.getElementById('propMaterialPiso').value      = moduloSeleccionado.materialPiso || 'ceramica';
+    document.getElementById('propColorPared').value        = moduloSeleccionado.colorPared || '#F5F5F5';
+    marcarPaleta('planta', moduloSeleccionado.colorPared);
+    marcarTexturas('planta', moduloSeleccionado.texturaPared || null);
+    marcarLadoTextura('planta', moduloSeleccionado.texturaLado || 'adentro');
+
+    // Campos específicos de estructura. Una viga cuelga (necesita altura base y
+    // peralte); una columna solo necesita saber si es cuadrada o redonda.
+    const esViga    = moduloSeleccionado.tipo === 'viga';
+    const esColumna = moduloSeleccionado.tipo === 'columna';
+    const esPlafon  = moduloSeleccionado.tipo === 'plafon';
+    document.getElementById('contViga').style.display    = esViga ? 'block' : 'none';
+    document.getElementById('contColumna').style.display = esColumna ? 'block' : 'none';
+    document.getElementById('contPlafon').style.display  = esPlafon ? 'block' : 'none';
+    const esCub = moduloSeleccionado.tipo === 'cubierta';
+    document.getElementById('contCubierta').style.display = esCub ? 'block' : 'none';
+    const esExt = moduloSeleccionado.tipo === 'exterior';
+    document.getElementById('contExterior').style.display = esExt ? 'flex' : 'none';
+    const esEsc = moduloSeleccionado.tipo === 'escalera';
+    document.getElementById('contEscalera').style.display = esEsc ? 'flex' : 'none';
+    const esHueco = moduloSeleccionado.tipo === 'hueco';
+    document.getElementById('contHueco').style.display = esHueco ? 'block' : 'none';
+    const esBar = moduloSeleccionado.tipo === 'baranda';
+    document.getElementById('contBaranda').style.display = esBar ? 'flex' : 'none';
+    if (esBar) {
+        document.getElementById('propMatBaranda').value  = moduloSeleccionado.materialBaranda || 'metalica';
+        document.getElementById('propAltoBaranda').value = moduloSeleccionado.alturaBaranda ?? 0.95;
+        document.getElementById('propBaseBaranda').value = moduloSeleccionado.baseBaranda ?? 0;
+    }
+    if (esEsc) {
+        const m = moduloSeleccionado;
+        document.getElementById('propFormaEsc').value    = m.formaEscalera || 'recta';
+        document.getElementById('propArranqueEsc').value = m.arranque || 'sur';
+        document.getElementById('propGiroEsc').value     = m.giro || 'der';
+        document.getElementById('propAltoEsc').value     = m.alturaSubir ?? alturaEntrepiso;
+        document.getElementById('propTramoEsc').value    = m.anchoTramo ?? 0.9;
+        document.getElementById('propEstiloEsc').value   = m.estiloEscalera || 'maciza';
+        document.getElementById('propAcabadoEsc').value  = m.acabado || 'concreto';
+        document.getElementById('propBarandaEsc').value = barandaDe(m);
+        document.getElementById('filaGiroEsc').style.display  = (m.formaEscalera || 'recta') === 'recta' ? 'none' : '';
+        document.getElementById('filaTramoEsc').style.display = ['L', 'U'].includes(m.formaEscalera) ? '' : 'none';
+    }
+    // Un piso exterior no tiene "alto" de muro: su tercer eje es el espesor
+    document.getElementById('propAlto').parentElement.style.display = (esExt || esEsc || esHueco || esBar) ? 'none' : '';
+    document.getElementById('propColorPared').parentElement.style.display = (esExt || esEsc || esHueco || esBar) ? 'none' : '';
+    if (esExt) {
+        document.getElementById('propSubtipoExt').value = moduloSeleccionado.subtipo  || 'anden';
+        document.getElementById('propAcabadoExt').value = moduloSeleccionado.acabado  || 'concreto';
+        document.getElementById('propEspesorExt').value = moduloSeleccionado.espesor  ?? 0.10;
+        document.getElementById('propNivelExt').value   = moduloSeleccionado.nivelExt ?? 0;
+    }
+    if (esCub) {
+        document.getElementById('propTipoTecho').value   = moduloSeleccionado.tipoTecho   || 'dos_aguas';
+        document.getElementById('propPendiente').value   = moduloSeleccionado.pendiente   ?? 35;
+        document.getElementById('propVoladizo').value    = moduloSeleccionado.voladizo    ?? 0.5;
+        document.getElementById('propAlturaCub').value   = moduloSeleccionado.alturaBase  ?? 2.6;
+        document.getElementById('propOrientacion').value = String(moduloSeleccionado.orientacion ?? 0);
+        infoDeCubierta();
+    }
+    if (esPlafon) {
+        document.getElementById('propDescuelgue').value  = moduloSeleccionado.descuelgue ?? 0.25;
+        document.getElementById('propFormaPlafon').value = moduloSeleccionado.forma || 'rect';
+        document.getElementById('propEspesor').value     = moduloSeleccionado.espesor ?? 0.10;
+    }
+    if (esViga) {
+        document.getElementById('propAlturaBase').value = moduloSeleccionado.alturaBase ?? 2.2;
+        document.getElementById('propPeralte').value    = moduloSeleccionado.peralte    ?? 0.4;
+    }
+    if (esColumna) {
+        document.getElementById('propFormaColumna').value = moduloSeleccionado.forma || 'cuadrada';
+    }
+
+    renderPortafolioPisoModulo();
+    calcularMaterialModulo();
+    // Columna, viga, pared y vidrio no tienen piso propio — esconder esos campos
+    // para no ofrecer cerámica sobre una viga.
+    if (!esCuarto(moduloSeleccionado.tipo)) {
+        const cg = document.getElementById('contPisoGenerico');
+        const cw = document.getElementById('contPortafolioPisoWrap');
+        if (cg) cg.style.display = 'none';
+        if (cw) cw.style.display = 'none';
+    } else {
+        const cw = document.getElementById('contPortafolioPisoWrap');
+        if (cw) cw.style.display = 'block';
+    }
+    dibujarPlanta();
+    actualizarListaModulos();
+}
+
+function renderPortafolioPisoModulo() {
+    const cont = document.getElementById('propPortafolioPiso');
+    const contGenerico = document.getElementById('contPisoGenerico');
+    if (!cont || !moduloSeleccionado) return;
+    if (moduloSeleccionado.imagenPisoId) {
+        const prod = (todosProductos || []).find(p => p.id === moduloSeleccionado.imagenPisoId);
+        cont.innerHTML = `
+            <div style="display:flex;align-items:center;gap:8px;padding:6px;border-radius:8px;background:rgba(124,58,237,0.2);border:1px solid rgba(124,58,237,0.4);">
+                <img src="${esc(moduloSeleccionado.imagenPisoUrl)}" style="width:32px;height:32px;border-radius:6px;object-fit:cover;flex-shrink:0;">
+                <span style="font-size:11px;color:var(--texto);flex:1;">${esc(prod?.nombre || 'Producto del portafolio')}</span>
+                <button onclick="quitarPortafolioPiso()" style="background:rgba(239,68,68,0.15);border:none;color:#FCA5A5;border-radius:5px;padding:4px 7px;font-size:10px;cursor:pointer;">✕</button>
+            </div>`;
+        // Ya hay un piso REAL asignado — el selector genérico se esconde para
+        // no mostrar dos valores distintos ("Cerámica" vs el producto real).
+        if (contGenerico) contGenerico.style.display = 'none';
+    } else {
+        cont.innerHTML = `<div style="font-size:11px;color:var(--gris);line-height:1.4;">Sin asignar — haz clic en un piso/enchape del panel derecho (👉) mientras este módulo esté seleccionado.</div>`;
+        if (contGenerico) contGenerico.style.display = 'block';
+    }
+}
+
+// Cuánto producto lleva un área: cajas si el producto tiene rendimiento por
+// caja, si no m² directos. Incluye el desperdicio del producto (10 % si no
+// tiene). La usan el panel de Propiedades y el carrito: mismos números.
+function cantidadProducto(prod, areaM2) {
+    const desperdicio = (prod.desperdicio_pct ?? 10) / 100;
+    const areaCon = areaM2 * (1 + desperdicio);
+    if (prod.rendimiento_m2 && prod.rendimiento_m2 > 0) {
+        const cajas = Math.ceil(areaCon / prod.rendimiento_m2);
+        return { cantidad: cajas, unidad: cajas === 1 ? 'caja' : 'cajas', precioUnidad: prod.precio || 0,
+                 subtotal: cajas * (prod.precio || 0), texto: `${cajas} caja${cajas === 1 ? '' : 's'} (${prod.rendimiento_m2} m²/caja)`, desperdicio, areaCon };
+    }
+    const m2 = Math.round(areaCon * 100) / 100;
+    return { cantidad: m2, unidad: prod.unidad || 'm²', precioUnidad: prod.precio || 0,
+             subtotal: areaCon * (prod.precio || 0), texto: `${areaCon.toFixed(2)} m²`, desperdicio, areaCon };
+}
+
+function calcularCementoArena(areaM2, espesorCm, proporcion) {
+    // Fórmula estándar de dosificación de mortero por volumen (obra civil):
+    // 1) volumen de mortero compactado = área × espesor
+    // 2) factor de contracción ~1.33 — el material suelto (antes de mezclar) ocupa más volumen
+    //    que el mortero ya compactado, por los vacíos entre partículas
+    // 3) se reparte ese volumen suelto entre cemento y arena según la proporción 1:P
+    // 4) 1 bulto de cemento de 50kg ≈ 0.04 m³ suelto (densidad aparente ~1250 kg/m³)
+    const volumenMortero = areaM2 * (espesorCm / 100);
+    const FACTOR_CONTRACCION = 1.33;
+    const volumenSecoTotal = volumenMortero * FACTOR_CONTRACCION;
+    const partesTotal = 1 + proporcion;
+    const volumenCemento = volumenSecoTotal * (1 / partesTotal);
+    const volumenArena   = volumenSecoTotal * (proporcion / partesTotal);
+    const bultosCemento = Math.ceil(volumenCemento / 0.04);
+    return { bultosCemento, arenaM3: volumenArena };
+}
+
+// Concreto y acero de un elemento estructural. Las cuantías son las de una
+// vivienda de 1 a 3 pisos en Colombia; para algo más grande esto lo define un
+// calculista, así que se avisa.
+function calcularMaterialEstructura(m) {
+    const esViga = m.tipo === 'viga';
+    const altoEl = esViga ? (m.peralte ?? 0.40) : (m.alto || 2.6);
+    const esRedonda = !esViga && m.forma === 'redonda';
+    const seccion = esRedonda
+        ? Math.PI * Math.pow(Math.max(m.ancho, m.largo) / 2, 2)
+        : m.ancho * (esViga ? m.ancho : m.largo);
+    const volumen = esRedonda ? seccion * altoEl : seccion * (esViga ? m.largo : altoEl);
+
+    // Concreto de 3000 psi, dosificación 1:2:3 por volumen
+    const FACTOR = 1.54;                        // esponjamiento del material suelto
+    const bultos = Math.ceil(volumen * FACTOR / 6 * 1 / 0.04);
+    const arena  = volumen * FACTOR * 2 / 6;
+    const grava  = volumen * FACTOR * 3 / 6;
+    // Cuantía de acero típica: 80 kg/m³ en columnas, 110 en vigas
+    const acero  = volumen * (esViga ? 110 : 80);
+    // Formaleta: superficie lateral a encofrar
+    const perim  = esRedonda ? Math.PI * Math.max(m.ancho, m.largo) : 2 * (m.ancho + (esViga ? m.ancho : m.largo));
+    const formaleta = perim * (esViga ? m.largo : altoEl);
+    return { volumen, bultos, arena, grava, acero, formaleta };
+}
+
+// Cantidades para presupuestar un piso exterior según su acabado.
+function htmlMaterialExterior(m) {
+    const area = m.ancho * m.largo, esp = m.espesor ?? 0.10, ac = m.acabado || 'concreto';
+    const f = (n, d = 2) => n.toLocaleString('es-CO', { maximumFractionDigits: d });
+    let filas = [`Área: <b>${f(area)} m²</b>`];
+    if (ac === 'concreto') {
+        const r = calcularMaterialEstructura({ tipo:'columna', ancho: m.ancho, largo: m.largo, alto: esp });
+        filas.push(`Concreto: <b>${f(r.volumen, 3)} m³</b>`,
+                   `Cemento: <b>${r.bultos} bulto${r.bultos === 1 ? '' : 's'} de 50 kg</b>`,
+                   `Arena: <b>${f(r.arena, 3)} m³</b> · Grava: <b>${f(r.grava, 3)} m³</b>`,
+                   `Malla electrosoldada: <b>${f(area * 1.1, 1)} m²</b>`);
+    } else if (ac === 'adoquin') {
+        const und = Math.ceil(area * 50 * 1.05);
+        filas.push(`Adoquines de 20×10 cm: <b>${und.toLocaleString('es-CO')}</b> (50 por m² + 5 %)`,
+                   `Arena de base (4 cm): <b>${f(area * 0.04, 3)} m³</b>`,
+                   `Arena de sello: <b>${f(area * 0.005, 3)} m³</b>`);
+    } else if (ac === 'baldosa') {
+        filas.push(`Baldosa: <b>${f(area * 1.10)} m²</b> (con 10 % de desperdicio)`,
+                   `Placa de concreto de base: <b>${f(area * 0.08, 3)} m³</b>`);
+    } else if (ac === 'gravilla') {
+        filas.push(`Gravilla: <b>${f(area * esp * 1.1, 3)} m³</b>`, `Geotextil: <b>${f(area * 1.1, 1)} m²</b>`);
+    } else if (ac === 'cesped') {
+        filas.push(`Grama en tapete: <b>${f(area * 1.05)} m²</b>`, `Tierra negra (5 cm): <b>${f(area * 0.05, 3)} m³</b>`);
+    } else if (ac === 'deck') {
+        filas.push(`Deck: <b>${f(area * 1.10)} m²</b>`,
+                   `Tablas de 14 cm: <b>${f(area / 0.145 * 1.1, 0)} metros lineales</b>`,
+                   `Durmientes cada 40 cm: <b>${f(area / 0.4 * 1.05, 0)} metros lineales</b>`);
+    }
+    return `
+        <div style="background:rgba(132,204,22,0.08);border:1px solid rgba(132,204,22,0.3);border-radius:10px;padding:10px;font-size:12px;">
+            <div style="font-weight:700;color:#D9F99D;margin-bottom:4px;">🌳 Material de ${m.nombre}</div>
+            ${filas.map(t => `<div style="color:var(--texto);">${t}</div>`).join('')}
+            <div style="color:var(--gris);font-size:10px;margin-top:6px;line-height:1.5;">Cantidades para presupuestar con rendimientos usuales en Colombia; confírmalas con quien va a construir.</div>
+        </div>`;
+}
+
+function calcularMaterialModulo() {
+    const cont = document.getElementById('calculoMaterialPiso');
+    if (!cont || !moduloSeleccionado) return;
+
+    // Columnas y vigas no llevan piso: lo suyo es concreto, acero y formaleta.
+    if (moduloSeleccionado.tipo === 'columna' || moduloSeleccionado.tipo === 'viga') {
+        const r = calcularMaterialEstructura(moduloSeleccionado);
+        const esViga = moduloSeleccionado.tipo === 'viga';
+        cont.innerHTML = `
+            <div style="background:rgba(168,162,158,0.1);border:1px solid rgba(168,162,158,0.3);border-radius:10px;padding:10px;font-size:12px;">
+                <div style="font-weight:700;color:#D6D3D1;margin-bottom:4px;">🏗️ Material de ${esViga ? 'la viga' : 'la columna'}</div>
+                <div style="color:var(--texto);">Volumen de concreto: <b>${r.volumen.toFixed(3)} m³</b></div>
+                <div style="color:var(--texto);">Cemento: <b>${r.bultos} bulto${r.bultos===1?'':'s'} de 50kg</b></div>
+                <div style="color:var(--texto);">Arena: <b>${r.arena.toFixed(3)} m³</b> · Grava: <b>${r.grava.toFixed(3)} m³</b></div>
+                <div style="color:var(--texto);">Acero de refuerzo: <b>${r.acero.toFixed(1)} kg</b></div>
+                <div style="color:var(--texto);">Formaleta: <b>${r.formaleta.toFixed(2)} m²</b></div>
+                <div style="color:var(--gris);font-size:10px;margin-top:6px;line-height:1.5;">Concreto 3000 psi en dosificación 1:2:3 y cuantía de acero de ${esViga?'110':'80'} kg/m³, valores usuales en vivienda de 1 a 3 pisos. <b>El refuerzo real lo define un ingeniero calculista</b>; esto sirve para presupuestar, no para construir.</div>
+            </div>`;
+        return;
+    }
+
+    if (moduloSeleccionado.tipo === 'exterior') {
+        cont.innerHTML = htmlMaterialExterior(moduloSeleccionado);
+        return;
+    }
+    if (moduloSeleccionado.tipo === 'escalera') {
+        cont.innerHTML = htmlMaterialEscalera(moduloSeleccionado);
+        return;
+    }
+    if (moduloSeleccionado.tipo === 'baranda') {
+        cont.innerHTML = htmlMaterialBaranda(moduloSeleccionado);
+        return;
+    }
+
+    const prodId = moduloSeleccionado.imagenPisoId;
+    if (!prodId) { cont.innerHTML = ''; return; }
+    const prod = (todosProductos || []).find(p => p.id === prodId);
+    if (!prod) { cont.innerHTML = ''; return; }
+
+    // El cálculo de materiales es exclusivo de Premium/Corporativo, con pago activo
+    if (rolUsuario === 'empresa' && (!['premium','corporativo'].includes(planEmpresaVisor) || estadoEmpresaVisor !== 'activo')) {
+        const pagoPendiente = ['premium','corporativo'].includes(planEmpresaVisor) && estadoEmpresaVisor !== 'activo';
+        cont.innerHTML = pagoPendiente ? `
+            <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:12px;font-size:12px;color:#FCD34D;">
+                ⏳ Tu plan ya incluye <b>Cálculo de materiales</b>, está pendiente de activación por pago.
+            </div>` : `
+            <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:12px;font-size:12px;color:#FCD34D;">
+                🔒 El <b>Cálculo de materiales</b> (cajas necesarias, cemento y arena) está disponible desde el plan <b>Premium</b>.
+                <a href="/dashboard#plan" target="_blank" style="color:#FCD34D;text-decoration:underline;">Ver planes →</a>
+            </div>`;
+        return;
+    }
+
+    const areaModulo = moduloSeleccionado.ancho * moduloSeleccionado.largo;
+    const calc = cantidadProducto(prod, areaModulo);
+    const desperdicio = calc.desperdicio;
+    const cantidadTexto = calc.texto, costoTotal = calc.subtotal;
+
+    // Cemento y arena para instalar este piso — busca en el portafolio de la tienda
+    // productos marcados como tipo_calculo='cemento_arena' con uso='piso'
+    const prodCemento = (todosProductos || []).find(p => p.tipo_calculo === 'cemento_arena' && p.datos_mortero?.material === 'cemento' && p.datos_mortero?.uso === 'piso');
+    const prodArena   = (todosProductos || []).find(p => p.tipo_calculo === 'cemento_arena' && p.datos_mortero?.material === 'arena'   && p.datos_mortero?.uso === 'piso');
+    let bloqueMortero = '';
+    if (prodCemento || prodArena) {
+        const espesor    = (prodCemento || prodArena).datos_mortero.espesor_cm || 2.5;
+        const proporcion = (prodCemento || prodArena).datos_mortero.proporcion || 4;
+        const { bultosCemento, arenaM3 } = calcularCementoArena(areaModulo, espesor, proporcion);
+        const costoCemento = prodCemento ? bultosCemento * (prodCemento.precio || 0) : null;
+        const costoArena   = prodArena   ? Math.ceil(arenaM3) * (prodArena.precio || 0) : null;
+        bloqueMortero = `
+            <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08);">
+                <div style="font-weight:700;color:#FCD34D;margin-bottom:4px;">🧱 Para instalarlo (mortero 1:${proporcion}, ${espesor}cm)</div>
+                <div style="color:var(--texto);">Cemento: <b>${bultosCemento} bulto${bultosCemento===1?'':'s'} de 50kg</b>${costoCemento!==null?` — $${Math.round(costoCemento).toLocaleString('es-CO')}`:' (agrega el producto cemento en tu catálogo para ver el costo)'}</div>
+                <div style="color:var(--texto);">Arena: <b>${arenaM3.toFixed(3)} m³</b>${costoArena!==null?` — $${Math.round(costoArena).toLocaleString('es-CO')}`:' (agrega el producto arena en tu catálogo para ver el costo)'}</div>
+                <div style="color:var(--gris);font-size:10px;margin-top:4px;">Estimado según tabla estándar de dosificación de obra — para instalaciones grandes, confirma con tu maestro de obra.</div>
+            </div>`;
+    }
+
+    cont.innerHTML = `
+        <div style="background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.25);border-radius:10px;padding:10px;font-size:12px;">
+            <div style="font-weight:700;color:#A78BFA;margin-bottom:4px;">📐 Material necesario</div>
+            <div style="color:var(--texto);">Área del cuarto: <b>${areaModulo.toFixed(2)} m²</b> (+${(desperdicio*100).toFixed(0)}% desperdicio)</div>
+            <div style="color:var(--texto);">Necesitas: <b>${cantidadTexto}</b></div>
+            <div style="color:#6EE7B7;font-weight:700;margin-top:4px;">Costo estimado: $${Math.round(costoTotal).toLocaleString('es-CO')}</div>
+            ${!prod.rendimiento_m2 ? '<div style="color:var(--gris);font-size:10.5px;margin-top:4px;">Este producto no tiene rendimiento por caja configurado — se calculó directo por m².</div>' : ''}
+            ${bloqueMortero}
+        </div>`;
+}
+
+function seleccionarPortafolioPiso(prodId) {
+    if (!moduloSeleccionado) return;
+    const prod = todosProductos.find(p => p.id === prodId);
+    if (!prod) return;
+    productosUsados.set(prod.id, prod);
+    moduloSeleccionado.imagenPisoId  = prod.id;
+    moduloSeleccionado.imagenPisoUrl = prod.imagen_url;
+    renderPortafolioPisoModulo();
+    calcularMaterialModulo();
+    mostrarToast(`🪵 "${prod.nombre}" asignado al piso de este módulo`);
+}
+
+function quitarPortafolioPiso() {
+    if (!moduloSeleccionado) return;
+    delete moduloSeleccionado.imagenPisoId;
+    delete moduloSeleccionado.imagenPisoUrl;
+    renderPortafolioPisoModulo();
+    calcularMaterialModulo();
+    mostrarToast('Piso genérico restaurado para este módulo');
+}
+
+function rotarModulo() {
+    if (!moduloSeleccionado) { mostrarToast('⚠️ Selecciona un módulo primero'); return; }
+    const anchoViejo = moduloSeleccionado.ancho;
+    moduloSeleccionado.ancho = moduloSeleccionado.largo;
+    moduloSeleccionado.largo = anchoViejo;
+    document.getElementById('propAncho').value = moduloSeleccionado.ancho;
+    document.getElementById('propLargo').value = moduloSeleccionado.largo;
+    dibujarPlanta();
+    actualizarListaModulos();
+    mostrarToast('🔄 Módulo rotado 90°');
+}
+
+function actualizarPropModulo() {
+    if (!moduloSeleccionado) return;
+    moduloSeleccionado.ancho        = parseFloat(document.getElementById('propAncho').value) || 4;
+    moduloSeleccionado.largo        = parseFloat(document.getElementById('propLargo').value) || 4;
+    moduloSeleccionado.alto         = parseFloat(document.getElementById('propAlto').value)  || 2.6;
+    moduloSeleccionado.materialPiso = document.getElementById('propMaterialPiso').value;
+    moduloSeleccionado.colorPared   = document.getElementById('propColorPared').value;
+    moduloSeleccionado.pinturaNombre = nombrePintura(moduloSeleccionado.colorPared);
+    if (moduloSeleccionado.tipo === 'viga') {
+        moduloSeleccionado.alturaBase = parseFloat(document.getElementById('propAlturaBase').value) || 0;
+        moduloSeleccionado.peralte    = parseFloat(document.getElementById('propPeralte').value)    || 0.4;
+    }
+    if (moduloSeleccionado.tipo === 'columna') {
+        moduloSeleccionado.forma = document.getElementById('propFormaColumna').value;
+    }
+    if (moduloSeleccionado.tipo === 'baranda') {
+        const m = moduloSeleccionado;
+        const h = parseFloat(document.getElementById('propAltoBaranda').value), b0 = parseFloat(document.getElementById('propBaseBaranda').value);
+        m.materialBaranda = document.getElementById('propMatBaranda').value;
+        if (Number.isFinite(h))  m.alturaBaranda = Math.min(1.5, Math.max(0.6, h));
+        if (Number.isFinite(b0)) m.baseBaranda   = Math.min(3, Math.max(-1.5, b0));
+        calcularMaterialModulo();
+    }
+    if (moduloSeleccionado.tipo === 'escalera') {
+        const m = moduloSeleccionado;
+        const alto = parseFloat(document.getElementById('propAltoEsc').value);
+        const tramo = parseFloat(document.getElementById('propTramoEsc').value);
+        // Pasar de norte/sur a este/oeste gira el recorrido 90°: se giran también
+        // las medidas del módulo para que la escalera no quede recorriendo el lado corto.
+        const nuevoArr = document.getElementById('propArranqueEsc').value;
+        const lateral = a => a === 'este' || a === 'oeste';
+        if (lateral(nuevoArr) !== lateral(m.arranque || 'sur')) {
+            [m.ancho, m.largo] = [m.largo, m.ancho];
+            document.getElementById('propAncho').value = m.ancho;
+            document.getElementById('propLargo').value = m.largo;
+        }
+        m.arranque       = nuevoArr;
+        m.giro           = document.getElementById('propGiroEsc').value;
+        m.estiloEscalera = document.getElementById('propEstiloEsc').value;
+        m.acabado        = document.getElementById('propAcabadoEsc').value;
+        m.barandaLado    = document.getElementById('propBarandaEsc').value;
+        m.baranda        = m.barandaLado !== 'ninguna';
+        if (Number.isFinite(alto))  m.alturaSubir = Math.min(6, Math.max(0.3, alto));
+        if (Number.isFinite(tramo)) m.anchoTramo  = Math.min(2, Math.max(0.6, tramo));
+        calcularMaterialModulo();
+    }
+    if (moduloSeleccionado.tipo === 'exterior') {
+        const esp = parseFloat(document.getElementById('propEspesorExt').value);
+        const niv = parseFloat(document.getElementById('propNivelExt').value);
+        moduloSeleccionado.acabado  = document.getElementById('propAcabadoExt').value;
+        moduloSeleccionado.espesor  = Number.isFinite(esp) ? Math.min(0.5, Math.max(0.02, esp)) : 0.10;
+        moduloSeleccionado.nivelExt = Number.isFinite(niv) ? Math.min(1.5, Math.max(-1.5, niv)) : 0;
+        calcularMaterialModulo();
+    }
+    if (moduloSeleccionado.tipo === 'cubierta') {
+        moduloSeleccionado.tipoTecho   = document.getElementById('propTipoTecho').value;
+        moduloSeleccionado.pendiente   = parseFloat(document.getElementById('propPendiente').value) || 0;
+        moduloSeleccionado.voladizo    = parseFloat(document.getElementById('propVoladizo').value)  || 0;
+        moduloSeleccionado.alturaBase  = parseFloat(document.getElementById('propAlturaCub').value) || 2.6;
+        moduloSeleccionado.orientacion = parseInt(document.getElementById('propOrientacion').value, 10) || 0;
+        infoDeCubierta();
+    }
+    if (moduloSeleccionado.tipo === 'plafon') {
+        moduloSeleccionado.descuelgue = parseFloat(document.getElementById('propDescuelgue').value) || 0.25;
+        moduloSeleccionado.forma      = document.getElementById('propFormaPlafon').value;
+        moduloSeleccionado.espesor    = parseFloat(document.getElementById('propEspesor').value) || 0.10;
+    }
+    dibujarPlanta();
+}
+
+function actualizarNombreModulo() {
+    if (!moduloSeleccionado) return;
+    moduloSeleccionado.nombre = document.getElementById('propNombreInput').value;
+    document.getElementById('propNombre').textContent = moduloSeleccionado.nombre;
+    dibujarPlanta();
+    actualizarListaModulos();
+}
+
+function eliminarModuloSeleccionado() {
+    if (!moduloSeleccionado) return;
+    modulosPlanta = modulosPlanta.filter(m => m.id !== moduloSeleccionado.id);
+    moduloSeleccionado = null;
+    document.getElementById('panelPropiedades').style.display = 'none';
+    dibujarPlanta();
+    actualizarListaModulos();
+    if (!modulosPlanta.length) document.getElementById('plantaInstruccion').style.display = 'block';
+}
+
+function actualizarListaModulos() {
+    // Se recorta a lo que se está editando; ver la lista completa del edificio
+    // en un piso concreto solo confunde.
+    const lista = document.getElementById('listaModulos');
+    lista.innerHTML = modulosEditables().map(m => `
+        <button onclick="seleccionarModulo(${m.id})"
+            style="background:${moduloSeleccionado?.id===m.id?'rgba(124,58,237,0.3)':'rgba(124,58,237,0.1)'};
+            border:1px solid rgba(124,58,237,${moduloSeleccionado?.id===m.id?'0.6':'0.25'});
+            color:var(--texto);padding:4px 12px;border-radius:50px;font-size:12px;
+            font-weight:600;cursor:pointer;white-space:nowrap;">
+            ${esc(m.nombre)}
+        </button>`).join('');
+}
+
+function limpiarPlanta() {
+    if (!modulosPlanta.length) return;
+    if (!confirm('¿Limpiar todos los módulos?')) return;
+    modulosPlanta = [];
+    moduloSeleccionado = null;
+    document.getElementById('panelPropiedades').style.display = 'none';
+    document.getElementById('listaModulos').innerHTML = '';
+    document.getElementById('plantaInstruccion').style.display = 'block';
+    dibujarPlanta();
+}
+
+function generarDesdePlanta() {
+    if (!modulosPlanta.length) {
+        mostrarToast('⚠️ Agrega al menos un módulo');
+        return;
+    }
+    // Sincronizar x/z desde px/pz — px/pz es la posición real que se ve dibujada
+    // en el canvas; si un módulo nunca se arrastró, su x/z queda con el valor
+    // arbitrario de creación y desconectado del resto del plano.
+    modulosPlanta.forEach(m => {
+        m.x = +(m.px / ESCALA).toFixed(3);
+        m.z = +(m.pz / ESCALA).toFixed(3);
+    });
+    // Detectar paredes compartidas — por TRAMO exacto de solape, no por lado completo.
+    // Esto evita que un solape parcial (ej: un pasillo angosto tocando apenas una esquina
+    // de otro cuarto) borre la pared entera; solo se quita el tramo que realmente se toca.
+    const paredes_compartidas = [];
+    const TOL_CONTACTO = 0.15; // tolerancia de alineación física entre paredes (15cm)
+    const MIN_SOLAPE   = 0.05; // ignorar contactos de menos de 5cm (ruido de arrastre)
+    for (let i = 0; i < modulosPlanta.length; i++) {
+        for (let j = i+1; j < modulosPlanta.length; j++) {
+            const a = modulosPlanta[i];
+            const b = modulosPlanta[j];
+            if (!esCuarto(a.tipo) || !esCuarto(b.tipo)) continue; // pared/vidrio/columna/viga/plafón nunca abren un hueco en el cuarto vecino
+            if (nivelDe(a) !== nivelDe(b)) continue;               // dos cuartos en pisos distintos no comparten pared
+
+            // Pared norte de A = sur de B (contacto en Z, tramo compartido en X)
+            if (Math.abs(a.z - (b.z + b.largo)) < TOL_CONTACTO) {
+                const ini = Math.max(a.x, b.x), fin = Math.min(a.x+a.ancho, b.x+b.ancho);
+                if (fin - ini > MIN_SOLAPE) paredes_compartidas.push({ modulo_a: a.id, modulo_b: b.id, lado:'norte', ini, fin });
+            }
+            // Pared sur de A = norte de B
+            if (Math.abs((a.z + a.largo) - b.z) < TOL_CONTACTO) {
+                const ini = Math.max(a.x, b.x), fin = Math.min(a.x+a.ancho, b.x+b.ancho);
+                if (fin - ini > MIN_SOLAPE) paredes_compartidas.push({ modulo_a: a.id, modulo_b: b.id, lado:'sur', ini, fin });
+            }
+            // Pared oeste de A = este de B (contacto en X, tramo compartido en Z)
+            if (Math.abs(a.x - (b.x + b.ancho)) < TOL_CONTACTO) {
+                const ini = Math.max(a.z, b.z), fin = Math.min(a.z+a.largo, b.z+b.largo);
+                if (fin - ini > MIN_SOLAPE) paredes_compartidas.push({ modulo_a: a.id, modulo_b: b.id, lado:'oeste', ini, fin });
+            }
+            // Pared este de A = oeste de B
+            if (Math.abs((a.x + a.ancho) - b.x) < TOL_CONTACTO) {
+                const ini = Math.max(a.z, b.z), fin = Math.min(a.z+a.largo, b.z+b.largo);
+                if (fin - ini > MIN_SOLAPE) paredes_compartidas.push({ modulo_a: a.id, modulo_b: b.id, lado:'este', ini, fin });
+            }
+        }
+    }
+
+    // ── VANOS (puertas / pasos entre zonas) ──────────────────────────────
+    // Antes, al detectar dos zonas que se tocan, se borraba TODO el tramo de
+    // contacto — si una alcoba de 4m tocaba el pasillo, desaparecían los 4
+    // metros de pared. En un apartamento real hay una pared con una puerta.
+    // Ahora cada contacto genera un VANO de 90cm (puerta estándar en Colombia)
+    // que el diseñador puede mover, ensanchar, o borrar; y puede agregar más
+    // vanos en la misma pared (caso real: un baño con dos puertas).
+    const ANCHO_VANO_DEFECTO = 0.9;
+    paredes_compartidas.forEach(pc => {
+        const yaExiste = vanosPlanta.some(v => v.modulo_a === pc.modulo_a && v.modulo_b === pc.modulo_b && v.lado === pc.lado);
+        if (yaExiste) return;
+        if (murosCerrados.has(claveMuro(pc))) return;   // el usuario lo dejó cerrado a propósito
+        const largoContacto = pc.fin - pc.ini;
+        const anchoVano = Math.min(ANCHO_VANO_DEFECTO, Math.max(0.6, largoContacto - 0.2));
+        vanosPlanta.push({
+            id: 'v_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+            modulo_a: pc.modulo_a, modulo_b: pc.modulo_b, lado: pc.lado,
+            nivel: nivelDe(modulosPlanta.find(m => m.id === pc.modulo_a)) || 0,
+            centro: (pc.ini + pc.fin) / 2,   // posición a lo largo de la pared, en metros
+            ancho: anchoVano,
+            // 'arco'   = paso libre de piso a techo
+            // 'vano'   = hueco con dintel y marco, sin hoja
+            // 'puerta' = marco + hoja abrible
+            tipo: 'arco',
+            alto: 2.1,                        // aplica a 'vano' y 'puerta'
+            bisagra: 'izq',                   // 'izq' | 'der' — de qué extremo del vano cuelga
+            sentido: 'dentro',                // 'dentro' | 'fuera' — hacia qué lado barre
+            anguloApertura: 75,               // grados
+            abierta: true,
+            limIni: pc.ini, limFin: pc.fin,   // hasta dónde se puede deslizar sobre esa pared
+        });
+    });
+    // Descartar vanos cuyas zonas ya no se tocan (el usuario movió un módulo).
+    // Los vanos hacia un piso exterior (andén, patio…) se validan con sus
+    // propios contactos: no están en paredes_compartidas porque ese muro es fachada.
+    const contactosExt = contactosPlanta().filter(c => c.exterior);
+    vanosPlanta = vanosPlanta.filter(v =>
+        paredes_compartidas.some(pc => pc.modulo_a === v.modulo_a && pc.modulo_b === v.modulo_b && pc.lado === v.lado) ||
+        contactosExt.some(c => claveMuro(c) === claveMuro(v)) ||
+        (v.libre && modulosPlanta.some(m => m.id === v.modulo_a))   // puerta libre: vive mientras exista su cuarto
+    );
+
+    const modelo3d = {
+        alto_piso: modulosPlanta[0]?.alto || 2.6,
+        modulos: modulosPlanta.map(m => ({
+            id:        m.id,
+            nombre:    m.nombre,
+            tipo:      m.tipo,
+            x:         m.x,
+            z:         m.z,
+            ancho:     m.ancho,
+            largo:     m.largo,
+            alto:      m.alto,
+            color_pared:    m.colorPared   || '#F5F5F5',
+            material_piso:  m.materialPiso || (m.tipo === 'bano' ? 'ceramica' : 'ceramica'),
+            imagen_piso:    m.imagenPisoUrl || null,
+            paredes_eliminadas: m.paredesEliminadas || [],
+            diseno_paredes:     m.disenoParedes || null,   // editor de pared: placas, enchapes y pintura por lado
+            // estructura
+            forma:       m.forma       || null,   // columna: 'cuadrada'|'redonda' — plafón: 'rect'|'circulo'|'L'
+            altura_base: m.alturaBase  ?? null,   // viga: desde el piso hasta su cara inferior
+            peralte:     m.peralte     ?? null,   // viga: canto
+            descuelgue:  m.descuelgue  ?? null,   // plafón: cuánto baja del techo
+            tipo_techo:  m.tipoTecho   || null,   // cubierta
+            pendiente:   m.pendiente   ?? null,
+            voladizo:    m.voladizo    ?? null,
+            orientacion: m.orientacion ?? null,
+            espesor:     m.espesor     ?? null,   // plafón: canto — piso exterior: grosor de la placa
+            subtipo:     m.subtipo     || null,   // piso exterior: anden | losa | patio | zona_verde | terraza
+            acabado:     m.acabado     || null,   // piso exterior: concreto | adoquin | baldosa | gravilla | cesped | deck
+            nivel_exterior: m.nivelExt ?? null,   // piso exterior: cara de arriba respecto al piso de la casa
+            baranda: m.tipo === 'baranda' ? { material: m.materialBaranda || 'metalica', alto: m.alturaBaranda ?? 0.95, base: m.baseBaranda ?? 0 } : null,
+            escalera: m.tipo === 'escalera' ? { forma: m.formaEscalera, arranque: m.arranque, giro: m.giro, alto: m.alturaSubir,
+                tramo: m.anchoTramo, estilo: m.estiloEscalera, acabado: m.acabado, baranda: m.baranda !== false, barandaLado: barandaDe(m) } : null,
+            nivel:       nivelDe(m),
+            capa:        capaDe(m),
+        })),
+        niveles:          nivelesTotales,
+        altura_entrepiso: alturaEntrepiso,
+        paredes_compartidas,
+        vanos: vanosPlanta,
+        // Envolvente del proyecto — techos interiores y tratamiento de fachada
+        envolvente: {
+            techos:           configEnvolvente.techos,
+            material_techo:   configEnvolvente.materialTecho,
+            color_techo:      configEnvolvente.colorTecho,
+            fachada:          configEnvolvente.fachada,
+            material_fachada: configEnvolvente.materialFachada,
+            color_fachada:    configEnvolvente.colorFachada,
+            grueso_fachada:   configEnvolvente.gruesoFachada,
+            cubierta:         configEnvolvente.cubierta,
+            pendiente:        configEnvolvente.pendiente,
+            alero:            configEnvolvente.alero,
+            girar_cubierta:   configEnvolvente.girarCubierta,
+        }
+    };
+
+    firmaUltimo3D = firmaPlanta();
+    mostrarToast(`✨ Generando 3D con ${modulosPlanta.length} módulos...`);
+    cambiarVista('3d');
+    setTimeout(() => cargarDesdePlano(modelo3d), 300);
+}
+// ── CARGAR PLANO DESDE SUPABASE (via ?plano=ID) ──────────────────────────
+async function cargarPlanoDesdeBD(planoId) {
+    try {
+        mostrarToast('📐 Cargando tu plano 3D...');
+        const { data, error } = await db.from('modelos_3d_plano')
+            .select('modelo_json, plano_info')
+            .eq('id', planoId)
+            .maybeSingle();
+
+        if (error || !data) {
+            mostrarToast('❌ No se encontró el plano');
+            return;
+        }
+
+        const modelo3d = JSON.parse(data.modelo_json);
+        cargarDesdePlano(modelo3d);
+        mostrarToast('✅ ¡Plano 3D cargado!');
+    } catch(e) {
+        console.error('Error cargando plano:', e);
+        mostrarToast('❌ Error cargando el plano');
+    }
+}
+
+function restarIntervalos(ini, fin, huecos) {
+    let segmentos = [[ini, fin]];
+    huecos.forEach(([hIni, hFin]) => {
+        const nuevos = [];
+        segmentos.forEach(([sIni, sFin]) => {
+            if (hFin <= sIni || hIni >= sFin) { nuevos.push([sIni, sFin]); return; }
+            if (hIni > sIni) nuevos.push([sIni, Math.min(hIni, sFin)]);
+            if (hFin < sFin) nuevos.push([Math.max(hFin, sIni), sFin]);
+        });
+        segmentos = nuevos;
+    });
+    return segmentos.filter(([a,b]) => (b - a) > 0.05);
+}
+
+// Toma todo lo que se acaba de añadir a la escena y lo mete en un Group con
+// el pivote en el centro que se le indique. Sin esto, un cuarto son ocho o
+// diez mallas sueltas colgando de la escena: se ve como un cuarto pero no se
+// puede agarrar como un cuarto. Con el pivote propio, girarlo lo gira sobre
+// su centro y no sobre el origen del mundo, que es lo que uno espera.
+function agruparEnPivote(desdeIndice, centro, datos) {
+    const nuevos = scene.children.slice(desdeIndice);
+    if (!nuevos.length) return null;
+    const g = new THREE.Group();
+    g.position.copy(centro);
+    // add() reparenta solo; hay que pasar las posiciones a coordenadas
+    // locales restando el centro, si no todo salta al doble de distancia.
+    nuevos.forEach(o => { o.position.sub(centro); g.add(o); });
+    g.userData = datos;
+    scene.add(g);
+    return g;
+}
+
+function cargarDesdePlano(modelo3d) {
+    if (!modelo3d || !modelo3d.modulos || !modelo3d.modulos.length) {
+        mostrarToast('⚠️ El plano no tiene módulos válidos');
+        return;
+    }
+
+    salaConstruida = true;
+    if (typeof actualizarPanelDerecho === 'function') actualizarPanelDerecho();
+    const _vacioEl = document.getElementById('entorno3dVacio');
+    if (_vacioEl) _vacioEl.style.display = 'none';
+
+    // Guardar qué mobiliario/ventanas estaban activos para restaurarlos después (con posición y huecos)
+    const mobiliarioActivoAntes = capturarEstadoMobiliario();
+
+    // Limpiar escena actual
+    const aEliminar = [];
+    scene.traverse(obj => {
+        // El gizmo de edición vive en la escena: si entra aquí se borra al
+        // regenerar y quedan listeners apuntando a un objeto muerto.
+        if (obj === gizmo || (obj.parent && obj.parent === gizmo)) return;
+        // El recorrido, las trayectorias grabadas y el marcador de cámara son
+        // trabajo del usuario: sobreviven a regenerar el plano.
+        if (esPersistente(obj)) return;
+        if (obj.isMesh || obj.isGroup || obj.isSprite) aEliminar.push(obj);
+    });
+    aEliminar.forEach(obj => scene.remove(obj));
+    meshes = {};
+    mobiliarioMeshes = {};
+    limpiarHuecosVentana();
+
+    const modulos  = modelo3d.modulos;
+    const altoPiso = modelo3d.alto_piso || 2.6;
+    const paredes_compartidas = modelo3d.paredes_compartidas || [];
+    const vanosDelPlano       = modelo3d.vanos || [];
+    const hEntrepiso          = modelo3d.altura_entrepiso || 2.80;
+    // Cada nivel se levanta sobre el anterior. Todo lo que se dibuje de un
+    // módulo se desplaza por este valor, incluidas puertas y plafones.
+    const baseNivel = (mod) => (mod.nivel || 0) * hEntrepiso;
+
+    // Calcular centro del plano para centrar en Three.js
+    let maxX = 0, maxZ = 0;
+    modulos.forEach(m => {
+        if (m.x + m.ancho > maxX) maxX = m.x + m.ancho;
+        if (m.z + m.largo > maxZ) maxZ = m.z + m.largo;
+    });
+    const offsetX = maxX / 2;
+    const offsetZ = maxZ / 2;
+    modulosActuales3D = [];
+    paredesInteractivas = [];
+    pisosRaycastables = [];
+    techosPlanta   = [];
+    plafonesPlanta = [];
+    cubiertaPlanta = [];
+    puertasPlanta  = [];
+
+    // Config de envolvente guardada con el plano (si viene de Supabase)
+    if (modelo3d.envolvente) {
+        const e = modelo3d.envolvente;
+        configEnvolvente = {
+            ...configEnvolvente,
+            techos:          e.techos          ?? configEnvolvente.techos,
+            materialTecho:   e.material_techo  || configEnvolvente.materialTecho,
+            colorTecho:      e.color_techo     || configEnvolvente.colorTecho,
+            fachada:         e.fachada         ?? configEnvolvente.fachada,
+            materialFachada: e.material_fachada|| configEnvolvente.materialFachada,
+            colorFachada:    e.color_fachada   || configEnvolvente.colorFachada,
+            gruesoFachada:   e.grueso_fachada  ?? configEnvolvente.gruesoFachada,
+            cubierta:        e.cubierta        || configEnvolvente.cubierta,
+            pendiente:       e.pendiente       ?? configEnvolvente.pendiente,
+            alero:           e.alero           ?? configEnvolvente.alero,
+            girarCubierta:   e.girar_cubierta  ?? configEnvolvente.girarCubierta,
+        };
+        sincronizarUIEnvolvente();
+    }
+
+    // HUECOS (módulo "hueco"): rectángulos, en coordenadas del 3D, que se le
+    // restan al piso de su nivel y al techo del nivel de abajo (en el primer
+    // piso, al techo del mismo nivel: patio de luz).
+    const huecos3D = modulos.filter(m => m.tipo === 'hueco').map(m => ({
+        nivel: m.nivel || 0, x0: m.x - offsetX, x1: m.x - offsetX + m.ancho, z0: m.z - offsetZ, z1: m.z - offsetZ + m.largo }));
+    const huecosPiso  = nivel => nivel > 0 ? huecos3D.filter(h => h.nivel === nivel) : [];
+    const huecosTecho = nivel => huecos3D.filter(h => h.nivel === nivel + 1 || (h.nivel === 0 && nivel === 0));
+
+    // Construir cada módulo
+    modulos.forEach(mod => {
+        if (mod.tipo === 'hueco') return;   // no construye nada: le quita a los demás
+        const x      = mod.x - offsetX + mod.ancho / 2;
+        const z      = mod.z - offsetZ + mod.largo / 2;
+        const ancho  = mod.ancho;
+        const largo  = mod.largo;
+        const alto   = mod.alto || altoPiso;
+        const color  = mod.color_pared || '#F5F5F5';
+        const mat    = mod.material_piso || 'ceramica';
+        const baseY  = baseNivel(mod);
+        // Marca de dónde empieza este módulo, para poder agrupar al final
+        // todo lo que se le añada: piso, muros, revoques, dinteles y techo.
+        const marcaEscena = scene.children.length;
+        if (esCuarto(mod.tipo)) {
+            modulosActuales3D.push({ id: mod.id, nombre: mod.nombre, cx: x, cz: z, ancho, largo, alto, baseY, nivel: mod.nivel || 0, materialPiso: mat, imagenPisoUrl: mod.imagen_piso || null });
+        }
+
+        const matPared = new THREE.MeshStandardMaterial({
+            color: new THREE.Color(color), roughness: 0.85, metalness: 0.0
+        });
+
+        // ── CUBIERTA DIBUJADA COMO FIGURA ────────────────────────────────
+        // Cada figura del lienzo se convierte en un techo con su propia
+        // pendiente y orientación. Poner dos que se crucen da un techo en L,
+        // en T o en cruz sin tener que programar cada caso: se cruzan solos.
+        if (mod.tipo === 'cubierta') {
+            const vol   = mod.voladizo ?? 0.5;
+            const pend  = Math.max(0, (mod.pendiente ?? 35) / 100);
+            const yArr  = baseY + (mod.altura_base ?? 2.6);   // arranque del alero
+            const AN = ancho + vol*2, LA = largo + vol*2;
+            const t  = mod.tipo_techo || 'dos_aguas';
+            const esp = 0.12;
+            const matT = new THREE.MeshStandardMaterial({ color:0x8C3B2A, roughness:0.9, side:THREE.DoubleSide });
+            const matC = new THREE.MeshStandardMaterial({ color:0xD9CFC2, roughness:0.9, side:THREE.DoubleSide });
+            const g = new THREE.Group();
+
+            // Un faldón = una caja fina inclinada. `ejeZ` dice si la pendiente
+            // corre en Z o en X; `signo` hacia qué lado sube.
+            const faldon = (anchoF, corrida, subida, cx, cz, cy, ejeZ, signo) => {
+                const L = Math.hypot(corrida, subida);
+                const ang = Math.atan2(subida, corrida);
+                const geo = ejeZ ? new THREE.BoxGeometry(anchoF, esp, L)
+                                 : new THREE.BoxGeometry(L, esp, anchoF);
+                const m = new THREE.Mesh(geo, matT);
+                m.position.set(cx, cy, cz);
+                // El signo iba invertido: dejaba los aleros arriba y la cumbrera
+                // pegada al piso, o sea el techo al revés. Con signo positivo el
+                // borde de adentro sube (cumbrera) y el de afuera baja (alero).
+                if (ejeZ) m.rotation.x = signo * ang; else m.rotation.z = signo * ang;
+                g.add(m);
+            };
+            const culata = (pts, x) => {
+                const f = new THREE.Shape();
+                f.moveTo(pts[0][0], pts[0][1]);
+                pts.slice(1).forEach(q => f.lineTo(q[0], q[1]));
+                f.closePath();
+                const m = new THREE.Mesh(new THREE.ShapeGeometry(f), matC);
+                m.position.set(x, 0, 0); m.rotation.y = Math.PI/2;
+                g.add(m);
+            };
+
+            const mLA = LA/2, mAN = AN/2;
+            if (t === 'plana') {
+                const m = new THREE.Mesh(new THREE.BoxGeometry(AN, 0.18, LA), matT);
+                m.position.set(0, 0.09, 0); g.add(m);
+            } else if (t === 'un_agua') {
+                const sub = LA * pend;
+                faldon(AN, LA, sub, 0, 0, sub/2, true, 1);
+                [1,-1].forEach(sg => culata([[-mLA,0],[mLA,0],[mLA,sub]], sg*mAN));
+            } else if (t === 'dos_aguas') {
+                const sub = mLA * pend;
+                [1,-1].forEach(sg => faldon(AN, mLA, sub, 0, sg*mLA/2, sub/2, true, sg));
+                [1,-1].forEach(sg => culata([[-mLA,0],[mLA,0],[0,sub]], sg*mAN));
+            } else if (t === 'cuatro_aguas' || t === 'piramidal') {
+                const sub = Math.min(mLA, mAN) * pend;
+                const cab = t === 'piramidal' ? 0 : Math.max(0, LA - AN);
+                const corr = (LA - cab)/2;
+                [1,-1].forEach(sg => faldon(AN, corr, sub, 0, sg*(cab/2 + corr/2), sub/2, true, sg));
+                [1,-1].forEach(sg => faldon(LA, mAN, sub, sg*(mAN/2), 0, sub/2, false, -sg));
+                if (cab > 0.05) {
+                    const c = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.14, cab), matT);
+                    c.position.set(0, sub, 0); g.add(c);
+                }
+            }
+
+            g.position.set(x, yArr, z);
+            g.rotation.y = -(mod.orientacion ?? 0) * Math.PI/180;
+            g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+            g.userData = { tipoEstructura: 'cubierta', moduloId: mod.id, moduloNombre: mod.nombre };
+            scene.add(g);
+            cubiertaPlanta.push(g);
+            return;
+        }
+
+        // ── PLAFÓN / BANDEJA DE CIELO RASO ───────────────────────────────
+        // Cuelga del techo del cuarto que tenga debajo. Va aparte de la losa
+        // porque su gracia es justamente descolgarse de ella.
+        if (mod.tipo === 'plafon') {
+            const esp  = mod.espesor ?? 0.10;
+            const desc = mod.descuelgue ?? 0.25;
+            const yBase = baseY + alto - desc;   // cara inferior del plafón
+            const matPlafon = new THREE.MeshStandardMaterial({
+                color: new THREE.Color(mod.color_pared || '#F7F7F5'),
+                roughness: 0.92, metalness: 0.0,
+            });
+            const grupoP = new THREE.Group();
+            if (mod.forma === 'circulo') {
+                const r = Math.max(ancho, largo) / 2;
+                const cil = new THREE.Mesh(new THREE.CylinderGeometry(r, r, esp, 40), matPlafon);
+                cil.position.set(0, 0, 0);
+                grupoP.add(cil);
+            } else if (mod.forma === 'L') {
+                // La L se arma con dos cajas: es más robusto que extruir una
+                // forma y basta para una bandeja de cielo raso.
+                const a1 = new THREE.Mesh(new THREE.BoxGeometry(ancho, esp, largo/2), matPlafon);
+                a1.position.set(0, 0, -largo/4);
+                const a2 = new THREE.Mesh(new THREE.BoxGeometry(ancho/2, esp, largo/2), matPlafon);
+                a2.position.set(-ancho/4, 0, largo/4);
+                grupoP.add(a1); grupoP.add(a2);
+            } else {
+                grupoP.add(new THREE.Mesh(new THREE.BoxGeometry(ancho, esp, largo), matPlafon));
+            }
+            grupoP.position.set(x, yBase + esp/2, z);
+            grupoP.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+            grupoP.userData = { tipoEstructura: 'plafon', moduloId: mod.id, moduloNombre: mod.nombre };
+            // Un plafón lo dibujó el usuario a propósito: se ve siempre, y por
+            // eso se puede tocar con el gizmo sin tener que activar nada antes.
+            grupoP.visible = true;
+            scene.add(grupoP);
+            plafonesPlanta.push(grupoP);
+            return;
+        }
+
+        // ── Elementos que NO son cuartos: pared fija, divisor de vidrio,
+        //    COLUMNA (piso a techo) y VIGA (cuelga del techo) ──────────────
+        // ── BARANDA ──────────────────────────────────────────────────────
+        if (mod.tipo === 'baranda') {
+            scene.add(construirBaranda3D(mod, x, z, baseY));
+            return;
+        }
+        // ── ESCALERA ─────────────────────────────────────────────────────
+        if (mod.tipo === 'escalera') {
+            scene.add(construirEscalera3D(mod, x, z, baseY));
+            return;
+        }
+        // ── PISO EXTERIOR: placa acostada sobre el suelo ─────────────────
+        if (mod.tipo === 'exterior') {
+            const esp  = Math.max(0.02, mod.espesor ?? 0.10);
+            const tope = baseY + (mod.nivel_exterior ?? 0);        // cara de arriba
+            const mats = crearMaterialesExterior(mod.acabado || 'concreto', ancho, largo);
+            const placa = new THREE.Mesh(new THREE.BoxGeometry(ancho, esp, largo), mats);
+            placa.position.set(x, tope - esp / 2, z);
+            placa.receiveShadow = true;
+            placa.castShadow = esp > 0.06;
+            placa.userData = { moduloId: mod.id, moduloNombre: mod.nombre, tipoEstructura: 'exterior' };
+            scene.add(placa);
+            return;   // no lleva muros, techo ni etiqueta flotante
+        }
+
+        if (!esCuarto(mod.tipo)) {
+            const esVidrio  = mod.tipo === 'vidrio';
+            const esColumna = mod.tipo === 'columna';
+            const esViga    = mod.tipo === 'viga';
+
+            let matBloque;
+            if (esVidrio) {
+                matBloque = new THREE.MeshStandardMaterial({ color:0xCFE8F0, transparent:true, opacity:0.2, roughness:0.05, metalness:0.9, side:THREE.DoubleSide });
+            } else if (esColumna) {
+                // concreto a la vista — un poco más oscuro que la pared para que se lea como estructura
+                matBloque = new THREE.MeshStandardMaterial({ color:0xBDB8B2, roughness:0.9, metalness:0.0 });
+            } else if (esViga) {
+                matBloque = new THREE.MeshStandardMaterial({ color:0xC6BFB4, roughness:0.9, metalness:0.0 });
+            } else {
+                matBloque = matPared;
+            }
+
+            // Geometría y altura de montaje según el elemento
+            let geoBloque, yCentro, alturaTope;
+            if (esViga) {
+                const peralte    = mod.peralte     ?? 0.4;
+                const alturaBase = mod.altura_base ?? Math.max(0, alto - peralte);
+                geoBloque  = new THREE.BoxGeometry(ancho, peralte, largo);
+                yCentro    = alturaBase + peralte / 2;
+                alturaTope = alturaBase + peralte;
+            } else if (esColumna && mod.forma === 'redonda') {
+                const radio = Math.max(ancho, largo) / 2;
+                geoBloque  = new THREE.CylinderGeometry(radio, radio, alto, 24);
+                yCentro    = alto / 2;
+                alturaTope = alto;
+            } else {
+                geoBloque  = new THREE.BoxGeometry(ancho, alto, largo);
+                yCentro    = alto / 2;
+                alturaTope = alto;
+            }
+
+            const bloque = new THREE.Mesh(geoBloque, matBloque);
+            bloque.position.set(x, baseY + yCentro, z);
+            bloque.castShadow = !esVidrio;
+            bloque.receiveShadow = true;
+            bloque.userData = { moduloId: mod.id, tipoEstructura: mod.tipo };
+            scene.add(bloque);
+
+            const canvas2dP = document.createElement('canvas');
+            canvas2dP.width = 256; canvas2dP.height = 64;
+            const ctxP = canvas2dP.getContext('2d');
+            ctxP.fillStyle = esVidrio ? 'rgba(56,189,248,0.85)'
+                           : esColumna ? 'rgba(168,162,158,0.9)'
+                           : esViga    ? 'rgba(146,124,88,0.9)'
+                           : 'rgba(120,113,108,0.85)';
+            ctxP.roundRect(4, 4, 248, 56, 12);
+            ctxP.fill();
+            ctxP.fillStyle = 'white';
+            ctxP.font = 'bold 28px Segoe UI';
+            ctxP.textAlign = 'center';
+            ctxP.fillText(mod.nombre, 128, 40);
+            const texP = new THREE.CanvasTexture(canvas2dP);
+            const spriteP = new THREE.Sprite(new THREE.SpriteMaterial({ map: texP, transparent: true }));
+            spriteP.position.set(x, baseY + alturaTope + 0.35, z);
+            spriteP.scale.set(2.0, 0.5, 1);
+            soloEnEditor(spriteP);   // la etiqueta flotante es ayuda del editor: no sale en fotos ni video
+            scene.add(spriteP);
+            return; // no piso, no paredes huecas, no sigue con el resto del módulo
+        }
+
+        const matPiso  = crearMaterialPiso(mat);
+
+        // Piso del módulo — en pedazos si un hueco le quita un área
+        const rectCuarto = { x0: x - ancho / 2, x1: x + ancho / 2, z0: z - largo / 2, z1: z + largo / 2 };
+        restarHuecos(rectCuarto, huecosPiso(mod.nivel || 0)).forEach((r, i) => {
+            const pw = r.x1 - r.x0, pl = r.z1 - r.z0;
+            const piso = new THREE.Mesh(new THREE.BoxGeometry(pw, 0.1, pl), i === 0 ? matPiso : matPiso.clone());
+            piso.position.set((r.x0 + r.x1) / 2, baseY - 0.05, (r.z0 + r.z1) / 2);
+            piso.receiveShadow = true;
+            piso.userData = { moduloId: mod.id, moduloNombre: mod.nombre };
+            scene.add(piso);
+            pisosRaycastables.push(piso);
+            // Si el módulo tiene un piso del portafolio de la tienda asignado, se
+            // aplica con escala real de pieza y mapas de relieve derivados.
+            if (mod.imagen_piso) {
+                const prod = (typeof todosProductos !== 'undefined' ? todosProductos : [])
+                                .find(p => p.imagen_url === mod.imagen_piso);
+                aplicarMaterialFisico(piso, mod.imagen_piso, pw, pl, {
+                    pieza: tamanoPieza(prod, mat),
+                    tipo:  mat,
+                });
+            }
+        });
+
+        // Recolectar los VANOS de este módulo por lado. Antes se restaba el
+        // tramo COMPLETO de contacto (la pared entera desaparecía); ahora solo
+        // se resta el ancho de cada vano, que el diseñador controla.
+        const huecosPorLado = { norte:[], sur:[], oeste:[], este:[] };
+        const dintelesPorLado = { norte:[], sur:[], oeste:[], este:[] }; // vanos tipo puerta → llevan pared encima
+        const opuestoLado = { norte:'sur', sur:'norte', este:'oeste', oeste:'este' };
+        function offsetX_o_offsetZ(lado) { return (lado==='norte'||lado==='sur') ? offsetX : offsetZ; }
+
+        vanosDelPlano.forEach(v => {
+            let ladoEste = null;
+            if (v.modulo_a === mod.id)      ladoEste = v.lado;
+            else if (v.modulo_b === mod.id) ladoEste = opuestoLado[v.lado];
+            if (!ladoEste) return;
+            const off = offsetX_o_offsetZ(v.lado);
+            const ini = v.centro - v.ancho/2 - off;
+            const fin = v.centro + v.ancho/2 - off;
+            huecosPorLado[ladoEste].push([ini, fin]);
+            if (v.tipo === 'puerta') dintelesPorLado[ladoEste].push({ ini, fin, altoVano: v.alto || 2.1 });
+        });
+
+        // Paredes — cada lado se construye en segmentos, restando solo el tramo que se toca
+        const gruesoPared = 0.1;
+        const paredesConfig = [
+            { id:'norte', horizontal:true,  ini: x-ancho/2, fin: x+ancho/2, posPerp: z-largo/2 },
+            { id:'sur',   horizontal:true,  ini: x-ancho/2, fin: x+ancho/2, posPerp: z+largo/2 },
+            { id:'oeste', horizontal:false, ini: z-largo/2, fin: z+largo/2, posPerp: x-ancho/2 },
+            { id:'este',  horizontal:false, ini: z-largo/2, fin: z+largo/2, posPerp: x+ancho/2 },
+        ];
+
+        // ── ¿Qué tramos de cada lado dan al EXTERIOR? ────────────────────
+        // Un tramo es interior si otro cuarto lo está tocando (aparece en
+        // paredes_compartidas); todo lo demás da a la calle y por lo tanto
+        // lleva acabado de FACHADA y muro más grueso.
+        const contactoPorLado = { norte:[], sur:[], oeste:[], este:[] };
+        paredes_compartidas.forEach(pc => {
+            const off = (pc.lado === 'norte' || pc.lado === 'sur') ? offsetX : offsetZ;
+            if (pc.modulo_a === mod.id)      contactoPorLado[pc.lado].push([pc.ini - off, pc.fin - off]);
+            else if (pc.modulo_b === mod.id) contactoPorLado[opuestoLado[pc.lado]].push([pc.ini - off, pc.fin - off]);
+        });
+        const dirFuera = { norte:-1, sur:1, oeste:-1, este:1 };
+
+        paredesConfig.forEach(p => {
+            if ((mod.paredes_eliminadas || []).includes(p.id)) return; // eliminada manualmente por el usuario
+            const huecos    = huecosPorLado[p.id];
+            const contactos = contactoPorLado[p.id];
+            // interior = lo que toca a otro cuarto, menos los vanos
+            const segInterior = [];
+            contactos.forEach(([cIni, cFin]) => {
+                restarIntervalos(cIni, cFin, huecos).forEach(s => segInterior.push(s));
+            });
+            // exterior = todo el lado, menos los contactos, menos los vanos
+            const segExterior = restarIntervalos(p.ini, p.fin, contactos.concat(huecos));
+
+            const construirSegmento = ([sIni, sFin], esExterior) => {
+                const largoSeg = sFin - sIni;
+                const centro   = (sIni + sFin) / 2;
+                const grueso   = (esExterior && configEnvolvente.fachada)
+                    ? (configEnvolvente.gruesoFachada || 0.20)
+                    : gruesoPared;
+                // Se corre el muro hacia afuera para que la cara INTERIOR del
+                // cuarto quede exactamente donde estaba: el cuarto no se achica
+                // por engrosar la fachada.
+                const desplaz = dirFuera[p.id] * (grueso / 2 - gruesoPared / 2);
+                const posPerp = p.posPerp + desplaz;
+                const geo = p.horizontal
+                    ? new THREE.BoxGeometry(largoSeg, alto, grueso)
+                    : new THREE.BoxGeometry(grueso, alto, largoSeg);
+                const pared = new THREE.Mesh(geo, matPared.clone());
+                if (p.horizontal) pared.position.set(centro, baseY + alto/2, posPerp);
+                else               pared.position.set(posPerp, baseY + alto/2, centro);
+                pared.castShadow = true;
+                pared.receiveShadow = true;
+                pared.userData = { esPared: true, moduloId: mod.id, lado: p.id, esExterior };
+                pared.material.emissive = new THREE.Color(0x000000);
+                scene.add(pared);
+                paredesInteractivas.push(pared);
+
+                // ACABADO DE FACHADA — una lámina delgada pegada a la cara que
+                // da a la calle. Va aparte del muro para no romper el hover ni
+                // el "eliminar muro", que esperan un material simple.
+                if (esExterior && configEnvolvente.fachada) {
+                    const esp = 0.025;
+                    const geoF = p.horizontal
+                        ? new THREE.BoxGeometry(largoSeg, alto, esp)
+                        : new THREE.BoxGeometry(esp, alto, largoSeg);
+                    const revoque = new THREE.Mesh(geoF, crearMaterialFachada());
+                    const perpF = posPerp + dirFuera[p.id] * (grueso / 2 + esp / 2);
+                    if (p.horizontal) revoque.position.set(centro, baseY + alto/2, perpF);
+                    else               revoque.position.set(perpF, baseY + alto/2, centro);
+                    revoque.castShadow = true;
+                    revoque.receiveShadow = true;
+                    revoque.userData = { esFachada: true, moduloId: mod.id, lado: p.id };
+                    scene.add(revoque);
+                }
+            };
+
+            segInterior.forEach(s => construirSegmento(s, false));
+            segExterior.forEach(s => construirSegmento(s, true));
+
+            // DINTEL: los vanos tipo "puerta" llevan un pedazo de pared encima
+            // (de 2.1m hasta el techo). Los tipo "arco" van de piso a techo y
+            // por eso no llevan nada.
+            dintelesPorLado[p.id].forEach(d => {
+                const altoDintel = alto - d.altoVano;
+                if (altoDintel <= 0.05) return;
+                const largoD = d.fin - d.ini;
+                const centroD = (d.ini + d.fin) / 2;
+                // Puerta en un muro de FACHADA (p. ej. la que sale al andén): el
+                // dintel lleva el grosor y el acabado de la fachada; si no, por
+                // fuera queda un escalón encima de la puerta.
+                const dintelFachada = configEnvolvente.fachada &&
+                    !contactos.some(([cI, cF]) => d.ini >= cI - 0.01 && d.fin <= cF + 0.01);
+                const gruesoD = dintelFachada ? (configEnvolvente.gruesoFachada || 0.20) : gruesoPared;
+                const perpD   = p.posPerp + (dintelFachada ? dirFuera[p.id] * (gruesoD / 2 - gruesoPared / 2) : 0);
+                const geoD = p.horizontal
+                    ? new THREE.BoxGeometry(largoD, altoDintel, gruesoD)
+                    : new THREE.BoxGeometry(gruesoD, altoDintel, largoD);
+                const dintel = new THREE.Mesh(geoD, matPared.clone());
+                const yD = baseY + d.altoVano + altoDintel/2;
+                if (p.horizontal) dintel.position.set(centroD, yD, perpD);
+                else               dintel.position.set(perpD, yD, centroD);
+                if (dintelFachada) {
+                    const esp = 0.025;
+                    const geoF = p.horizontal ? new THREE.BoxGeometry(largoD, altoDintel, esp) : new THREE.BoxGeometry(esp, altoDintel, largoD);
+                    const revoqueD = new THREE.Mesh(geoF, crearMaterialFachada());
+                    const perpF = perpD + dirFuera[p.id] * (gruesoD / 2 + esp / 2);
+                    if (p.horizontal) revoqueD.position.set(centroD, yD, perpF);
+                    else               revoqueD.position.set(perpF, yD, centroD);
+                    revoqueD.castShadow = true; revoqueD.receiveShadow = true;
+                    revoqueD.userData = { esFachada: true, moduloId: mod.id, lado: p.id };
+                    scene.add(revoqueD);
+                }
+                dintel.castShadow = true;
+                dintel.receiveShadow = true;
+                dintel.userData = { esPared: true, moduloId: mod.id, lado: p.id, esDintel: true };
+                dintel.material.emissive = new THREE.Color(0x000000);
+                scene.add(dintel);
+            });
+        });
+
+        // ── TECHO (cielo raso) del módulo ────────────────────────────────
+        // Antes el plano se generaba sin techo: al entrar con la cámara
+        // interior se veía el cielo de la escena. Ahora cada cuarto tiene su
+        // losa, oculta por defecto para no tapar la vista en planta.
+        restarHuecos(rectCuarto, huecosTecho(mod.nivel || 0)).forEach(r => {
+            const techo = new THREE.Mesh(
+                new THREE.BoxGeometry(r.x1 - r.x0, 0.08, r.z1 - r.z0),
+                crearMaterialTecho()
+            );
+            techo.position.set((r.x0 + r.x1) / 2, baseY + alto + 0.04, (r.z0 + r.z1) / 2);
+            techo.receiveShadow = true;
+            techo.visible = !!configEnvolvente.techos;
+            techo.userData = { esTecho: true, moduloId: mod.id, moduloNombre: mod.nombre };
+            scene.add(techo);
+            techosPlanta.push(techo);
+        });
+
+        // Etiqueta flotante del nombre del módulo
+        // (usamos un sprite simple con canvas)
+        const canvas2d = document.createElement('canvas');
+        canvas2d.width = 256; canvas2d.height = 64;
+        const ctx2d = canvas2d.getContext('2d');
+        ctx2d.fillStyle = 'rgba(124,58,237,0.85)';
+        ctx2d.roundRect(4, 4, 248, 56, 12);
+        ctx2d.fill();
+        ctx2d.fillStyle = 'white';
+        ctx2d.font = 'bold 28px Segoe UI';
+        ctx2d.textAlign = 'center';
+        ctx2d.fillText(mod.nombre, 128, 40);
+        const tex = new THREE.CanvasTexture(canvas2d);
+        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
+        sprite.position.set(x, baseY + alto * 0.5, z);
+        sprite.scale.set(2.0, 0.5, 1);
+        soloEnEditor(sprite);   // la etiqueta "Sala", "Cocina"… es ayuda del editor: no sale en fotos ni video
+        scene.add(sprite);
+
+        // El cuarto queda como UN objeto con pivote en su centro, a media
+        // altura. Así el gizmo lo agarra completo y girarlo lo gira sobre sí
+        // mismo. Los muros siguen en paredesInteractivas y el piso en
+        // pisosRaycastables: el raycast usa matrices de mundo, así que
+        // cambiarles el padre no rompe ni el hover de muros ni el dibujo del
+        // recorrido sobre el piso.
+        // Diseño de cada pared (editor de pared): va antes de agrupar para que
+        // quede dentro del cuarto y se mueva con él.
+        if (mod.diseno_paredes) Object.entries(mod.diseno_paredes).forEach(([lado, formas]) => {
+            if ((mod.paredes_eliminadas || []).includes(lado)) return;
+            mallasDisenoPared(formas, { cx: x, cz: z, ancho, largo, alto, baseY, exterior: !contactoPorLado[lado].length }, lado)
+                .forEach(mm => scene.add(mm));
+        });
+        agruparEnPivote(marcaEscena,
+            new THREE.Vector3(x, baseY + alto/2, z),
+            { tipoEstructura: 'cuarto', moduloId: mod.id, moduloNombre: mod.nombre });
+    });
+
+    // ── MARCOS Y HOJAS DE PUERTA ─────────────────────────────────────────
+    // Se construyen en una pasada aparte porque un vano pertenece a DOS
+    // módulos: si se hiciera dentro del bucle saldría la puerta duplicada.
+    // El grupo se arma en un eje local (el vano siempre corre sobre +X local)
+    // y luego se rota para pegarlo a la pared que le toca.
+    const signoDentroLocal = { norte:1, sur:-1, oeste:-1, este:1 };
+    vanosDelPlano.forEach(v => {
+        if (v.tipo !== 'puerta' && v.tipo !== 'vano') return;
+        const a = modulos.find(m => m.id === v.modulo_a);
+        if (!a) return;
+
+        const horizontal = (v.lado === 'norte' || v.lado === 'sur');
+        let wx, wz;
+        if (v.lado === 'norte')      { wx = v.centro - offsetX; wz = a.z - offsetZ; }
+        else if (v.lado === 'sur')   { wx = v.centro - offsetX; wz = a.z + a.largo - offsetZ; }
+        else if (v.lado === 'oeste') { wx = a.x - offsetX;      wz = v.centro - offsetZ; }
+        else                         { wx = a.x + a.ancho - offsetX; wz = v.centro - offsetZ; }
+
+        const W = v.ancho;
+        const H = v.alto || 2.1;
+        const grupo = new THREE.Group();
+        grupo.position.set(wx, baseNivel(a), wz);
+        if (!horizontal) grupo.rotation.y = -Math.PI / 2;   // local +X → world +Z
+        scene.add(grupo);
+
+        // MARCO — dos jambas y el cabezal. Esto es lo que hace que un hueco
+        // se lea como un vano terminado y no como un agujero en el muro.
+        const matMarco = new THREE.MeshStandardMaterial({ color:0x8B6914, roughness:0.55, metalness:0.0 });
+        const espMarco = 0.06, fondoMarco = 0.16;
+        [-1, 1].forEach(s => {
+            const jamba = new THREE.Mesh(new THREE.BoxGeometry(espMarco, H, fondoMarco), matMarco);
+            jamba.position.set(s * (W/2 + espMarco/2), H/2, 0);
+            jamba.castShadow = true;
+            grupo.add(jamba);
+        });
+        const cabezal = new THREE.Mesh(new THREE.BoxGeometry(W + espMarco*2, espMarco, fondoMarco), matMarco);
+        cabezal.position.set(0, H + espMarco/2, 0);
+        cabezal.castShadow = true;
+        grupo.add(cabezal);
+
+        if (v.tipo !== 'puerta') return;   // 'vano' se queda solo con el marco
+
+        // TIPOS DE PUERTA: sencilla (batiente de madera), doble, corrediza,
+        // de vidrio y plegable. Todas guardan en puertasPlanta un "pivote" cuyo
+        // rotation.y va de 0 (cerrada) a angMax (abierta): las que no giran de una
+        // sola bisagra traducen ese valor a su propio movimiento, y así el clic
+        // para abrir/cerrar y su animación sirven igual para todas.
+        const estilo = v.estiloPuerta || 'sencilla';
+        const bisagraIzq = (v.bisagra || 'izq') === 'izq';
+        const haciaDentro = (v.sentido || 'dentro') !== 'fuera';
+        const signoZ = signoDentroLocal[v.lado] * (haciaDentro ? 1 : -1);
+        const angMax = (bisagraIzq ? -1 : 1) * signoZ * Math.PI / 2;
+        const t = (v.abierta === false ? 0 : (v.anguloApertura ?? 75)) / 90;
+        const altoHoja = H - 0.03;
+        const matMadera = new THREE.MeshStandardMaterial({ color:0x6B4423, roughness:0.6, metalness:0.0 });
+        const matTallado = new THREE.MeshStandardMaterial({ color:0x5A3A1D, roughness:0.65 });
+        const matMetalP = new THREE.MeshStandardMaterial({ color:0x2B2D31, roughness:0.35, metalness:0.8 });
+        const matDorado = new THREE.MeshStandardMaterial({ color:0xD4AF37, metalness:0.75, roughness:0.28 });
+        const matVidrioP = new THREE.MeshStandardMaterial({ color:0xD6E8F2, transparent:true, opacity:0.28, metalness:0, roughness:0.05, depthWrite:false, side:THREE.DoubleSide });
+        const mallas = [];
+        const hojaMadera = (ancho) => {   // hoja de madera con entrepaños, centrada en su propio origen
+            const g = new THREE.Group();
+            const h = new THREE.Mesh(new THREE.BoxGeometry(ancho, altoHoja, 0.045), matMadera); h.castShadow = h.receiveShadow = true; g.add(h); mallas.push(h);
+            [0.30, 0.68].forEach(f => { const p = new THREE.Mesh(new THREE.BoxGeometry(ancho * 0.66, altoHoja * 0.28, 0.008), matTallado); p.position.set(0, altoHoja * (f - 0.5), 0.024); g.add(p); });
+            return g;
+        };
+        const hojaVidrio = (ancho) => {   // marco metálico delgado con vidrio templado
+            const g = new THREE.Group(), m = 0.05;
+            [[ancho, m, 0, altoHoja / 2 - m / 2], [ancho, m, 0, -altoHoja / 2 + m / 2], [m, altoHoja, -ancho / 2 + m / 2, 0], [m, altoHoja, ancho / 2 - m / 2, 0]].forEach(([w, h, x, y]) => {
+                const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.045), matMetalP); b.position.set(x, y, 0); b.castShadow = true; g.add(b); mallas.push(b); });
+            const vi = new THREE.Mesh(new THREE.BoxGeometry(ancho - 2 * m, altoHoja - 2 * m, 0.012), matVidrioP); g.add(vi); mallas.push(vi);
+            return g;
+        };
+        const manijaEn = (padre, x, barra) => {
+            const mj = barra ? new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.45, 0.03), matMetalP) : new THREE.Mesh(new THREE.SphereGeometry(0.032, 12, 12), matDorado);
+            mj.position.set(x, barra ? 1.05 - altoHoja / 2 : 1.02 - altoHoja / 2, 0.045); padre.add(mj); mallas.push(mj);
+        };
+        let pivote;
+        if (estilo === 'doble') {
+            const med = W / 2 - 0.01;
+            const pI = new THREE.Group(), pD = new THREE.Group();
+            pI.position.set(-W / 2, 0, 0); pD.position.set(W / 2, 0, 0); grupo.add(pI, pD);
+            const hI = hojaMadera(med); hI.position.set(med / 2, altoHoja / 2, 0); pI.add(hI); manijaEn(hI, med / 2 - 0.08, false);
+            const hD = hojaMadera(med); hD.position.set(-med / 2, altoHoja / 2, 0); pD.add(hD); manijaEn(hD, -med / 2 + 0.08, false);
+            const a = Math.abs(angMax);   // cada hoja gira hacia el mismo lado del cuarto, en espejo
+            let val = 0;
+            pivote = { rotation: { get y() { return val; }, set y(v2) { val = v2; const f = v2 / angMax;
+                pI.rotation.y = -signoZ * a * f; pD.rotation.y = signoZ * a * f; } } };
+        } else if (estilo === 'corrediza') {
+            // Estilo granero: la hoja corre por un riel, pegada a la cara del muro
+            const riel = new THREE.Mesh(new THREE.BoxGeometry(W * 2.1, 0.05, 0.05), matMetalP);
+            const zC = -signoZ * 0.1;
+            riel.position.set(bisagraIzq ? -W * 0.55 : W * 0.55, H + 0.06, zC); grupo.add(riel);
+            const hoja = hojaMadera(W + 0.08); grupo.add(hoja);
+            manijaEn(hoja, bisagraIzq ? (W + 0.08) / 2 - 0.1 : -(W + 0.08) / 2 + 0.1, true);
+            let val = 0;
+            pivote = { rotation: { get y() { return val; }, set y(v2) { val = v2; const f = v2 / angMax;
+                hoja.position.set((bisagraIzq ? -1 : 1) * W * 1.02 * f, altoHoja / 2, zC); } } };
+        } else if (estilo === 'plegable') {
+            // Cuatro paneles que se pliegan en zigzag hacia la bisagra
+            const nP = 4, w = (W - 0.02) / nP, paneles = [];
+            for (let k = 0; k < nP; k++) { const p = hojaMadera(w); grupo.add(p); paneles.push(p); }
+            manijaEn(paneles[nP - 1], bisagraIzq ? w / 2 - 0.06 : -w / 2 + 0.06, true);
+            let val = 0;
+            pivote = { rotation: { get y() { return val; }, set y(v2) { val = v2; const f = v2 / angMax;
+                const ang = f * THREE.MathUtils.degToRad(80), dir = bisagraIzq ? 1 : -1;
+                let x = bisagraIzq ? -W / 2 : W / 2, z = 0;
+                paneles.forEach((p, k) => {
+                    const sz = (k % 2 === 0 ? 1 : -1) * signoZ;
+                    const dx = dir * w * Math.cos(ang), dz = sz * w * Math.sin(ang);
+                    p.position.set(x + dx / 2, altoHoja / 2, z + dz / 2);
+                    p.rotation.y = -Math.atan2(dz, dx) + (dir < 0 ? Math.PI : 0);
+                    x += dx; z += dz;
+                }); } } };
+        } else {
+            // Sencilla (madera) o de vidrio: una hoja que gira sobre su bisagra
+            const piv = new THREE.Group();
+            piv.position.set(bisagraIzq ? -W / 2 : W / 2, 0, 0); grupo.add(piv);
+            const anchoHoja = W - 0.02;
+            const hoja = estilo === 'vidrio' ? hojaVidrio(anchoHoja) : hojaMadera(anchoHoja);
+            hoja.position.set((bisagraIzq ? 1 : -1) * anchoHoja / 2, altoHoja / 2, 0); piv.add(hoja);
+            manijaEn(hoja, (bisagraIzq ? 1 : -1) * (anchoHoja / 2 - 0.09), estilo === 'vidrio');
+            pivote = piv;
+        }
+        pivote.rotation.y = angMax * t;
+        mallas.forEach(m => { m.userData = { esPuerta: true, vanoId: v.id }; });
+        puertasPlanta.push({ vanoId: v.id, pivote, angMax, meshes: mallas });
+    });
+
+    // ── CUBIERTA (lo que se ve por encima desde afuera) ──────────────────
+    construirCubierta(maxX, maxZ, offsetX, offsetZ, altoPiso, modulos);
+
+    // Actualizar estado con dimensiones del plano completo (para cámara)
+    estado.ancho = maxX;
+    estado.largo = maxZ;
+    estado.alto  = altoPiso;
+    const nivelesEnPlano = Math.max(1, ...modulos.map(m => (m.nivel || 0) + 1));
+    const altoTotal = (nivelesEnPlano - 1) * hEntrepiso + altoPiso;
+
+    // Estadísticas reales: suma de áreas de módulos + paredes efectivamente construidas (por segmento real)
+    const areaPiso = modulos.reduce((sum, m) => sum + (esCuarto(m.tipo) ? m.ancho * m.largo : 0), 0);
+    let areaParedes = 0, perimetro = 0;
+    modulos.forEach(mod => {
+        if (!esCuarto(mod.tipo)) return;
+        const huecosPorLado = { norte:[], sur:[], oeste:[], este:[] };
+        const opuesto = { norte:'sur', sur:'norte', este:'oeste', oeste:'este' };
+        paredes_compartidas.forEach(pc => {
+            if (pc.modulo_a === mod.id) huecosPorLado[pc.lado].push([pc.ini, pc.fin]);
+            else if (pc.modulo_b === mod.id) huecosPorLado[opuesto[pc.lado]].push([pc.ini, pc.fin]);
+        });
+        const alto = mod.alto || altoPiso;
+        [
+            ['norte', mod.x, mod.x+mod.ancho],
+            ['sur',   mod.x, mod.x+mod.ancho],
+            ['oeste', mod.z, mod.z+mod.largo],
+            ['este',  mod.z, mod.z+mod.largo],
+        ].forEach(([lado, ini, fin]) => {
+            restarIntervalos(ini, fin, huecosPorLado[lado]).forEach(([sIni, sFin]) => {
+                const largoSeg = sFin - sIni;
+                areaParedes += largoSeg * alto;
+                perimetro   += largoSeg;
+            });
+        });
+    });
+    document.getElementById('statArea').textContent = areaPiso.toFixed(1);
+    document.getElementById('statParedes').textContent = areaParedes.toFixed(1);
+    document.getElementById('statPerimetro').textContent = perimetro.toFixed(1);
+    document.getElementById('statModulos').textContent = `${modulos.length} módulo${modulos.length===1?'':'s'}: ${modulos.map(m=>m.nombre).join(', ')}`;
+    document.getElementById('panelSinPlano').style.display = 'none';
+    document.getElementById('panelPlanoInfo').style.display = 'block';
+
+    // Centrar cámara sobre el plano completo
+    const distCam = Math.max(maxX, maxZ, altoTotal) * 1.5;
+    camera.position.set(0, distCam * 0.8, distCam);
+    controls.target.set(0, altoTotal * 0.4, 0);
+    controls.update();
+
+    // Colocar la CÁMARA DE VIDEO dentro del primer módulo, visible de una vez
+    if (modulosActuales3D.length) {
+        const m0 = modulosActuales3D[0];
+        // Solo se recoloca la cámara al primer módulo si el usuario NO tenía
+        // ya un recorrido dibujado. Antes se movía siempre, así que regenerar
+        // el 3D le tiraba la cámara al origen aunque llevara media ruta hecha.
+        if (!trazo3D.length) {
+            marcadorCamara.position.set(m0.cx, ALTURA_CAMARA_RECORRIDO, m0.cz);
+            marcadorCamara.rotation.set(0, 0, 0);
+        }
+        marcadorCamara.visible = (vistaActual === '3d');
+    }
+
+    // Devolver a la escena todo lo persistente y volver a dibujar el
+    // recorrido, que sigue en memoria aunque su malla se hubiera perdido.
+    garantizarPersistentes();
+    if (trazo3D.length > 1) dibujarLineaTrazo3D();
+    if (trazo3D.length)     actualizarCamaraMientrasDibuja();
+
+    configurarLuces();
+    aplicarTexturasParedes();
+
+    // Re-agregar mobiliario/ventanas que estaban en escena antes de regenerar, con su posición y huecos
+    restaurarMobiliario(mobiliarioActivoAntes);
+
+    mostrarToast(`🏠 Plano cargado — ${modulos.length} espacios`);
+}
+
+// ── CUBIERTA ─────────────────────────────────────────────────────────────
+// El "techo" es el cielo raso que se ve desde adentro; la CUBIERTA es lo que
+// remata el proyecto por fuera. Se arma sobre la huella real de los cuartos.
+function construirCubierta(maxX, maxZ, offsetX, offsetZ, altoPiso, modulos) {
+    // Solo se limpian las cubiertas globales; las dibujadas ya se
+    // construyeron en el bucle de módulos y no deben perderse aquí.
+    cubiertaPlanta.filter(m => m.userData?.tipoEstructura !== 'cubierta')
+                  .forEach(m => scene.remove(m));
+    cubiertaPlanta = cubiertaPlanta.filter(m => m.userData?.tipoEstructura === 'cubierta');
+    const tipo = configEnvolvente.cubierta;
+    if (tipo === 'ninguna') return;
+    // Si el usuario dibujó cubiertas como figuras, mandan esas: el desplegable
+    // global es solo el atajo para cuando no se quiere dibujar nada.
+    if (modulos.some(m => m.tipo === 'cubierta')) {
+        mostrarToast('🏠 Se usan las cubiertas dibujadas en la capa de Techo');
+        return;
+    }
+
+    const nivelTope = Math.max(0, ...modulos.map(m => m.nivel || 0));
+    const hEnt = alturaEntrepiso || 2.80;
+    const cuartos = modulos.filter(m => esCuarto(m.tipo) && (m.nivel || 0) === nivelTope);
+    if (!cuartos.length) return;
+    const baseTope = nivelTope * hEnt;
+    const alero = configEnvolvente.alero ?? 0.5;
+    const y0 = baseTope + Math.max(...cuartos.map(m => m.alto || altoPiso));
+
+    const matTeja = new THREE.MeshStandardMaterial({ color:0x8C3B2A, roughness:0.9, side:THREE.DoubleSide });
+    const matLosa = new THREE.MeshStandardMaterial({ color:0xA8A29E, roughness:0.9, side:THREE.DoubleSide });
+    const matCulata = new THREE.MeshStandardMaterial({ color:0xD9CFC2, roughness:0.9, side:THREE.DoubleSide });
+    const add = (m) => { m.castShadow = true; m.receiveShadow = true; scene.add(m); cubiertaPlanta.push(m); };
+
+    if (tipo === 'losa') {
+        cuartos.forEach(mod => {
+            const losa = new THREE.Mesh(new THREE.BoxGeometry(mod.ancho + alero, 0.18, mod.largo + alero), matLosa);
+            losa.position.set(mod.x - offsetX + mod.ancho/2, baseTope + (mod.alto||altoPiso) + 0.17, mod.z - offsetZ + mod.largo/2);
+            add(losa);
+        });
+        return;
+    }
+
+    // Huella del último piso, más el alero. La cumbrera se puede girar 90°
+    // porque en un lote la orientación del techo la manda la calle, no la forma.
+    const girar = !!configEnvolvente.girarCubierta;
+    const AN = (girar ? maxZ : maxX) + alero*2;   // a lo ancho de los faldones
+    const LA = (girar ? maxX : maxZ) + alero*2;   // en la dirección de la pendiente
+    const pend = Math.max(0.05, (configEnvolvente.pendiente ?? 35) / 100);
+    const espesor = 0.12;
+
+    // Un faldón es un plano inclinado: se hace una caja fina y se rota. Con
+    // el ancho, el desplazamiento y el ángulo correctos salen casi todas las
+    // formas del catálogo de techos.
+    function faldon(anchoF, largoPlano, subida, cx, cz, cy, ejeZ, signo) {
+        const largoInclinado = Math.hypot(largoPlano, subida);
+        const ang = Math.atan2(subida, largoPlano);
+        const g = ejeZ
+            ? new THREE.BoxGeometry(anchoF, espesor, largoInclinado)
+            : new THREE.BoxGeometry(largoInclinado, espesor, anchoF);
+        const m = new THREE.Mesh(g, matTeja);
+        m.position.set(cx, cy, cz);
+        // El signo iba invertido: dejaba los aleros arriba y la cumbrera
+                // pegada al piso, o sea el techo al revés. Con signo positivo el
+                // borde de adentro sube (cumbrera) y el de afuera baja (alero).
+                if (ejeZ) m.rotation.x = signo * ang;
+        else      m.rotation.z =  signo * ang;
+        add(m);
+        return m;
+    }
+    // Todo se arma con la cumbrera sobre el eje X y luego, si toca, se gira
+    // el conjunto entero: así una sola construcción sirve para las dos
+    // orientaciones y no hay que duplicar la matemática.
+    const R = (m) => { if (girar) { const x = m.position.x; m.position.x = m.position.z; m.position.z = x; m.rotation.y += Math.PI/2; } };
+
+    function culata(puntos, x) {
+        const forma = new THREE.Shape();
+        forma.moveTo(puntos[0][0], puntos[0][1]);
+        puntos.slice(1).forEach(pt => forma.lineTo(pt[0], pt[1]));
+        forma.closePath();
+        const m = new THREE.Mesh(new THREE.ShapeGeometry(forma), matCulata);
+        m.position.set(x, y0, 0);
+        m.rotation.y = Math.PI/2;
+        add(m); R(m);
+    }
+
+    const mitad = LA/2;
+    if (tipo === 'un_agua') {
+        const subida = LA * pend;
+        const m = faldon(AN, LA, subida, 0, 0, y0 + subida/2, true, 1); R(m);
+        [1,-1].forEach(s => culata([[-mitad,0],[mitad,0],[mitad,subida]], s*(AN/2 - alero)));
+    } else if (tipo === 'dos_aguas') {
+        const subida = mitad * pend;
+        [1,-1].forEach(s => { const m = faldon(AN, mitad, subida, 0, s*mitad/2, y0 + subida/2, true, s); R(m); });
+        [1,-1].forEach(s => culata([[-mitad,0],[mitad,0],[0,subida]], s*(AN/2 - alero)));
+    } else if (tipo === 'saltbox') {
+        // Dos aguas con faldones de distinto largo: la cumbrera queda corrida
+        const corto = LA*0.35, largo = LA*0.65, subida = corto * pend * 1.6;
+        const m1 = faldon(AN, corto, subida, 0, -(LA/2 - corto/2), y0 + subida/2, true, -1); R(m1);
+        const m2 = faldon(AN, largo, subida, 0,  (LA/2 - largo/2), y0 + subida/2, true, 1); R(m2);
+        [1,-1].forEach(s => culata([[-mitad,0],[mitad,0],[-mitad+corto,subida]], s*(AN/2 - alero)));
+    } else if (tipo === 'mariposa') {
+        // Invertida: el agua cae al centro. Cada vez más común en obra nueva.
+        const subida = mitad * pend;
+        [1,-1].forEach(s => { const m = faldon(AN, mitad, subida, 0, s*mitad/2, y0 + subida/2, true, -s); R(m); });
+        [1,-1].forEach(s => culata([[-mitad,subida],[0,0],[mitad,subida]], s*(AN/2 - alero)));
+    } else if (tipo === 'gambrel' || tipo === 'mansarda') {
+        // Dos pendientes por faldón: abajo muy inclinada, arriba suave. Es lo
+        // que permite habitar el ático, que es para lo que existen estas dos.
+        const q = mitad/2;
+        const subBaja = q * pend * 2.2, subAlta = q * pend * 0.55;
+        [1,-1].forEach(s => {
+            const b = faldon(AN, q, subBaja, 0, s*(mitad - q/2), y0 + subBaja/2, true, s); R(b);
+            const a = faldon(AN, q, subAlta, 0, s*(q/2), y0 + subBaja + subAlta/2, true, s); R(a);
+        });
+        [1,-1].forEach(s => culata(
+            [[-mitad,0],[mitad,0],[q,subBaja],[0,subBaja+subAlta],[-q,subBaja]], s*(AN/2 - alero)));
+    } else if (tipo === 'en_m') {
+        // Dos techos a dos aguas pegados, con lima hoya en el centro
+        const c = mitad/2, subida = c * pend;
+        [1,-1].forEach(s => {
+            [0.5,1.5].forEach(k => {
+                const m = faldon(AN, c, subida, 0, s*(k*c - (k>1?c/2:0) - c/2 + c*k), y0 + subida/2, true, (k<1?s:-s));
+                R(m);
+            });
+        });
+        [1,-1].forEach(s => culata([[-mitad,0],[-c,subida],[0,0],[c,subida],[mitad,0]], s*(AN/2 - alero)));
+    } else if (tipo === 'cuatro_aguas' || tipo === 'piramidal') {
+        // Agua por los cuatro lados. En la piramidal la cumbrera es un punto;
+        // en la de cuatro aguas es una línea, así que se deja un caballete.
+        const anchoMitad = AN/2;
+        const subida = Math.min(mitad, anchoMitad) * pend;
+        const caballete = tipo === 'piramidal' ? 0 : Math.max(0, LA - AN);
+        const corrido = (LA - caballete)/2;
+        [1,-1].forEach(s => { const m = faldon(AN, corrido, subida, 0, s*(caballete/2 + corrido/2), y0 + subida/2, true, s); R(m); });
+        [1,-1].forEach(s => { const m = faldon(LA, anchoMitad, subida, s*(anchoMitad/2), 0, y0 + subida/2, false, -s); R(m); });
+        if (caballete > 0.05) {
+            const cab = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.14, caballete), matTeja);
+            cab.position.set(0, y0 + subida, 0); add(cab); R(cab);
+        }
+    }
+}
+
+// ── CONTROLES DE ENVOLVENTE ──────────────────────────────────────────────
+function cambiarEnvolvente(campo, valor) {
+    if (campo === 'techos')  configEnvolvente.techos  = !configEnvolvente.techos;
+    else                     configEnvolvente[campo]  = valor;
+
+    if (campo === 'techos') {
+        // Si se está dibujando el recorrido, el cambio se guarda pero no se
+        // aplica todavía: se vería tapado el trazo. Se aplica al salir.
+        if (_techosAntesDeDibujar) {
+            _techosAntesDeDibujar.techos = techosPlanta.map(() => configEnvolvente.techos);
+            mostrarToast(configEnvolvente.techos
+                ? '⬜ Techos quedan activados — se ven al salir del modo recorrido'
+                : '👁️ Techos ocultos');
+            sincronizarUIEnvolvente();
+            return;
+        }
+        techosPlanta.forEach(t => { t.visible = configEnvolvente.techos; });
+        mostrarToast(configEnvolvente.techos ? '⬜ Techos visibles' : '👁️ Techos ocultos — vista en planta');
+    } else if (campo === 'materialTecho' || campo === 'colorTecho') {
+        techosPlanta.forEach(t => { t.material = crearMaterialTecho(); });
+    } else {
+        // Fachada, grosor y cubierta cambian la geometría: hay que rearmar.
+        // El aviso de arriba del panel ofrece el botón para hacerlo.
+        mostrarToast('🔄 Toca "Regenerar 3D" arriba del panel para aplicar el cambio');
+        actualizarAvisoRegenerar();
+    }
+    sincronizarUIEnvolvente();
+}
+
+function sincronizarUIEnvolvente() {
+    const set = (id, prop, val) => { const el = document.getElementById(id); if (el) el[prop] = val; };
+    set('envTechos', 'textContent', configEnvolvente.techos ? '⬜ Techos: visibles' : '⬜ Techos: ocultos');
+    set('envMaterialTecho',   'value', configEnvolvente.materialTecho);
+    set('envColorTecho',      'value', configEnvolvente.colorTecho);
+    set('envFachadaActiva',   'checked', !!configEnvolvente.fachada);
+    set('envMaterialFachada', 'value', configEnvolvente.materialFachada);
+    set('envColorFachada',    'value', configEnvolvente.colorFachada);
+    set('envCubierta',        'value', configEnvolvente.cubierta);
+    set('envPendiente',       'value', configEnvolvente.pendiente);
+    set('envAlero',           'value', configEnvolvente.alero);
+    set('envGirarCubierta',   'checked', !!configEnvolvente.girarCubierta);
+}
+
+// ── ABRIR/CERRAR PUERTAS TOCÁNDOLAS EN EL 3D ─────────────────────────────
+function animarPuerta(p, destino) {
+    const inicio = p.pivote.rotation.y;
+    const t0 = performance.now();
+    const DUR = 420;
+    (function paso(now) {
+        const k = Math.min(1, (now - t0) / DUR);
+        const suave = k < 0.5 ? 2*k*k : 1 - Math.pow(-2*k + 2, 2) / 2;  // ease in-out
+        p.pivote.rotation.y = inicio + (destino - inicio) * suave;
+        if (k < 1) requestAnimationFrame(paso);
+    })(t0);
+}
+
+function togglePuerta(vanoId) {
+    const p = puertasPlanta.find(x => x.vanoId === vanoId);
+    if (!p) return;
+    const v = vanosPlanta.find(x => x.id === vanoId);
+    const estabaAbierta = Math.abs(p.pivote.rotation.y) > 0.05;
+    const ang = v ? (v.anguloApertura ?? 75) : 75;
+    animarPuerta(p, estabaAbierta ? 0 : p.angMax * (ang / 90));
+    if (v) v.abierta = !estabaAbierta;
+    mostrarToast(estabaAbierta ? '🚪 Puerta cerrada' : '🚪 Puerta abierta');
+    if (vanoSeleccionado && vanoSeleccionado.id === vanoId) renderPanelVano();
+}
+
+canvas.addEventListener('click', (e) => {
+    // No interferir con los modos que ya usan el clic (elegir/eliminar muro,
+    // mover mueble, dibujar recorrido)
+    if (modoElegirPared || modoEliminarPared || modoMover || modoDibujo3D || modoArrastrarCamara) return;
+    if (modoTransformar) return;   // en modo edición el clic sirve para seleccionar, no para abrir
+    if (!puertasPlanta.length) return;
+    const r = canvas.getBoundingClientRect();
+    mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    raycaster.setFromCamera(mouse, camera);
+    const objetivos = puertasPlanta.flatMap(p => p.meshes);
+    const hits = raycaster.intersectObjects(objetivos, false);
+    if (hits.length) togglePuerta(hits[0].object.userData.vanoId);
+});
+
+// Verificar si hay ?plano=ID en la URL al cargar
+(async () => {
+    const params  = new URLSearchParams(window.location.search);
+    const planoId = params.get('plano');
+    if (planoId) await cargarPlanoDesdeBD(planoId);
+})();
+
+// Acordeón del panel del Entorno 3D (una sola vez, con el HTML ya cargado)
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', prepararAcordeonPanel);
+else prepararAcordeonPanel();
