@@ -12,7 +12,7 @@ from openai import OpenAI
 from app.utils.config import get_settings
 from app.utils.supabase_client import get_supabase
 from app.utils.planes import plan_permite
-from app.services.limites_service import tiene_fotos_disponibles, descontar_foto
+from app.services.limites_service import reservar_para_esta_solicitud, cierra_reserva
 from app.api.compras import usuario_de_sesion, guardar_para_venta, verificar_tope_diario
 from app.utils.auth import exigir_duenio, email_de_sesion, ADMIN_EMAIL
 
@@ -73,6 +73,7 @@ async def _plan_incluye_foto_ia(empresa_id: str, request: Request) -> bool:
 
 
 @router.post("/generar-render-3d")
+@cierra_reserva(exito=lambda r: isinstance(r, dict) and r.get("status") == "ok")
 async def generar_render_3d(data: RenderRequest, request: Request):
     """
     Recibe captura del visor 3D + prompt.
@@ -137,10 +138,14 @@ async def generar_render_3d(data: RenderRequest, request: Request):
         return {"status": "error", "error": "plan_sin_foto_ia",
                 "mensaje": "La transformación con IA está disponible desde el plan Básico. Actualiza tu plan para usarla."}
 
-    if not await tiene_fotos_disponibles(data.empresa_id):
-        logger.warning(f"Empresa {data.empresa_id} sin fotos disponibles — render bloqueado")
+    # Reserva UNA imagen antes de llamar a la IA (sql/imagenes_planes.sql): se
+    # confirma si el render se entrega y se devuelve si algo falla (@cierra_reserva).
+    if not await reservar_para_esta_solicitud(data.empresa_id, "foto_ia_comprador" if es_comprador else "foto_ia"):
+        logger.warning(f"Empresa {data.empresa_id} sin imágenes disponibles o plan no vigente — render bloqueado")
         return {"status": "error", "error": "sin_fotos_disponibles",
-                "mensaje": "Ya usaste todas las fotos incluidas en tu plan este mes. Actualiza tu plan para seguir generando renders."}
+                "mensaje": ("Esta tienda no tiene transformaciones con IA disponibles en este momento. Prueba con otra tienda."
+                            if es_comprador else
+                            "Ya usaste todas las imágenes con IA de tu plan para este año, o tu plan no está vigente. Compra un plan para seguir transformando imágenes.")}
 
     try:
         client = OpenAI(api_key=settings.openai_api_key)
@@ -223,7 +228,6 @@ async def generar_render_3d(data: RenderRequest, request: Request):
                 }).execute()
             except Exception as e:
                 logger.warning(f"No se pudo registrar la imagen en la tienda: {e}")
-            await descontar_foto(data.empresa_id)
             logger.info(f"Render de comprador {comprador['email']} → vista previa {venta['referencia']}")
             return {"url_imagen": venta["url_preview"], "status": "ok",
                     "compra": {"id": venta["id"], "referencia": venta["referencia"], "monto": venta["monto"]}}
@@ -251,7 +255,6 @@ async def generar_render_3d(data: RenderRequest, request: Request):
                 "tipo_espacio": "visor_3d",
                 "estilo":       "render_ia",
             }).execute()
-            await descontar_foto(data.empresa_id)
 
         logger.info(f"Render generado: {url_publica}")
         return {"url_imagen": url_publica, "status": "ok"}

@@ -106,6 +106,18 @@ async def mis_ventas(request: Request):
     } for x in pedidos]
     pedidos = [x for x in pedidos if x.get("estado") != "cancelado"]   # los cancelados no se muestran arriba
 
+    # Lo que pasó después de la venta: descuentos administrativos, devoluciones
+    # y el pago a la tienda, cada uno con su concepto (sql/movimientos_dinero.sql)
+    from app.api.movimientos import movimientos_de, saldo
+    movs = movimientos_de([p.get("id") for p in pedidos])
+    for p in pedidos:
+        lista = movs.get(p.get("id"), [])
+        p["saldo"] = saldo(p, lista)
+        p["movimientos"] = [{"tipo": m["tipo"], "monto": m["monto"], "concepto": m["concepto"], "estado": m["estado"],
+                             "a_cargo_de": m.get("a_cargo_de"), "comprobante": m.get("comprobante"),
+                             "fecha": m.get("realizado_at") or m.get("created_at")}
+                            for m in lista if m.get("estado") != "anulado"]
+
     for p in pedidos:
         if p.get("estado") in PAGADOS:
             p["datos_entrega_visibles"] = True

@@ -123,7 +123,8 @@ async def tx_planes(request: Request, desde: str | None = None, hasta: str | Non
             "precio_plan": pesos((planes.get(d.get("plan_nuevo_id")) or {}).get("precio")),
             "pagado": pesos(p.get("monto")), "estado": p.get("estado"), "metodo": p.get("metodo"),
             "referencia": p.get("referencia"), "transaccion": p.get("transaccion_id"),
-            "vencimiento": "Pago único (sin vencimiento)",
+            "vencimiento": (f"Hasta el {d['vigente_hasta']}" + (" (renovación)" if d.get("renovacion") else ""))
+                           if d.get("vigente_hasta") else "Un año (pago anterior al registro de vigencia)",
         }
         if b and b not in " ".join(str(v or "") for v in fila.values()).lower():
             continue

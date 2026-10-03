@@ -385,25 +385,35 @@ async def admin_pedidos(request: Request):
     _exigir_admin(request)
     sb = get_supabase()
     r = sb.table("pedidos").select("*, tiendas(nombre)").neq("estado", "cancelado").order("created_at", desc=True).limit(300).execute()
-    filas, tot = [], {"cobrado": 0, "comisiones": 0, "costo_wompi": 0, "neto": 0, "por_pagar_tiendas": 0, "pagado_tiendas": 0}
+    filas, tot = [], {"cobrado": 0, "comisiones": 0, "costo_wompi": 0, "neto": 0, "por_pagar_tiendas": 0, "pagado_tiendas": 0,
+                      "devoluciones": 0, "devoluciones_decoiarte": 0, "descuentos_admin": 0}
+    from app.api.movimientos import movimientos_de, saldo   # desembolsos, devoluciones y descuentos
+    movs_por_pedido = movimientos_de([p.get("id") for p in (r.data or [])])
     for p in (r.data or []):
+        s = saldo(p, movs_por_pedido.get(p.get("id"), []))
         dias = dias_habiles_desde(p.get("enviado_at")) if p.get("estado") == "enviado" else 0
         if p.get("estado") == "enviado" and not p.get("liberado_at") and dias >= DIAS_HABILES_PARA_LIBERAR:
             p["liberado_at"], p["liberado_por"] = datetime.now(timezone.utc).isoformat(), "automatico"
             sb.table("pedidos").update({"liberado_at": p["liberado_at"], "liberado_por": "automatico"}).eq("id", p["id"]).execute()
             await _avisar_liberado(p, f"pasaron {DIAS_HABILES_PARA_LIBERAR} días hábiles desde el envío sin reclamo")
-        pagado = p.get("estado") in ("pagado", "enviado", "entregado")
+        pagado = p.get("estado") in ("pagado", "enviado", "entregado", "reembolsado")
         if pagado:
             tot["cobrado"] += pesos(p.get("total")); tot["comisiones"] += pesos(p.get("comision_monto"))
-            tot["costo_wompi"] += pesos(p.get("costo_wompi")); tot["neto"] += pesos(p.get("neto_decoiarte"))
-            if p.get("pagado_tienda_at"): tot["pagado_tiendas"] += pesos(p.get("monto_tienda"))
-            elif p.get("liberado_at"): tot["por_pagar_tiendas"] += pesos(p.get("monto_tienda"))
+            tot["costo_wompi"] += pesos(p.get("costo_wompi"))
+            # Lo que asume DecoIArte en devoluciones sale de lo que le queda
+            tot["neto"] += pesos(p.get("neto_decoiarte")) - s["devoluciones_a_cargo_decoiarte"]
+            tot["devoluciones"] += s["devuelto_total"]; tot["devoluciones_decoiarte"] += s["devoluciones_a_cargo_decoiarte"]
+            tot["descuentos_admin"] += s["descuentos_admin"]
+            if p.get("pagado_tienda_at"): tot["pagado_tiendas"] += s["desembolsado"] or s["para_tienda"]
+            elif p.get("liberado_at"): tot["por_pagar_tiendas"] += s["para_tienda"]
         filas.append({
             "referencia": p.get("referencia"), "creado": p.get("created_at"), "estado": p.get("estado"),
             "comprador": p.get("comprador_nombre"), "comprador_email": p.get("comprador_email"),
             "tienda": (p.get("tiendas") or {}).get("nombre"), "subtotal": pesos(p.get("subtotal")),
             "domicilio": p.get("domicilio"), "total": pesos(p.get("total")), "comision": pesos(p.get("comision_monto")),
-            "comision_porcentaje": p.get("comision_porcentaje"), "para_tienda": pesos(p.get("monto_tienda")),
+            "comision_porcentaje": p.get("comision_porcentaje"), "para_tienda": s["para_tienda"],
+            "para_tienda_inicial": s["para_tienda_inicial"], "descuentos_admin": s["descuentos_admin"],
+            "devuelto": s["devuelto_total"], "movimientos": len(movs_por_pedido.get(p.get("id"), [])),
             "costo_wompi": pesos(p.get("costo_wompi")), "neto_decoiarte": pesos(p.get("neto_decoiarte")),
             "costos_administrativos": pesos(p.get("comision_monto")) + pesos(p.get("costo_wompi")),
             "pagado_at": p.get("pagado_at"), "enviado_at": p.get("enviado_at"), "dias_habiles": dias,
@@ -442,6 +452,20 @@ async def admin_pagado_tienda(referencia: str, data: PagoTiendaRequest, request:
         raise HTTPException(status_code=409, detail="Primero debe estar liberado (recibido o 5 días hábiles).")
     if p.get("pagado_tienda_at"):
         raise HTTPException(status_code=409, detail="Ya figura como pagado a la tienda.")
+    # Queda como movimiento "desembolso_tienda" realizado, por el monto que
+    # calcula el servidor (descontando descuentos y devoluciones a su cargo).
+    # La clave fija por pedido impide registrarlo dos veces.
+    try:
+        from app.api.movimientos import registrar, MovimientoRequest, movimientos_de, saldo
+        s = saldo(p, movimientos_de([p["id"]]).get(p["id"], []))
+        await registrar(referencia, MovimientoRequest(
+            tipo="desembolso_tienda", monto=max(s["para_tienda"], 1), concepto="Pago de la venta a la tienda",
+            comprobante=data.comprobante or "", realizado=True, clave=f"desembolso-{referencia}"), ADMIN_EMAIL)
+        return {"status": "ok"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Registro de movimientos no disponible para {referencia}, se marca como antes: {e}")
     get_supabase().table("pedidos").update({"pagado_tienda_at": datetime.now(timezone.utc).isoformat(),
                                             "comprobante_pago_tienda": (data.comprobante or "").strip()[:200] or None}) \
         .eq("referencia", referencia).execute()

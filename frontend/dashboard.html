@@ -589,13 +589,13 @@
     <div class="page active" id="pagina-inicio">
         <div class="page-header"><h1>¡Bienvenido! 👋</h1><p>Aquí tienes el resumen de tu cuenta DecoIArte</p></div>
         <div class="stats-grid">
-            <div class="stat-card"><div class="stat-label">📸 Fotos usadas</div><div class="stat-valor" id="statUsadas">0</div><div class="stat-sub">este mes</div></div>
-            <div class="stat-card"><div class="stat-label">✅ Fotos disponibles</div><div class="stat-valor" id="statDisponibles">0</div><div class="stat-sub">restantes</div></div>
+            <div class="stat-card"><div class="stat-label">📸 Imágenes usadas</div><div class="stat-valor" id="statUsadas">0</div><div class="stat-sub">en tu año de plan</div></div>
+            <div class="stat-card"><div class="stat-label">✅ Imágenes disponibles</div><div class="stat-valor" id="statDisponibles">0</div><div class="stat-sub">restantes</div></div>
             <div class="stat-card"><div class="stat-label">🖼️ Total generadas</div><div class="stat-valor" id="statTotal">0</div><div class="stat-sub">imágenes creadas</div></div>
             <div class="stat-card"><div class="stat-label">📦 Plan activo</div><div class="stat-valor" id="statPlan" style="font-size:22px;">—</div><div class="stat-sub" id="statPlanPrecio"></div></div>
         </div>
         <div class="progress-section">
-            <div class="progress-header"><span class="progress-title">📊 Uso de fotos del mes</span><span class="progress-nums"><strong id="progUsadas">0</strong> de <strong id="progTotal">0</strong> fotos</span></div>
+            <div class="progress-header"><span class="progress-title">📊 Imágenes con IA de tu año de plan</span><span class="progress-nums"><strong id="progUsadas">0</strong> de <strong id="progTotal">0</strong> imágenes</span></div>
             <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressBar" style="width:0%"></div></div>
             <div class="progress-aviso" id="avisoFotos"></div>
         </div>
@@ -969,14 +969,13 @@
         <div id="solicitudPlanAviso" style="display:none;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:12px;padding:14px 20px;font-size:13px;color:#FCD34D;margin-bottom:24px;"></div>
         <div class="section-title">📊 Uso actual</div>
         <div class="progress-section">
-            <div class="progress-header"><span class="progress-title">Fotos del mes</span><span class="progress-nums"><strong id="planProgUsadas">0</strong> de <strong id="planProgTotal">0</strong></span></div>
+            <div class="progress-header"><span class="progress-title">Imágenes con IA de tu año de plan</span><span class="progress-nums"><strong id="planProgUsadas">0</strong> de <strong id="planProgTotal">0</strong></span></div>
             <div class="progress-bar-bg"><div class="progress-bar-fill" id="planProgressBar" style="width:0%"></div></div>
         </div>
         <div style="background:var(--oscuro2);border:1px solid rgba(124,58,237,0.2);border-radius:18px;padding:24px;">
-            <div class="stat-label" style="margin-bottom:8px;">💰 Recargas</div>
-            <p style="color:var(--gris);font-size:14px;line-height:1.6;">50 fotos por <strong style="color:var(--texto);">$100.000 COP</strong></p>
-            <a href="https://wa.me/573159423174?text=Hola,%20quiero%20recargar%20fotos" target="_blank" style="display:inline-block;margin-top:16px;background:var(--degradado);color:white;padding:12px 24px;border-radius:50px;font-size:14px;font-weight:700;text-decoration:none;">💬 Solicitar recarga</a>
-        </div>
+            <div class="stat-label" style="margin-bottom:8px;">⏳ Cómo funciona tu plan</div>
+                <p style="color:var(--gris);font-size:14px;line-height:1.6;">Pago único que cubre <strong style="color:var(--texto);">un año</strong>, con sus imágenes con IA para ese año. No hay cobros automáticos. Al vencer, tu tienda sigue vendiendo y atendiendo pedidos; las herramientas del plan se pausan hasta que compres un plan nuevo, que trae de nuevo todas sus imágenes.</p>
+            </div>
     </div>
 
     <!-- PERFIL -->
@@ -1014,7 +1013,7 @@ const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { flowType: 'pkce', persistSession: true, detectSessionInUrl: true, autoRefreshToken: true }
 });
 
-const PRECIOS       = { gratis:'$0', basico:'$400.000 pago único', profesional:'$700.000 pago único', premium:'$1.000.000 pago único', corporativo:'$3.000.000 pago único' };
+const PRECIOS       = { gratis:'$0', basico:'$400.000 pago único · 1 año', profesional:'$700.000 pago único · 1 año', premium:'$1.000.000 pago único · 1 año', corporativo:'$3.000.000 pago único · 1 año' };
 const NOMBRES_PLAN  = { gratis:'Gratis', basico:'Básico', profesional:'Profesional', premium:'Premium', corporativo:'Corporativo' };
 const FEATURES_PLAN = {
     gratis:      ['Tienda en el marketplace','Subir tu catálogo'],
@@ -1055,6 +1054,8 @@ let tiendaId      = null;
 let planActual    = 'basico';
 let planIdActual  = null;
 let empresaEstado = 'pendiente_pago';
+let planVence     = null;     // fecha de vencimiento del plan (pago único = un año)
+const DIAS_PARA_RENOVAR = 30; // desde cuándo se puede renovar el mismo plan
 let todosPlanesDash    = [];
 let solicitudPendiente = null;
 let productosIA   = [];
@@ -1095,6 +1096,9 @@ function abrirPaginaDesdeHash() {
 }
 
 async function cargarDatos(user) {
+    // Vence en el acto un plan cuya fecha ya pasó (sql/vigencia_planes.sql); si la
+    // función aún no existe, sigue normal.
+    try { await db.rpc('vencer_planes'); } catch (_) {}
     const { data:empresa } = await db.from('empresas').select('*, planes(*)').eq('email',user.email).maybeSingle();
     if (!empresa) {
     const { data:consumidor } = await db
@@ -1120,10 +1124,12 @@ async function cargarDatos(user) {
     // (el login lo lleva allá); este es su "cuarto de administración".
     planIdActual  = empresa.plan_id;
     empresaEstado = empresa.estado || 'pendiente_pago';
-    // Plan pendiente de pago: el botón invita a pagarlo en línea (antes solo
-    // decía "te contactaremos" y había que activarla a mano)
+    planVence     = empresa.plan_vence ? new Date(empresa.plan_vence) : null;
+    // Plan pendiente de pago: el botón invita a pagarlo en línea. Vencido: a renovarlo.
     const btnPlan = document.querySelector('.btn-upgrade');
-    if (btnPlan) btnPlan.textContent = (empresaEstado !== 'activo' && Number(empresa.planes?.precio || 0) > 0) ? '💳 Pagar y activar mi plan' : '⬆️ Cambiar plan';
+    if (btnPlan) btnPlan.textContent = empresaEstado === 'vencido' ? '🔄 Renovar mi plan'
+        : (empresaEstado !== 'activo' && Number(empresa.planes?.precio || 0) > 0) ? '💳 Pagar y activar mi plan'
+        : puedeRenovar() ? '🔄 Renovar o cambiar plan' : '⬆️ Cambiar plan';
     const [imagenesRes, tiendaRes, planesRes, solicitudRes] = await Promise.all([
         db.from('imagenes').select('*').eq('empresa_id',empresa.id).order('created_at',{ascending:false}).limit(50),
         db.from('tiendas').select('*').eq('empresa_id',empresa.id).maybeSingle(),
@@ -1188,10 +1194,19 @@ function renderDashboard(empresa, plan, imagenes) {
         document.getElementById('progressBar').style.width     = pct+'%';
         document.getElementById('planProgressBar').style.width = pct+'%';
     }, 200);
-    if (pct>=90) { document.getElementById('progressBar').classList.add('warning'); const a=document.getElementById('avisoFotos'); a.textContent='⚠️ ¡Casi sin fotos! Recarga tu cuenta.'; a.className='progress-aviso rojo'; }
-    else if (pct>=70) { const a=document.getElementById('avisoFotos'); a.textContent='💡 Estás usando más del 70% de tus fotos.'; a.className='progress-aviso amarillo'; }
+    if (pct>=90) { document.getElementById('progressBar').classList.add('warning'); const a=document.getElementById('avisoFotos'); a.textContent='⚠️ Te quedan pocas imágenes con IA para este año de plan.'; a.className='progress-aviso rojo'; }
+    else if (pct>=70) { const a=document.getElementById('avisoFotos'); a.textContent='💡 Ya usaste más del 70% de las imágenes de tu año de plan.'; a.className='progress-aviso amarillo'; }
+    // Aviso claro arriba del resumen cuando el plan venció (la tienda sigue vendiendo)
+    let avisoVenc = document.getElementById('avisoPlanVencido');
+    if (!avisoVenc) {
+        avisoVenc = document.createElement('div'); avisoVenc.id = 'avisoPlanVencido';
+        avisoVenc.style.cssText = 'background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.45);color:#FCD34D;border-radius:14px;padding:14px 18px;margin-bottom:18px;font-size:14px;line-height:1.55;';
+        const grid = document.querySelector('.stats-grid'); if (grid) grid.before(avisoVenc);
+    }
+    avisoVenc.style.display = empresaEstado === 'vencido' ? 'block' : 'none';
+    avisoVenc.innerHTML = `⌛ <b>Tu plan venció${planVence ? ' el ' + fechaCorta(planVence) : ''}.</b> Tu tienda, tus productos y tus pedidos siguen funcionando y puedes seguir vendiendo. Las herramientas del plan y las imágenes con IA están en pausa hasta que compres un plan nuevo. <a href="#" onclick="abrirModalCambioPlan();return false;" style="color:#FDE68A;font-weight:700;">Comprar un plan →</a>`;
     document.getElementById('planNombrePag').textContent = NOMBRES_PLAN[planNombre]||planNombre;
-    document.getElementById('planPrecioPag').textContent = PRECIOS[planNombre]||'';
+    document.getElementById('planPrecioPag').textContent = (PRECIOS[planNombre]||'') + textoVigencia();
     document.getElementById('planFeatures').innerHTML    = (FEATURES_PLAN[planNombre]||[]).map(f=>`<span class="feature-tag">✓ ${f}</span>`).join('');
 
     // Visor 3D y CRM — desde plan Profesional en adelante Y con el pago activo
@@ -1265,7 +1280,9 @@ function renderDashboard(empresa, plan, imagenes) {
     document.getElementById('perfilTelefono').textContent = empresa.telefono||'No registrado';
     document.getElementById('perfilFecha').textContent    = new Date(empresa.created_at).toLocaleDateString('es-CO',{year:'numeric',month:'long',day:'numeric'});
     document.getElementById('perfilEstado').innerHTML     = empresa.estado==='activo'
-        ? '<span class="estado-badge activo">● Activo</span>'
+        ? '<span class="estado-badge activo">● Activo</span>' + (planVence ? ` <span style="color:var(--gris);font-size:12px;">hasta el ${fechaCorta(planVence)}</span>` : '')
+        : empresa.estado==='vencido'
+        ? `<span class="estado-badge pendiente">● Vencido${planVence ? ' el ' + fechaCorta(planVence) : ''}</span> <span style="color:var(--gris);font-size:12px;">Tu tienda sigue vendiendo; renueva para usar tus herramientas.</span>`
         : '<span class="estado-badge pendiente">● Pendiente de pago</span>';
     renderImagenes(imagenes,'ultimasImagenes',6);
     renderImagenes(imagenes,'historialCompleto',50);
@@ -1843,17 +1860,43 @@ function precioDePlan(planId) {
 // Lo que la tienda YA pagó: si su plan está pendiente, nada (paga el plan completo)
 function precioYaPagado() { return empresaEstado === 'activo' ? precioDePlan(planIdActual) : 0; }
 
+function fechaCorta(d) { return d.toLocaleDateString('es-CO', { day:'numeric', month:'long', year:'numeric' }); }
+function diasParaVencer() { return planVence ? Math.ceil((planVence - Date.now()) / 86400000) : null; }
+// Se puede renovar el MISMO plan cuando faltan 30 días o menos (o ya venció)
+function puedeRenovar() {
+    const d = diasParaVencer();   // null en Gratis y en planes sin fecha: no se renueva
+    return empresaEstado === 'activo' && d !== null && d <= DIAS_PARA_RENOVAR;
+}
+function textoVigencia() {
+    if (!planVence) return '';
+    if (empresaEstado === 'vencido') return ` · venció el ${fechaCorta(planVence)}`;
+    const d = diasParaVencer();
+    return ` · vigente hasta el ${fechaCorta(planVence)}` + (d <= DIAS_PARA_RENOVAR ? ` (faltan ${d} día${d === 1 ? '' : 's'})` : '');
+}
+// Lo que se cobra: renovar el mismo plan = año completo; subir = la diferencia.
+// (El servidor recalcula con los precios de la base: esto solo es lo que se muestra.)
+function precioAPagar(planId) {
+    if (planId === planIdActual && empresaEstado === 'activo') return precioDePlan(planId);
+    return Math.max(precioDePlan(planId) - precioYaPagado(), 0);
+}
+
 function abrirModalCambioPlan() {
     const precioActual = precioYaPagado();
     // Pendiente: puede pagar su mismo plan (para activarlo) o uno más alto
-    const opciones = todosPlanesDash.filter(p => (empresaEstado !== 'activo' || p.id !== planIdActual) && Number(p.precio||0) > precioActual);
+    // Pendiente o vencido: cualquier plan de pago (incluido el suyo). Vigente: subir,
+    // o renovar el mismo cuando faltan 30 días o menos.
+    const opciones = todosPlanesDash.filter(p => Number(p.precio||0) > 0 && (
+        (p.id === planIdActual && (empresaEstado !== 'activo' || puedeRenovar())) ||
+        (p.id !== planIdActual && Number(p.precio||0) > precioActual)));
+    const tituloModal = document.querySelector('#modalCambioPlan h2');
+    if (tituloModal) tituloModal.textContent = (empresaEstado === 'vencido' || puedeRenovar()) ? '🔄 Renovar o subir de plan' : '⬆️ Subir de plan';
     document.getElementById('cambioPlanAlerta').className = 'alerta';
     if (opciones.length === 0) {
         mostrarAlerta('cambioPlanAlerta', planActual === 'corporativo' ? '🎉 Ya tienes el plan más alto.' : '⚠️ No hay planes disponibles para subir en este momento.', 'error');
     }
     const select = document.getElementById('selectPlanSolicitado');
     select.innerHTML = opciones
-        .map(p => `<option value="${p.id}">${NOMBRES_PLAN[p.nombre]||p.nombre} — $${Number(p.precio||0).toLocaleString("es-CO")} pago único</option>`)
+        .map(p => `<option value="${p.id}">${NOMBRES_PLAN[p.nombre]||p.nombre} — $${Number(p.precio||0).toLocaleString("es-CO")} · 1 año</option>`)
         .join('');
     document.getElementById('modalCambioPlan').classList.add('open');
     actualizarDiferenciaPlan();
@@ -1863,12 +1906,15 @@ function actualizarDiferenciaPlan() {
     const select = document.getElementById('selectPlanSolicitado');
     const texto  = document.getElementById('diferenciaPlanTexto');
     if (!select.value) { texto.textContent = ''; return; }
-    const precioActual = precioYaPagado();
-    const precioNuevo  = precioDePlan(select.value);
-    const diferencia   = Math.max(precioNuevo - precioActual, 0);
-    texto.textContent = empresaEstado !== 'activo'
-        ? `Total a pagar para activar tu plan: $${diferencia.toLocaleString('es-CO')} COP`
-        : `Diferencia a pagar: $${diferencia.toLocaleString('es-CO')} COP`;
+    const diferencia   = precioAPagar(select.value);
+    const renovar      = select.value === planIdActual && empresaEstado === 'activo';
+    texto.textContent = renovar
+        ? `Renovación por un año: $${diferencia.toLocaleString('es-CO')} COP. Tu plan quedará vigente hasta el ${fechaCorta(new Date(Math.max(planVence || Date.now(), Date.now()) + 365 * 86400000))}.`
+        : empresaEstado !== 'activo'
+        ? `Total a pagar (un año de plan): $${diferencia.toLocaleString('es-CO')} COP`
+        : `Diferencia a pagar: $${diferencia.toLocaleString('es-CO')} COP. Conservas tu fecha de vencimiento (${fechaCorta(planVence || new Date())}).`;
+    const btnPagar = document.getElementById('btnEnviarSolicitudPlan');
+    if (btnPagar && !btnPagar.disabled) btnPagar.innerHTML = renovar ? '💳 Pagar y renovar un año' : (empresaEstado !== 'activo' ? '💳 Pagar y activar mi plan' : '💳 Pagar diferencia y subir de plan');
 }
 
 async function generarFirmaWompiDash(referencia, monto, moneda) {
@@ -1889,9 +1935,7 @@ async function iniciarPagoCambioPlan() {
     const planSolicitadoId = document.getElementById('selectPlanSolicitado').value;
     if (!planSolicitadoId) { mostrarAlerta('cambioPlanAlerta','⚠️ Elige un plan.','error'); return; }
 
-    const precioActual = precioYaPagado();
-    const precioNuevo  = precioDePlan(planSolicitadoId);
-    const diferencia   = Math.max(precioNuevo - precioActual, 0);
+    const diferencia   = precioAPagar(planSolicitadoId);
     if (diferencia <= 0) { mostrarAlerta('cambioPlanAlerta','⚠️ Ese plan no representa una subida real.','error'); return; }
 
     const btn = document.getElementById('btnEnviarSolicitudPlan');
@@ -1915,7 +1959,7 @@ async function iniciarPagoCambioPlan() {
     }
 
     const montoEnCentavos = diferencia * 100;
-    const referencia      = `SUSC-${empresaId.substring(0,8)}-${Date.now()}`;
+    const referencia      = `SUSC-${empresaId}-${Date.now()}`;   // id completo: el servidor lo busca exacto
     const moneda           = 'COP';
     const firma = await generarFirmaWompiDash(referencia, montoEnCentavos, moneda);
 
@@ -3081,9 +3125,12 @@ async function cargarVentas() {
     const lista   = pedidos || [];
     const pagados = lista.filter(p => ['pagado','enviado','entregado'].includes(p.estado));
     const vendido       = pagados.reduce((s,p) => s + Number(p.total||0), 0);
-    const teCorresponde = pagados.reduce((s,p) => s + Number(p.monto_tienda||0), 0);
+    // Lo que de verdad le toca: ya descontados los descuentos administrativos y
+    // las devoluciones a su cargo (lo calcula el servidor: p.saldo.para_tienda)
+    const paraTi        = p => Number(p.saldo ? p.saldo.para_tienda : (p.monto_tienda || 0));
+    const teCorresponde = pagados.reduce((s,p) => s + paraTi(p), 0);
     const porRecibir    = pagados.filter(p => !p.pagado_tienda_at)
-                                 .reduce((s,p) => s + Number(p.monto_tienda||0), 0);
+                                 .reduce((s,p) => s + paraTi(p), 0);
 
     const tarjeta = (titulo, valor, color) => `
         <div class="card" style="padding:16px;">
@@ -3139,10 +3186,16 @@ async function cargarVentas() {
                 <span style="color:var(--gris);">Productos: <b style="color:var(--texto);">$${Number(p.subtotal||0).toLocaleString('es-CO')}</b></span>
                 ${p.domicilio != null ? `<span style="color:var(--gris);">Domicilio: <b style="color:var(--texto);">$${Number(p.domicilio).toLocaleString('es-CO')}</b></span>` : ''}
                 <span style="color:var(--gris);">Total: <b style="color:var(--texto);">$${Number(p.total||0).toLocaleString('es-CO')}</b></span>
-                <span style="color:var(--gris);">Costos administrativos: <b style="color:#FCA5A5;">−$${(Number(p.comision_monto||0) + Number(p.costo_wompi||0)).toLocaleString('es-CO')}</b></span>
-                <span style="color:var(--gris);">Para ti: <b style="color:#6EE7B7;">$${Number(p.monto_tienda||0).toLocaleString('es-CO')}</b></span>
+                <span style="color:var(--gris);">Costos administrativos: <b style="color:#FCA5A5;">−$${(Number(p.comision_monto||0) + Number(p.costo_wompi||0)).toLocaleString('es-CO')}</b>
+                    <span style="font-size:11.5px;">(comisión DecoIArte ${p.comision_porcentaje || 5}% $${Number(p.comision_monto||0).toLocaleString('es-CO')} + pasarela de pagos $${Number(p.costo_wompi||0).toLocaleString('es-CO')})</span></span>
+                <span style="color:var(--gris);">Para ti: <b style="color:#6EE7B7;">$${(p.saldo ? Number(p.saldo.para_tienda) : Number(p.monto_tienda||0)).toLocaleString('es-CO')}</b>${p.saldo && p.saldo.para_tienda !== p.saldo.para_tienda_inicial ? ` <span style="font-size:11.5px;text-decoration:line-through;">$${Number(p.saldo.para_tienda_inicial).toLocaleString('es-CO')}</span>` : ''}</span>
                 ${p.pagado_tienda_at ? '<span style="color:#6EE7B7;">✓ Ya te transferimos</span>' : (p.liberado_at ? '<span style="color:#6EE7B7;">✅ Liberado: te transferimos pronto</span>' : (['pagado','enviado'].includes(p.estado) ? '<span style="color:#FCD34D;">⏳ Se libera cuando el cliente confirme (o a los 5 días hábiles del envío)</span>' : ''))}
             </div>
+            ${(p.movimientos || []).length ? `<div style="margin-top:8px;font-size:12.5px;border-top:1px dashed rgba(139,139,167,.25);padding-top:7px;">${p.movimientos.map(m => `
+                <div style="display:flex;justify-content:space-between;gap:10px;color:var(--gris);">
+                  <span>${{ descuento_administrativo: '🧾 Descuento administrativo', devolucion_comprador: '↩️ Devolución al comprador', desembolso_tienda: '💸 Te pagamos' }[m.tipo] || m.tipo}: ${esc(m.concepto)}${m.tipo === 'devolucion_comprador' ? (m.a_cargo_de === 'tienda' ? ' (a tu cargo)' : ' (la asume DecoIArte)') : ''}${m.comprobante ? ' · comprobante ' + esc(m.comprobante) : ''}${m.estado === 'pendiente' ? ' · pendiente' : ''}</span>
+                  <b style="color:${m.tipo === 'desembolso_tienda' ? '#6EE7B7' : '#FCA5A5'};white-space:nowrap;">${m.tipo === 'desembolso_tienda' ? '' : '−'}$${Number(m.monto).toLocaleString('es-CO')}</b>
+                </div>`).join('')}</div>` : ''}
             ${['cotizando','por_pagar'].includes(p.estado) ? `
             <div style="margin-top:12px;padding:12px;border-radius:10px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.35);">
                 <div style="font-size:12.5px;font-weight:700;color:#FCD34D;margin-bottom:6px;">🚚 ${p.estado === 'cotizando' ? 'Escribe el costo del domicilio' : 'Domicilio cotizado — puedes corregirlo mientras el cliente no pague'}</div>

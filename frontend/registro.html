@@ -165,7 +165,7 @@
                             <span class="plan-card">
                                 <div class="plan-card-nombre">Básico</div>
                                 <div class="plan-card-precio">$700K</div>
-                                <div class="plan-card-fotos">100 fotos/mes</div>
+                                <div class="plan-card-fotos">100 imágenes con IA · 1 año</div>
                             </span>
                         </label>
                         <label class="plan-option">
@@ -174,7 +174,7 @@
                                 <div class="plan-popular-badge">⭐ Popular</div>
                                 <div class="plan-card-nombre">Profesional</div>
                                 <div class="plan-card-precio">$1.200K</div>
-                                <div class="plan-card-fotos">200 fotos/mes</div>
+                                <div class="plan-card-fotos">200 imágenes con IA · 1 año</div>
                             </span>
                         </label>
                         <label class="plan-option">
@@ -182,7 +182,7 @@
                             <span class="plan-card">
                                 <div class="plan-card-nombre">Premium</div>
                                 <div class="plan-card-precio">$1.500K</div>
-                                <div class="plan-card-fotos">300 fotos/mes</div>
+                                <div class="plan-card-fotos">300 imágenes con IA · 1 año</div>
                             </span>
                         </label>
                         <label class="plan-option">
@@ -190,7 +190,7 @@
                             <span class="plan-card">
                                 <div class="plan-card-nombre">Corporativo</div>
                                 <div class="plan-card-precio">$3.000K</div>
-                                <div class="plan-card-fotos">500 fotos/mes</div>
+                                <div class="plan-card-fotos">900 imágenes con IA · 1 año</div>
                             </span>
                         </label>
                     </div>
@@ -276,7 +276,7 @@ const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { flowType: 'pkce', persistSession: true, detectSessionInUrl: true, autoRefreshToken: true }
 });
 
-const PRECIOS_PLAN = { gratis:'$0', basico:'$400.000 pago único', profesional:'$700.000 pago único', premium:'$1.000.000 pago único', corporativo:'$3.000.000 pago único' };
+const PRECIOS_PLAN = { gratis:'$0', basico:'$400.000 pago único · 1 año', profesional:'$700.000 pago único · 1 año', premium:'$1.000.000 pago único · 1 año', corporativo:'$3.000.000 pago único · 1 año' };
 const NOMBRES_PLAN = { gratis:'Gratis', basico:'Básico', profesional:'Profesional', premium:'Premium', corporativo:'Corporativo' };
 
 // Sin valor por defecto a propósito: antes arrancaba en 'empresa', y un
@@ -481,7 +481,7 @@ function mostrarExitoEmpresa(nombre, email, plan, fotos) {
         <p>👤 <strong>${nombre}</strong></p>
         <p>📧 <strong>${email}</strong></p>
         <p>📦 Plan: <strong>${NOMBRES_PLAN[plan] || plan}</strong></p>
-        <p>📸 <strong>${fotos} imágenes/mes</strong></p>
+        <p>📸 <strong>${fotos} imágenes con IA durante el año de tu plan</strong></p>
         <p style="margin-top:10px;font-size:12px;color:#A78BFA;">${mensajeFinal}</p>`;
     document.getElementById('exitoEmpresa').style.display = 'block';
 }

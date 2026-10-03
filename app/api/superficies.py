@@ -38,7 +38,7 @@ from pydantic import BaseModel
 from app.utils.config import get_settings
 from app.utils.supabase_client import get_supabase
 from app.utils.auth import exigir_duenio
-from app.services.limites_service import tiene_fotos_disponibles, descontar_foto
+from app.services.limites_service import reservar_para_esta_solicitud, cierra_reserva
 from app.services.imagen_service import editar_objeto, interpretar_escena
 from app.services.openai_service import detectar_prompt_injection, sanitizar_entrada
 
@@ -116,9 +116,11 @@ async def _verificar_empresa_para_ia(empresa_id: str | None):
             detail="Quitar y cambiar objetos, y mejorar con IA, son del plan Profesional.")
     if (r.data.get("estado") or "") != "activo":
         raise HTTPException(status_code=402, detail="Tu plan está pendiente de pago.")
-    if not await tiene_fotos_disponibles(empresa_id):
+    # Reserva UNA imagen (sql/imagenes_planes.sql): @cierra_reserva la confirma si
+    # la respuesta sale bien y la devuelve si hay cualquier error.
+    if not await reservar_para_esta_solicitud(empresa_id, "editor"):
         raise HTTPException(status_code=402,
-            detail="Se acabaron tus generaciones con IA. Recarga desde tu cuenta.")
+            detail="Ya usaste todas las imágenes con IA de tu plan para este año. Compra un plan para seguir.")
 
 
 def _prompt(superficie: str, producto: str | None) -> str:
@@ -143,6 +145,7 @@ def _prompt(superficie: str, producto: str | None) -> str:
 
 
 @router.post("/refinar")
+@cierra_reserva()
 async def refinar_superficie(data: RefinarRequest, request: Request):
     """
     Devuelve una imagen de referencia de iluminación. El navegador NO la
@@ -189,7 +192,6 @@ async def refinar_superficie(data: RefinarRequest, request: Request):
             raise HTTPException(status_code=502, detail="El servicio de IA no respondió bien")
 
         salida = respuesta.json()["data"][0]
-        await descontar_foto(data.empresa_id)
         return {
             "ok": True,
             "imagen_base64": salida.get("b64_json"),
@@ -213,6 +215,7 @@ async def refinar_superficie(data: RefinarRequest, request: Request):
 # la IA lo quita o lo reemplaza por un producto del catálogo.
 # ─────────────────────────────────────────────────────────────────────────
 @router.post("/objeto")
+@cierra_reserva()
 async def objeto(data: ObjetoRequest, request: Request):
     if data.accion not in ("quitar", "cambiar"):
         raise HTTPException(status_code=400, detail="Acción no válida")
@@ -253,7 +256,6 @@ async def objeto(data: ObjetoRequest, request: Request):
         raise HTTPException(status_code=504, detail="La IA tardó demasiado, intenta de nuevo")
 
     # Se descuenta solo si se entregó: un fallo del proveedor no cuesta cupo
-    await descontar_foto(data.empresa_id)
     return {"ok": True, "imagen_base64": base64.b64encode(resultado).decode()}
 
 
@@ -263,6 +265,7 @@ async def objeto(data: ObjetoRequest, request: Request):
 # al final pide una interpretación realista del cuarto completo.
 # ─────────────────────────────────────────────────────────────────────────
 @router.post("/interpretar")
+@cierra_reserva()
 async def interpretar(data: InterpretarRequest, request: Request):
     settings = get_settings()
     if not settings.openai_api_key:
@@ -302,7 +305,6 @@ async def interpretar(data: InterpretarRequest, request: Request):
     except httpx.TimeoutException:
         raise HTTPException(status_code=504, detail="La IA tardó demasiado, intenta de nuevo")
 
-    await descontar_foto(data.empresa_id)
     return {"ok": True, "imagen_base64": base64.b64encode(resultado).decode()}
 
 

@@ -1,8 +1,9 @@
+import re
 import hashlib
 import logging
 import json
 import httpx
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Request, HTTPException
 from pydantic import BaseModel
 from app.utils.config import get_settings, Settings
@@ -124,6 +125,47 @@ async def _aviso_plan_admin(referencia, monto_cop, metodo, tx_id, cliente_email,
         logger.error(f"No se pudo enviar el correo del pago de plan {referencia}: {e}")
 
 
+_UUID = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+
+
+def _empresa_de_referencia(supabase, referencia: str):
+    """Id de la empresa que paga un plan, a partir de la referencia.
+    Nueva: SUSC-<uuid completo>-<marca de tiempo> → igualdad exacta.
+    Vieja: SUSC-<8 primeros caracteres>-<marca> → se busca entre las solicitudes
+    "pagando" (en Python: PostgreSQL no acepta ilike sobre una columna uuid)."""
+    m = re.match(rf"^SUSC-({_UUID})-\d+$", referencia or "")
+    if m:
+        return m.group(1).lower()
+    partes = (referencia or "").split("-")
+    if len(partes) < 3 or len(partes[1]) < 8:
+        return None
+    prefijo = partes[1].lower()
+    r = supabase.table("solicitudes_plan").select("empresa_id").eq("estado", "pagando").execute()
+    candidatos = {str(x["empresa_id"]) for x in (r.data or []) if str(x.get("empresa_id", "")).lower().startswith(prefijo)}
+    if len(candidatos) == 1:
+        return candidatos.pop()
+    logger.error(f"Referencia vieja {referencia}: {len(candidatos)} empresas coinciden con {prefijo} — revisión manual")
+    return None
+
+
+def _un_anio_despues(fecha: datetime) -> datetime:
+    """Misma fecha un año después (el 29 de febrero pasa al 28)."""
+    try:
+        return fecha.replace(year=fecha.year + 1)
+    except ValueError:
+        return fecha.replace(year=fecha.year + 1, day=28)
+
+
+def _fecha(v):
+    if not v:
+        return None
+    try:
+        d = datetime.fromisoformat(str(v).replace("Z", "+00:00"))
+        return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+    except Exception:
+        return None
+
+
 async def _procesar_pago_cambio_plan(referencia: str, monto_cop: float, metodo: str, tx_id: str, cliente_email: str):
     """
     Referencia: SUSC-{empresa_id_8chars}-{timestamp}
@@ -140,17 +182,35 @@ async def _procesar_pago_cambio_plan(referencia: str, monto_cop: float, metodo: 
     Wompi para que no reintente indefinidamente.
     """
     supabase = get_supabase()
-    empresa = None
+
+    # Idempotencia: Wompi reintenta el webhook. Si esta referencia ya quedó
+    # aprobada, no se repite nada (ni pago, ni plan, ni falsas alarmas).
     try:
-        partes = referencia.split("-")
-        if len(partes) >= 2:
-            empresa_id_partial = partes[1]
+        ya = supabase.table("pagos").select("id").eq("referencia", referencia).eq("estado", "aprobado").limit(1).execute()
+        if ya and ya.data:
+            logger.info(f"Pago de plan {referencia} ya estaba procesado — se ignora el reintento")
+            return {"status": "ok", "mensaje": "ya procesado"}
+    except Exception as e:
+        logger.error(f"No se pudo revisar si {referencia} ya estaba procesado: {e}")
+
+    empresa = None
+    empresa_id_buscado = None
+    try:
+        empresa_id_buscado = _empresa_de_referencia(supabase, referencia)
+        if empresa_id_buscado:
             r = supabase.table("empresas").select(
-                "id, nombre, email, fotos_usadas, estado"
-            ).ilike("id", f"{empresa_id_partial}%").maybe_single().execute()
+                "id, nombre, email, fotos_usadas, estado, plan_id, plan_vence"
+            ).eq("id", empresa_id_buscado).maybe_single().execute()
             empresa = r.data if r else None
     except Exception as e:
+        # Si aún no se corrió sql/vigencia_planes.sql, plan_vence no existe: se reintenta sin ella
         logger.error(f"Error buscando empresa para cambio de plan: {e}")
+        try:
+            r = supabase.table("empresas").select("id, nombre, email, fotos_usadas, estado, plan_id") \
+                .eq("id", empresa_id_buscado).maybe_single().execute()
+            empresa = r.data if r else None
+        except Exception as e2:
+            logger.error(f"Error buscando empresa (sin vigencia): {e2}")
 
     if not empresa:
         logger.error(f"No se encontró empresa para el pago de cambio de plan {referencia} — requiere revisión manual")
@@ -198,7 +258,9 @@ async def _procesar_pago_cambio_plan(referencia: str, monto_cop: float, metodo: 
         # Antes, una tienda pendiente (plan sin pagar) podía pedir uno más alto,
         # pagar solo la diferencia y quedar activa sin haber pagado su plan.
         pagado_antes = (empresa.get("estado") == "activo")
-        descuento = precios.get(solicitud.get("plan_actual_id"), 0) if pagado_antes else 0
+        # Renovar el MISMO plan cuesta el año completo; subir de plan, la diferencia.
+        es_renovacion = pagado_antes and plan_nuevo["id"] == solicitud.get("plan_actual_id")
+        descuento = precios.get(solicitud.get("plan_actual_id"), 0) if (pagado_antes and not es_renovacion) else 0
         esperado = max(precios.get(plan_nuevo["id"], 0) - descuento, 0)
     except Exception as e:
         logger.error(f"No se pudo leer el precio de los planes para {referencia}: {e} — no se activa, requiere revisión manual")
@@ -213,16 +275,52 @@ async def _procesar_pago_cambio_plan(referencia: str, monto_cop: float, metodo: 
         await _aviso_plan_admin(referencia, monto_cop, metodo, tx_id, cliente_email, "Pagó MENOS de lo que cuesta el plan", empresa=locals().get("empresa"))
         return {"status": "ok", "mensaje": "monto insuficiente, plan no activado"}
 
-    fotos_usadas = empresa.get("fotos_usadas") or 0
-    fotos_nuevas_disponibles = max((plan_nuevo.get("fotos_incluidas") or 0) - fotos_usadas, 0)
+
+    # ── Vigencia: pago único que cubre UN año ──────────────────────────────
+    #  · Renovar el mismo plan: suma un año desde el vencimiento (o desde hoy si ya venció).
+    #  · Subir de plan con el plan vigente: paga la diferencia y CONSERVA el vencimiento.
+    #  · Plan nuevo, pendiente o vencido: un año desde hoy.
+    ahora = datetime.now(timezone.utc)
+    vence_actual = _fecha(empresa.get("plan_vence"))
+    inicio_nuevo = None
+    if es_renovacion:
+        vence_nuevo = _un_anio_despues(max(vence_actual or ahora, ahora))
+    elif pagado_antes and vence_actual and vence_actual > ahora:
+        vence_nuevo = vence_actual
+    else:
+        inicio_nuevo, vence_nuevo = ahora, _un_anio_despues(ahora)
+
+    # ── Imágenes con IA del año (aprobado el 2 oct 2026) ──────────────────
+    #  · Año nuevo (plan nuevo, renovación o recompra tras vencer): la cantidad
+    #    COMPLETA del plan; las que sobraron del año anterior no se acumulan.
+    #  · Subir de plan con el plan vigente: las del plan nuevo menos las ya usadas este año.
+    incluidas = int(plan_nuevo.get("fotos_incluidas") or 0)
+    if es_renovacion or inicio_nuevo:
+        fotos_usadas_periodo, fotos_nuevas_disponibles = 0, incluidas
+    else:
+        fotos_usadas_periodo = int(empresa.get("fotos_usadas") or 0)
+        fotos_nuevas_disponibles = max(incluidas - fotos_usadas_periodo, 0)
 
     try:
-        supabase.table("empresas").update({
+        cambios_empresa = {
             "plan_id":           plan_nuevo["id"],
             "estado":            "activo",
             "pago_metodo":       "wompi",
             "fotos_disponibles": fotos_nuevas_disponibles,
-        }).eq("id", empresa_id).execute()
+            "fotos_usadas":      fotos_usadas_periodo,
+            "plan_vence":        vence_nuevo.isoformat(),
+        }
+        if inicio_nuevo:
+            cambios_empresa["plan_inicio"] = inicio_nuevo.isoformat()
+        try:
+            supabase.table("empresas").update(cambios_empresa).eq("id", empresa_id).execute()
+        except Exception as e:
+            # Sin sql/vigencia_planes.sql las columnas de fecha no existen: el plan
+            # se activa igual (el cliente pagó) y queda la alerta para corregirlo.
+            logger.error(f"Plan {referencia} activado SIN fecha de vencimiento (falta sql/vigencia_planes.sql): {e}")
+            for k in ("plan_vence", "plan_inicio"):
+                cambios_empresa.pop(k, None)
+            supabase.table("empresas").update(cambios_empresa).eq("id", empresa_id).execute()
 
         supabase.table("solicitudes_plan").update({
             "estado":      "aprobada",
@@ -242,7 +340,8 @@ async def _procesar_pago_cambio_plan(referencia: str, monto_cop: float, metodo: 
         detalle = {"transaccion_id": tx_id, "detalle": {
             "plan_nuevo": plan_nuevo.get("nombre"), "plan_nuevo_id": plan_nuevo.get("id"),
             "plan_anterior_id": solicitud.get("plan_actual_id"), "email": cliente_email or empresa.get("email"),
-            "precio_esperado": esperado}}
+            "precio_esperado": esperado, "renovacion": bool(es_renovacion), "imagenes_del_anio": fotos_nuevas_disponibles,
+            "vigente_hasta": vence_nuevo.date().isoformat()}}
         try:
             supabase.table("pagos").insert({**registro_pago, **detalle}).execute()
         except Exception as e:
@@ -254,7 +353,7 @@ async def _procesar_pago_cambio_plan(referencia: str, monto_cop: float, metodo: 
             "empresa_id": empresa_id,
             "tipo":       "plan",
             "titulo":     "🎉 ¡Tu plan fue actualizado!",
-            "mensaje":    f"Ahora estás en el plan {plan_nuevo['nombre'].capitalize()}. ${monto_cop:,.0f} COP · Ref: {referencia}",
+            "mensaje":    f"{'Renovaste' if es_renovacion else 'Ahora estás en'} el plan {plan_nuevo['nombre'].capitalize()}, vigente hasta el {vence_nuevo.strftime('%d/%m/%Y')}. ${f'{int(round(monto_cop or 0)):,}'.replace(',', '.')} COP · Ref: {referencia}",
             "leida":      False,
             "datos": {
                 "referencia": referencia,

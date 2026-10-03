@@ -17,7 +17,7 @@ from app.services.openai_service import (
     analizar_plano_completo,
     analizar_mensaje_texto,
 )
-from app.services.limites_service import tiene_fotos_disponibles, descontar_foto
+from app.services.limites_service import reservar_para_esta_solicitud, confirmar_reserva_actual, cierra_reserva
 from app.utils.supabase_client import get_supabase
 from datetime import datetime
 import json
@@ -299,6 +299,7 @@ async def notificar_asesor(
 
 
 # ── POLLING SELECCIÓN ─────────────────────────────────────────────────────
+@cierra_reserva(exito=lambda r: False)   # solo cuenta lo que se confirma al entregar
 async def esperar_seleccion_y_procesar(
     sender: str, session_id: str,
     url_foto_original: str, url_foto_generada: str,
@@ -346,8 +347,8 @@ async def esperar_seleccion_y_procesar(
                     # Mismo control de cupo que en el resto del bot — este flujo
                     # hoy no se dispara (viene de selector.html, que quedó
                     # desconectado), pero si se reconecta debe respetar el plan.
-                    if empresa_id and not await tiene_fotos_disponibles(empresa_id):
-                        logger.warning(f"Empresa {empresa_id} sin fotos — no se aplica producto con IA")
+                    if empresa_id and not await reservar_para_esta_solicitud(empresa_id, "bot_whatsapp"):
+                        logger.warning(f"Empresa {empresa_id} sin imágenes o plan no vigente — no se aplica producto con IA")
                     else:
                         async with httpx.AsyncClient(timeout=30.0) as client:
                             prod_r     = await client.get(seleccion["imagen_url"])
@@ -356,7 +357,7 @@ async def esperar_seleccion_y_procesar(
                             foto_bytes, prod_bytes,
                             seleccion["nombre"], seleccion.get("categoria", "material"),
                         )
-                        if empresa_id: await descontar_foto(empresa_id)
+                        await confirmar_reserva_actual()   # entregada: cuenta como usada
                         await registrar_imagen_generada(
                             empresa_id, url_resultado, sender,
                             tipo_espacio="producto_aplicado",
@@ -417,6 +418,7 @@ async def esperar_seleccion_y_procesar(
 
 
 # ── PROCESAR IMAGEN (background task) ────────────────────────────────────
+@cierra_reserva(exito=lambda r: False)   # solo cuenta lo que se confirma al entregar
 async def procesar_imagen_background(
     sender: str, image_id: str, settings: Settings,
     pid_envio: str = None, asesor_numero: str = None, url_selector_base: str = None,
@@ -428,13 +430,15 @@ async def procesar_imagen_background(
         # mirar el cupo del plan, así que una empresa podía gastar muchas más
         # fotos de las que pagó y el costo salía del bolsillo de DecoIArte.
         # Si no hay empresa (número demo/genérico), se deja pasar como antes.
-        if empresa_id and not await tiene_fotos_disponibles(empresa_id):
-            logger.warning(f"Empresa {empresa_id} sin fotos disponibles — generación bloqueada en el bot")
+        # Reserva UNA imagen al empezar; se confirma donde se entrega y, si la
+        # conversación termina sin entregar imagen, @cierra_reserva la devuelve.
+        if empresa_id and not await reservar_para_esta_solicitud(empresa_id, "bot_whatsapp"):
+            logger.warning(f"Empresa {empresa_id} sin imágenes disponibles o plan no vigente — generación bloqueada en el bot")
             await enviar_mensaje_whatsapp(
                 sender,
-                "⚠️ *Se acabaron las fotos disponibles de este mes*\n\n"
-                "Tu asesor ya fue notificado y puede recargar el cupo o subir de plan "
-                "para seguir generando imágenes con IA. 🙏",
+                "⚠️ *En este momento no podemos generar más imágenes con IA*\n\n"
+                "Tu asesor ya fue notificado. Mientras tanto, con gusto te ayudamos "
+                "por aquí con tus productos y cotizaciones. 🙏",
                 settings, pid_envio
             )
             return
@@ -503,7 +507,7 @@ async def procesar_imagen_background(
                 )
 
             url_isometrica = await generar_vista_isometrica(imagen_bytes, resultado)
-            if empresa_id: await descontar_foto(empresa_id)
+            await confirmar_reserva_actual()   # entregada: cuenta como usada
 
             await enviar_imagen_whatsapp(
                 sender, url_isometrica,
@@ -646,7 +650,7 @@ async def procesar_imagen_background(
             if not url_generada:
                 url_generada = await generar_imagen_remodelada(imagen_bytes, "moderno")
 
-            if empresa_id: await descontar_foto(empresa_id)
+            await confirmar_reserva_actual()   # generada: cuenta como usada
 
             # PRIMERO SE ENTREGA. Antes se subía la foto original a imgbb antes
             # de mandar el resultado, y como esa subida lanza excepción al

@@ -28,7 +28,7 @@
 <body><div class="caja">
 
 <h1>Estructura de <span>DecoIArte</span></h1>
-<p class="sub">Mapa corto de cómo está organizado el producto. Antes de construir algo: ¿a qué plan pertenece, en qué pantalla vive y qué no puede romper? Actualizado el 2 de octubre de 2026.</p>
+<p class="sub">Mapa corto de cómo está organizado el producto. Antes de construir algo: ¿a qué plan pertenece, en qué pantalla vive y qué no puede romper? Actualizado el 3 de octubre de 2026 (pago único anual, imágenes por año y movimientos de dinero).</p>
 
 <!-- ═══ ESTADO DEL PROYECTO ═══════════════════════════════════════════════
      Cada módulo es una lista de funcionalidades verificables:
@@ -40,19 +40,18 @@
 <script>
 const MODULOS = [
   ['Marketplace',       {'Lista de tiendas':'C','Búsqueda y categorías':'C','Carga de a 24 (escala)':'C','Ficha de tienda y producto':'C','Carrito':'C','Favoritos':'C','Reseñas y respuesta':'C','Tema oscuro en todo':'P'}],
-  ['Pedidos y domicilio',{'Crear pedido':'C','Cotizar domicilio':'C','Pagar el total':'C','Enviado / recibido':'C','Cancelar sin pagar':'C','Liberación a 5 días hábiles':'C','Historial de la tienda':'C','Reembolsos':'X'}],
-  ['Pagos y dinero',    {'Wompi en producción':'C','Firma y monto desde la base':'C','Costos administrativos':'C','Imagen IA de $5.000':'C','Tope diario del comprador':'C','Plan pagado en línea (falta prueba real)':'P','Pago automático a tiendas':'X'}],
-  ['Planes y permisos', {'Matriz única de planes':'C','Validación en el servidor':'C','Enrutamiento por plan':'C','Subir de plan':'C','Primer plan en línea (falta prueba real)':'P','Vencimiento de planes':'X'}],
-  ['Seguridad',         {'Sesión y dueño en el servidor':'C','Funciones SQL cerradas':'C','Guardias de escritura (correr SQL)':'P','RLS de lecturas (correr SQL)':'P','Datos legales privados (correr SQL)':'P','Contraseñas filtradas':'X','Dos pasos del admin':'X','Rol admin en tabla':'X'}],
+  ['Pedidos y domicilio',{'Crear pedido':'C','Cotizar domicilio':'C','Pagar el total':'C','Enviado / recibido':'C','Cancelar sin pagar':'C','Liberación a 5 días hábiles':'C','Historial de la tienda':'C','Devoluciones al comprador (correr SQL)':'P'}],
+  ['Pagos y dinero',    {'Wompi en producción':'C','Firma y monto desde la base':'C','Costos administrativos':'C','Imagen IA de $5.000':'C','Tope diario del comprador':'C','Plan pagado en línea (falta prueba real)':'P','Comisión y pasarela por separado':'C','Desembolsos registrados (correr SQL)':'P','Descuentos administrativos (correr SQL)':'P','Pago automático a tiendas':'X'}],
+  ['Planes y permisos', {'Matriz única de planes':'C','Validación en el servidor':'C','Enrutamiento por plan':'C','Subir de plan':'C','Primer plan en línea (falta prueba real)':'P','Todos venden, todos con dashboard':'C','Vigencia de un año (correr SQL)':'P','Renovación (correr SQL)':'P','Imágenes con IA por año (reserva segura)':'C','Términos al modelo anual (revisión legal pendiente)':'P'}],
+  ['Seguridad',         {'Sesión y dueño en el servidor':'C','Funciones SQL cerradas':'C','Guardias de escritura':'C','RLS de lecturas':'C','Datos legales privados':'C','Contraseñas filtradas':'X','Dos pasos del admin':'X','Rol admin en tabla':'X'}],
   ['Notificaciones',    {'Aviso a la tienda':'C','Correos':'C','Tiempo real tienda':'C','Sonido':'C','Tiempo real comprador':'C','Actividad del admin':'C','Un solo aviso por pago':'P','Aviso con la app cerrada':'X'}],
   ['IA y remodelación', {'Foto IA':'C','Editor de superficies':'C','Compra de imagen':'C','Bot WhatsApp del comprador':'C','IA sin congelar el servidor':'C','Generación real tras el cambio':'P'}],
   ['AR',                {'Herramienta WebXR':'C','Solo Premium':'C','Anuncio en el Home':'C','Validada en celulares':'X','Activada':'X','Control en servidor':'N'}],
   ['Super Admin',       {'Actividad':'C','Transacciones A/B/C':'C','Ventas y comisiones':'C','Empresas y tiendas':'C','Traza de pagos de plan':'C','Paginación (hoy tope con aviso)':'P'}],
   ['Visor 3D (Premium)',{'Planta':'C','Entorno 3D':'C','Foto IA de escena':'C','Editor de pared 1':'C','Escaleras y puertas':'C','Cocina':'X','Baño':'X','Editor de pared 2':'X','Cámara exterior':'X'}],
   ['Video (Corporativo)',{'Video y recorrido':'C','Varias cámaras':'X','Trazo vectorial':'X'}],
-  ['Rendimiento',       {'IA no bloquea':'C','Visor en caché':'C','defer en el visor':'C','Marketplace escalable':'C','Imágenes comprimidas':'C','Índices (correr SQL)':'P','CSS compartido':'X','Servidor sin dormir':'X'}],
+  ['Rendimiento',       {'IA no bloquea':'C','Visor en caché':'C','defer en el visor':'C','Marketplace escalable':'C','Imágenes comprimidas':'C','Índices':'C','CSS compartido':'X','Servidor sin dormir':'X'}],
   ['WhatsApp vendedor', {'Teléfono y consentimiento':'X','Plantillas de Meta':'X','Envío':'X','Registro de entregas':'X'}],
-  ['Tokens',            {'Definición de negocio':'X','Compra':'X','Saldo y consumo':'X'}],
   ['Orden',             {'Ley 1581 en empresas viejas':'X','Unidades de ferretería':'X','WhatsApp de tienda sin hacerlo a mano':'X'}],
 ];
 (function () {
@@ -73,14 +72,14 @@ const MODULOS = [
 <p class="sub" style="margin-top:6px">Pasa el mouse sobre un módulo para ver sus funcionalidades (✓ completa · ½ parcial · ✗ pendiente).</p>
 
 <h2>La escalera</h2>
-<p class="sub">Todos los planes <b>venden</b>. Cada plan hace todo lo del anterior y suma herramientas. Pago único.</p>
+<p class="sub">Todos los planes <b>venden</b> y tienen dashboard. Cada plan hace todo lo del anterior y suma herramientas. <b>Pago único que cubre un año</b>, sin cobros automáticos: al vencer, la tienda sigue vendiendo y solo se pausan las herramientas hasta que renueve.</p>
 <div class="wrap"><table>
   <tr><th>Plan</th><th>Precio</th><th>Suma</th><th>Vive en</th></tr>
-  <tr><td><b>Gratis</b> — Vender</td><td>$0</td><td>Tienda, catálogo a mano, pedidos, domicilio, notificaciones e historial. Sin IA</td><td class="r">/dashboard</td></tr>
-  <tr><td><b>Básico</b> — Transformar</td><td>$400.000</td><td>Foto IA (los clientes ven tus productos en su espacio) y bot de WhatsApp de la tienda</td><td class="r">/remodelar</td></tr>
-  <tr><td><b>Profesional</b> — Editar</td><td>$700.000</td><td>Editor de superficies y objetos, CRM</td><td class="r">/remodelar → /editor-superficies</td></tr>
-  <tr><td><b>Premium</b> — Crear</td><td>$1.000.000</td><td>Visor 3D (planta, entorno 3D, Foto IA de escena), planos con IA, modelos 3D, cotizador, Multiasesor. <b>AR: muy pronto</b></td><td class="r">/dashboard · /visor3d</td></tr>
-  <tr><td><b>Corporativo</b> — Animar</td><td>$3.000.000</td><td>Video y recorridos (cámara de video)</td><td class="r">/visor3d</td></tr>
+  <tr><td><b>Gratis</b> — Vender</td><td>$0 · no vence</td><td>Tienda, catálogo a mano, pedidos, domicilio, notificaciones e historial. Sin IA</td><td class="r">/dashboard</td></tr>
+  <tr><td><b>Básico</b> — Transformar</td><td>$400.000 · 1 año<br><span class="sub">100 imágenes IA</span></td><td>Foto IA (los clientes ven tus productos en su espacio) y bot de WhatsApp de la tienda</td><td class="r">/remodelar</td></tr>
+  <tr><td><b>Profesional</b> — Editar</td><td>$700.000 · 1 año<br><span class="sub">200 imágenes IA</span></td><td>Editor de superficies y objetos, CRM</td><td class="r">/remodelar → /editor-superficies</td></tr>
+  <tr><td><b>Premium</b> — Crear</td><td>$1.000.000 · 1 año<br><span class="sub">300 imágenes IA</span></td><td>Visor 3D (planta, entorno 3D, Foto IA de escena), planos con IA, modelos 3D, cotizador, Multiasesor. <b>AR: muy pronto</b></td><td class="r">/dashboard · /visor3d</td></tr>
+  <tr><td><b>Corporativo</b> — Animar</td><td>$3.000.000 · 1 año<br><span class="sub">900 imágenes IA</span></td><td>Video y recorridos (cámara de video)</td><td class="r">/visor3d</td></tr>
   <tr><td>Comprador</td><td>$5.000 / imagen</td><td>Remodela su espacio con productos reales y compra en el marketplace</td><td class="r">/marketplace · /remodelar</td></tr>
 </table></div>
 <p class="sub" style="margin-top:6px">Fuente de verdad de los permisos: <span class="r">app/utils/planes.py</span> (servidor) y las constantes <span class="r">PLANES_CON_*</span> del dashboard.</p>
@@ -115,11 +114,12 @@ const MODULOS = [
 <h2>Tablas principales</h2>
 <div class="wrap"><table>
   <tr><th>Tabla</th><th>Se relaciona con</th><th>Para qué</th></tr>
-  <tr><td class="r">empresas</td><td><span class="r">email</span> = cuenta · <span class="r">plan_id</span> → planes</td><td>La cuenta de la tienda: plan, estado de pago, cupo de fotos</td></tr>
+  <tr><td class="r">empresas</td><td><span class="r">email</span> = cuenta · <span class="r">plan_id</span> → planes</td><td>La cuenta de la tienda: plan, estado (<span class="r">activo · pendiente_pago · vencido</span>), vigencia (<span class="r">plan_inicio</span>, <span class="r">plan_vence</span>), cupo de fotos</td></tr>
   <tr><td class="r">tiendas</td><td><span class="r">empresa_id</span> → empresas</td><td>Lo público de la tienda. <span class="r">plan_nombre</span> lo sincroniza la base</td></tr>
   <tr><td class="r">tiendas_privado</td><td><span class="r">tienda_id</span> → tiendas</td><td>Cédula/NIT, representante, RUT: solo el dueño y el admin</td></tr>
   <tr><td class="r">productos</td><td><span class="r">tienda_id</span> → tiendas</td><td>Catálogo</td></tr>
   <tr><td class="r">pedidos</td><td><span class="r">tienda_id</span>, <span class="r">empresa_id</span>, <span class="r">user_id</span> (comprador)</td><td>Compra con domicilio, comisión, pasarela, neto y estados</td></tr>
+  <tr><td class="r">movimientos_dinero</td><td><span class="r">pedido_id</span> → pedidos · <span class="r">empresa_id</span></td><td>Lo que pasa después de la venta: pago a la tienda, devolución (a cargo de la tienda o de DecoIArte) y descuento administrativo, con concepto, estado y comprobante</td></tr>
   <tr><td class="r">notificaciones</td><td><span class="r">empresa_id</span> → empresas</td><td>Avisos de la tienda (campana, tiempo real)</td></tr>
   <tr><td class="r">eventos</td><td>los escriben disparadores de la base</td><td>Actividad del Super Admin</td></tr>
   <tr><td class="r">pagos · solicitudes_plan</td><td><span class="r">empresa_id</span> → empresas</td><td>Compras de planes (ingreso de DecoIArte)</td></tr>
@@ -129,13 +129,16 @@ const MODULOS = [
 
 <h2>Puntos críticos que no deben romperse</h2>
 <ul>
-  <li><b>El navegador nunca decide la plata ni los permisos.</b> Plan, estado, cupo de fotos, comisión y activación de la tienda los cambian solo el servidor o el Super Admin (guardias en la base: <span class="r">sql/seguridad_escrituras.sql</span>).</li>
+  <li><b>El navegador nunca decide la plata ni los permisos.</b> Plan, vigencia, estado, imágenes, comisión y activación de la tienda los cambian solo el servidor o el Super Admin (guardias en la base: <span class="r">sql/seguridad_escrituras.sql</span>).</li>
+  <li><b>Cada imagen con IA se reserva antes de generar</b> (<span class="r">reservar_imagen</span>), se confirma al entregarla y se devuelve si falla (<span class="r">sql/imagenes_planes.sql</span>, <span class="r">@cierra_reserva</span>). Ninguna ruta nueva de IA debe llamar a OpenAI sin reservar.</li>
   <li><b>El monto a cobrar sale siempre de la base</b> (<span class="r">app/utils/dinero.py</span>, pesos enteros) y el webhook de Wompi lo verifica con firma.</li>
   <li><b>Cada quien lee solo lo suyo</b>: RLS en empresas, tiendas, notificaciones y pedidos (<span class="r">sql/rls_lecturas.sql</span>). Los datos legales viven en <span class="r">tiendas_privado</span>.</li>
   <li><b>La tienda ve la dirección y el celular del comprador solo de un pedido pagado</b>, y siempre por el servidor.</li>
   <li><b>Todo permiso de plan se valida también en el servidor</b>, con <span class="r">app/utils/planes.py</span>. Ocultar un botón no es seguridad.</li>
   <li><b>La IA no puede congelar el servidor</b>: las llamadas a OpenAI corren en un hilo aparte (<span class="r">asyncio.to_thread</span>).</li>
   <li><b>Si un aviso o un evento falla, la venta no se detiene</b>, y ningún pedido se queda sin que alguien se entere.</li>
+  <li><b>La vigencia la pone la base</b> (<span class="r">sql/vigencia_planes.sql</span>) y la vence <span class="r">vencer_planes()</span> cada hora. Un plan vencido no gasta IA, pero la tienda sigue vendiendo.</li>
+  <li><b>Cada peso después de la venta queda en <span class="r">movimientos_dinero</span></b>: nunca se mezcla un descuento con la comisión ni con la pasarela, y el monto lo calcula el servidor (<span class="r">app/api/movimientos.py</span>). No se presenta como pagado lo que está pendiente.</li>
   <li><b>Al agregar una tienda nueva al código:</b> sus datos privados van a <span class="r">tiendas_privado</span>, no a <span class="r">tiendas</span>.</li>
 </ul>
 
@@ -152,11 +155,12 @@ const MODULOS = [
 <h2>Pendientes</h2>
 <div class="wrap"><table>
   <tr><th>Prioridad</th><th>Qué</th><th>Nota</th></tr>
-  <tr><td class="no">Antes de vender</td><td>Correr en Supabase: <span class="r">seguridad_escrituras</span>, <span class="r">rls_lecturas</span>, <span class="r">indices</span></td><td>En ese orden</td></tr>
+  <tr><td class="no">Antes de vender</td><td>Correr en Supabase: <span class="r">vigencia_planes</span> y <span class="r">movimientos_dinero</span></td><td>Antes de subir el código</td></tr>
+  <tr><td class="no">Antes de vender</td><td>Términos y Condiciones: dicen "pago mensual" y "siguiente periodo"; el modelo es pago único anual</td><td>Revisarlo con un abogado</td></tr>
   <tr><td class="no">Antes de vender</td><td>Prueba real: pagar un plan (modo de pruebas de Wompi) y generar una Foto IA</td><td>Confirma lo que aquí está como parcial</td></tr>
   <tr><td class="no">Antes de vender</td><td>Activar contraseñas filtradas en Supabase y la verificación en dos pasos del admin</td><td>Fuera del código</td></tr>
-  <tr><td class="pr">Plata</td><td>Pago automático a las tiendas (Wompi Pagos a Terceros) y reembolsos</td><td>Antes, hablar con un contador</td></tr>
-  <tr><td class="pr">Decisión</td><td>Tokens (paquetes de fotos) y vencimiento de planes</td><td>Definir reglas de negocio antes de construir</td></tr>
+  <tr><td class="pr">Plata</td><td>Pago automático a las tiendas (Wompi Pagos a Terceros). Las devoluciones se hacen en el panel de Wompi y se registran aquí</td><td>Antes, hablar con un contador</td></tr>
+  <tr><td class="pr">Legal</td><td>Revisar con un abogado la sección 9 de los Términos (pago único anual)</td><td>Marcada en el código como pendiente de revisión</td></tr>
   <tr><td class="pr">Construir</td><td>WhatsApp al vendedor: teléfono con consentimiento, plantillas aprobadas por Meta, registro de entregas</td><td>Necesita cuenta y plantillas de Meta</td></tr>
   <tr><td>Premium</td><td>Cocina por piezas, asistente de baño, editor de pared 2, cámara exterior; validar y activar AR</td><td class="r">/visor3d · /medir-ar</td></tr>
   <tr><td>Corporativo</td><td>Varias cámaras de video y trazo vectorial</td><td class="r">/visor3d</td></tr>

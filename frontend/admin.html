@@ -442,7 +442,7 @@ async function cargarTodo() {
         db.from('imagenes').select('*').order('created_at',{ascending:false}),
         db.from('pagos').select('*, empresas(nombre)').order('created_at',{ascending:false}),
         db.from('tiendas').select('*, empresas(nombre,email)').order('created_at',{ascending:false}),
-        db.from('planes').select('id,nombre,precio').order('precio',{ascending:true}),
+        db.from('planes').select('id,nombre,precio,fotos_incluidas').order('precio',{ascending:true}),
         db.from('consumidores').select('*').order('created_at',{ascending:false}),
         db.from('solicitudes_plan').select('*, empresas(nombre,email), plan_actual:plan_actual_id(nombre), plan_solicitado:plan_solicitado_id(nombre)').order('created_at',{ascending:false})
     ]);
@@ -548,7 +548,7 @@ function renderEmpresas(empresas) {
             <td style="color:var(--gris);font-size:13px">${e.email}</td>
             <td><span class="badge badge-plan">${NOMBRES_PLAN[planActualNombre]||'—'}</span></td>
             <td><strong>${e.fotos_usadas||0}</strong><span style="color:var(--gris)"> / ${(e.fotos_usadas||0)+(e.fotos_disponibles||0)}</span></td>
-            <td>${estadoBadge(e.estado)}</td>
+            <td>${estadoBadge(e.estado)}${e.plan_vence ? `<div style="font-size:11px;color:var(--gris);margin-top:3px">${e.estado === 'vencido' ? 'venció' : 'hasta'} ${new Date(e.plan_vence).toLocaleDateString('es-CO')}</div>` : ''}</td>
             <td>
                 <select id="planSelect-${e.id}" style="background:var(--oscuro);border:1px solid rgba(124,58,237,0.25);border-radius:8px;padding:5px 8px;color:var(--texto);font-size:12px;">
                     ${opcionesPlan}
@@ -577,7 +577,16 @@ async function cambiarPlanEmpresa(empresaId, nombreEmpresa, planActualNombre) {
     if (nuevoPlanNombre === planActualNombre) { alert('Ese ya es su plan actual.'); return; }
     const ok = confirm(`¿Cambiar el plan de "${nombreEmpresa}" de ${NOMBRES_PLAN[planActualNombre]||planActualNombre} a ${NOMBRES_PLAN[nuevoPlanNombre]||nuevoPlanNombre}?\n\nEsto NO cobra nada, y deja la cuenta activada de una vez con las herramientas de ese plan. Si prefieres dejarla sin activar, cámbiale el plan y después dale "Desactivar".`);
     if (!ok) return;
-    const { error } = await db.from('empresas').update({ plan_id: nuevoPlanId, estado: 'activo' }).eq('id', empresaId);
+    // Imágenes con las mismas reglas que un pago por Wompi: con el plan vigente,
+    // las del plan nuevo menos las usadas este año; si no, un año nuevo completo
+    // (la fecha de vigencia la pone la base: sql/vigencia_planes.sql).
+    const emp = (todasEmpresas || []).find(x => x.id === empresaId) || {};
+    const incluidas = Number((todosPlanes.find(p => p.id === nuevoPlanId) || {}).fotos_incluidas || 0);
+    const vigente = emp.estado === 'activo' && emp.plan_vence && new Date(emp.plan_vence) > new Date();
+    const cambios = vigente
+        ? { plan_id: nuevoPlanId, estado: 'activo', fotos_disponibles: Math.max(incluidas - Number(emp.fotos_usadas || 0), 0) }
+        : { plan_id: nuevoPlanId, estado: 'activo', fotos_disponibles: incluidas, fotos_usadas: 0 };
+    const { error } = await db.from('empresas').update(cambios).eq('id', empresaId);
     if (error) { alert('❌ Error cambiando el plan.'); console.error(error); return; }
     await cargarTodo();
 }
@@ -862,6 +871,7 @@ function verEmpresa(empresaId) {
 // ── HELPERS ───────────────────────────────────────────────────────────────
 function estadoBadge(estado) {
     if (estado === 'activo') return '<span class="badge badge-activo">● Activo</span>';
+    if (estado === 'vencido') return '<span class="badge badge-pendiente">⌛ Vencido</span>';
     return '<span class="badge badge-pendiente">● Pendiente</span>';
 }
 
@@ -985,10 +995,12 @@ async function cargarVentasAdmin() {
             tarjeta('🏦 Costo Wompi (estimado)', t.costo_wompi, 'lo pagan las tiendas', '#FCA5A5') +
             tarjeta('✅ Te queda', t.neto, 'tus comisiones completas', t.neto < 0 ? '#FCA5A5' : '#6EE7B7') +
             tarjeta('⏳ Debes a tiendas', t.por_pagar_tiendas, 'liberado, sin transferir', '#FCD34D') +
-            tarjeta('💸 Ya pagado a tiendas', t.pagado_tiendas, 'transferido', '#6EE7B7');
+            tarjeta('💸 Ya pagado a tiendas', t.pagado_tiendas, 'transferido', '#6EE7B7') +
+            tarjeta('🧾 Descuentos administrativos', t.descuentos_admin || 0, 'retenciones y ajustes a tiendas', '#FCD34D') +
+            tarjeta('↩️ Devoluciones', t.devoluciones || 0, `DecoIArte asumió ${copA(t.devoluciones_decoiarte || 0)}`, '#FCA5A5');
         const pend = d.pedidos.filter(p => (p.liberado_at && !p.pagado_tienda_at) || (p.estado === 'enviado' && !p.liberado_at)).length;
         const b = document.getElementById('badgeVentas'); b.style.display = pend ? 'inline' : 'none'; b.textContent = pend;
-        const estadoTxt = { cotizando: '🚚 Tienda cotiza domicilio', por_pagar: '💳 Esperando pago', pagado: '📦 Pagado, por despachar', enviado: '🚚 Enviado', entregado: '✅ Recibido', revisar: '⚠️ Revisar monto' };
+        const estadoTxt = { reembolsado: '↩️ Reembolsado', cotizando: '🚚 Tienda cotiza domicilio', por_pagar: '💳 Esperando pago', pagado: '📦 Pagado, por despachar', enviado: '🚚 Enviado', entregado: '✅ Recibido', revisar: '⚠️ Revisar monto' };
         tb.innerHTML = d.pedidos.map(p => {
             let accion = '';
             if (p.pagado_tienda_at) accion = `<span style="color:#6EE7B7">💸 Pagado${p.comprobante_tienda ? ' · ' + esc(p.comprobante_tienda) : ''}</span>`;
@@ -997,6 +1009,9 @@ async function cargarVentasAdmin() {
             else if (p.estado === 'cotizando') accion = `<div style="font-size:12px;font-weight:700;color:${(p.horas_esperando || 0) >= 4 ? '#FCA5A5' : '#93C5FD'}">⏳ ${p.horas_esperando || 0} h sin cotizar</div>${(p.horas_esperando || 0) >= 4 ? '<div style="font-size:11px;color:#FCA5A5">Contacta a la tienda</div>' : ''}`;
             else if (p.estado === 'enviado') accion = `<div style="font-size:12px;color:#FCD34D;font-weight:700">Día ${p.dias_habiles} de ${p.dias_para_liberar}</div>
                 <button class="btn-accion" onclick="liberarAdmin('${esc(p.referencia)}')">Liberar ya</button>`;
+            // Desembolsos, devoluciones y descuentos de esta venta
+            if (['pagado','enviado','entregado','reembolsado'].includes(p.estado))
+                accion += `<button class="btn-accion" style="margin-top:4px" onclick="abrirMovimientos('${esc(p.referencia)}')">🧾 Movimientos${p.movimientos ? ' (' + p.movimientos + ')' : ''}</button>`;
             return `<tr>
                 <td><div style="font-weight:700;font-size:12px">${esc(p.referencia)}</div><div style="font-size:11px;color:var(--gris)">${p.creado ? new Date(p.creado).toLocaleString('es-CO') : ''}</div></td>
                 <td style="font-size:12.5px">${esc(p.comprador || p.comprador_email || '—')}<br>→ <b>${esc(p.tienda || '—')}</b></td>
@@ -1006,7 +1021,7 @@ async function cargarVentasAdmin() {
                 <td style="color:#C4B5FD">${copA(p.comision)} <span style="font-size:11px;color:var(--gris)">(${p.comision_porcentaje || 5}%)</span></td>
                 <td style="color:#FCA5A5">${p.costo_wompi ? copA(p.costo_wompi) : '—'}</td>
                 <td style="font-weight:700;color:${p.neto_decoiarte < 0 ? '#FCA5A5' : '#6EE7B7'}">${p.costo_wompi ? copA(p.neto_decoiarte) : '—'}</td>
-                <td style="color:#6EE7B7;font-weight:700">${copA(p.para_tienda)}</td>
+                <td style="color:#6EE7B7;font-weight:700">${copA(p.para_tienda)}${p.para_tienda_inicial && p.para_tienda_inicial !== p.para_tienda ? `<div style="font-size:11px;color:var(--gris);text-decoration:line-through">${copA(p.para_tienda_inicial)}</div>` : ''}</td>
                 <td>${accion}</td></tr>`;
         }).join('') || '<tr><td colspan="11" style="color:var(--gris)">Todavía no hay pedidos.</td></tr>';
     } catch (e) { tb.innerHTML = `<tr><td colspan="11" style="color:#FCA5A5">No se pudo cargar: ${esc(e.message)}</td></tr>`; }
@@ -1015,6 +1030,83 @@ async function liberarAdmin(ref) {
     if (!confirm('¿Liberar ya el pago de la tienda para este pedido (sin esperar los 5 días hábiles)?')) return;
     try { await llamarAdmin('/admin/pedido/' + encodeURIComponent(ref) + '/liberar', 'POST'); cargarVentasAdmin(); } catch (e) { alert('❌ ' + e.message); }
 }
+// ═══ MOVIMIENTOS DE DINERO DE UNA VENTA ═══════════════════════════════════
+// Todo se valida en el servidor (app/api/movimientos.py): aquí solo se muestra
+// y se envía. La "clave" evita duplicar un movimiento con un doble clic.
+const NOMBRE_MOV = { desembolso_tienda: '💸 Pago a la tienda', devolucion_comprador: '↩️ Devolución al comprador', descuento_administrativo: '🧾 Descuento administrativo' };
+async function abrirMovimientos(ref) {
+    let caja = document.getElementById('modalMovimientos');
+    if (!caja) {
+        caja = document.createElement('div'); caja.id = 'modalMovimientos';
+        caja.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:3000;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:30px 12px;';
+        caja.onclick = e => { if (e.target === caja) caja.remove(); };
+        document.body.appendChild(caja);
+    }
+    caja.innerHTML = '<div style="background:#16162A;border-radius:16px;padding:22px;max-width:640px;width:100%;color:#E8E8F0">Cargando…</div>';
+    let d;
+    try { d = await llamarAdmin('/admin/pedido/' + encodeURIComponent(ref) + '/movimientos', 'GET'); }
+    catch (e) { caja.firstChild.innerHTML = '❌ ' + esc(e.message); return; }
+    const s = d.saldo, fila = (et, v, col) => `<div style="display:flex;justify-content:space-between;padding:3px 0"><span style="color:var(--gris)">${et}</span><b style="color:${col || '#E8E8F0'}">${v}</b></div>`;
+    const lista = d.movimientos.map(m => `
+        <div style="border:1px solid rgba(139,139,167,.2);border-radius:10px;padding:9px 11px;margin-bottom:7px;${m.estado === 'anulado' ? 'opacity:.5' : ''}">
+          <div style="display:flex;justify-content:space-between;gap:8px"><b>${NOMBRE_MOV[m.tipo] || esc(m.tipo)}</b><b>${copA(m.monto)}</b></div>
+          <div style="font-size:12.5px;color:var(--gris)">${esc(m.concepto)}${m.a_cargo_de ? ' · a cargo de ' + (m.a_cargo_de === 'tienda' ? 'la tienda' : 'DecoIArte') : ''}${m.comprobante ? ' · comprobante ' + esc(m.comprobante) : ''}</div>
+          <div style="font-size:12px;margin-top:3px">${m.estado === 'realizado' ? '✅ Realizado' : m.estado === 'pendiente' ? '⏳ Pendiente' : '✖ Anulado: ' + esc(m.anulado_motivo || '')}
+            · ${new Date(m.realizado_at || m.created_at).toLocaleString('es-CO')} · ${esc(m.registrado_por || '')}
+            ${m.estado === 'pendiente' ? `<button class="btn-accion" onclick="estadoMovimiento('${m.id}','realizado','${esc(ref)}')">Marcar realizado</button>` : ''}
+            ${m.estado !== 'anulado' ? `<button class="btn-accion" onclick="estadoMovimiento('${m.id}','anulado','${esc(ref)}')">Anular</button>` : ''}</div>
+        </div>`).join('') || '<div style="color:var(--gris);font-size:13px">Todavía no hay movimientos.</div>';
+    caja.innerHTML = `<div style="background:#16162A;border-radius:16px;padding:22px;max-width:640px;width:100%;color:#E8E8F0;font-size:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h3 style="margin:0">🧾 Movimientos · ${esc(ref)}</h3>
+          <button class="btn-accion" onclick="document.getElementById('modalMovimientos').remove()">✕</button></div>
+        <div style="background:rgba(139,139,167,.08);border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:13.5px">
+          ${fila('Pagó el comprador', copA(d.pedido.total))}
+          ${fila('Para la tienda según la venta', copA(s.para_tienda_inicial))}
+          ${s.descuentos_admin ? fila('− Descuentos administrativos', copA(s.descuentos_admin), '#FCD34D') : ''}
+          ${s.devoluciones_a_cargo_tienda ? fila('− Devoluciones a cargo de la tienda', copA(s.devoluciones_a_cargo_tienda), '#FCA5A5') : ''}
+          ${fila('= Le toca a la tienda', copA(s.para_tienda), '#6EE7B7')}
+          ${s.devoluciones_a_cargo_decoiarte ? fila('Devoluciones que asume DecoIArte', copA(s.devoluciones_a_cargo_decoiarte), '#FCA5A5') : ''}
+          ${fila('Pago a la tienda', s.desembolso_estado === 'realizado' ? '✅ ' + copA(s.desembolsado) : s.desembolso_estado === 'pendiente' ? '⏳ pendiente' : (d.pedido.liberado_at ? 'por hacer' : 'aún no se libera'))}
+        </div>
+        ${lista}
+        <div style="border-top:1px solid rgba(139,139,167,.2);margin-top:12px;padding-top:12px">
+          <b>Registrar movimiento</b>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+            <select id="movTipo" onchange="document.getElementById('movCargo').style.display = this.value === 'devolucion_comprador' ? '' : 'none'; if (this.value === 'desembolso_tienda') document.getElementById('movMonto').value = ${s.para_tienda}" style="padding:8px;border-radius:8px;background:#0B0B14;color:#E8E8F0;border:1px solid #333">
+              <option value="descuento_administrativo">🧾 Descuento administrativo</option>
+              <option value="devolucion_comprador">↩️ Devolución al comprador</option>
+              <option value="desembolso_tienda">💸 Pago a la tienda</option></select>
+            <input id="movMonto" type="number" min="1" step="1" placeholder="Monto en pesos" style="padding:8px;border-radius:8px;background:#0B0B14;color:#E8E8F0;border:1px solid #333">
+            <input id="movConcepto" placeholder="Concepto (obligatorio): retención, motivo de la devolución…" style="grid-column:1/-1;padding:8px;border-radius:8px;background:#0B0B14;color:#E8E8F0;border:1px solid #333">
+            <select id="movCargo" style="display:none;padding:8px;border-radius:8px;background:#0B0B14;color:#E8E8F0;border:1px solid #333"><option value="">¿Quién la asume?</option><option value="tienda">La tienda</option><option value="decoiarte">DecoIArte</option></select>
+            <input id="movComprobante" placeholder="Comprobante (opcional)" style="padding:8px;border-radius:8px;background:#0B0B14;color:#E8E8F0;border:1px solid #333">
+            <label style="grid-column:1/-1;font-size:13px"><input type="checkbox" id="movRealizado"> Ya se hizo (si no, queda pendiente)</label>
+          </div>
+          <div id="movError" style="color:#FCA5A5;font-size:13px;margin-top:6px"></div>
+          <button class="btn-accion" id="movBtn" style="margin-top:8px" onclick="registrarMovimiento('${esc(ref)}')">Registrar</button>
+        </div></div>`;
+    caja.dataset.clave = (crypto.randomUUID && crypto.randomUUID()) || String(Date.now()) + Math.random();
+}
+async function registrarMovimiento(ref) {
+    const caja = document.getElementById('modalMovimientos'), err = document.getElementById('movError'), btn = document.getElementById('movBtn');
+    const cuerpo = { tipo: document.getElementById('movTipo').value, monto: parseInt(document.getElementById('movMonto').value, 10),
+        concepto: document.getElementById('movConcepto').value.trim(), a_cargo_de: document.getElementById('movCargo').value || null,
+        comprobante: document.getElementById('movComprobante').value.trim(), realizado: document.getElementById('movRealizado').checked,
+        clave: caja.dataset.clave };
+    if (!(cuerpo.monto > 0)) { err.textContent = 'Escribe un monto en pesos.'; return; }
+    if (cuerpo.concepto.length < 3) { err.textContent = 'Escribe el concepto.'; return; }
+    btn.disabled = true; btn.textContent = 'Registrando…';
+    try { await llamarAdmin('/admin/pedido/' + encodeURIComponent(ref) + '/movimiento', 'POST', cuerpo); await abrirMovimientos(ref); cargarVentasAdmin(); }
+    catch (e) { err.textContent = '❌ ' + e.message; btn.disabled = false; btn.textContent = 'Registrar'; }
+}
+async function estadoMovimiento(id, estado, ref) {
+    const cuerpo = { estado };
+    if (estado === 'realizado') { const c = prompt('Número del comprobante (opcional):'); if (c === null) return; cuerpo.comprobante = c; }
+    else { const m = prompt('¿Por qué se anula? (obligatorio)'); if (!m) return; cuerpo.motivo = m; }
+    try { await llamarAdmin('/admin/movimiento/' + id + '/estado', 'POST', cuerpo); await abrirMovimientos(ref); cargarVentasAdmin(); }
+    catch (e) { alert('❌ ' + e.message); }
+}
+
 async function registrarPagoTienda(ref, monto, tienda) {
     const comp = prompt(`¿Ya le transferiste ${copA(monto)} a ${tienda}? Escribe el número del comprobante (o déjalo vacío):`);
     if (comp === null) return;
