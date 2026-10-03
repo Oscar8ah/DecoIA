@@ -99,7 +99,7 @@ const MODULOS = [
 <div class="wrap"><table>
   <tr><th>Ruta</th><th>Quién</th><th>Para qué</th></tr>
   <tr><td class="r">/</td><td>Todos</td><td>Home y planes</td></tr>
-  <tr><td class="r">/registro · /login</td><td>Todos</td><td>Cuenta de tienda o de comprador (Google)</td></tr>
+  <tr><td class="r">/registro · /login</td><td>Todos</td><td>Cuenta de tienda o de comprador (Google). La tienda siempre empieza en Gratis</td></tr>
   <tr><td class="r">/marketplace</td><td>Todos</td><td>Tiendas, productos, carrito y "Tus pedidos"</td></tr>
   <tr><td class="r">/mi-cuenta</td><td>Comprador</td><td>Pedidos, pagar, confirmar recibido, imágenes compradas, favoritos, reseñas</td></tr>
   <tr><td class="r">/dashboard</td><td>Tienda</td><td>Tienda, productos, pedidos, cotizar domicilio, avisos, plan</td></tr>
@@ -144,6 +144,7 @@ const MODULOS = [
 
 <h2>Reglas que no cambian</h2>
 <ul>
+  <li><b>Toda tienda nace en el plan Gratis</b> y compra su plan de pago desde su panel con Wompi (pago único · 1 año). El Home la manda a <span class="r">/registro?plan=…</span> y, al entrar a su panel, se le abre directo el pago de ese plan.</li>
   <li><b>Todos venden.</b> Los planes deciden las herramientas, nunca la posibilidad de recibir compras.</li>
   <li><b>La compra pasa por DecoIArte</b>, sin salidas a WhatsApp: así queda registrada y con su comisión.</li>
   <li><b>El dashboard es la administración de la tienda para todos los planes</b>; Básico y Profesional trabajan en <span class="r">/remodelar</span>.</li>

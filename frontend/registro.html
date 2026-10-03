@@ -150,52 +150,11 @@
 
                 <!-- PLANES (solo empresa) -->
                 <div class="planes-wrap" id="planesWrap">
-                    <label class="label-titulo">Elige tu plan</label>
-                    <div class="planes-grid">
-                        <label class="plan-option">
-                            <input type="radio" name="plan" value="gratis" checked>
-                            <span class="plan-card">
-                                <div class="plan-card-nombre">Gratis</div>
-                                <div class="plan-card-precio">$0</div>
-                                <div class="plan-card-fotos">Muestra tu inventario ya mismo</div>
-                            </span>
-                        </label>
-                        <label class="plan-option">
-                            <input type="radio" name="plan" value="basico">
-                            <span class="plan-card">
-                                <div class="plan-card-nombre">Básico</div>
-                                <div class="plan-card-precio">$700K</div>
-                                <div class="plan-card-fotos">100 imágenes con IA · 1 año</div>
-                            </span>
-                        </label>
-                        <label class="plan-option">
-                            <input type="radio" name="plan" value="profesional">
-                            <span class="plan-card">
-                                <div class="plan-popular-badge">⭐ Popular</div>
-                                <div class="plan-card-nombre">Profesional</div>
-                                <div class="plan-card-precio">$1.200K</div>
-                                <div class="plan-card-fotos">200 imágenes con IA · 1 año</div>
-                            </span>
-                        </label>
-                        <label class="plan-option">
-                            <input type="radio" name="plan" value="premium">
-                            <span class="plan-card">
-                                <div class="plan-card-nombre">Premium</div>
-                                <div class="plan-card-precio">$1.500K</div>
-                                <div class="plan-card-fotos">300 imágenes con IA · 1 año</div>
-                            </span>
-                        </label>
-                        <label class="plan-option">
-                            <input type="radio" name="plan" value="corporativo">
-                            <span class="plan-card">
-                                <div class="plan-card-nombre">Corporativo</div>
-                                <div class="plan-card-precio">$3.000K</div>
-                                <div class="plan-card-fotos">900 imágenes con IA · 1 año</div>
-                            </span>
-                        </label>
-                    </div>
+                    <label class="label-titulo">Tu plan</label>
+                    <input type="radio" name="plan" value="gratis" checked style="display:none">
                     <div id="avisoGratis" style="margin-top:14px;font-size:12.5px;color:var(--gris);line-height:1.5;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:10px;padding:12px 16px;">
-                        ℹ️ Con el plan <b>Gratis</b> tu tienda aparece en el marketplace y puedes subir tu catálogo, pero el bot de WhatsApp con IA, el CRM y el Visor 3D quedan disponibles al actualizar a un plan pagado.
+                        🎁 <b>Empiezas con el plan Gratis</b>: tu tienda aparece en el marketplace y ya puedes vender (subir tu catálogo, recibir pedidos y cotizar domicilios). Cuando quieras, eliges y pagas el plan que necesites desde tu panel: <b>pago único · 1 año</b>, con imágenes con IA y más herramientas.
+                        <div id="planDeseadoTxt" style="margin-top:8px;color:#C4B5FD;"></div>
                     </div>
                 </div>
 
@@ -230,7 +189,7 @@
                 <h2>¡Bienvenido a<br><span>DecoIArte!</span></h2>
                 <p>Tu cuenta de negocio fue creada.<br>Pronto te contactamos para activar tu bot de WhatsApp.</p>
                 <div class="exito-datos" id="exitoDatosEmpresa"></div>
-                <a href="/dashboard" class="btn-ir">Ir a mi Dashboard →</a>
+                <a href="/dashboard" id="btnIrDashboard" class="btn-ir">Ir a mi Dashboard →</a>
             </div>
 
             <!-- ÉXITO CONSUMIDOR -->
@@ -284,6 +243,21 @@ const NOMBRES_PLAN = { gratis:'Gratis', basico:'Básico', profesional:'Profesion
 // negocio con plan Profesional pendiente de pago, sin haberlo elegido.
 let tipoActual = null;
 
+// Plan que el visitante eligió en el Home (?plan=basico…): todos empiezan en Gratis y,
+// al entrar a su panel, se les abre directo el pago de ese plan.
+const PLANES_DE_PAGO = ['basico','profesional','premium','corporativo'];
+try {
+    const pq = new URLSearchParams(location.search).get('plan');
+    if (pq && PLANES_DE_PAGO.includes(pq)) localStorage.setItem('decoiarte_plan_deseado', pq);
+} catch (e) {}
+function planDeseado() {
+    try { const p = localStorage.getItem('decoiarte_plan_deseado'); return PLANES_DE_PAGO.includes(p) ? p : null; } catch (e) { return null; }
+}
+function pintarPlanDeseado() {
+    const d = planDeseado(), el = document.getElementById('planDeseadoTxt');
+    if (el) el.innerHTML = d ? `Elegiste el plan <b>${NOMBRES_PLAN[d]}</b> (${PRECIOS_PLAN[d]}): al entrar a tu panel te llevamos directo a pagarlo.` : '';
+}
+
 function seleccionarTipo(tipo) {
     tipoActual = tipo;
     document.getElementById('btnTipoEmpresa').classList.toggle('activo', tipo === 'empresa');
@@ -293,6 +267,7 @@ function seleccionarTipo(tipo) {
         ? 'Entra con tu cuenta Google'
         : 'Entra con Google — es gratis';
     try { localStorage.setItem('decoiarte_tipo', tipo); } catch(e) {}
+    pintarPlanDeseado();
 }
 
 async function loginConGoogle() {
@@ -306,7 +281,7 @@ async function loginConGoogle() {
         return;
     }
     try { localStorage.setItem('decoiarte_acepta_datos', new Date().toISOString()); } catch(e) {}
-    const plan = document.querySelector('input[name="plan"]:checked')?.value || 'profesional';
+    const plan = 'gratis';   // toda empresa nace en Gratis; el plan de pago se compra desde su panel
     try {
         localStorage.setItem('decoiarte_plan', plan);
         localStorage.setItem('decoiarte_tipo', tipoActual);
@@ -377,7 +352,7 @@ async function manejarCallback() {
         mostrarAlerta('👋 ¡Bienvenido! Elige si eres un negocio o si quieres remodelar tu espacio, y acepta la política para terminar.');
         return;
     }
-    const plan = (() => { try { return localStorage.getItem('decoiarte_plan') || 'profesional'; } catch(e) { return 'profesional'; } })();
+    const plan = 'gratis';   // toda empresa nace en Gratis (antes: el plan elegido, o Profesional si faltaba)
 
     document.getElementById('formContenido').style.display = 'none';
     document.getElementById('loginLink').style.display     = 'none';
@@ -474,14 +449,19 @@ async function manejarCallback() {
 }
 
 function mostrarExitoEmpresa(nombre, email, plan, fotos) {
+    const deseado = planDeseado();
+    const btnIr = document.getElementById('btnIrDashboard');
+    if (btnIr && deseado) { btnIr.href = '/dashboard?plan=' + deseado; btnIr.textContent = 'Ir a mi panel y activar el plan ' + NOMBRES_PLAN[deseado] + ' →'; }
     const mensajeFinal = plan === 'gratis'
-        ? '✅ Ya puedes entrar a tu dashboard y subir tu catálogo. Actualiza cuando quieras para desbloquear el bot de WhatsApp, CRM y Visor 3D.'
+        ? (deseado
+            ? `✅ Tu tienda ya está creada. Entra a tu panel y paga el plan ${NOMBRES_PLAN[deseado]} (${PRECIOS_PLAN[deseado]}) para activarlo.`
+            : '✅ Ya puedes entrar a tu panel y subir tu catálogo. Cuando quieras, elige un plan para desbloquear la IA y más herramientas.')
         : '💳 Entra a tu dashboard y toca "Pagar y activar mi plan" para pagarlo en línea con Wompi. Al confirmarse el pago se activa solo.';
     document.getElementById('exitoDatosEmpresa').innerHTML = `
         <p>👤 <strong>${nombre}</strong></p>
         <p>📧 <strong>${email}</strong></p>
         <p>📦 Plan: <strong>${NOMBRES_PLAN[plan] || plan}</strong></p>
-        <p>📸 <strong>${fotos} imágenes con IA durante el año de tu plan</strong></p>
+        ${plan === 'gratis' ? '<p>🛒 <strong>Ya puedes vender desde tu panel</strong></p>' : `<p>📸 <strong>${fotos} imágenes con IA durante el año de tu plan</strong></p>`}
         <p style="margin-top:10px;font-size:12px;color:#A78BFA;">${mensajeFinal}</p>`;
     document.getElementById('exitoEmpresa').style.display = 'block';
 }

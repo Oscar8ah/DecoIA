@@ -1072,6 +1072,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         await cargarNotificaciones();
         escucharNotificaciones();
         abrirPaginaDesdeHash();
+        abrirPlanDeseado();
     } catch (e) {
         console.error('Error cargando el dashboard:', e);
         const overlay = document.getElementById('loadingOverlay');
@@ -1205,6 +1206,15 @@ function renderDashboard(empresa, plan, imagenes) {
     }
     avisoVenc.style.display = empresaEstado === 'vencido' ? 'block' : 'none';
     avisoVenc.innerHTML = `⌛ <b>Tu plan venció${planVence ? ' el ' + fechaCorta(planVence) : ''}.</b> Tu tienda, tus productos y tus pedidos siguen funcionando y puedes seguir vendiendo. Las herramientas del plan y las imágenes con IA están en pausa hasta que compres un plan nuevo. <a href="#" onclick="abrirModalCambioPlan();return false;" style="color:#FDE68A;font-weight:700;">Comprar un plan →</a>`;
+    // Aviso para quien está en Gratis: ya puede vender y puede elegir su plan cuando quiera
+    let avisoGratis = document.getElementById('avisoPlanGratis');
+    if (!avisoGratis) {
+        avisoGratis = document.createElement('div'); avisoGratis.id = 'avisoPlanGratis';
+        avisoGratis.style.cssText = 'background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.45);color:#DDD6FE;border-radius:14px;padding:14px 18px;margin-bottom:18px;font-size:14px;line-height:1.55;';
+        const grid = document.querySelector('.stats-grid'); if (grid) grid.before(avisoGratis);
+    }
+    avisoGratis.style.display = (planNombre === 'gratis' && empresaEstado === 'activo') ? 'block' : 'none';
+    avisoGratis.innerHTML = `🎁 <b>Estás en el plan Gratis.</b> Ya puedes vender: sube tu catálogo, recibe pedidos y cotiza domicilios. Cuando quieras, elige un plan para desbloquear la IA y más herramientas (pago único · 1 año). <a href="#" onclick="abrirModalCambioPlan();return false;" style="color:#C4B5FD;font-weight:700;">Ver planes →</a>`;
     document.getElementById('planNombrePag').textContent = NOMBRES_PLAN[planNombre]||planNombre;
     document.getElementById('planPrecioPag').textContent = (PRECIOS[planNombre]||'') + textoVigencia();
     document.getElementById('planFeatures').innerHTML    = (FEATURES_PLAN[planNombre]||[]).map(f=>`<span class="feature-tag">✓ ${f}</span>`).join('');
@@ -1860,6 +1870,22 @@ function precioDePlan(planId) {
 // Lo que la tienda YA pagó: si su plan está pendiente, nada (paga el plan completo)
 function precioYaPagado() { return empresaEstado === 'activo' ? precioDePlan(planIdActual) : 0; }
 
+// ¿La tienda está en el plan Gratis (activa, sin plan de pago)? Gratis no vence.
+function esGratisActivo() { return empresaEstado === 'activo' && Number(precioDePlan(planIdActual) || 0) <= 0; }
+// Quien llegó desde un botón de plan del Home (/dashboard?plan=… o recordado al registrarse)
+// y sigue en Gratis: se le abre directo el pago de ese plan.
+function abrirPlanDeseado() {
+    let plan = null;
+    try { plan = new URLSearchParams(location.search).get('plan') || localStorage.getItem('decoiarte_plan_deseado'); localStorage.removeItem('decoiarte_plan_deseado'); } catch (e) {}
+    if (!plan) return;
+    try { if (history.replaceState) history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
+    if (!['basico','profesional','premium','corporativo'].includes(plan) || !esGratisActivo()) return;
+    abrirModalCambioPlan();
+    const sel = document.getElementById('selectPlanSolicitado');
+    const p = todosPlanesDash.find(x => x.nombre === plan);
+    if (sel && p && [...sel.options].some(o => o.value === p.id)) { sel.value = p.id; actualizarDiferenciaPlan(); }
+}
+
 function fechaCorta(d) { return d.toLocaleDateString('es-CO', { day:'numeric', month:'long', year:'numeric' }); }
 function diasParaVencer() { return planVence ? Math.ceil((planVence - Date.now()) / 86400000) : null; }
 // Se puede renovar el MISMO plan cuando faltan 30 días o menos (o ya venció)
@@ -1889,7 +1915,7 @@ function abrirModalCambioPlan() {
         (p.id === planIdActual && (empresaEstado !== 'activo' || puedeRenovar())) ||
         (p.id !== planIdActual && Number(p.precio||0) > precioActual)));
     const tituloModal = document.querySelector('#modalCambioPlan h2');
-    if (tituloModal) tituloModal.textContent = (empresaEstado === 'vencido' || puedeRenovar()) ? '🔄 Renovar o subir de plan' : '⬆️ Subir de plan';
+    if (tituloModal) tituloModal.textContent = esGratisActivo() ? '🎁 Elige tu plan' : (empresaEstado === 'vencido' || puedeRenovar()) ? '🔄 Renovar o subir de plan' : '⬆️ Subir de plan';
     document.getElementById('cambioPlanAlerta').className = 'alerta';
     if (opciones.length === 0) {
         mostrarAlerta('cambioPlanAlerta', planActual === 'corporativo' ? '🎉 Ya tienes el plan más alto.' : '⚠️ No hay planes disponibles para subir en este momento.', 'error');
@@ -1908,13 +1934,16 @@ function actualizarDiferenciaPlan() {
     if (!select.value) { texto.textContent = ''; return; }
     const diferencia   = precioAPagar(select.value);
     const renovar      = select.value === planIdActual && empresaEstado === 'activo';
-    texto.textContent = renovar
+    const incluidas = Number((todosPlanesDash.find(p => p.id === select.value) || {}).fotos_incluidas || 0);
+    texto.textContent = esGratisActivo()
+        ? `Pago único: $${diferencia.toLocaleString('es-CO')} COP. Tu plan quedará activo por un año desde hoy${incluidas ? ', con ' + incluidas + ' imágenes con IA' : ''}.`
+        : renovar
         ? `Renovación por un año: $${diferencia.toLocaleString('es-CO')} COP. Tu plan quedará vigente hasta el ${fechaCorta(new Date(Math.max(planVence || Date.now(), Date.now()) + 365 * 86400000))}.`
         : empresaEstado !== 'activo'
         ? `Total a pagar (un año de plan): $${diferencia.toLocaleString('es-CO')} COP`
         : `Diferencia a pagar: $${diferencia.toLocaleString('es-CO')} COP. Conservas tu fecha de vencimiento (${fechaCorta(planVence || new Date())}).`;
     const btnPagar = document.getElementById('btnEnviarSolicitudPlan');
-    if (btnPagar && !btnPagar.disabled) btnPagar.innerHTML = renovar ? '💳 Pagar y renovar un año' : (empresaEstado !== 'activo' ? '💳 Pagar y activar mi plan' : '💳 Pagar diferencia y subir de plan');
+    if (btnPagar && !btnPagar.disabled) btnPagar.innerHTML = esGratisActivo() ? '💳 Pagar y activar mi plan' : renovar ? '💳 Pagar y renovar un año' : (empresaEstado !== 'activo' ? '💳 Pagar y activar mi plan' : '💳 Pagar diferencia y subir de plan');
 }
 
 async function generarFirmaWompiDash(referencia, monto, moneda) {
